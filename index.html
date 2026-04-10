@@ -1,10 +1,340 @@
 <!DOCTYPE html>
-<html>
+
+<html lang="ro">
 <head>
-    <title>Weather For Moto</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Moto Meteo</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0d0f12; --surface: #13161b; --border: #1e2229;
+  --accent: #f97316; --danger: #ef4444; --warn: #eab308;
+  --ok: #22c55e; --text: #e8eaed; --muted: #6b7280;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: 'IBM Plex Mono', monospace; min-height: 100vh; }
+.display { font-family: 'Bebas Neue', sans-serif; }
+
+/* HEADER */
+.header {
+background: var(–surface); border-bottom: 1px solid var(–border);
+padding: 14px 20px; display: flex; align-items: center;
+justify-content: space-between; flex-wrap: wrap; gap: 10px;
+position: sticky; top: 0; z-index: 100;
+}
+.logo { font-size: 26px; letter-spacing: 2px; color: var(–accent); line-height: 1; }
+.logo span { color: var(–text); opacity: 0.4; font-size: 18px; }
+.updated { font-size: 10px; color: var(–muted); letter-spacing: 1px; margin-top: 2px; }
+.search { display: flex; gap: 8px; align-items: center; }
+.search input {
+background: var(–bg); border: 1px solid var(–border); color: var(–text);
+font-family: ‘IBM Plex Mono’, monospace; font-size: 12px;
+padding: 7px 12px; border-radius: 4px; width: 170px; outline: none;
+}
+.search input:focus { border-color: var(–accent); }
+.search input::placeholder { color: var(–muted); }
+.btn {
+background: var(–accent); border: none; color: #000;
+font-family: ‘Bebas Neue’, sans-serif; font-size: 15px;
+letter-spacing: 1px; padding: 7px 16px; border-radius: 4px; cursor: pointer;
+}
+.btn-sm {
+background: var(–surface); border: 1px solid var(–border); color: var(–muted);
+font-family: ‘Bebas Neue’, sans-serif; font-size: 15px;
+padding: 7px 12px; border-radius: 4px; cursor: pointer;
+}
+
+/* MAIN */
+.main { max-width: 880px; margin: 0 auto; padding: 20px 16px; }
+
+/* LOCATION */
+.location-title { font-size: 44px; letter-spacing: 3px; line-height: 1; margin-bottom: 2px; }
+.location-sub { font-size: 10px; color: var(–muted); letter-spacing: 2px; margin-bottom: 22px; }
+
+/* SCORE */
+.score-card {
+background: var(–surface); border: 1px solid var(–border);
+border-radius: 8px; padding: 18px 22px; margin-bottom: 16px;
+display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+}
+.score-num { font-size: 72px; line-height: 1; min-width: 90px; }
+.score-title { font-size: 20px; letter-spacing: 2px; margin-bottom: 4px; }
+.score-msg { font-size: 12px; color: var(–muted); margin-bottom: 4px; }
+.score-detail { font-size: 11px; color: var(–muted); }
+
+/* NOW GRID */
+.now-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 20px; }
+.stat {
+background: var(–surface); border: 1px solid var(–border);
+border-radius: 6px; padding: 12px 14px; position: relative;
+}
+.stat-lbl { font-size: 9px; color: var(–muted); letter-spacing: 2px; margin-bottom: 6px; }
+.stat-val { font-size: 30px; line-height: 1; }
+.stat-sub { font-size: 10px; color: var(–muted); margin-top: 3px; }
+.stat-icon { position: absolute; top: 10px; right: 10px; font-size: 18px; opacity: 0.35; }
+
+/* SECTION */
+.sec-title {
+font-size: 13px; letter-spacing: 3px; color: var(–muted);
+margin-bottom: 10px; margin-top: 22px;
+display: flex; align-items: center; gap: 8px;
+}
+.sec-line { flex: 1; height: 1px; background: var(–border); }
+
+/* HOURLY */
+.hourly { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px; }
+.hourly::-webkit-scrollbar { height: 3px; }
+.hourly::-webkit-scrollbar-thumb { background: var(–border); border-radius: 2px; }
+.hour {
+background: var(–surface); border: 1px solid var(–border);
+border-radius: 6px; padding: 10px 8px; min-width: 68px;
+text-align: center; flex-shrink: 0;
+}
+.hour-time { font-size: 10px; color: var(–muted); margin-bottom: 5px; letter-spacing: 1px; }
+.hour-icon { font-size: 20px; margin-bottom: 5px; }
+.hour-temp { font-size: 22px; }
+.hour-rain { font-size: 10px; margin-top: 3px; }
+.hour-wind { font-size: 10px; color: var(–muted); margin-top: 2px; }
+
+/* DAILY */
+.daily { display: flex; flex-direction: column; gap: 8px; }
+.day {
+background: var(–surface); border: 1px solid var(–border);
+border-radius: 6px; padding: 12px 16px;
+display: grid; grid-template-columns: 90px 36px 1fr 65px 65px 80px;
+align-items: center; gap: 10px;
+}
+.day-name { font-size: 16px; letter-spacing: 1px; }
+.day-icon { font-size: 22px; }
+.bar-wrap { display: flex; align-items: center; gap: 6px; }
+.bar-min { font-size: 11px; color: var(–muted); min-width: 28px; text-align: right; }
+.bar-max { font-size: 11px; min-width: 28px; }
+.bar-bg { flex: 1; height: 4px; background: var(–border); border-radius: 2px; overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 2px; background: linear-gradient(90deg, #60a5fa, #f97316); }
+.day-stat { text-align: center; }
+.day-stat-val { font-size: 16px; }
+.day-stat-lbl { font-size: 9px; color: var(–muted); letter-spacing: 1px; }
+.verdict {
+font-size: 10px; padding: 3px 8px; border-radius: 3px;
+text-align: center; letter-spacing: 1px; font-size: 11px;
+}
+.v-ok { background: rgba(34,197,94,0.15); color: var(–ok); }
+.v-warn { background: rgba(234,179,8,0.15); color: var(–warn); }
+.v-bad { background: rgba(239,68,68,0.15); color: var(–danger); }
+
+/* STATES */
+.loading {
+text-align: center; padding: 60px 20px; color: var(–muted);
+font-size: 13px; letter-spacing: 2px;
+}
+.spin { font-size: 36px; display: block; margin-bottom: 16px; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.err {
+background: rgba(239,68,68,0.1); border: 1px solid var(–danger);
+border-radius: 6px; padding: 16px; color: var(–danger); font-size: 12px; margin-top: 16px;
+}
+.footer { margin-top: 28px; padding-top: 14px; border-top: 1px solid var(–border); font-size: 10px; color: var(–muted); letter-spacing: 1px; text-align: center; }
+
+@media (max-width: 580px) {
+.header { flex-direction: column; align-items: flex-start; }
+.search input { width: 140px; }
+.location-title { font-size: 34px; }
+.day { grid-template-columns: 70px 28px 1fr 55px 55px; }
+.day .verdict { display: none; }
+}
+</style>
+
 </head>
 <body>
-    <h1>Welcome to Weather For Moto</h1>
-    <p>This is a project that provides weather forecasts and information for motorcycle enthusiasts.</p>
+
+<div class="header">
+  <div>
+    <div class="logo display">MOTO <span>///</span> METEO</div>
+    <div class="updated" id="upd">—</div>
+  </div>
+  <div class="search">
+    <input id="city-in" type="text" placeholder="Oraș..." value="Bucharest" />
+    <button class="btn display" onclick="searchCity()">GO</button>
+    <button class="btn-sm display" onclick="reload()" title="Reîncarcă">↻</button>
+  </div>
+</div>
+
+<div class="main" id="app">
+  <div class="loading"><span class="spin">⚙</span>SE ÎNCARCĂ...</div>
+</div>
+
+<script>
+var LAT = 44.4268, LON = 26.1025, CITY = "București";
+
+var WI = {0:"☀️",1:"🌤️",2:"⛅",3:"☁️",45:"🌫️",48:"🌫️",51:"🌦️",53:"🌦️",55:"🌧️",61:"🌧️",63:"🌧️",65:"🌧️",71:"❄️",73:"❄️",75:"❄️",77:"🌨️",80:"🌦️",81:"🌧️",82:"⛈️",85:"🌨️",86:"🌨️",95:"⛈️",96:"⛈️",99:"⛈️"};
+var WD = {0:"Cer senin",1:"Parțial înnorat",2:"Înnorat",3:"Acoperit",45:"Ceață",48:"Ceață cu chiciură",51:"Burniță ușoară",53:"Burniță",55:"Burniță densă",61:"Ploaie ușoară",63:"Ploaie moderată",65:"Ploaie abundentă",71:"Ninsoare ușoară",73:"Ninsoare",75:"Ninsoare abundentă",80:"Averse ușoare",81:"Averse",82:"Averse puternice",95:"Furtună",96:"Furtună cu grindină",99:"Furtună severă"};
+var DAYS = ["Duminică","Luni","Marți","Miercuri","Joi","Vineri","Sâmbătă"];
+
+function gi(c){return WI[c]||"🌡️";}
+function gd(c){return WD[c]||"—";}
+function wd(d){return["N","NE","E","SE","S","SV","V","NV"][Math.round(d/45)%8];}
+
+function score(feels, gusts, prec, code){
+  var s=100;
+  if(prec>5)s-=50; else if(prec>1)s-=30; else if(prec>0.2)s-=15;
+  if([95,96,99].indexOf(code)>-1)s-=40;
+  if(gusts>70)s-=30; else if(gusts>50)s-=15; else if(gusts>35)s-=8;
+  if(feels<5)s-=25; else if(feels<10)s-=12; else if(feels>36)s-=10;
+  if([45,48].indexOf(code)>-1)s-=20;
+  return Math.max(0,Math.min(100,Math.round(s)));
+}
+
+function scoreInfo(s){
+  if(s>=80)return{label:"IDEAL PENTRU MERS",color:"var(--ok)",msg:"Condiții bune. Drum liber! 🏍️"};
+  if(s>=60)return{label:"ACCEPTABIL",color:"var(--accent)",msg:"Condiții ok, fii atent la schimbări."};
+  if(s>=40)return{label:"CU PRECAUȚIE",color:"var(--warn)",msg:"Mergi cu atenție sporită."};
+  return{label:"NU RECOMAND",color:"var(--danger)",msg:"Condiții periculoase pentru două roți."};
+}
+
+function verdictHtml(s){
+  if(s>=75)return'<span class="verdict v-ok display">OK</span>';
+  if(s>=45)return'<span class="verdict v-warn display">PRECAUȚIE</span>';
+  return'<span class="verdict v-bad display">EVITĂ</span>';
+}
+
+function rainColor(p){return p>60?"var(--danger)":p>30?"var(--warn)":"var(--muted)";}
+function windColor(g){return g>50?"var(--danger)":g>35?"var(--warn)":"var(--text)";}
+function tempColor(t){return t<5?"var(--danger)":t>32?"var(--warn)":"var(--text)";}
+
+function reload(){loadWeather();}
+
+async function searchCity(){
+  var q=document.getElementById("city-in").value.trim();
+  if(!q)return;
+  try{
+    var r=await fetch("https://geocoding-api.open-meteo.com/v1/search?name="+encodeURIComponent(q)+"&count=1&language=ro");
+    var d=await r.json();
+    if(!d.results||!d.results.length){alert("Orașul nu a fost găsit.");return;}
+    var x=d.results[0];
+    LAT=x.latitude; LON=x.longitude;
+    CITY=x.name+(x.country_code==="RO"?"":", "+x.country);
+    loadWeather();
+  }catch(e){alert("Eroare geocoding.");}
+}
+
+document.getElementById("city-in").addEventListener("keydown",function(e){if(e.key==="Enter")searchCity();});
+
+async function loadWeather(){
+  document.getElementById("app").innerHTML='<div class="loading"><span class="spin">⚙</span>SE ÎNCARCĂ...</div>';
+  try{
+    var url="https://api.open-meteo.com/v1/forecast?latitude="+LAT+"&longitude="+LON
+      +"&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,wind_gusts_10m,wind_direction_10m,precipitation,weather_code"
+      +"&hourly=temperature_2m,apparent_temperature,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_gusts_10m"
+      +"&daily=weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_sum,wind_speed_10m_max,wind_gusts_10m_max,precipitation_probability_max"
+      +"&timezone=auto&forecast_days=4";
+    var res=await fetch(url);
+    if(!res.ok)throw new Error("HTTP "+res.status);
+    var d=await res.json();
+    render(d);
+    document.getElementById("upd").textContent="ACTUALIZAT: "+new Date().toLocaleTimeString("ro-RO",{hour:"2-digit",minute:"2-digit"});
+  }catch(e){
+    document.getElementById("app").innerHTML='<div class="err">⚠ Eroare la încărcarea datelor: '+e.message+'</div><button class="btn display" style="margin-top:12px" onclick="loadWeather()">RETRY</button>';
+  }
+}
+
+function render(d){
+  var c=d.current;
+  var now=new Date();
+  var s=score(c.apparent_temperature,c.wind_gusts_10m,c.precipitation,c.weather_code);
+  var si=scoreInfo(s);
+
+  // hourly start index
+  var si2=0;
+  for(var i=0;i<d.hourly.time.length;i++){if(new Date(d.hourly.time[i])>=now){si2=i;break;}}
+  var hours=[];
+  for(var j=0;j<24&&si2+j<d.hourly.time.length;j++)hours.push(si2+j);
+
+  var days=d.daily;
+  var allMin=Math.min.apply(null,days.temperature_2m_min);
+  var allMax=Math.max.apply(null,days.temperature_2m_max);
+
+  var html='';
+
+  // Location
+  html+='<div class="location-title display">'+CITY.toUpperCase()+'</div>';
+  html+='<div class="location-sub">'+LAT.toFixed(4)+'° N · '+LON.toFixed(4)+'° E · '+d.timezone+'</div>';
+
+  // Score card
+  html+='<div class="score-card" style="border-left:4px solid '+si.color+'">';
+  html+='<div class="score-num display" style="color:'+si.color+'">'+s+'</div>';
+  html+='<div><div class="score-title display" style="color:'+si.color+'">'+si.label+'</div>';
+  html+='<div class="score-msg">'+si.msg+'</div>';
+  html+='<div class="score-detail">'+gi(c.weather_code)+' '+gd(c.weather_code)+' &nbsp;·&nbsp; Resimțit '+Math.round(c.apparent_temperature)+'°C &nbsp;·&nbsp; Rafale '+Math.round(c.wind_gusts_10m)+' km/h</div>';
+  html+='</div></div>';
+
+  // Stats
+  html+='<div class="now-grid">';
+  html+='<div class="stat"><div class="stat-lbl">TEMPERATURĂ</div><div class="stat-val display" style="color:'+tempColor(c.temperature_2m)+'">'+Math.round(c.temperature_2m)+'°</div><div class="stat-sub">resimțit '+Math.round(c.apparent_temperature)+'°C</div><div class="stat-icon">🌡️</div></div>';
+  html+='<div class="stat"><div class="stat-lbl">VÂNT / RAFALE</div><div class="stat-val display" style="color:'+windColor(c.wind_gusts_10m)+'">'+Math.round(c.wind_speed_10m)+'</div><div class="stat-sub">rafale '+Math.round(c.wind_gusts_10m)+' km/h · '+wd(c.wind_direction_10m)+'</div><div class="stat-icon">💨</div></div>';
+  html+='<div class="stat"><div class="stat-lbl">PRECIPITAȚII</div><div class="stat-val display" style="color:'+(c.precipitation>1?"var(--danger)":c.precipitation>0.1?"var(--warn)":"var(--ok)")+'">'+c.precipitation.toFixed(1)+'</div><div class="stat-sub">mm / oră curentă</div><div class="stat-icon">🌧️</div></div>';
+  html+='<div class="stat"><div class="stat-lbl">UMIDITATE</div><div class="stat-val display" style="color:'+(c.relative_humidity_2m>90?"var(--warn)":"var(--text)")+'">'+c.relative_humidity_2m+'%</div><div class="stat-sub">drum potențial umed</div><div class="stat-icon">💧</div></div>';
+  html+='</div>';
+
+  // Hourly
+  html+='<div class="sec-title display">ORA CU ORA — 24H<div class="sec-line"></div></div>';
+  html+='<div class="hourly">';
+  hours.forEach(function(i,idx){
+    var t=new Date(d.hourly.time[i]);
+    var hh=t.getHours().toString().padStart(2,"0")+":00";
+    var temp=Math.round(d.hourly.temperature_2m[i]);
+    var rp=d.hourly.precipitation_probability[i];
+    var prec=d.hourly.precipitation[i];
+    var wind=Math.round(d.hourly.wind_speed_10m[i]);
+    var gusts=Math.round(d.hourly.wind_gusts_10m[i]);
+    var code=d.hourly.weather_code[i];
+    var hs=score(d.hourly.apparent_temperature[i],gusts,prec,code);
+    var bc=hs<40?"var(--danger)":rp>40?"var(--warn)":idx===0?"var(--accent)":"var(--border)";
+    html+='<div class="hour" style="border-color:'+bc+'">';
+    html+='<div class="hour-time">'+(idx===0?"ACUM":hh)+'</div>';
+    html+='<div class="hour-icon">'+gi(code)+'</div>';
+    html+='<div class="hour-temp display">'+temp+'°</div>';
+    html+='<div class="hour-rain" style="color:'+rainColor(rp)+'">'+rp+'% 💧</div>';
+    html+='<div class="hour-wind">'+wind+' km/h</div>';
+    html+='</div>';
+  });
+  html+='</div>';
+
+  // Daily
+  html+='<div class="sec-title display" style="margin-top:22px">PROGNOZĂ 4 ZILE<div class="sec-line"></div></div>';
+  html+='<div class="daily">';
+  days.time.forEach(function(dt,i){
+    var date=new Date(dt+"T12:00:00");
+    var dname=i===0?"AZI":DAYS[date.getDay()];
+    var tMin=Math.round(days.temperature_2m_min[i]);
+    var tMax=Math.round(days.temperature_2m_max[i]);
+    var rp=days.precipitation_probability_max[i];
+    var gustMax=Math.round(days.wind_gusts_10m_max[i]);
+    var prec=days.precipitation_sum[i];
+    var code=days.weather_code[i];
+    var ds=score(days.apparent_temperature_max[i],gustMax,prec/8,code);
+    var bc=ds<40?"var(--danger)":ds<65?"var(--warn)":"var(--ok)";
+    var range=allMax-allMin||1;
+    var bL=Math.round(((tMin-allMin)/range)*100);
+    var bW=Math.round(((tMax-allMin)/range)*100)-bL;
+    html+='<div class="day" style="border-left:3px solid '+bc+'">';
+    html+='<div class="day-name display">'+dname+'</div>';
+    html+='<div class="day-icon">'+gi(code)+'</div>';
+    html+='<div class="bar-wrap"><span class="bar-min">'+tMin+'°</span><div class="bar-bg"><div class="bar-fill" style="margin-left:'+bL+'%;width:'+bW+'%"></div></div><span class="bar-max">'+tMax+'°</span></div>';
+    html+='<div class="day-stat"><div class="day-stat-val display" style="color:'+rainColor(rp)+'">'+rp+'%</div><div class="day-stat-lbl">PLOAIE</div></div>';
+    html+='<div class="day-stat"><div class="day-stat-val display" style="color:'+windColor(gustMax)+'">'+gustMax+'</div><div class="day-stat-lbl">RAFALE</div></div>';
+    html+=verdictHtml(ds);
+    html+='</div>';
+  });
+  html+='</div>';
+
+  html+='<div class="footer">DATE: OPEN-METEO.COM · GRATUIT · FĂRĂ CONT · ACTUALIZAT ORAR</div>';
+
+  document.getElementById("app").innerHTML=html;
+}
+
+loadWeather();
+</script>
+
 </body>
 </html>
