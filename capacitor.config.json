@@ -19,7 +19,8 @@
             "api.rainviewer.com",
             "tile.openstreetmap.org",
             "revenuecat.com",
-            "api.revenuecat.com"
+            "api.revenuecat.com",
+            "weatherformoto-production.up.railway.app"
         ]
     },
     "plugins": {
