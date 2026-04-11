@@ -132,8 +132,12 @@ async function searchCity(){
   if(!q)return;
   try{
     var r=await fetch(API_URL+"/geocode?city="+encodeURIComponent(q));
+    if(!r.ok){
+      var errMsg="HTTP "+r.status;
+      try{var ed=await r.json();errMsg=ed.detail||errMsg;}catch(_){}
+      throw new Error(errMsg);
+    }
     var geo=await r.json();
-    if(!r.ok)throw new Error(geo.detail||"HTTP "+r.status);
     LAT=geo.lat; LON=geo.lon;
     CITY=geo.name+(geo.country&&geo.country!=="RO"?", "+geo.country:"");
     loadWeather();
@@ -151,15 +155,23 @@ async function loadWeather(){
   try{
     var url=API_URL+"/weather?lat="+LAT+"&lon="+LON+"&city="+encodeURIComponent(CITY);
     var res=await fetch(url);
+    if(!res.ok){
+      var errMsg="HTTP "+res.status;
+      try{var ed=await res.json();errMsg=ed.detail||errMsg;}catch(_){}
+      throw new Error(errMsg);
+    }
     var d=await res.json();
-    if(!res.ok)throw new Error(d.detail||"HTTP "+res.status);
     render(d);
     document.getElementById("upd").textContent=
       "ACTUALIZAT: "+new Date().toLocaleTimeString("ro-RO",{hour:"2-digit",minute:"2-digit"});
   }catch(e){
+    var msg=e.message;
+    if(e instanceof TypeError){
+      msg="Nu se poate conecta la backend. Asigură-te că serverul rulează.";
+    }
     document.getElementById("app").innerHTML=
       '<div class="mt-4 p-5 rounded-xl border border-danger bg-danger/10 text-danger text-base font-semibold">'
-      +'⚠️ Backend indisponibil: '+e.message
+      +'⚠️ Backend indisponibil: '+msg
       +'<small class="block mt-2 text-sm font-normal opacity-70">Pornește backend-ul: '
       +'<code class="bg-black/30 px-1 rounded">cd backend &amp;&amp; uvicorn main:app --reload</code></small></div>'
       +'<button onclick="loadWeather()" class="mt-4 bg-accent hover:bg-orange-400 text-black font-display font-bold'

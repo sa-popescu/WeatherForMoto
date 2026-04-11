@@ -249,8 +249,17 @@ async def _fetch_openmeteo(lat: float, lon: float, client: httpx.AsyncClient) ->
         "wind_speed_unit": "kmh",
     }
     resp = await client.get(OPENMETEO_BASE, params=params, timeout=15)
-    resp.raise_for_status()
-    return resp.json()
+    if not resp.is_success:
+        reason: str = resp.text[:200]
+        try:
+            reason = resp.json().get("reason", reason)
+        except Exception:
+            pass
+        raise ValueError(f"Open-Meteo error {resp.status_code}: {reason}")
+    data = resp.json()
+    if data.get("error"):
+        raise ValueError(f"Open-Meteo error: {data.get('reason', 'unknown error')}")
+    return data
 
 
 # ---------------------------------------------------------------------------
