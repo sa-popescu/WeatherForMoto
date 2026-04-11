@@ -28,6 +28,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from weather_service import geocode_city, get_weather, get_route_weather
 import httpx
@@ -55,6 +56,9 @@ DEFAULT_CITY: str = os.getenv("DEFAULT_CITY", "Bucharest")
 # Path to the frontend index.html (one level above the backend/ directory)
 _REPO_ROOT = pathlib.Path(__file__).parent.parent
 INDEX_HTML = _REPO_ROOT / "index.html"
+SW_JS = _REPO_ROOT / "sw.js"
+MANIFEST_JSON = _REPO_ROOT / "manifest.json"
+ICONS_DIR = _REPO_ROOT / "icons"
 
 # ---------------------------------------------------------------------------
 # Lifespan (startup / shutdown)
@@ -89,8 +93,8 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_credentials=False,
+    allow_methods=["GET"],
     allow_headers=["*"],
 )
 
@@ -114,16 +118,20 @@ async def serve_frontend():
     return FileResponse(INDEX_HTML, media_type="text/html")
 
 
-@app.get("/icon-apple.png", include_in_schema=False)
-@app.get("/icon-192.png", include_in_schema=False)
-@app.get("/icon-512.png", include_in_schema=False)
-async def serve_icon(request: Request):
-    """Serve PWA/iOS icon files from the repository root."""
-    filename = request.url.path.lstrip("/")
-    p = _REPO_ROOT / filename
-    if not p.is_file():
-        raise HTTPException(status_code=404, detail="Icon not found.")
-    return FileResponse(str(p), media_type="image/png")
+@app.get("/sw.js", include_in_schema=False)
+async def serve_sw():
+    """Serve the PWA service worker."""
+    if not SW_JS.is_file():
+        raise HTTPException(status_code=404, detail="sw.js not found.")
+    return FileResponse(SW_JS, media_type="application/javascript")
+
+
+@app.get("/manifest.json", include_in_schema=False)
+async def serve_manifest():
+    """Serve the PWA web manifest."""
+    if not MANIFEST_JSON.is_file():
+        raise HTTPException(status_code=404, detail="manifest.json not found.")
+    return FileResponse(MANIFEST_JSON, media_type="application/manifest+json")
 
 
 @app.get("/geocode", tags=["location"])
@@ -261,6 +269,13 @@ async def route_weather(
 
     logger.info("Route weather data returned successfully")
     return data
+
+
+# ---------------------------------------------------------------------------
+# Static icons directory (must be mounted AFTER explicit routes)
+# ---------------------------------------------------------------------------
+if ICONS_DIR.is_dir():
+    app.mount("/icons", StaticFiles(directory=str(ICONS_DIR)), name="icons")
 
 
 # ---------------------------------------------------------------------------
