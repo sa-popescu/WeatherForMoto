@@ -90,11 +90,65 @@
 
     #tempChart {
       width: 100% !important;
-      height: 180px !important;
+      height: 190px !important;
     }
 
     html {
       scroll-behavior: smooth;
+    }
+
+    /* Card hover lift */
+    .wx-card {
+      transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+    }
+    .wx-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+    }
+
+    /* Gauge glow based on score */
+    .gauge-glow-ok    { filter: drop-shadow(0 0 14px rgba(34, 197,  94, 0.45)); }
+    .gauge-glow-warn  { filter: drop-shadow(0 0 14px rgba(249, 115,  22, 0.45)); }
+    .gauge-glow-caution { filter: drop-shadow(0 0 14px rgba(234, 179,   8, 0.45)); }
+    .gauge-glow-danger{ filter: drop-shadow(0 0 14px rgba(239,  68,  68, 0.45)); }
+
+    /* Skeleton shimmer */
+    @keyframes skeleton-shimmer {
+      0%   { background-position: -200% 0; }
+      100% { background-position:  200% 0; }
+    }
+    .skeleton {
+      background: linear-gradient(90deg, #181b22 25%, #232731 50%, #181b22 75%);
+      background-size: 200% 100%;
+      animation: skeleton-shimmer 1.6s ease-in-out infinite;
+      border-radius: 0.75rem;
+    }
+
+    /* Auto-refresh countdown pill */
+    .refresh-pill {
+      font-size: 0.65rem;
+      letter-spacing: 0.08em;
+      opacity: 0.7;
+      transition: opacity 0.3s;
+    }
+    .refresh-pill:hover { opacity: 1; }
+
+    /* Hourly card active "ACUM" glow */
+    .hourly-now {
+      box-shadow: 0 0 0 2px rgba(249,115,22,0.35), 0 4px 16px rgba(249,115,22,0.15);
+    }
+
+    /* Score bar in hourly */
+    .score-bar-track {
+      background: #232731;
+      border-radius: 4px;
+      overflow: hidden;
+      height: 5px;
+    }
+    .score-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.5s cubic-bezier(.4,0,.2,1);
     }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
@@ -133,10 +187,6 @@
 
   <!-- MAIN -->
   <main class="max-w-5xl mx-auto px-4 py-6" id="app">
-    <div class="flex flex-col items-center justify-center py-24 text-muted">
-      <span class="spin-anim text-5xl mb-4">⚙️</span>
-      <span class="font-display text-xl tracking-widest pulse-anim">SE ÎNCARCĂ...</span>
-    </div>
   </main>
 
   <script>
@@ -173,6 +223,23 @@
     var LAT = 44.4268, LON = 26.1025, CITY = "București";
     var _chart = null;
     var DAYS = ["Duminică", "Luni", "Marți", "Miercuri", "Joi", "Vineri", "Sâmbătă"];
+    var _autoRefreshTimer = null;
+    var _refreshSecondsLeft = 0;
+    var AUTO_REFRESH_SEC = 1800; // 30 minutes
+
+    function startAutoRefresh() {
+      if (_autoRefreshTimer) clearInterval(_autoRefreshTimer);
+      _refreshSecondsLeft = AUTO_REFRESH_SEC;
+      _autoRefreshTimer = setInterval(function () {
+        _refreshSecondsLeft--;
+        var pill = document.getElementById('refresh-pill');
+        if (pill) {
+          var m = Math.ceil(_refreshSecondsLeft / 60);
+          pill.textContent = '↻ auto în ' + m + 'm';
+        }
+        if (_refreshSecondsLeft <= 0) loadWeather();
+      }, 1000);
+    }
     var BACKEND_UNAVAILABLE_MSG = "Nu se poate conecta la backend. Asigură-te că serverul rulează.";
 
     function rainCls(p) { return p > 60 ? "text-danger" : p > 30 ? "text-warn" : "text-muted"; }
@@ -259,6 +326,48 @@
       if (s >= 40) return "ACCEPTABIL"; if (s >= 20) return "RISCANT"; return "EVITĂ";
     }
     function omSafe(lst, i) { return (lst && i < lst.length) ? lst[i] : null; }
+
+    // SVG compass rose with directional arrow
+    function windCompassSvg(deg) {
+      if (deg == null) return '';
+      // Arrow points FROM where wind comes; rotate so 0° = North (up)
+      var arrowRad = (deg - 90) * Math.PI / 180;
+      var cos = Math.cos(arrowRad), sin = Math.sin(arrowRad);
+      var tx = 12 + 8 * cos, ty = 12 + 8 * sin; // tip (direction wind goes TO)
+      var tx1 = 12 - 5 * cos, ty1 = 12 - 5 * sin; // tail
+      return '<svg viewBox="0 0 24 24" class="inline-block w-5 h-5 align-middle" style="vertical-align:middle;flex-shrink:0">'
+        + '<circle cx="12" cy="12" r="10" fill="none" stroke="#2d3344" stroke-width="1.5"/>'
+        + '<text x="12" y="5.2" text-anchor="middle" dominant-baseline="middle" fill="#4b5563" font-size="3.5" font-family="Inter,sans-serif" font-weight="600">N</text>'
+        + '<text x="12" y="20.5" text-anchor="middle" dominant-baseline="middle" fill="#374151" font-size="3.5" font-family="Inter,sans-serif">S</text>'
+        + '<text x="20.5" y="12.5" text-anchor="middle" dominant-baseline="middle" fill="#374151" font-size="3.5" font-family="Inter,sans-serif">E</text>'
+        + '<text x="3.5" y="12.5" text-anchor="middle" dominant-baseline="middle" fill="#374151" font-size="3.5" font-family="Inter,sans-serif">V</text>'
+        + '<line x1="' + tx1.toFixed(2) + '" y1="' + ty1.toFixed(2) + '" x2="' + tx.toFixed(2) + '" y2="' + ty.toFixed(2) + '" stroke="#f97316" stroke-width="2" stroke-linecap="round"/>'
+        + '<circle cx="' + tx.toFixed(2) + '" cy="' + ty.toFixed(2) + '" r="1.8" fill="#f97316"/>'
+        + '</svg>';
+    }
+
+    // Skeleton loading layout
+    function skeletonHtml() {
+      var col = '<div class="skeleton h-28 flex-1 rounded-xl"></div>';
+      var card = '<div class="skeleton w-24 h-32 flex-shrink-0 rounded-xl"></div>';
+      return '<div class="space-y-5 py-2">'
+        + '<div class="skeleton h-14 w-72 rounded-xl"></div>'
+        + '<div class="skeleton h-52 w-full rounded-2xl"></div>'
+        + '<div class="grid grid-cols-2 sm:grid-cols-4 gap-3">' + col + col + col + col + '</div>'
+        + '<div class="skeleton h-48 w-full rounded-xl"></div>'
+        + '<div class="flex gap-3 overflow-hidden">' + card + card + card + card + card + '</div>'
+        + '<div class="space-y-3">'
+        + '<div class="skeleton h-14 w-full rounded-xl"></div>'.repeat(3)
+        + '</div>'
+        + '</div>';
+    }
+
+    function gaugeGlowCls(score) {
+      if (score >= 80) return 'gauge-glow-ok';
+      if (score >= 60) return 'gauge-glow-warn';
+      if (score >= 40) return 'gauge-glow-caution';
+      return 'gauge-glow-danger';
+    }
 
     // MET Norway (api.met.no) symbol → WMO code
     var MET_SYMBOL_WMO = {
@@ -594,13 +703,9 @@
     // -----------------------------------------------------------------------
     // Best riding window finder
     // -----------------------------------------------------------------------
-    function findBestWindow(hourly) {
-      if (!hourly || hourly.length < 2) return null;
-      var now = new Date();
-      var today = now.toISOString().slice(0, 10);
-      var todayH = hourly.filter(function (h) { return h.time.startsWith(today) && new Date(h.time) >= now; });
-      if (!todayH.length) return null;
-      var scores = todayH.map(function (h) {
+    function _findWindowForSlice(slice) {
+      if (!slice || slice.length < 1) return null;
+      var scores = slice.map(function (h) {
         return scoreHourly(h.feels_like, h.wind_gusts_kmh, h.precipitation_mm, h.weather_code);
       });
       var bestAvg = -1, bestStart = -1, bestLen = 0;
@@ -617,13 +722,27 @@
         i = j - 1;
       }
       if (bestStart === -1) return null;
-      var from = todayH[bestStart];
-      var to = todayH[Math.min(bestStart + bestLen - 1, todayH.length - 1)];
+      var from = slice[bestStart];
+      var to = slice[Math.min(bestStart + bestLen - 1, slice.length - 1)];
       return {
         avg: Math.round(bestAvg), len: bestLen,
         fromH: new Date(from.time).getHours().toString().padStart(2, "0") + ":00",
         toH: new Date(to.time).getHours().toString().padStart(2, "0") + ":00",
       };
+    }
+    function findBestWindow(hourly) {
+      if (!hourly || hourly.length < 2) return null;
+      var now = new Date();
+      var today = now.toISOString().slice(0, 10);
+      var todayH = hourly.filter(function (h) { return h.time.startsWith(today) && new Date(h.time) >= now; });
+      return _findWindowForSlice(todayH);
+    }
+    function findTomorrowWindow(hourly) {
+      if (!hourly || hourly.length < 2) return null;
+      var tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+      var tomorrowStr = tomorrow.toISOString().slice(0, 10);
+      var slice = hourly.filter(function (h) { return h.time.startsWith(tomorrowStr); });
+      return _findWindowForSlice(slice);
     }
 
     // -----------------------------------------------------------------------
@@ -655,11 +774,7 @@
     document.getElementById("city-in").addEventListener("keydown", function (e) { if (e.key === "Enter") searchCity(); });
 
     async function loadWeather() {
-      document.getElementById("app").innerHTML =
-        '<div class="flex flex-col items-center justify-center py-24 text-muted">'
-        + '<span class="spin-anim text-5xl mb-4">⚙️</span>'
-        + '<span class="font-display text-xl tracking-widest pulse-anim">SE ÎNCARCĂ...</span>'
-        + '</div>';
+      document.getElementById("app").innerHTML = skeletonHtml();
       try {
         var d;
         if (API_URL === null) {
@@ -679,8 +794,10 @@
         }
         render(d);
         saveCity(); renderFavsBar();
-        document.getElementById("upd").textContent =
-          "ACTUALIZAT: " + new Date().toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" });
+        document.getElementById("upd").innerHTML =
+          'ACTUALIZAT: ' + new Date().toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" })
+          + ' &nbsp;<span id="refresh-pill" class="refresh-pill text-muted cursor-pointer" onclick="loadWeather()" title="Refresh acum">↻ auto în 30m</span>';
+        startAutoRefresh();
       } catch (e) {
         document.getElementById("app").innerHTML =
           '<div class="mt-4 p-5 rounded-xl border border-danger bg-danger/10 text-danger text-base font-semibold">'
@@ -721,12 +838,16 @@
           labels: labels,
           datasets: [
             {
-              label: "Temperatură (°C)", data: hourly.map(function (h) { return h.temperature; }),
+              label: "Temperatură (°C)", data: hourly.map(function (h) { return h.temperature != null ? Math.round(h.temperature * 10) / 10 : null; }),
               borderColor: "#f97316", backgroundColor: "rgba(249,115,22,0.10)", tension: 0.4, pointRadius: 3, yAxisID: "y"
             },
             {
-              label: "Resimțit (°C)", data: hourly.map(function (h) { return h.feels_like; }),
+              label: "Resimțit (°C)", data: hourly.map(function (h) { return h.feels_like != null ? Math.round(h.feels_like * 10) / 10 : null; }),
               borderColor: "#60a5fa", backgroundColor: "transparent", tension: 0.4, pointRadius: 2, borderDash: [5, 4], yAxisID: "y"
+            },
+            {
+              label: "Rafale vânt (km/h)", data: hourly.map(function (h) { return h.wind_gusts_kmh != null ? Math.round(h.wind_gusts_kmh) : null; }),
+              borderColor: "#a78bfa", backgroundColor: "rgba(167,139,250,0.08)", tension: 0.4, pointRadius: 0, borderWidth: 1.5, borderDash: [3, 3], yAxisID: "y3"
             },
             {
               label: "Prob. ploaie (%)", data: hourly.map(function (h) { return h.precipitation_probability || 0; }),
@@ -737,7 +858,7 @@
         options: {
           responsive: true, maintainAspectRatio: false,
           interaction: { mode: "index", intersect: false },
-          plugins: { legend: { labels: { color: "#9ca3af", font: { family: "Inter", size: 11 }, boxWidth: 14, padding: 16 } } },
+          plugins: { legend: { labels: { color: "#9ca3af", font: { family: "Inter", size: 11 }, boxWidth: 14, padding: 12 } } },
           scales: {
             x: { ticks: { color: "#6b7280", font: { size: 11 }, maxTicksLimit: 12 }, grid: { color: "rgba(35,39,49,0.8)" } },
             y: {
@@ -748,6 +869,12 @@
               position: "right", min: 0, max: 100,
               ticks: { color: "#60a5fa", font: { size: 11 } }, grid: { drawOnChartArea: false },
               title: { display: true, text: "%", color: "#60a5fa", font: { size: 12 } }
+            },
+            y3: {
+              position: "right", min: 0,
+              ticks: { color: "#a78bfa", font: { size: 11 } }, grid: { drawOnChartArea: false },
+              title: { display: true, text: "km/h", color: "#a78bfa", font: { size: 12 } },
+              display: false  // hidden axis – values still shown in tooltip
             }
           }
         }
@@ -762,11 +889,11 @@
     }
 
     function statCard(icon, label, value, valueCls, sub) {
-      return '<div class="bg-card border border-border rounded-xl p-4 flex flex-col gap-1">'
+      return '<div class="bg-card border border-border rounded-xl p-4 flex flex-col gap-1 wx-card">'
         + '<div class="text-3xl mb-1">' + icon + '</div>'
         + '<div class="text-xs text-muted font-semibold tracking-widest uppercase">' + label + '</div>'
         + '<div class="font-display text-4xl font-bold leading-none ' + valueCls + '">' + value + '</div>'
-        + '<div class="text-xs text-muted mt-1 leading-snug">' + sub + '</div>'
+        + '<div class="text-xs text-muted mt-1 leading-snug flex items-center gap-1">' + sub + '</div>'
         + '</div>';
     }
 
@@ -789,19 +916,28 @@
           + '<div>' + iceMsg + '</div></div>';
       }
 
-      // Best riding window banner
+      // Best riding window banners (today + tomorrow)
       var win = findBestWindow(d.hourly);
-      if (win) {
-        var wBorderCls = win.avg >= 80 ? 'border-ok' : win.avg >= 60 ? 'border-accent' : 'border-warn';
-        var wTextCls = win.avg >= 80 ? 'text-ok' : win.avg >= 60 ? 'text-accent' : 'text-warn';
-        html += '<div class="mb-5 p-4 rounded-xl border bg-card ' + wBorderCls + ' flex items-center gap-4">'
-          + '<span class="text-3xl flex-shrink-0">🎯</span>'
-          + '<div>'
-          + '<div class="font-display text-lg font-bold tracking-wide ' + wTextCls + '">FEREASTRĂ OPTIMĂ AZI: '
-          + win.fromH + ' – ' + win.toH + '</div>'
-          + '<div class="text-xs text-muted mt-0.5">Scor mediu <strong class="' + wTextCls + '">' + win.avg + '/100</strong>'
-          + ' &middot; ' + win.len + 'h consecutiv de condiții bune</div>'
-          + '</div></div>';
+      var winTom = findTomorrowWindow(d.hourly);
+      if (win || winTom) {
+        var _wBanner = function(w, label) {
+          var wBorderCls = w.avg >= 80 ? 'border-ok' : w.avg >= 60 ? 'border-accent' : 'border-warn';
+          var wTextCls   = w.avg >= 80 ? 'text-ok'   : w.avg >= 60 ? 'text-accent'   : 'text-warn';
+          var wBgCls     = w.avg >= 80 ? 'bg-ok/5'   : w.avg >= 60 ? 'bg-accent/5'   : 'bg-warn/5';
+          return '<div class="mb-3 p-4 rounded-xl border ' + wBorderCls + ' ' + wBgCls + ' flex items-center gap-4">'
+            + '<span class="text-3xl flex-shrink-0">🎯</span>'
+            + '<div class="flex-1">'
+            + '<div class="font-display text-lg font-bold tracking-wide ' + wTextCls + '">'
+            + label + ': ' + w.fromH + ' – ' + w.toH + '</div>'
+            + '<div class="text-xs text-muted mt-0.5">Scor mediu <strong class="' + wTextCls + '">' + w.avg + '/100</strong>'
+            + ' &middot; ' + w.len + 'h consecutiv de condiții bune'
+            + (w.avg >= 80 ? ' &middot; <span class="text-ok">Condiții ideale! 🏍️</span>' : '') + '</div>'
+            + '</div>'
+            + '<div class="flex-shrink-0 font-display text-2xl font-bold ' + wTextCls + '">' + w.avg + '</div>'
+            + '</div>';
+        };
+        if (win) html += _wBanner(win, 'FEREASTRĂ OPTIMĂ AZI');
+        if (winTom) html += _wBanner(winTom, 'FEREASTRĂ OPTIMĂ MÂINE');
       }
 
       // Location
@@ -812,7 +948,7 @@
 
       // Hero card
       html += '<div class="bg-card border border-border rounded-2xl p-6 mb-6 flex flex-col sm:flex-row items-center gap-6" style="border-left:5px solid ' + si.color + '">';
-      html += '<div class="relative flex-shrink-0 flex items-center justify-center w-40 h-40">';
+      html += '<div class="relative flex-shrink-0 flex items-center justify-center w-40 h-40 ' + gaugeGlowCls(c.moto_score) + '">';
       html += gaugeHtml(c.moto_score, si.color);
       html += '<div class="absolute inset-0 flex flex-col items-center justify-center">';
       html += '<span class="font-display text-5xl font-bold leading-none" style="color:' + si.color + '">' + c.moto_score + '</span>';
@@ -835,7 +971,9 @@
       html += secTitle('Condiții actuale');
       html += '<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-2">';
       html += statCard('🌡️', 'Temperatură', Math.round(c.temperature) + '°', tempCls(c.temperature), 'resimțit ' + Math.round(c.feels_like) + '°C');
-      html += statCard('💨', 'Vânt', Math.round(c.wind_speed_kmh) + '<span class="text-lg"> km/h</span>', windCls(c.wind_gusts_kmh), 'rafale ' + Math.round(c.wind_gusts_kmh) + ' km/h · ' + c.wind_direction + ' · Beaufort ' + c.beaufort);
+      html += statCard('💨', 'Vânt', Math.round(c.wind_speed_kmh) + '<span class="text-lg"> km/h</span>', windCls(c.wind_gusts_kmh),
+        windCompassSvg(c.wind_direction_deg) + ' <span class="font-semibold text-gray-300">' + c.wind_direction + '</span>'
+        + ' · rafale <strong>' + Math.round(c.wind_gusts_kmh) + ' km/h</strong> · Bf ' + c.beaufort);
       html += statCard('🌧️', 'Precipitații', c.precipitation_mm.toFixed(1) + '<span class="text-xl"> mm</span>', (c.precipitation_mm > 1 ? 'text-danger' : c.precipitation_mm > 0.1 ? 'text-warn' : 'text-ok'), 'mm / oră curentă');
       html += statCard('💧', 'Umiditate', c.humidity + '<span class="text-xl">%</span>', (c.humidity > 90 ? 'text-warn' : 'text-gray-100'), 'drum potențial umed');
       if (c.pressure_hpa != null)
@@ -853,8 +991,8 @@
       html += '</div>';
 
       // Chart
-      html += secTitle('Grafic temperatură &amp; ploaie — 24h');
-      html += '<div class="bg-card border border-border rounded-xl p-4 mb-2" style="height:200px;">';
+      html += secTitle('Grafic temperatură, vânt &amp; ploaie — 24h');
+      html += '<div class="bg-card border border-border rounded-xl p-4 mb-2" style="height:220px;">';
       html += '<canvas id="tempChart"></canvas></div>';
 
       // Hourly scroll
@@ -865,9 +1003,10 @@
         var hh = t.getHours().toString().padStart(2, "0") + ":00";
         var rp = h.precipitation_probability || 0;
         var hs = scoreHourly(h.feels_like, h.wind_gusts_kmh, h.precipitation_mm, h.weather_code);
+        var scoreColor = hs >= 80 ? '#22c55e' : hs >= 60 ? '#f97316' : hs >= 40 ? '#eab308' : '#ef4444';
         var borderCol = hs < 40 ? "border-danger" : rp > 40 ? "border-warn" : idx === 0 ? "border-accent" : "border-border";
-        var activeRing = idx === 0 ? "ring-1 ring-accent/40" : "";
-        html += '<div class="flex-shrink-0 bg-card border ' + borderCol + ' ' + activeRing + ' rounded-xl p-3 w-24 text-center flex flex-col items-center gap-1">';
+        var nowClass = idx === 0 ? "hourly-now border-accent" : "";
+        html += '<div class="flex-shrink-0 bg-card border ' + borderCol + ' ' + nowClass + ' rounded-xl p-3 w-24 text-center flex flex-col items-center gap-1">';
         html += '<div class="text-xs font-semibold tracking-widest ' + (idx === 0 ? 'text-accent' : 'text-muted') + '">' + (idx === 0 ? "ACUM" : hh) + '</div>';
         html += '<div style="font-size:2.5rem;line-height:1">' + h.icon + '</div>';
         html += '<div class="font-display text-3xl font-bold leading-none text-gray-100">' + Math.round(h.temperature) + '°</div>';
@@ -875,8 +1014,11 @@
         html += '<div class="text-xs text-muted">' + Math.round(h.wind_speed_kmh) + ' km/h</div>';
         if (h.uv_index != null && h.uv_index > 0)
           html += '<div class="text-xs ' + uvCls(h.uv_index) + '">UV ' + h.uv_index.toFixed(0) + '</div>';
-        html += '<div class="mt-1 w-full h-1 rounded-full" style="background:linear-gradient(90deg,'
-          + (hs >= 80 ? '#22c55e' : hs >= 60 ? '#f97316' : hs >= 40 ? '#eab308' : '#ef4444') + ',transparent)"></div>';
+        // Moto score bar + label
+        html += '<div class="mt-2 w-full score-bar-track">'
+          + '<div class="score-bar-fill" style="width:' + hs + '%;background:' + scoreColor + '"></div>'
+          + '</div>';
+        html += '<div class="text-xs font-bold" style="color:' + scoreColor + '">' + hs + '</div>';
         html += '</div>';
       });
       html += '</div>';
@@ -886,38 +1028,51 @@
       html += '<div class="flex flex-col gap-3 mb-8">';
       daily.forEach(function (day, i) {
         var date = new Date(day.date + "T12:00:00");
-        var dname = i === 0 ? "AZI" : DAYS[date.getDay()];
+        var dname = i === 0 ? "AZI" : (i === 1 ? "MÂINE" : DAYS[date.getDay()]);
         var tMin = Math.round(day.temp_min);
         var tMax = Math.round(day.temp_max);
+        var fMin = day.feels_min != null ? Math.round(day.feels_min) : null;
+        var fMax = day.feels_max != null ? Math.round(day.feels_max) : null;
         var rp = day.precipitation_probability || 0;
         var gustMax = Math.round(day.wind_gusts_kmh || 0);
         var ds = day.moto_score;
+        var scoreColor = ds >= 80 ? '#22c55e' : ds >= 60 ? '#f97316' : ds >= 40 ? '#eab308' : '#ef4444';
         var borderCol = ds < 40 ? "border-l-danger" : ds < 65 ? "border-l-warn" : "border-l-ok";
         var range = allMax - allMin || 1;
         var bL = Math.round(((tMin - allMin) / range) * 100);
         var bW = Math.max(4, Math.round(((tMax - allMin) / range) * 100) - bL);
-        html += '<div class="bg-card border border-border border-l-4 ' + borderCol + ' rounded-xl px-4 py-3'
+        html += '<div class="bg-card border border-border border-l-4 ' + borderCol + ' rounded-xl px-4 py-3 wx-card'
           + ' grid items-center gap-3" style="grid-template-columns:90px 48px 1fr 70px 70px 90px">';
-        html += '<div class="font-display text-xl font-bold tracking-wide text-gray-100">' + dname + '</div>';
-        html += '<div style="font-size:2rem;text-align:center">' + day.icon + '</div>';
-        html += '<div class="flex items-center gap-2">'
+        html += '<div>'
+          + '<div class="font-display text-xl font-bold tracking-wide text-gray-100">' + dname + '</div>'
+          + (i <= 1 ? '<div class="text-xs text-muted">' + date.toLocaleDateString("ro-RO", { day: "numeric", month: "short" }) + '</div>' : '')
+          + '</div>';
+        html += '<div style="font-size:2rem;text-align:center" title="' + day.description + '">' + day.icon + '</div>';
+        html += '<div>'
+          + '<div class="flex items-center gap-2">'
           + '<span class="text-sm text-muted w-8 text-right">' + tMin + '°</span>'
           + '<div class="flex-1 h-2 bg-border rounded-full overflow-hidden">'
           + '<div class="h-full rounded-full" style="margin-left:' + bL + '%;width:' + bW + '%;background:linear-gradient(90deg,#60a5fa,#f97316)"></div>'
           + '</div>'
           + '<span class="text-sm text-gray-200 w-8">' + tMax + '°</span>'
+          + '</div>'
+          + (fMin != null ? '<div class="text-xs text-muted mt-0.5 pl-10">resimțit ' + fMin + '° – ' + fMax + '°</div>' : '')
           + '</div>';
         html += '<div class="text-center"><div class="font-display text-xl font-bold ' + rainCls(rp) + '">' + rp + '%</div>'
           + '<div class="text-xs text-muted tracking-wider">PLOAIE</div></div>';
         html += '<div class="text-center"><div class="font-display text-xl font-bold ' + windCls(gustMax) + '">' + gustMax + '</div>'
           + '<div class="text-xs text-muted tracking-wider">KM/H</div></div>';
-        html += verdictBadge(ds);
+        html += '<div class="flex flex-col items-center gap-1">'
+          + verdictBadge(ds)
+          + '<div class="text-xs font-bold" style="color:' + scoreColor + '">' + ds + '/100</div>'
+          + '</div>';
         html += '</div>';
       });
       html += '</div>';
 
       html += '<div class="border-t border-border pt-4 pb-8 text-xs text-muted tracking-widest text-center">'
-        + 'DATE: OPEN-METEO.COM &middot; OPENWEATHERMAP &middot; MET NORWAY (ECMWF) &nbsp;&middot;&nbsp; ACTUALIZAT ORAR'
+        + '<div>DATE: OPEN-METEO.COM &middot; OPENWEATHERMAP &middot; MET NORWAY (ECMWF)</div>'
+        + '<div class="mt-1 text-muted/60">Datele sunt media ponderată a ' + (c.sources ? c.sources.length : 1) + ' surse &middot; Actualizat la fiecare 30 min automat</div>'
         + '</div>';
 
       document.getElementById("app").innerHTML = html;
