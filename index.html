@@ -146,6 +146,7 @@
     //
     //   Example:  var CONFIGURED_BACKEND_URL = "https://your-app.up.railway.app";
     var CONFIGURED_BACKEND_URL = "";
+    var OWM_API_KEY = ""; // injected at build time by GitHub Actions (secret: OWM_API_KEY)
 
     function _resolveApiUrl() {
       if (location.protocol === 'file:') {
@@ -258,6 +259,42 @@
       };
     }
 
+    // -----------------------------------------------------------------------
+    // OWM direct helpers
+    // -----------------------------------------------------------------------
+    function _wavg(vals, weights) {
+      var tw = 0, tv = 0;
+      for (var i = 0; i < vals.length; i++) {
+        if (vals[i] != null) { tv += vals[i] * weights[i]; tw += weights[i]; }
+      }
+      return tw ? Math.round(tv / tw * 100) / 100 : null;
+    }
+    function owmIdToWmo(id) {
+      if (id >= 200 && id < 300) return 95;
+      if (id >= 300 && id < 400) return 53;
+      if (id === 500) return 61; if (id === 501) return 63; if (id >= 500 && id < 510) return 65;
+      if (id >= 510 && id < 600) return 80;
+      if (id === 600) return 71; if (id === 601) return 73; if (id >= 600 && id < 700) return 75;
+      if (id >= 700 && id < 800) return 45;
+      if (id === 800) return 0; if (id === 801) return 1; if (id === 802) return 2;
+      return 3;
+    }
+    async function fetchOWMDirect(lat, lon, key) {
+      try {
+        var base = "https://api.openweathermap.org";
+        var p = "lat=" + lat + "&lon=" + lon + "&appid=" + key + "&units=metric&lang=ro";
+        var results = await Promise.allSettled([
+          fetch(base + "/data/2.5/weather?" + p),
+          fetch(base + "/data/2.5/forecast?" + p + "&cnt=40"),
+          fetch(base + "/data/2.5/air_pollution?lat=" + lat + "&lon=" + lon + "&appid=" + key),
+        ]);
+        var cur = results[0].status === "fulfilled" && results[0].value.ok ? await results[0].value.json() : null;
+        var fc  = results[1].status === "fulfilled" && results[1].value.ok ? await results[1].value.json() : null;
+        var air = results[2].status === "fulfilled" && results[2].value.ok ? await results[2].value.json() : null;
+        return { current: cur, forecast: fc, air: air };
+      } catch (_) { return { current: null, forecast: null, air: null }; }
+    }
+
     async function fetchDirect(lat, lon, cityName) {
       var params = new URLSearchParams({
         latitude: lat, longitude: lon,
@@ -270,59 +307,96 @@
           + "precipitation_probability_max",
         timezone: "auto", forecast_days: 7, wind_speed_unit: "kmh",
       });
-      var resp = await fetch("https://api.open-meteo.com/v1/forecast?" + params);
-      if (!resp.ok) throw new Error("Open-Meteo HTTP " + resp.status);
-      var om = await resp.json();
+      var [omResp, owm] = await Promise.all([
+        fetch("https://api.open-meteo.com/v1/forecast?" + params),
+        OWM_API_KEY ? fetchOWMDirect(lat, lon, OWM_API_KEY) : Promise.resolve({ current: null, forecast: null, air: null }),
+      ]);
+      if (!omResp.ok) throw new Error("Open-Meteo HTTP " + omResp.status);
+      var om = await omResp.json();
       if (om.error) throw new Error("Open-Meteo: " + (om.reason || "eroare"));
+      var owmCur = owm.current, owmFc = owm.forecast, owmAir = owm.air;
 
+      // ---- current: weighted merge of both sources ----
       var c = om.current || {};
-      var prec = c.precipitation || 0;
-      var code = c.weather_code;
-      var windSpeed = c.wind_speed_10m;
-      var windGusts = c.wind_gusts_10m;
-      var feels = c.apparent_temperature;
-      var motoScore = scoreHourly(feels, windGusts, prec, code);
+      var temp     = _wavg([c.temperature_2m,      owmCur ? owmCur.main.temp : null],                                   [1, 1]);
+      var feels    = _wavg([c.apparent_temperature, owmCur ? owmCur.main.feels_like : null],                            [1, 1]);
+      var humidity = _wavg([c.relative_humidity_2m, owmCur ? owmCur.main.humidity : null],                             [1, 1]);
+      var windSpeed = _wavg([c.wind_speed_10m,       owmCur ? owmCur.wind.speed * 3.6 : null],                         [1, 1]);
+      var windGusts = _wavg([c.wind_gusts_10m,       owmCur ? (owmCur.wind.gust || owmCur.wind.speed) * 3.6 : null],  [1.2, 0.8]);
+      var prec      = _wavg([c.precipitation || 0,   owmCur ? ((owmCur.rain && owmCur.rain["1h"]) || 0) : null],      [1, 1]) || 0;
+      var omCode    = c.weather_code;
+      var finalCode = owmCur ? owmIdToWmo(owmCur.weather[0].id) : omCode;
+      var description = owmCur
+        ? owmCur.weather[0].description.charAt(0).toUpperCase() + owmCur.weather[0].description.slice(1)
+        : wmoDesc(omCode);
+      var pressure  = owmCur ? owmCur.main.pressure : c.surface_pressure;
+      var visKm     = owmCur && owmCur.visibility != null
+        ? Math.round(owmCur.visibility / 100) / 10
+        : (c.visibility != null ? Math.round(c.visibility / 100) / 10 : null);
+      var aqi = owmAir && owmAir.list && owmAir.list.length ? owmAir.list[0].main.aqi : null;
+      var motoScore = scoreHourly(feels, windGusts, prec, finalCode);
+      var sources = ["open-meteo"]; if (owmCur) sources.push("openweathermap");
       var current = {
-        temperature: c.temperature_2m,
-        feels_like: feels,
-        humidity: c.relative_humidity_2m,
-        wind_speed_kmh: windSpeed,
-        wind_gusts_kmh: windGusts,
-        wind_direction_deg: c.wind_direction_10m,
-        wind_direction: windDirLabel(c.wind_direction_10m),
-        beaufort: beaufortScale(windSpeed),
-        precipitation_mm: prec,
-        weather_code: code,
-        description: wmoDesc(code),
-        icon: wmoIcon(code),
-        pressure_hpa: c.surface_pressure,
-        visibility_km: c.visibility != null ? Math.round(c.visibility / 100) / 10 : null,
-        aqi: null,
-        moto_score: motoScore,
-        moto_label: motoLabel(motoScore),
-        sources: ["open-meteo"],
+        temperature: temp, feels_like: feels, humidity: humidity,
+        wind_speed_kmh: windSpeed, wind_gusts_kmh: windGusts,
+        wind_direction_deg: c.wind_direction_10m, wind_direction: windDirLabel(c.wind_direction_10m),
+        beaufort: beaufortScale(windSpeed), precipitation_mm: prec,
+        weather_code: finalCode, description: description, icon: wmoIcon(finalCode),
+        pressure_hpa: pressure, visibility_km: visKm, aqi: aqi,
+        moto_score: motoScore, moto_label: motoLabel(motoScore), sources: sources,
       };
 
+      // ---- daily: merge Open-Meteo daily with OWM 3h intervals ----
       var daily = [];
       var dd = om.daily || {};
       var dates = dd.time || [];
+      var owmByDate = {};
+      if (owmFc && owmFc.list) {
+        owmFc.list.forEach(function (it) {
+          var d = it.dt_txt.slice(0, 10);
+          (owmByDate[d] = owmByDate[d] || []).push(it);
+        });
+      }
       for (var i = 0; i < dates.length; i++) {
-        var dcode = omSafe(dd.weather_code, i);
-        var precSum = omSafe(dd.precipitation_sum, i) || 0;
-        var famax = omSafe(dd.apparent_temperature_max, i);
-        var gustMax = omSafe(dd.wind_gusts_10m_max, i);
+        var dcode    = omSafe(dd.weather_code, i);
+        var tMax     = omSafe(dd.temperature_2m_max, i);
+        var tMin     = omSafe(dd.temperature_2m_min, i);
+        var famax    = omSafe(dd.apparent_temperature_max, i);
+        var famin    = omSafe(dd.apparent_temperature_min, i);
+        var gustMax  = omSafe(dd.wind_gusts_10m_max, i);
+        var precSum  = omSafe(dd.precipitation_sum, i) || 0;
+        var owmItems = owmByDate[dates[i]] || [];
+        if (owmItems.length) {
+          var owmTemps = owmItems.map(function (x) { return x.main.temp; });
+          var owmFeels = owmItems.map(function (x) { return x.main.feels_like; });
+          tMax    = _wavg([tMax,    Math.max.apply(null, owmTemps)], [1, 1]);
+          tMin    = _wavg([tMin,    Math.min.apply(null, owmTemps)], [1, 1]);
+          famax   = _wavg([famax,   Math.max.apply(null, owmFeels)], [1, 1]);
+          famin   = _wavg([famin,   Math.min.apply(null, owmFeels)], [1, 1]);
+          var precOwm  = owmItems.reduce(function (s, x) { return s + ((x.rain && x.rain["3h"]) || 0) + ((x.snow && x.snow["3h"]) || 0); }, 0);
+          precSum = _wavg([precSum, precOwm], [1, 1]) || 0;
+          var gustOwm  = Math.max.apply(null, owmItems.map(function (x) { return (x.wind.gust || x.wind.speed) * 3.6; }));
+          gustMax = _wavg([gustMax, gustOwm], [1.2, 0.8]);
+          var codeFreq = {}, modeCode = dcode;
+          owmItems.forEach(function (x) {
+            var wc = owmIdToWmo(x.weather[0].id);
+            codeFreq[wc] = (codeFreq[wc] || 0) + 1;
+            if (codeFreq[wc] > (codeFreq[modeCode] || 0)) modeCode = wc;
+          });
+          dcode = modeCode;
+        }
         var ds = scoreHourly(famax, gustMax, precSum, dcode);
         daily.push({
           date: dates[i], weather_code: dcode, icon: wmoIcon(dcode), description: wmoDesc(dcode),
-          temp_max: omSafe(dd.temperature_2m_max, i), temp_min: omSafe(dd.temperature_2m_min, i),
-          feels_max: famax, feels_min: omSafe(dd.apparent_temperature_min, i),
-          precipitation_mm: Math.round((precSum) * 10) / 10,
+          temp_max: tMax, temp_min: tMin, feels_max: famax, feels_min: famin,
+          precipitation_mm: Math.round(precSum * 10) / 10,
           precipitation_probability: omSafe(dd.precipitation_probability_max, i) || 0,
           wind_max_kmh: omSafe(dd.wind_speed_10m_max, i), wind_gusts_kmh: gustMax,
           moto_score: ds, moto_label: motoLabel(ds),
         });
       }
 
+      // ---- hourly from Open-Meteo (1h resolution) ----
       var hourly = [];
       var hh = om.hourly || {};
       var times = hh.time || [];

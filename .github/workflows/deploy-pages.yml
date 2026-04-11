@@ -28,17 +28,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Inject backend URL
+      - name: Inject backend URL and OWM API key
         env:
           BACKEND_URL: ${{ vars.BACKEND_URL }}
+          OWM_API_KEY: ${{ secrets.OWM_API_KEY }}
         run: |
           if [ -n "$BACKEND_URL" ]; then
-            # Strip trailing slash
             BACKEND_URL="${BACKEND_URL%/}"
             sed -i "s|var CONFIGURED_BACKEND_URL = \"\";|var CONFIGURED_BACKEND_URL = \"${BACKEND_URL}\";|" index.html
             echo "Backend URL injected: ${BACKEND_URL}"
+          fi
+          if [ -n "$OWM_API_KEY" ]; then
+            sed -i "s|var OWM_API_KEY = \"\";|var OWM_API_KEY = \"${OWM_API_KEY}\";|" index.html
+            echo "OWM API key injected"
           else
-            echo "BACKEND_URL variable not set — users will configure it via the in-app UI"
+            echo "OWM_API_KEY secret not set — only Open-Meteo will be used"
           fi
 
       - name: Prepare static files
