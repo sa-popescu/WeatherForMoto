@@ -25,7 +25,7 @@ from contextlib import asynccontextmanager
 from typing import Annotated
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
@@ -112,6 +112,18 @@ async def serve_frontend():
         logger.error("Frontend index.html not found at: %s", INDEX_HTML)
         raise HTTPException(status_code=404, detail=f"Frontend not found at {INDEX_HTML}.")
     return FileResponse(INDEX_HTML, media_type="text/html")
+
+
+@app.get("/icon-apple.png", include_in_schema=False)
+@app.get("/icon-192.png", include_in_schema=False)
+@app.get("/icon-512.png", include_in_schema=False)
+async def serve_icon(request: Request):
+    """Serve PWA/iOS icon files from the repository root."""
+    filename = request.url.path.lstrip("/")
+    p = _REPO_ROOT / filename
+    if not p.is_file():
+        raise HTTPException(status_code=404, detail="Icon not found.")
+    return FileResponse(str(p), media_type="image/png")
 
 
 @app.get("/geocode", tags=["location"])

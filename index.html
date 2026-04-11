@@ -4,7 +4,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>MotoMeteo — Vremea pentru motocicliști</title>
   <link
     href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600&display=swap"
@@ -185,18 +185,99 @@
       border-radius: 4px;
       transition: width 0.5s cubic-bezier(.4, 0, .2, 1);
     }
+
+    /* ── iOS / PWA enhancements ────────────────────────────────────────── */
+
+    /* Suppress the blue tap flash on all elements */
+    * {
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Prevent text selection on interactive UI chrome */
+    button,
+    select,
+    .wx-card,
+    header,
+    .day-arrow {
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    /* Faster tap response — eliminates 300 ms delay on all tappable elements */
+    button,
+    a,
+    [onclick],
+    input[type="submit"],
+    input[type="button"] {
+      touch-action: manipulation;
+    }
+
+    /* Prevent the iOS Safari pull-to-refresh gesture and overscroll bounce */
+    html {
+      overscroll-behavior-y: contain;
+    }
+
+    /* Prevent input auto-zoom on iOS (triggered when font-size < 16px) */
+    @supports (-webkit-touch-callout: none) {
+
+      input,
+      select,
+      textarea {
+        font-size: 16px;
+      }
+    }
+
+    /* Safe-area padding for the sticky header (notch / Dynamic Island) */
+    header.safe-top {
+      padding-top: env(safe-area-inset-top);
+    }
+
+    /* Extra bottom padding so content isn't hidden behind the home indicator */
+    body {
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    /* iOS "Add to Home Screen" install banner */
+    #ios-install-banner {
+      display: none;
+      position: fixed;
+      bottom: calc(env(safe-area-inset-bottom) + 0.75rem);
+      left: 1rem;
+      right: 1rem;
+      z-index: 100;
+      background: #181b22;
+      border: 1px solid #f97316;
+      border-radius: 1rem;
+      padding: 0.85rem 1rem;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      animation: slide-up 0.35s cubic-bezier(.4, 0, .2, 1);
+    }
+
+    @keyframes slide-up {
+      from {
+        transform: translateY(100%);
+        opacity: 0;
+      }
+
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0b0c0f">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="MotoMeteo">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="/icon-apple.png">
 </head>
 
 <body class="bg-bg text-gray-100 font-body min-h-screen overflow-x-hidden">
 
   <!-- HEADER -->
-  <header class="bg-surface border-b border-border sticky top-0 z-50">
+  <header class="bg-surface border-b border-border sticky top-0 z-50 safe-top">
     <div class="max-w-5xl mx-auto px-3 sm:px-4 py-2 sm:py-3 flex items-center justify-between gap-2 sm:gap-4 flex-wrap">
       <div class="flex items-center gap-2 sm:gap-3">
         <span class="text-3xl sm:text-4xl leading-none">🏍️</span>
@@ -300,6 +381,21 @@
     </div>
     <div id="route-result"></div>
   </section>
+
+  <!-- iOS "Add to Home Screen" install banner -->
+  <div id="ios-install-banner" role="alert" aria-live="polite">
+    <div class="flex items-start gap-3">
+      <span class="text-2xl flex-shrink-0">🏍️</span>
+      <div class="flex-1 min-w-0">
+        <div class="font-display font-bold text-sm tracking-widest text-accent">INSTALEAZĂ APLICAȚIA</div>
+        <div class="text-xs text-gray-300 mt-0.5 leading-snug">
+          Apasă butonul <strong>Distribuie</strong> ↑ din bara Safari → <strong>Adaugă pe ecranul de start</strong> pentru experiență completă offline.
+        </div>
+      </div>
+      <button onclick="dismissIosBanner()" aria-label="Închide"
+        class="flex-shrink-0 text-muted hover:text-gray-200 text-lg leading-none transition-colors">✕</button>
+    </div>
+  </div>
 
   <script>
     // ---------------------------------------------------------------------------
@@ -1175,6 +1271,8 @@
         // Sync route planner origin with current city
         var routeOriginEl = document.getElementById('route-origin');
         if (routeOriginEl && !routeOriginEl.value) routeOriginEl.value = CITY;
+        // Record fetch time for visibility-based refresh
+        try { localStorage.setItem('lastWeatherFetch', String(Date.now())); } catch (_) { }
         document.getElementById("upd").innerHTML =
           'ACTUALIZAT: ' + new Date().toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" })
           + ' &nbsp;<span id="refresh-pill" class="refresh-pill text-muted cursor-pointer" onclick="loadWeather()" title="Refresh acum">↻ auto în 30m</span>';
@@ -1550,6 +1648,58 @@
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js').catch(function () { });
     }
+
+    // ── iOS-specific enhancements ──────────────────────────────────────────
+
+    // Haptic feedback wrapper using the Vibration API
+    // iOS Safari 16.4+ supports navigator.vibrate in PWA/standalone mode
+    function haptic(pattern) {
+      try {
+        if (navigator.vibrate) navigator.vibrate(pattern || 10);
+      } catch (_) { }
+    }
+
+    // Global capture listener — fires haptic for every button tap, including
+    // dynamically generated ones (hourly cards, daily rows, route planner, etc.)
+    document.addEventListener('click', function (e) {
+      if (e.target.closest('button')) haptic(10);
+    }, { capture: true });
+
+    // iOS "Add to Home Screen" banner – only show on iOS Safari outside standalone mode
+    function _isIos() {
+      return /iphone|ipad|ipod/i.test(navigator.userAgent);
+    }
+    function _isInStandaloneMode() {
+      return (window.navigator.standalone === true)
+        || window.matchMedia('(display-mode: standalone)').matches;
+    }
+    function dismissIosBanner() {
+      var b = document.getElementById('ios-install-banner');
+      if (b) b.style.display = 'none';
+      try { localStorage.setItem('iosBannerDismissed', '1'); } catch (_) { }
+    }
+    (function () {
+      if (_isIos() && !_isInStandaloneMode()) {
+        try { if (localStorage.getItem('iosBannerDismissed')) return; } catch (_) { }
+        var banner = document.getElementById('ios-install-banner');
+        if (banner) {
+          // Delay to let the page settle before animating in
+          setTimeout(function () { banner.style.display = 'block'; }, 2500);
+        }
+      }
+    }());
+
+    // Refresh weather data when the app returns to the foreground (iOS multitasking)
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') {
+        // Only auto-refresh if data is older than 5 minutes
+        var lastFetch = 0;
+        try { lastFetch = parseInt(localStorage.getItem('lastWeatherFetch'), 10) || 0; } catch (_) { }
+        if (Date.now() - lastFetch > 5 * 60 * 1000) {
+          loadWeather();
+        }
+      }
+    });
     // Set default departure time for route planner (now, rounded to hour)
     (function () {
       var depEl = document.getElementById('route-departure');
