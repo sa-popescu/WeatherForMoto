@@ -49,6 +49,8 @@ jobs:
         run: |
           mkdir -p dist
           cp index.html dist/
+          cp manifest.json dist/
+          cp sw.js dist/
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
