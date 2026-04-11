@@ -487,13 +487,13 @@ async def _fetch_openmeteo(lat: float, lon: float, client: httpx.AsyncClient) ->
         ),
         "hourly": (
             "temperature_2m,apparent_temperature,precipitation_probability,"
-            "precipitation,weather_code,wind_speed_10m,wind_gusts_10m"
+            "precipitation,weather_code,wind_speed_10m,wind_gusts_10m,uv_index"
         ),
         "daily": (
             "weather_code,temperature_2m_max,temperature_2m_min,"
             "apparent_temperature_max,apparent_temperature_min,"
             "precipitation_sum,wind_speed_10m_max,wind_gusts_10m_max,"
-            "precipitation_probability_max"
+            "precipitation_probability_max,sunrise,sunset"
         ),
         "timezone": "auto",
         "forecast_days": 7,
@@ -755,6 +755,8 @@ def _merge_daily(om_data: dict, owm_forecast: dict | None) -> list[dict]:
             "wind_gusts_kmh": wind_gusts,
             "moto_score": score,
             "moto_label": _moto_label(score),
+            "sunrise": _safe(daily.get("sunrise"), i),
+            "sunset": _safe(daily.get("sunset"), i),
         })
 
     return result
@@ -777,6 +779,7 @@ def _build_hourly(om_data: dict) -> list[dict]:
             "weather_code": code,
             "icon": _wmo_icon(code),
             "description": _wmo_desc(code),
+            "uv_index": _safe(hourly.get("uv_index"), i),
         })
     return result
 
