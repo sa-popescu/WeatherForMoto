@@ -336,7 +336,8 @@
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div>
           <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Tipul motocicletei</label>
-          <select id="profile-moto-type" onchange="saveProfile()" class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent">
+          <select id="profile-moto-type" onchange="saveProfile()"
+            class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent">
             <option value="naked">Naked / Roadster</option>
             <option value="touring">Touring</option>
             <option value="enduro">Enduro / Adventure</option>
@@ -345,14 +346,16 @@
           </select>
         </div>
         <div>
-          <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Temperatura de confort: <span id="profile-temp-val">20</span>°C</label>
+          <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Temperatura de confort: <span
+              id="profile-temp-val">20</span>°C</label>
           <input id="profile-comfort-temp" type="range" min="5" max="35" value="20"
             oninput="document.getElementById('profile-temp-val').textContent=this.value; saveProfile()"
             class="w-full accent-accent mt-2">
         </div>
         <div>
           <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Toleranță vânt</label>
-          <select id="profile-wind-tol" onchange="saveProfile()" class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent">
+          <select id="profile-wind-tol" onchange="saveProfile()"
+            class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent">
             <option value="low">Scăzută</option>
             <option value="medium">Medie</option>
             <option value="high">Ridicată</option>
@@ -360,7 +363,8 @@
         </div>
         <div>
           <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Toleranță ploaie</label>
-          <select id="profile-rain-tol" onchange="saveProfile()" class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent">
+          <select id="profile-rain-tol" onchange="saveProfile()"
+            class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent">
             <option value="low">Scăzută</option>
             <option value="medium">Medie</option>
             <option value="high">Ridicată</option>
@@ -416,7 +420,8 @@
       <div class="flex-1 min-w-0">
         <div class="font-display font-bold text-sm tracking-widest text-accent">INSTALEAZĂ APLICAȚIA</div>
         <div class="text-xs text-gray-300 mt-0.5 leading-snug">
-          Apasă butonul <strong>Distribuie</strong> ↑ din bara Safari → <strong>Adaugă pe ecranul de start</strong> pentru experiență completă offline.
+          Apasă butonul <strong>Distribuie</strong> ↑ din bara Safari → <strong>Adaugă pe ecranul de start</strong>
+          pentru experiență completă offline.
         </div>
       </div>
       <button onclick="dismissIosBanner()" aria-label="Închide"
@@ -588,10 +593,10 @@
       recs.forEach(function (rec) {
         var bgCls = rec.urgency === 'required' ? 'bg-danger/10 border-danger/40'
           : rec.urgency === 'warn' ? 'bg-warn/10 border-warn/40'
-          : 'bg-surface border-border';
+            : 'bg-surface border-border';
         var badgeBg = rec.urgency === 'required' ? 'bg-danger/20 text-danger'
           : rec.urgency === 'warn' ? 'bg-warn/20 text-warn'
-          : 'bg-ok/20 text-ok';
+            : 'bg-ok/20 text-ok';
         var badgeLabel = rec.urgency === 'required' ? 'OBLIGATORIU' : rec.urgency === 'warn' ? 'RECOMANDAT' : 'OK';
         html += '<div class="flex items-start gap-3 p-3 rounded-lg border ' + bgCls + '">';
         html += '<span class="text-2xl flex-shrink-0 leading-none mt-0.5">' + rec.icon + '</span>';
