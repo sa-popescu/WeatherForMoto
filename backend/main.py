@@ -18,6 +18,7 @@ GET /geocode?city=Cluj-Napoca
 
 import logging
 import os
+import asyncio
 import pathlib
 from contextlib import asynccontextmanager
 from typing import Annotated
@@ -27,7 +28,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
-from weather_service import geocode_city, get_weather
+from weather_service import geocode_city, get_weather, get_route_weather
 import httpx
 
 # ---------------------------------------------------------------------------
@@ -182,6 +183,72 @@ async def weather(
         ) from exc
 
     logger.info("Weather data returned successfully")
+    return data
+
+
+@app.get("/route", tags=["route"])
+async def route_weather(
+    origin: Annotated[
+        str, Query(description="City of origin")
+    ] = DEFAULT_CITY,
+    destination: Annotated[
+        str, Query(description="City of destination")
+    ] = "Cluj-Napoca",
+    departure: Annotated[
+        str | None,
+        Query(description="Departure datetime in ISO format, e.g. 2024-06-15T08:00"),
+    ] = None,
+    avg_speed: Annotated[
+        float,
+        Query(gt=0, le=250, description="Average riding speed in km/h"),
+    ] = 80.0,
+):
+    """
+    Return weather snapshots along a motorcycle route.
+
+    Provides `origin` → `destination` weather waypoints at estimated arrival
+    times based on the departure time and average speed.  Waypoints are
+    spaced by linear (great-circle) interpolation; actual road distance may
+    differ.
+    """
+    from datetime import datetime as _dt
+
+    if departure is None:
+        departure = _dt.now().isoformat()[:16]
+
+    # Geocode both cities concurrently
+    async with httpx.AsyncClient() as client:
+        try:
+            origin_geo, dest_geo = await asyncio.gather(
+                geocode_city(origin, client),
+                geocode_city(destination, client),
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except Exception as exc:
+            logger.exception("Route geocoding error: %s", exc)
+            raise HTTPException(status_code=502, detail=f"Geocoding error: {exc}") from exc
+
+    origin_name = origin_geo["name"] + (
+        f", {origin_geo['country']}" if origin_geo.get("country") else ""
+    )
+    dest_name = dest_geo["name"] + (
+        f", {dest_geo['country']}" if dest_geo.get("country") else ""
+    )
+
+    try:
+        data = await get_route_weather(
+            origin_geo["lat"], origin_geo["lon"], origin_name,
+            dest_geo["lat"], dest_geo["lon"], dest_name,
+            departure, avg_speed, OWM_API_KEY,
+        )
+    except Exception as exc:
+        logger.exception("Route weather error: %s", exc)
+        raise HTTPException(
+            status_code=502, detail=f"Route weather error: {exc}"
+        ) from exc
+
+    logger.info("Route weather data returned successfully")
     return data
 
 

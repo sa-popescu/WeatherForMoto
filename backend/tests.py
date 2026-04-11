@@ -17,6 +17,9 @@ from weather_service import (
     _merge_current,
     _merge_daily,
     _build_hourly,
+    _gear_recommendation,
+    _road_surface_temp,
+    _haversine_km,
 )
 
 
@@ -193,6 +196,102 @@ def test_build_hourly():
     assert hourly[0]["time"] == "2024-06-01T00:00"
     assert hourly[0]["temperature"] == 18.0
     assert hourly[0]["icon"] == "🌤️"  # code 1
+
+
+# ---------------------------------------------------------------------------
+# Gear recommendation
+# ---------------------------------------------------------------------------
+
+def test_gear_recommendation_rain():
+    recs = _gear_recommendation(feels_like=15, wind_gusts_kmh=20, precipitation_mm=2.0, weather_code=63)
+    categories = [r["category"] for r in recs]
+    assert "ploaie" in categories
+    assert "mănuși_ploaie" in categories
+    # Rain should be required urgency (>1mm)
+    rain_rec = next(r for r in recs if r["category"] == "ploaie")
+    assert rain_rec["urgency"] == "required"
+
+
+def test_gear_recommendation_cold():
+    recs = _gear_recommendation(feels_like=-5, wind_gusts_kmh=10, precipitation_mm=0, weather_code=0)
+    categories = [r["category"] for r in recs]
+    assert "geacă" in categories
+    assert "strat_baza" in categories
+    assert "mănuși" in categories
+    assert "anvelope" in categories
+    jacket = next(r for r in recs if r["category"] == "geacă")
+    assert jacket["urgency"] == "required"
+
+
+def test_gear_recommendation_ideal():
+    recs = _gear_recommendation(feels_like=22, wind_gusts_kmh=15, precipitation_mm=0, weather_code=1)
+    # Should still recommend jacket and gloves at info level
+    categories = [r["category"] for r in recs]
+    assert "geacă" in categories
+    jacket = next(r for r in recs if r["category"] == "geacă")
+    assert jacket["urgency"] == "info"
+
+
+def test_gear_recommendation_fog():
+    recs = _gear_recommendation(feels_like=15, wind_gusts_kmh=10, precipitation_mm=0, weather_code=45)
+    categories = [r["category"] for r in recs]
+    assert "vizibilitate" in categories
+
+
+def test_gear_recommendation_strong_wind():
+    recs = _gear_recommendation(feels_like=20, wind_gusts_kmh=60, precipitation_mm=0, weather_code=0)
+    categories = [r["category"] for r in recs]
+    assert "vizor" in categories
+    visor = next(r for r in recs if r["category"] == "vizor")
+    assert visor["urgency"] == "required"
+
+
+# ---------------------------------------------------------------------------
+# Road surface temperature
+# ---------------------------------------------------------------------------
+
+def test_road_surface_temp_sunny():
+    t = _road_surface_temp(air_temp=20, humidity=50, weather_code=0, precipitation_mm=0)
+    assert t is not None
+    assert t > 20  # sunny day, road warmer than air
+
+
+def test_road_surface_temp_rain():
+    t = _road_surface_temp(air_temp=15, humidity=90, weather_code=63, precipitation_mm=3.0)
+    assert t is not None
+    assert t < 15  # wet road, slightly cooler
+
+
+def test_road_surface_temp_none():
+    t = _road_surface_temp(air_temp=None, humidity=60, weather_code=0, precipitation_mm=0)
+    assert t is None
+
+
+# ---------------------------------------------------------------------------
+# Haversine distance
+# ---------------------------------------------------------------------------
+
+def test_haversine_km_same_point():
+    d = _haversine_km(44.43, 26.10, 44.43, 26.10)
+    assert d == 0.0
+
+
+def test_haversine_km_bucharest_cluj():
+    # Bucharest to Cluj-Napoca ~326 km straight line
+    d = _haversine_km(44.43, 26.10, 46.77, 23.60)
+    assert 300 < d < 360
+
+
+# ---------------------------------------------------------------------------
+# Merge current includes new fields
+# ---------------------------------------------------------------------------
+
+def test_merge_current_includes_gear_and_road_temp():
+    om_data = _make_om_data()
+    result = _merge_current(om_data, None, None)
+    assert "gear_recommendation" in result
+    assert isinstance(result["gear_recommendation"], list)
+    assert "road_surface_temp" in result
 
 
 # ---------------------------------------------------------------------------
