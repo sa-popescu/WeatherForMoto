@@ -30,7 +30,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from weather_service import geocode_city, get_weather, get_route_weather
+from weather_service import geocode_city, get_weather, get_route_weather, get_multi_route_weather
 import httpx
 
 # ---------------------------------------------------------------------------
@@ -166,6 +166,10 @@ async def weather(
         float | None,
         Query(ge=-180, le=180, description="Longitude"),
     ] = None,
+    days: Annotated[
+        int,
+        Query(ge=1, le=16, description="Forecast days (7 free, up to 16 premium)"),
+    ] = 7,
 ):
     """
     Return aggregated weather data.
@@ -196,7 +200,7 @@ async def weather(
         resolved_city = geo["name"] + (f", {geo['country']}" if geo.get("country") else "")
 
     try:
-        data = await get_weather(lat, lon, resolved_city, OWM_API_KEY)
+        data = await get_weather(lat, lon, resolved_city, OWM_API_KEY, forecast_days=days)
     except Exception as exc:
         logger.exception("Weather fetch error: %s", exc)
         raise HTTPException(
@@ -268,6 +272,50 @@ async def route_weather(
         ) from exc
 
     logger.info("Route weather data returned successfully")
+    return data
+
+
+@app.get("/route/multi", tags=["route"])
+async def route_multi(
+    stops: Annotated[str, Query(description="Semicolon-separated city names, e.g. 'Cluj-Napoca;Sibiu;Brașov'")],
+    departure: str | None = None,
+    avg_speed: float = Query(default=80.0, gt=0, le=180),
+):
+    """
+    Compute weather along a multi-stop motorcycle route (premium feature).
+    ``stops`` is a semicolon-separated list of city names (2–5 stops).
+    Returns per-segment route weather the same way as /route.
+    """
+    stop_names = [s.strip() for s in stops.split(";") if s.strip()]
+    if len(stop_names) < 2:
+        raise HTTPException(status_code=422, detail="At least 2 stops required")
+    if len(stop_names) > 5:
+        raise HTTPException(status_code=422, detail="Maximum 5 stops allowed")
+
+    departure_str = departure or _dt.now().isoformat()[:16]
+
+    async with httpx.AsyncClient() as _client:
+        geo_tasks = [geocode_city(name, OWM_API_KEY, _client) for name in stop_names]
+        geo_results = await asyncio.gather(*geo_tasks)
+
+    geocoded: list[dict] = []
+    for i, (name, results) in enumerate(zip(stop_names, geo_results)):
+        if not results:
+            raise HTTPException(
+                status_code=404, detail=f"City not found: {name!r}"
+            )
+        geocoded.append({
+            "name": results[0]["name"],
+            "lat": results[0]["lat"],
+            "lon": results[0]["lon"],
+        })
+
+    try:
+        data = await get_multi_route_weather(geocoded, departure_str, avg_speed, OWM_API_KEY)
+    except Exception as exc:
+        logger.exception("Multi-route weather error: %s", exc)
+        raise HTTPException(status_code=502, detail=f"Route weather error: {exc}") from exc
+
     return data
 
 
