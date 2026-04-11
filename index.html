@@ -240,9 +240,26 @@
     }
     function omSafe(lst, i) { return (lst && i < lst.length) ? lst[i] : null; }
 
-    // -----------------------------------------------------------------------
-    // Direct Open-Meteo fetch (no backend needed)
-    // -----------------------------------------------------------------------
+    // MET Norway (api.met.no) symbol → WMO code
+    var MET_SYMBOL_WMO = {
+      clearsky: 0, fair: 1, partlycloudy: 2, cloudy: 3, fog: 45,
+      lightrainshowers: 80, rainshowers: 81, heavyrainshowers: 82,
+      lightrainshowersandthunder: 95, rainshowersandthunder: 95, heavyrainshowersandthunder: 99,
+      lightsleetshowers: 80, sleetshowers: 81, heavysleetshowers: 82,
+      lightsnowshowers: 71, snowshowers: 73, heavysnowshowers: 75,
+      lightsnowshowersandthunder: 95, snowshowersandthunder: 95, heavysnowshowersandthunder: 99,
+      lightrain: 61, rain: 63, heavyrain: 65,
+      lightrainandthunder: 95, rainandthunder: 95, heavyrainandthunder: 95,
+      lightsleet: 61, sleet: 63, heavysleet: 65,
+      lightsleetandthunder: 95, sleetandthunder: 95, heavysleetandthunder: 99,
+      lightsnow: 71, snow: 73, heavysnow: 75,
+      lightsnowandthunder: 95, snowandthunder: 95, heavysnowandthunder: 99,
+    };
+    function metSymToWmo(sym) {
+      if (!sym) return null;
+      var v = MET_SYMBOL_WMO[sym.replace(/_day$|_night$|_polartwilight$/, '')];
+      return v !== undefined ? v : null;
+    }
     async function geocodeDirect(city) {
       var resp = await fetch(
         "https://geocoding-api.open-meteo.com/v1/search?name=" +
@@ -295,6 +312,18 @@
       } catch (_) { return { current: null, forecast: null, air: null }; }
     }
 
+    async function fetchMET(lat, lon) {
+      // MET Norway Locationforecast 2.0 — free, no key, CORS supported, ECMWF model
+      try {
+        var resp = await fetch(
+          "https://api.met.no/weatherapi/locationforecast/2.0/compact?" +
+          "lat=" + lat.toFixed(4) + "&lon=" + lon.toFixed(4)
+        );
+        if (!resp.ok) return null;
+        return await resp.json();
+      } catch (_) { return null; }
+    }
+
     async function fetchDirect(lat, lon, cityName) {
       var params = new URLSearchParams({
         latitude: lat, longitude: lon,
@@ -307,35 +336,50 @@
           + "precipitation_probability_max",
         timezone: "auto", forecast_days: 7, wind_speed_unit: "kmh",
       });
-      var [omResp, owm] = await Promise.all([
+      var [omResp, owm, metData] = await Promise.all([
         fetch("https://api.open-meteo.com/v1/forecast?" + params),
         OWM_API_KEY ? fetchOWMDirect(lat, lon, OWM_API_KEY) : Promise.resolve({ current: null, forecast: null, air: null }),
+        fetchMET(lat, lon),
       ]);
       if (!omResp.ok) throw new Error("Open-Meteo HTTP " + omResp.status);
       var om = await omResp.json();
       if (om.error) throw new Error("Open-Meteo: " + (om.reason || "eroare"));
       var owmCur = owm.current, owmFc = owm.forecast, owmAir = owm.air;
+      var metSeries = metData && metData.properties ? metData.properties.timeseries || [] : [];
+      var met0 = metSeries[0] || null;
+      var metInst = met0 ? (met0.data.instant.details || {}) : {};
+      var met1h = met0 ? (met0.data.next_1_hours || met0.data.next_6_hours || {}) : {};
 
-      // ---- current: weighted merge of both sources ----
+      // ---- current: weighted merge of 3 sources (OM + OWM + MET Norway) ----
       var c = om.current || {};
-      var temp = _wavg([c.temperature_2m, owmCur ? owmCur.main.temp : null], [1, 1]);
+      var metWind = metInst.wind_speed != null ? metInst.wind_speed * 3.6 : null;
+      var metGust = metInst.wind_speed_of_gust != null ? metInst.wind_speed_of_gust * 3.6 : null;
+      var metPrecCur = met1h.details ? (met1h.details.precipitation_amount || 0) : 0;
+      var metCode = met1h.summary ? metSymToWmo(met1h.summary.symbol_code) : null;
+
+      var temp = _wavg([c.temperature_2m, owmCur ? owmCur.main.temp : null, metInst.air_temperature], [1, 1, 1.2]);
       var feels = _wavg([c.apparent_temperature, owmCur ? owmCur.main.feels_like : null], [1, 1]);
-      var humidity = _wavg([c.relative_humidity_2m, owmCur ? owmCur.main.humidity : null], [1, 1]);
-      var windSpeed = _wavg([c.wind_speed_10m, owmCur ? owmCur.wind.speed * 3.6 : null], [1, 1]);
-      var windGusts = _wavg([c.wind_gusts_10m, owmCur ? (owmCur.wind.gust || owmCur.wind.speed) * 3.6 : null], [1.2, 0.8]);
-      var prec = _wavg([c.precipitation || 0, owmCur ? ((owmCur.rain && owmCur.rain["1h"]) || 0) : null], [1, 1]) || 0;
+      var humidity = _wavg([c.relative_humidity_2m, owmCur ? owmCur.main.humidity : null, metInst.relative_humidity], [1, 1, 1]);
+      var windSpeed = _wavg([c.wind_speed_10m, owmCur ? owmCur.wind.speed * 3.6 : null, metWind], [1, 1, 1.2]);
+      var windGusts = _wavg([c.wind_gusts_10m, owmCur ? (owmCur.wind.gust || owmCur.wind.speed) * 3.6 : null, metGust], [1.2, 0.8, 1.2]);
+      var prec = _wavg([c.precipitation || 0, owmCur ? ((owmCur.rain && owmCur.rain["1h"]) || 0) : null, metPrecCur], [1, 1, 1.2]) || 0;
       var omCode = c.weather_code;
-      var finalCode = owmCur ? owmIdToWmo(owmCur.weather[0].id) : omCode;
+      var owmCode = owmCur ? owmIdToWmo(owmCur.weather[0].id) : null;
+      // Use most severe code across all sources (safety-first for motorcyclists)
+      var allCodes = [omCode, owmCode, metCode].filter(function (x) { return x != null; });
+      var finalCode = allCodes.length ? allCodes.reduce(function (a, b) { return b > a ? b : a; }) : 0;
       var description = owmCur
         ? owmCur.weather[0].description.charAt(0).toUpperCase() + owmCur.weather[0].description.slice(1)
-        : wmoDesc(omCode);
-      var pressure = owmCur ? owmCur.main.pressure : c.surface_pressure;
+        : wmoDesc(finalCode);
+      var pressure = owmCur ? owmCur.main.pressure : (metInst.air_pressure_at_sea_level || c.surface_pressure);
       var visKm = owmCur && owmCur.visibility != null
         ? Math.round(owmCur.visibility / 100) / 10
         : (c.visibility != null ? Math.round(c.visibility / 100) / 10 : null);
       var aqi = owmAir && owmAir.list && owmAir.list.length ? owmAir.list[0].main.aqi : null;
       var motoScore = scoreHourly(feels, windGusts, prec, finalCode);
-      var sources = ["open-meteo"]; if (owmCur) sources.push("openweathermap");
+      var sources = ["open-meteo"];
+      if (owmCur) sources.push("openweathermap");
+      if (met0) sources.push("met-norway");
       var current = {
         temperature: temp, feels_like: feels, humidity: humidity,
         wind_speed_kmh: windSpeed, wind_gusts_kmh: windGusts,
@@ -346,7 +390,15 @@
         moto_score: motoScore, moto_label: motoLabel(motoScore), sources: sources,
       };
 
-      // ---- daily: merge Open-Meteo daily with OWM 3h intervals ----
+      // ---- build MET lookups by date and by time (normalize to YYYY-MM-DDTHH:MM) ----
+      var metByDate = {}, metByTime = {};
+      metSeries.forEach(function (ts) {
+        var d = ts.time.slice(0, 10);
+        (metByDate[d] = metByDate[d] || []).push(ts);
+        metByTime[ts.time.slice(0, 16)] = ts;
+      });
+
+      // ---- daily: merge Open-Meteo daily with OWM 3h + MET hourly ----
       var daily = [];
       var dd = om.daily || {};
       var dates = dd.time || [];
@@ -366,6 +418,7 @@
         var gustMax = omSafe(dd.wind_gusts_10m_max, i);
         var precSum = omSafe(dd.precipitation_sum, i) || 0;
         var owmItems = owmByDate[dates[i]] || [];
+        var metItems = metByDate[dates[i]] || [];
         if (owmItems.length) {
           var owmTemps = owmItems.map(function (x) { return x.main.temp; });
           var owmFeels = owmItems.map(function (x) { return x.main.feels_like; });
@@ -385,6 +438,19 @@
           });
           dcode = modeCode;
         }
+        if (metItems.length) {
+          var metTempsD = metItems.map(function (ts) { return ts.data.instant.details.air_temperature; }).filter(function (x) { return x != null; });
+          var metGustsD = metItems.map(function (ts) { var g = ts.data.instant.details.wind_speed_of_gust, w = ts.data.instant.details.wind_speed; return (g || w) != null ? (g || w) * 3.6 : null; }).filter(function (x) { return x != null; });
+          var metPrecD = metItems.reduce(function (s, ts) { var p = ts.data.next_1_hours || ts.data.next_6_hours; return s + (p && p.details ? (p.details.precipitation_amount || 0) : 0); }, 0);
+          if (metTempsD.length) {
+            tMax = _wavg([tMax, Math.max.apply(null, metTempsD)], [1, 1.2]);
+            tMin = _wavg([tMin, Math.min.apply(null, metTempsD)], [1, 1.2]);
+          }
+          if (metGustsD.length) gustMax = _wavg([gustMax, Math.max.apply(null, metGustsD)], [1, 1.2]);
+          precSum = _wavg([precSum, metPrecD], [1, 1.2]) || 0;
+          var metDayCodes = metItems.map(function (ts) { var p = ts.data.next_1_hours || ts.data.next_6_hours; return p && p.summary ? metSymToWmo(p.summary.symbol_code) : null; }).filter(function (x) { return x != null; });
+          if (metDayCodes.length) { var metMax = metDayCodes.reduce(function (a, b) { return b > a ? b : a; }); if (metMax > dcode) dcode = metMax; }
+        }
         var ds = scoreHourly(famax, gustMax, precSum, dcode);
         daily.push({
           date: dates[i], weather_code: dcode, icon: wmoIcon(dcode), description: wmoDesc(dcode),
@@ -396,21 +462,26 @@
         });
       }
 
-      // ---- hourly from Open-Meteo (1h resolution) ----
+      // ---- hourly: Open-Meteo 1h merged with MET Norway where available ----
       var hourly = [];
       var hh = om.hourly || {};
       var times = hh.time || [];
       for (var i = 0; i < times.length; i++) {
         var hcode = omSafe(hh.weather_code, i);
+        var metH = metByTime[times[i]] || null;
+        var metHInst = metH ? (metH.data.instant.details || {}) : {};
+        var metH1h = metH ? (metH.data.next_1_hours || metH.data.next_6_hours || {}) : {};
+        var metHCode = metH1h.summary ? metSymToWmo(metH1h.summary.symbol_code) : null;
+        var hfinalCode = (metHCode != null && metHCode > hcode) ? metHCode : hcode;
         hourly.push({
           time: times[i],
-          temperature: omSafe(hh.temperature_2m, i),
+          temperature: _wavg([omSafe(hh.temperature_2m, i), metHInst.air_temperature], [1, 1.2]),
           feels_like: omSafe(hh.apparent_temperature, i),
-          precipitation_mm: omSafe(hh.precipitation, i),
+          precipitation_mm: _wavg([omSafe(hh.precipitation, i), metH1h.details ? (metH1h.details.precipitation_amount || 0) : null], [1, 1.2]),
           precipitation_probability: omSafe(hh.precipitation_probability, i),
-          wind_speed_kmh: omSafe(hh.wind_speed_10m, i),
-          wind_gusts_kmh: omSafe(hh.wind_gusts_10m, i),
-          weather_code: hcode, icon: wmoIcon(hcode), description: wmoDesc(hcode),
+          wind_speed_kmh: _wavg([omSafe(hh.wind_speed_10m, i), metHInst.wind_speed != null ? metHInst.wind_speed * 3.6 : null], [1, 1.2]),
+          wind_gusts_kmh: _wavg([omSafe(hh.wind_gusts_10m, i), metHInst.wind_speed_of_gust != null ? metHInst.wind_speed_of_gust * 3.6 : null], [1, 1.2]),
+          weather_code: hfinalCode, icon: wmoIcon(hfinalCode), description: wmoDesc(hfinalCode),
         });
       }
 
