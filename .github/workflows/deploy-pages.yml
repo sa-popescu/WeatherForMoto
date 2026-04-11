@@ -39,7 +39,7 @@ jobs:
             echo "Backend URL injected: ${BACKEND_URL}"
           fi
           if [ -n "$OWM_API_KEY" ]; then
-            sed -i "s|var OWM_API_KEY = \"\";|var OWM_API_KEY = \"${OWM_API_KEY}\";|" index.html
+            sed -i "s|var OWM_API_KEY = \"[^\"]*\";|var OWM_API_KEY = \"${OWM_API_KEY}\";|" index.html
             echo "OWM API key injected"
           else
             echo "OWM_API_KEY secret not set — only Open-Meteo will be used"
