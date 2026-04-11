@@ -24,11 +24,21 @@ WeatherForMoto/
 ### 1. Backend (Python 3.11+)
 
 ```bash
+# Linux / macOS
 cd backend
-python -m venv venv && source venv/bin/activate   # Windows: venv\Scripts\activate
+python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
 # Editează .env și adaugă OPENWEATHERMAP_API_KEY (opțional dar recomandat)
+uvicorn main:app --reload
+```
+
+```bat
+:: Windows
+cd backend
+python -m venv venv && venv\Scripts\activate
+pip install -r requirements.txt
+copy .env.example .env
 uvicorn main:app --reload
 ```
 

@@ -134,6 +134,7 @@ font-size: 13px; letter-spacing: 2px;
 background: rgba(239,68,68,0.1); border: 1px solid var(--danger);
 border-radius: 6px; padding: 16px; color: var(--danger); font-size: 12px; margin-top: 16px;
 }
+.err-hint { opacity: 0.7; margin-top: 6px; display: block; }
 .footer { margin-top: 28px; padding-top: 14px; border-top: 1px solid var(--border); font-size: 10px; color: var(--muted); letter-spacing: 1px; text-align: center; }
 
 @media (max-width: 580px) {
@@ -166,8 +167,10 @@ border-radius: 6px; padding: 16px; color: var(--danger); font-size: 12px; margin
 
 <script>
 // ── Configuration ──────────────────────────────────────────────────────────
-// Point this to wherever your FastAPI backend is running.
-var API_URL = "http://localhost:8000";
+// When opened as a local file (file://) defaults to localhost:8000.
+// When served via HTTP, defaults to the same origin (backend behind same host/reverse-proxy).
+// Override this variable if your backend runs on a different host or port.
+var API_URL = (location.protocol === 'file:') ? "http://localhost:8000" : location.origin;
 
 // ── State ──────────────────────────────────────────────────────────────────
 var LAT = 44.4268, LON = 26.1025, CITY = "București";
@@ -214,7 +217,7 @@ async function searchCity(){
   try{
     var r=await fetch(API_URL+"/geocode?city="+encodeURIComponent(q));
     var geo=await r.json();
-    if(!r.ok)throw new Error(geo.detail||"Orașul nu a fost găsit.");
+    if(!r.ok)throw new Error(geo.detail||"HTTP "+r.status);
     LAT=geo.lat; LON=geo.lon;
     CITY=geo.name+(geo.country&&geo.country!=="RO"?", "+geo.country:"");
     loadWeather();
@@ -235,7 +238,7 @@ async function loadWeather(){
   }catch(e){
     document.getElementById("app").innerHTML=
       '<div class="err">⚠ Backend indisponibil: '+e.message+
-      '<br><small style="opacity:0.7;margin-top:6px;display:block">Pornește backend-ul: <code>cd backend &amp;&amp; uvicorn main:app --reload</code></small></div>'+
+      '<small class="err-hint">Pornește backend-ul: <code>cd backend &amp;&amp; uvicorn main:app --reload</code></small></div>'+
       '<button class="btn display" style="margin-top:12px" onclick="loadWeather()">RETRY</button>';
   }
 }
@@ -243,7 +246,11 @@ async function loadWeather(){
 // ── Chart.js – hourly temperature/precipitation chart ─────────────────────
 function renderChart(hourly){
   var canvas=document.getElementById("tempChart");
-  if(!canvas||typeof Chart==="undefined")return;
+  if(!canvas){return;}
+  if(typeof Chart==="undefined"){
+    console.warn("Chart.js nu a putut fi încărcat (verifică conexiunea la internet).");
+    return;
+  }
   var labels=hourly.map(function(h){
     var t=new Date(h.time);
     return t.getHours().toString().padStart(2,"0")+":00";
