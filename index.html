@@ -138,6 +138,15 @@
       box-shadow: 0 0 0 2px rgba(249,115,22,0.35), 0 4px 16px rgba(249,115,22,0.15);
     }
 
+    /* Arrow toggle for daily expand */
+    .day-arrow {
+      transition: transform 0.25s cubic-bezier(.4,0,.2,1);
+      display: inline-block;
+      font-size: 0.65rem;
+      opacity: 0.5;
+    }
+    .day-arrow.open { transform: rotate(180deg); opacity: 0.9; }
+
     /* Score bar in hourly */
     .score-bar-track {
       background: #232731;
@@ -162,27 +171,31 @@
 
   <!-- HEADER -->
   <header class="bg-surface border-b border-border sticky top-0 z-50">
-    <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-4 flex-wrap">
-      <div class="flex items-center gap-3">
-        <span class="text-4xl leading-none">🏍️</span>
+    <div class="max-w-5xl mx-auto px-3 sm:px-4 py-2 sm:py-3 flex items-center justify-between gap-2 sm:gap-4 flex-wrap">
+      <div class="flex items-center gap-2 sm:gap-3">
+        <span class="text-3xl sm:text-4xl leading-none">🏍️</span>
         <div>
-          <div class="font-display text-3xl font-bold tracking-widest text-accent leading-none">MOTO<span
-              class="text-gray-600 text-2xl"> /// </span>METEO</div>
+          <div class="font-display text-2xl sm:text-3xl font-bold tracking-widest text-accent leading-none">MOTO<span
+              class="text-gray-600 text-xl sm:text-2xl"> /// </span>METEO</div>
           <div id="upd" class="text-xs text-muted tracking-widest mt-0.5">—</div>
         </div>
       </div>
-      <div class="flex gap-2 items-center">
-        <input id="city-in" type="text" placeholder="Caută oraș..." value="Bucharest" class="bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg w-44
-               focus:outline-none focus:border-accent placeholder-muted transition-colors" />
-        <button onclick="searchCity()" class="bg-accent hover:bg-orange-400 text-black font-display font-bold text-base tracking-wider
-               px-4 py-2 rounded-lg transition-colors">CAUTĂ</button>
-        <button onclick="geolocate()" title="Locația mea" class="bg-card border border-border text-muted hover:text-accent hover:border-accent
-               font-display text-base px-3 py-2 rounded-lg transition-colors">📍</button>
-        <button onclick="loadWeather()" title="Reîncarcă" class="bg-card border border-border text-muted hover:text-gray-200 hover:border-gray-500
-               font-display text-base px-3 py-2 rounded-lg transition-colors">↻</button>
+      <div class="flex gap-1.5 sm:gap-2 items-center">
+        <input id="city-in" type="text" placeholder="Caută oraș..." value="Bucharest"
+               class="bg-bg border border-border text-gray-100 font-body text-sm px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg w-32 sm:w-44
+                      focus:outline-none focus:border-accent placeholder-muted transition-colors" />
+        <button onclick="searchCity()"
+                class="bg-accent hover:bg-orange-400 text-black font-display font-bold text-sm sm:text-base tracking-wider
+                       px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg transition-colors">CAUTĂ</button>
+        <button onclick="geolocate()" title="Locația mea"
+                class="bg-card border border-border text-muted hover:text-accent hover:border-accent
+                       text-base px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors">📍</button>
+        <button onclick="loadWeather()" title="Reîncarcă"
+                class="bg-card border border-border text-muted hover:text-gray-200 hover:border-gray-500
+                       text-base px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors">↻</button>
       </div>
     </div>
-    <div id="favs-bar" class="max-w-5xl mx-auto px-4 pb-2"></div>
+    <div id="favs-bar" class="max-w-5xl mx-auto px-3 sm:px-4 pb-2"></div>
   </header>
 
   <!-- MAIN -->
@@ -897,6 +910,15 @@
         + '</div>';
     }
 
+    function toggleDay(idx) {
+      var det = document.getElementById('det-' + idx);
+      var arr = document.getElementById('arr-' + idx);
+      if (!det) return;
+      var opening = det.classList.contains('hidden');
+      det.classList.toggle('hidden');
+      if (arr) arr.classList.toggle('open', opening);
+    }
+
     function render(d) {
       var c = d.current;
       var now = new Date();
@@ -1023,9 +1045,9 @@
       });
       html += '</div>';
 
-      // Daily forecast
+      // Daily forecast — responsive + expandable
       html += secTitle('Prognoză ' + daily.length + ' zile');
-      html += '<div class="flex flex-col gap-3 mb-8">';
+      html += '<div class="flex flex-col gap-2 mb-8">';
       daily.forEach(function (day, i) {
         var date = new Date(day.date + "T12:00:00");
         var dname = i === 0 ? "AZI" : (i === 1 ? "MÂINE" : DAYS[date.getDay()]);
@@ -1041,32 +1063,96 @@
         var range = allMax - allMin || 1;
         var bL = Math.round(((tMin - allMin) / range) * 100);
         var bW = Math.max(4, Math.round(((tMax - allMin) / range) * 100) - bL);
-        html += '<div class="bg-card border border-border border-l-4 ' + borderCol + ' rounded-xl px-4 py-3 wx-card'
-          + ' grid items-center gap-3" style="grid-template-columns:90px 48px 1fr 70px 70px 90px">';
-        html += '<div>'
-          + '<div class="font-display text-xl font-bold tracking-wide text-gray-100">' + dname + '</div>'
-          + (i <= 1 ? '<div class="text-xs text-muted">' + date.toLocaleDateString("ro-RO", { day: "numeric", month: "short" }) + '</div>' : '')
+
+        // Wrapper
+        html += '<div class="bg-card border border-border border-l-4 ' + borderCol + ' rounded-xl overflow-hidden">';
+
+        // ── Clickable summary row ──────────────────────────────────────────
+        html += '<div onclick="toggleDay(' + i + ')" class="px-3 sm:px-4 py-3 flex items-center gap-2 sm:gap-3 cursor-pointer select-none">';
+
+        // Icon
+        html += '<div class="flex-shrink-0 w-8 sm:w-10 text-center" style="font-size:1.75rem;line-height:1" title="' + day.description + '">' + day.icon + '</div>';
+
+        // Day name + date
+        html += '<div class="flex-shrink-0 w-14 sm:w-20">'
+          + '<div class="font-display text-sm sm:text-lg font-bold tracking-wide text-gray-100">' + dname + '</div>'
+          + '<div class="text-xs text-muted">' + date.toLocaleDateString("ro-RO", { day: "numeric", month: "short" }) + '</div>'
           + '</div>';
-        html += '<div style="font-size:2rem;text-align:center" title="' + day.description + '">' + day.icon + '</div>';
-        html += '<div>'
-          + '<div class="flex items-center gap-2">'
-          + '<span class="text-sm text-muted w-8 text-right">' + tMin + '°</span>'
-          + '<div class="flex-1 h-2 bg-border rounded-full overflow-hidden">'
+
+        // Temp range bar (flexible)
+        html += '<div class="flex-1 min-w-0">'
+          + '<div class="flex items-center gap-1">'
+          + '<span class="text-xs text-muted flex-shrink-0 w-6 text-right">' + tMin + '°</span>'
+          + '<div class="flex-1 h-1.5 bg-border rounded-full overflow-hidden">'
           + '<div class="h-full rounded-full" style="margin-left:' + bL + '%;width:' + bW + '%;background:linear-gradient(90deg,#60a5fa,#f97316)"></div>'
           + '</div>'
-          + '<span class="text-sm text-gray-200 w-8">' + tMax + '°</span>'
+          + '<span class="text-xs text-gray-200 flex-shrink-0 w-6">' + tMax + '°</span>'
           + '</div>'
-          + (fMin != null ? '<div class="text-xs text-muted mt-0.5 pl-10">resimțit ' + fMin + '° – ' + fMax + '°</div>' : '')
+          + (fMin != null ? '<div class="text-xs text-muted mt-0.5 pl-7 hidden sm:block">resimțit ' + fMin + '° – ' + fMax + '°</div>' : '')
           + '</div>';
-        html += '<div class="text-center"><div class="font-display text-xl font-bold ' + rainCls(rp) + '">' + rp + '%</div>'
-          + '<div class="text-xs text-muted tracking-wider">PLOAIE</div></div>';
-        html += '<div class="text-center"><div class="font-display text-xl font-bold ' + windCls(gustMax) + '">' + gustMax + '</div>'
-          + '<div class="text-xs text-muted tracking-wider">KM/H</div></div>';
-        html += '<div class="flex flex-col items-center gap-1">'
+
+        // Rain %
+        html += '<div class="flex-shrink-0 text-center w-10 sm:w-14">'
+          + '<div class="font-display text-sm sm:text-xl font-bold ' + rainCls(rp) + '">' + rp + '%</div>'
+          + '<div class="text-xs text-muted hidden sm:block">PLOAIE</div>'
+          + '</div>';
+
+        // Wind (hidden on mobile)
+        html += '<div class="hidden sm:block flex-shrink-0 text-center w-14">'
+          + '<div class="font-display text-xl font-bold ' + windCls(gustMax) + '">' + gustMax + '</div>'
+          + '<div class="text-xs text-muted">KM/H</div>'
+          + '</div>';
+
+        // Score + verdict
+        html += '<div class="flex-shrink-0 flex flex-col items-center gap-0.5 w-12 sm:w-16">'
+          + '<div class="font-display text-sm font-bold" style="color:' + scoreColor + '">' + ds + '</div>'
           + verdictBadge(ds)
-          + '<div class="text-xs font-bold" style="color:' + scoreColor + '">' + ds + '/100</div>'
           + '</div>';
+
+        // Arrow
+        html += '<span id="arr-' + i + '" class="day-arrow flex-shrink-0">▼</span>';
+
+        html += '</div>'; // end summary row
+
+        // ── Expandable details ─────────────────────────────────────────────
+        var dayHourly = d.hourly.filter(function (h) { return h.time.startsWith(day.date); });
+        html += '<div id="det-' + i + '" class="hidden border-t border-border bg-bg/40">';
+
+        // Hourly mini-cards
+        if (dayHourly.length) {
+          html += '<div class="flex gap-2 overflow-x-auto scroll-x px-3 py-3 pb-2">';
+          dayHourly.forEach(function (h) {
+            var ht = new Date(h.time).getHours().toString().padStart(2, "0") + ":00";
+            var hrp = h.precipitation_probability || 0;
+            var hsc = scoreHourly(h.feels_like, h.wind_gusts_kmh, h.precipitation_mm, h.weather_code);
+            var hCol = hsc >= 80 ? '#22c55e' : hsc >= 60 ? '#f97316' : hsc >= 40 ? '#eab308' : '#ef4444';
+            html += '<div class="flex-shrink-0 bg-card border border-border rounded-xl p-2 w-16 text-center flex flex-col items-center gap-0.5">';
+            html += '<div class="text-xs text-muted font-semibold">' + ht + '</div>';
+            html += '<div style="font-size:1.5rem;line-height:1.2">' + h.icon + '</div>';
+            html += '<div class="font-display text-lg font-bold leading-none text-gray-100">' + Math.round(h.temperature) + '°</div>';
+            if (h.feels_like != null) html += '<div class="text-xs text-muted">res ' + Math.round(h.feels_like) + '°</div>';
+            html += '<div class="text-xs ' + rainCls(hrp) + '">' + hrp + '%💧</div>';
+            html += '<div class="text-xs text-muted">' + Math.round(h.wind_speed_kmh) + 'km/h</div>';
+            if (h.wind_gusts_kmh != null && h.wind_gusts_kmh > h.wind_speed_kmh + 5)
+              html += '<div class="text-xs ' + windCls(h.wind_gusts_kmh) + '">↑' + Math.round(h.wind_gusts_kmh) + '</div>';
+            html += '<div class="mt-1 w-full score-bar-track"><div class="score-bar-fill" style="width:' + hsc + '%;background:' + hCol + '"></div></div>';
+            html += '<div class="text-xs font-bold" style="color:' + hCol + '">' + hsc + '</div>';
+            html += '</div>';
+          });
+          html += '</div>';
+        }
+
+        // Summary pills row
+        html += '<div class="flex flex-wrap gap-x-4 gap-y-1 px-3 pb-3 text-xs text-muted">';
+        if (fMin != null) html += '<span>🌡️ resimțit <strong class="text-gray-300">' + fMin + '° – ' + fMax + '°</strong></span>';
+        if (gustMax) html += '<span>💨 rafale max <strong class="' + windCls(gustMax) + '">' + gustMax + ' km/h</strong></span>';
+        if (day.precipitation_mm > 0) html += '<span>🌧️ precipitații <strong class="text-gray-300">' + day.precipitation_mm + ' mm</strong></span>';
+        if (day.sunrise) html += '<span>🌅 răsărit <strong class="text-gray-300">' + fmtTime(day.sunrise) + '</strong></span>';
+        if (day.sunset)  html += '<span>🌇 apus <strong class="text-gray-300">' + fmtTime(day.sunset) + '</strong></span>';
         html += '</div>';
+
+        html += '</div>'; // end details
+        html += '</div>'; // end wrapper
       });
       html += '</div>';
 
