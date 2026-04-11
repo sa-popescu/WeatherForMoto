@@ -159,6 +159,68 @@
       box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.35), 0 4px 16px rgba(249, 115, 22, 0.15);
     }
 
+    /* ── Premium features ─────────────────────────────────────────────── */
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: scale(0.96);
+      }
+
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    #paywall-modal>div,
+    #alerts-modal>div {
+      animation: fadeIn 0.2s ease;
+    }
+
+    @keyframes premGlow {
+
+      0%,
+      100% {
+        box-shadow: 0 0 6px rgba(249, 115, 22, 0.25);
+      }
+
+      50% {
+        box-shadow: 0 0 18px rgba(249, 115, 22, 0.6);
+      }
+    }
+
+    .prem-glow {
+      animation: premGlow 2.5s ease-in-out infinite;
+    }
+
+    /* Premium day lock row */
+    .day-locked {
+      opacity: 0.45;
+      position: relative;
+      pointer-events: none;
+    }
+
+    .day-lock-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(11, 12, 15, 0.5);
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 700;
+      font-size: 0.72rem;
+      letter-spacing: 0.18em;
+      color: #f97316;
+      border-radius: inherit;
+      pointer-events: auto;
+      cursor: pointer;
+    }
+
+    .alert-banner {
+      animation: slide-up 0.2s ease;
+    }
+
     /* Arrow toggle for daily expand */
     .day-arrow {
       transition: transform 0.25s cubic-bezier(.4, 0, .2, 1);
@@ -325,6 +387,13 @@
                        text-base px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors">↻</button>
         <button onclick="toggleProfile()" title="Profil moto" class="bg-card border border-border text-muted hover:text-accent hover:border-accent
                        text-base px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors">⚙</button>
+        <button onclick="toggleAlerts()" title="Alerte personalizate" class="bg-card border border-border text-muted hover:text-warn hover:border-warn
+                       text-base px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors"
+          id="alerts-hdr-btn">🔔</button>
+        <button onclick="isPremium() ? showPremiumStatus() : openPaywall('Activează MotoMeteo Plus')"
+          title="MotoMeteo Plus" id="premium-hdr-btn"
+          class="border font-display font-bold tracking-wider text-xs px-2 py-1.5 rounded-lg transition-colors prem-glow bg-accent/10 border-accent/30 text-accent">⚡
+          PLUS</button>
       </div>
     </div>
     <div id="favs-bar" class="max-w-5xl mx-auto px-3 sm:px-4 pb-2"></div>
@@ -383,19 +452,31 @@
     <div class="flex items-center gap-3 mt-2 mb-4">
       <span class="font-display text-sm font-bold tracking-[0.25em] text-muted uppercase">🗺️ Planificator traseu</span>
       <div class="flex-1 h-px bg-border"></div>
+      <span class="text-xs text-muted italic hidden sm:inline">opriri multiple → ⚡ Premium</span>
     </div>
     <div class="bg-card border border-border rounded-xl p-4 mb-4">
+      <!-- Dynamic stops list -->
+      <div id="route-stops-list" class="mb-3">
+        <div class="stop-row flex items-center gap-2 mb-2">
+          <span class="text-xl flex-shrink-0" title="Start">🟢</span>
+          <input id="route-stop-0" type="text" placeholder="Plecare..."
+            class="route-stop-input w-full bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent placeholder-muted transition-colors" />
+          <span class="w-8 flex-shrink-0"></span>
+        </div>
+        <div class="stop-row flex items-center gap-2 mb-2">
+          <span class="text-xl flex-shrink-0" title="Destinație">🔴</span>
+          <input id="route-stop-1" type="text" placeholder="Destinație..."
+            class="route-stop-input w-full bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent placeholder-muted transition-colors" />
+          <span class="w-8 flex-shrink-0"></span>
+        </div>
+      </div>
+      <button onclick="addRouteStop()" id="add-stop-btn"
+        class="mb-4 text-xs text-accent border border-accent/30 hover:bg-accent/10 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
+        <span class="text-base leading-none font-bold">+</span>
+        <span>Adaugă oprire intermediară</span>
+        <span class="ml-1 text-muted/70">(⚡ Premium · max 5 total)</span>
+      </button>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-        <div>
-          <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Plecare din</label>
-          <input id="route-origin" type="text" placeholder="Oraș plecare..."
-            class="w-full bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent placeholder-muted transition-colors" />
-        </div>
-        <div>
-          <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Destinație</label>
-          <input id="route-dest" type="text" placeholder="Oraș destinație..."
-            class="w-full bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent placeholder-muted transition-colors" />
-        </div>
         <div>
           <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Ora plecării</label>
           <input id="route-departure" type="datetime-local"
@@ -407,8 +488,10 @@
             class="w-full bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent transition-colors" />
         </div>
       </div>
-      <button onclick="calcRoute()" class="bg-accent hover:bg-orange-400 text-black font-display font-bold tracking-wider
-                     px-5 py-2 rounded-lg transition-colors text-sm">🗺️ CALCULEAZĂ TRASEU</button>
+      <button onclick="calcRoute()"
+        class="bg-accent hover:bg-orange-400 text-black font-display font-bold tracking-wider px-5 py-2 rounded-lg transition-colors text-sm">
+        🗺️ CALCULEAZĂ TRASEU
+      </button>
     </div>
     <div id="route-result"></div>
   </section>
@@ -426,6 +509,79 @@
       </div>
       <button onclick="dismissIosBanner()" aria-label="Închide"
         class="flex-shrink-0 text-muted hover:text-gray-200 text-lg leading-none transition-colors">✕</button>
+    </div>
+  </div>
+
+  <!-- ══ PAYWALL MODAL ══════════════════════════════════════════════════ -->
+  <div id="paywall-modal" class="hidden fixed inset-0 z-[200] flex items-center justify-center p-4"
+    style="background:rgba(0,0,0,0.8);backdrop-filter:blur(10px)" onclick="event.target===this&&closePaywall()">
+    <div class="bg-card border border-accent/30 rounded-2xl p-6 max-w-sm w-full shadow-2xl">
+      <div class="text-center mb-5">
+        <div class="text-5xl mb-2">🏍️⚡</div>
+        <div class="font-display text-3xl font-bold tracking-widest text-accent">MOTO<span class="text-gray-500"> ///
+          </span>PLUS</div>
+        <div class="text-sm text-muted mt-1">Deblochează toate funcțiile premium</div>
+      </div>
+      <div id="paywall-feature-name"
+        class="mb-4 text-center text-sm text-warn font-semibold py-2 px-3 bg-warn/10 rounded-lg border border-warn/20 hidden">
+      </div>
+      <ul class="mb-5 space-y-2.5 text-sm">
+        <li class="flex items-center gap-3"><span class="text-ok text-lg flex-shrink-0">✓</span><span>Prognoză extinsă
+            <strong class="text-gray-200">14 zile</strong></span></li>
+        <li class="flex items-center gap-3"><span class="text-ok text-lg flex-shrink-0">✓</span><span>Traseu cu <strong
+              class="text-gray-200">până la 5 opriri</strong></span></li>
+        <li class="flex items-center gap-3"><span class="text-ok text-lg flex-shrink-0">✓</span><span><strong
+              class="text-gray-200">Alerte personalizate</strong> de vreme (vânt, ploaie, temperatură)</span></li>
+        <li class="flex items-center gap-3"><span class="text-ok text-lg flex-shrink-0">✓</span><span>Hartă <strong
+              class="text-gray-200">radar precipitații</strong> interactiv</span></li>
+        <li class="flex items-center gap-3"><span class="text-ok text-lg flex-shrink-0">✓</span><span>Notificări <strong
+              class="text-gray-200">Mergi / Nu merge</strong> zilnice</span></li>
+      </ul>
+      <div class="mb-4 bg-bg rounded-xl p-4 text-center border border-border">
+        <div class="font-display text-4xl font-bold text-accent">2,99€<span
+            class="text-base text-muted font-normal">/lună</span></div>
+        <div class="text-xs text-muted mt-1">sau <strong class="text-gray-300">19,99€/an</strong> — economisești 44%
+        </div>
+      </div>
+      <button onclick="activatePremium()"
+        class="w-full bg-accent hover:bg-orange-400 text-black font-display font-bold tracking-wider py-3 rounded-xl transition-colors mb-2 text-lg">
+        ⚡ ABONEAZĂ-TE ACUM
+      </button>
+      <button onclick="restorePremium()"
+        class="w-full border border-border text-muted hover:text-gray-200 hover:border-gray-500 font-body text-sm py-2 rounded-xl transition-colors mb-1">
+        Restaurează achiziția
+      </button>
+      <button onclick="closePaywall()" class="w-full text-xs text-muted/50 hover:text-muted py-1.5 transition-colors">
+        Nu acum
+      </button>
+    </div>
+  </div>
+
+  <!-- ══ ALERTS MODAL ═══════════════════════════════════════════════════ -->
+  <div id="alerts-modal" class="hidden fixed inset-0 z-[200] flex items-center justify-center p-4"
+    style="background:rgba(0,0,0,0.8);backdrop-filter:blur(10px)" onclick="event.target===this&&toggleAlerts()">
+    <div class="bg-card border border-border rounded-2xl p-6 max-w-sm w-full shadow-2xl max-h-[85vh] overflow-y-auto">
+      <div class="flex items-center justify-between mb-5">
+        <div>
+          <div class="font-display text-xl font-bold tracking-widest text-gray-100">🔔 ALERTE VREME</div>
+          <div class="text-xs text-muted mt-0.5">Notificare la fiecare verificare</div>
+        </div>
+        <button onclick="toggleAlerts()" class="text-muted hover:text-gray-200 text-xl transition-colors">✕</button>
+      </div>
+      <div id="alerts-prem-gate"
+        class="hidden mb-4 p-3 rounded-xl border border-warn/30 bg-warn/10 text-xs text-warn text-center">
+        ⚡ Alertele personalizate sunt o funcție Premium.
+        <button onclick="closeAlerts();openPaywall('Alerte personalizate')"
+          class="ml-1 underline hover:text-amber-300 transition-colors">Activează Plus →</button>
+      </div>
+      <!-- Alert toggles -->
+      <div id="alerts-list" class="space-y-3">
+        <!-- generated by renderAlertsForm() -->
+      </div>
+      <button onclick="saveAlerts()"
+        class="mt-4 w-full bg-accent hover:bg-orange-400 text-black font-display font-bold tracking-wider py-2.5 rounded-xl transition-colors">
+        💾 SALVEAZĂ ALERTELE
+      </button>
     </div>
   </div>
 
@@ -474,6 +630,200 @@
     var _autoRefreshTimer = null;
     var _refreshSecondsLeft = 0;
     var AUTO_REFRESH_SEC = 1800; // 30 minutes
+
+    // -----------------------------------------------------------------------
+    // Premium subscription management
+    // -----------------------------------------------------------------------
+    function isPremium() {
+      try { return localStorage.getItem('mmPremium') === '1'; } catch (_) { return false; }
+    }
+    function _setPremium(val) {
+      try { localStorage.setItem('mmPremium', val ? '1' : '0'); } catch (_) { }
+      _updatePremiumUI();
+    }
+    function _updatePremiumUI() {
+      var btn = document.getElementById('premium-hdr-btn');
+      if (!btn) return;
+      if (isPremium()) {
+        btn.textContent = '⚡ PLUS ✓';
+        btn.classList.remove('prem-glow');
+        btn.title = 'MotoMeteo Plus ativo';
+      } else {
+        btn.textContent = '⚡ PLUS';
+        btn.classList.add('prem-glow');
+      }
+    }
+    function showPremiumStatus() {
+      if (confirm('MotoMeteo Plus este activ ✓\n\nDesactivezi abonamentul?')) {
+        _setPremium(false);
+        alert('Abonament dezactivat.');
+        loadWeather();
+      }
+    }
+    function openPaywall(featureName) {
+      var modal = document.getElementById('paywall-modal');
+      if (!modal) return;
+      var nameEl = document.getElementById('paywall-feature-name');
+      if (nameEl) {
+        if (featureName) { nameEl.textContent = '🔒 ' + featureName; nameEl.classList.remove('hidden'); }
+        else nameEl.classList.add('hidden');
+      }
+      modal.classList.remove('hidden');
+      haptic([10, 40, 10]);
+    }
+    function closePaywall() {
+      var modal = document.getElementById('paywall-modal');
+      if (modal) modal.classList.add('hidden');
+    }
+    function activatePremium() {
+      // In a native Capacitor build this would invoke RevenueCat purchase flow.
+      // Web / demo: toggle premium state immediately (useful for testing).
+      if (typeof window.Purchases !== 'undefined') {
+        window.Purchases.getOfferings().then(function (offerings) {
+          var pkg = offerings.current && offerings.current.availablePackages[0];
+          if (pkg) window.Purchases.purchasePackage(pkg);
+        });
+      } else {
+        _setPremium(true);
+        closePaywall();
+        loadWeather();
+      }
+    }
+    function restorePremium() {
+      if (typeof window.Purchases !== 'undefined') {
+        window.Purchases.restorePurchases().then(function (info) {
+          var active = info.activeSubscriptions && info.activeSubscriptions.length > 0;
+          _setPremium(active);
+          closePaywall();
+          if (active) loadWeather();
+          else alert('Nu s-a găsit nicio achiziție anterioară.');
+        });
+      } else {
+        // Web demo: accept a simple unlock code
+        var code = prompt('Introdu codul de activare Premium (sau lasă gol):');
+        if (code === 'MOTO2024' || code === 'PLUS' || code === 'PREMIUM') {
+          _setPremium(true);
+          closePaywall();
+          loadWeather();
+        } else if (code !== null) {
+          alert('Cod invalid.');
+        }
+      }
+    }
+
+    // -----------------------------------------------------------------------
+    // Custom weather alerts (localStorage)
+    // -----------------------------------------------------------------------
+    var ALERT_DEFS = [
+      { id: 'score_low', label: 'Scor Moto < 40', desc: 'Condiții periculoase', field: 'moto_score', op: '<', threshold: 40 },
+      { id: 'wind_high', label: 'Rafale > 50 km/h', desc: 'Vânt puternic', field: 'wind_gusts_kmh', op: '>', threshold: 50 },
+      { id: 'rain_heavy', label: 'Precipitații > 5 mm/h', desc: 'Ploaie torențială', field: 'precipitation_mm', op: '>', threshold: 5 },
+      { id: 'temp_cold', label: 'Temperatură < 5°C', desc: 'Risc de gheații / îngheț', field: 'temperature', op: '<', threshold: 5 },
+      { id: 'temp_hot', label: 'Temperatură > 35°C', desc: 'Caniculă — hidratare obligatorie', field: 'temperature', op: '>', threshold: 35 },
+      { id: 'rain_prob', label: 'Probabilitate ploaie > 70%', desc: 'Ploaie probabilă', field: 'precipitation_probability', op: '>', threshold: 70 },
+    ];
+    function _getAlertState() {
+      try { return JSON.parse(localStorage.getItem('motoAlerts') || '{}'); } catch (_) { return {}; }
+    }
+    function renderAlertsForm() {
+      var state = _getAlertState();
+      var html = '';
+      ALERT_DEFS.forEach(function (a) {
+        var checked = state[a.id] !== false; // default on
+        html += '<label class="flex items-center gap-3 p-3 rounded-xl border border-border hover:border-accent/50 cursor-pointer transition-colors">';
+        html += '<input type="checkbox" id="alert-chk-' + a.id + '" ' + (checked ? 'checked' : '') + ' class="accent-accent w-4 h-4 flex-shrink-0">';
+        html += '<div class="flex-1 min-w-0">';
+        html += '<div class="text-sm font-semibold text-gray-100">' + a.label + '</div>';
+        html += '<div class="text-xs text-muted">' + a.desc + '</div>';
+        html += '</div></label>';
+      });
+      var el = document.getElementById('alerts-list');
+      if (el) el.innerHTML = html;
+    }
+    function saveAlerts() {
+      if (!isPremium()) { closeAlerts(); openPaywall('Alerte personalizate'); return; }
+      var state = {};
+      ALERT_DEFS.forEach(function (a) {
+        var chk = document.getElementById('alert-chk-' + a.id);
+        state[a.id] = chk ? chk.checked : true;
+      });
+      try { localStorage.setItem('motoAlerts', JSON.stringify(state)); } catch (_) { }
+      closeAlerts();
+    }
+    function closeAlerts() {
+      var m = document.getElementById('alerts-modal');
+      if (m) m.classList.add('hidden');
+    }
+    function toggleAlerts() {
+      var m = document.getElementById('alerts-modal');
+      if (!m) return;
+      var isHidden = m.classList.contains('hidden');
+      if (isHidden) {
+        renderAlertsForm();
+        var gate = document.getElementById('alerts-prem-gate');
+        if (gate) gate.classList.toggle('hidden', isPremium());
+        var list = document.getElementById('alerts-list');
+        if (list) {
+          list.style.opacity = isPremium() ? '1' : '0.45';
+          list.style.pointerEvents = isPremium() ? '' : 'none';
+        }
+        m.classList.remove('hidden');
+      } else {
+        m.classList.add('hidden');
+      }
+    }
+    function checkAlerts(current) {
+      if (!isPremium()) return '';
+      var state = _getAlertState();
+      var banners = '';
+      ALERT_DEFS.forEach(function (a) {
+        if (state[a.id] === false) return;
+        var val = current[a.field];
+        if (val == null) return;
+        var triggered = a.op === '<' ? val < a.threshold : val > a.threshold;
+        if (!triggered) return;
+        banners += '<div class="alert-banner mb-3 p-3 rounded-xl border border-warn/40 bg-warn/10 text-warn text-sm flex items-start gap-3">'
+          + '<span class="text-xl flex-shrink-0">🔔</span>'
+          + '<div><div class="font-semibold">' + a.label + '</div>'
+          + '<div class="text-xs text-muted/80 mt-0.5">' + a.desc + ' &nbsp;·&nbsp; valoare curentă: <strong class="text-warn">' + (Math.round(val * 10) / 10) + '</strong></div>'
+          + '</div></div>';
+      });
+      return banners;
+    }
+
+    // -----------------------------------------------------------------------
+    // Multi-stop route helpers
+    // -----------------------------------------------------------------------
+    function getRouteStops() {
+      var inputs = document.querySelectorAll('.route-stop-input');
+      return Array.from(inputs).map(function (inp) { return inp.value.trim(); }).filter(Boolean);
+    }
+    function addRouteStop() {
+      var rows = document.querySelectorAll('#route-stops-list .stop-row');
+      if (rows.length >= 5) { alert('Maxim 5 opriri permise.'); return; }
+      if (rows.length >= 3 && !isPremium()) {
+        openPaywall('Traseu cu opriri multiple');
+        return;
+      }
+      var list = document.getElementById('route-stops-list');
+      var lastRow = list.lastElementChild; // destination row – keep it last
+      var newRow = document.createElement('div');
+      newRow.className = 'stop-row flex items-center gap-2 mb-2';
+      newRow.innerHTML = '<span class="text-xl flex-shrink-0">📍</span>'
+        + '<input type="text" placeholder="Oprire intermediară..." class="route-stop-input w-full bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent placeholder-muted transition-colors" />'
+        + '<button onclick="removeRouteStop(this)" class="w-8 flex-shrink-0 text-muted hover:text-danger text-sm transition-colors" title="Șterge">✕</button>';
+      list.insertBefore(newRow, lastRow);
+      if (rows.length + 1 >= 5) {
+        var addBtn = document.getElementById('add-stop-btn');
+        if (addBtn) addBtn.style.display = 'none';
+      }
+    }
+    function removeRouteStop(btn) {
+      var row = btn.closest('.stop-row');
+      if (row) { row.remove(); }
+      var addBtn = document.getElementById('add-stop-btn');
+      if (addBtn) addBtn.style.display = '';
+    }
 
     function startAutoRefresh() {
       if (_autoRefreshTimer) clearInterval(_autoRefreshTimer);
@@ -679,39 +1029,167 @@
     }
 
     async function calcRoute() {
-      var routeOriginEl = document.getElementById('route-origin');
-      var routeDestEl = document.getElementById('route-dest');
+      var stops = getRouteStops();
+      if (stops.length < 2) { alert('Completează cel puțin 2 opriri (plecare și destinație)'); return; }
+      if (stops.length > 2 && !isPremium()) { openPaywall('Traseu cu opriri multiple'); return; }
+
       var routeDepEl = document.getElementById('route-departure');
       var routeSpeedEl = document.getElementById('route-speed');
-      var originStr = routeOriginEl ? routeOriginEl.value.trim() : '';
-      var destStr = routeDestEl ? routeDestEl.value.trim() : '';
       var deptTime = routeDepEl ? routeDepEl.value : '';
       var avgSpeed = parseFloat(routeSpeedEl ? routeSpeedEl.value : 80) || 80;
-      if (!originStr || !destStr) { alert('Completează orașele de plecare și destinație'); return; }
+
       var resultEl = document.getElementById('route-result');
       if (resultEl) resultEl.innerHTML = '<div class="text-muted text-sm py-4 text-center pulse-anim">⏳ Se calculează traseul…</div>';
+
       try {
-        var geoResults = await Promise.all([geocodeDirect(originStr), geocodeDirect(destStr)]);
-        var originGeo = geoResults[0], destGeo = geoResults[1];
+        var geoResults = await Promise.all(stops.map(geocodeDirect));
         var depDt = deptTime ? new Date(deptTime) : new Date();
-        var totalDistKm = haversineKm(originGeo.lat, originGeo.lon, destGeo.lat, destGeo.lon);
-        var totalHours = totalDistKm / avgSpeed;
-        var NUM_SEGMENTS = 4;
-        var waypoints = [];
-        for (var i = 0; i <= NUM_SEGMENTS; i++) {
-          var frac = i / NUM_SEGMENTS;
-          var wpLat = originGeo.lat + frac * (destGeo.lat - originGeo.lat);
-          var wpLon = originGeo.lon + frac * (destGeo.lon - originGeo.lon);
-          var hoursOffset = frac * totalHours;
-          var wpEta = new Date(depDt.getTime() + hoursOffset * 3600000);
-          var wpName = i === 0 ? originGeo.name : (i === NUM_SEGMENTS ? destGeo.name : '~' + Math.round(frac * totalDistKm) + ' km');
-          waypoints.push({ lat: wpLat, lon: wpLon, eta: wpEta, name: wpName, distKm: Math.round(frac * totalDistKm) });
+
+        if (stops.length === 2) {
+          // Simple 2-stop route (client-side, existing logic)
+          var originGeo = geoResults[0], destGeo = geoResults[1];
+          var totalDistKm = haversineKm(originGeo.lat, originGeo.lon, destGeo.lat, destGeo.lon);
+          var totalHours = totalDistKm / avgSpeed;
+          var NUM_SEGMENTS = 4;
+          var waypoints = [];
+          for (var i = 0; i <= NUM_SEGMENTS; i++) {
+            var frac = i / NUM_SEGMENTS;
+            var wpLat = originGeo.lat + frac * (destGeo.lat - originGeo.lat);
+            var wpLon = originGeo.lon + frac * (destGeo.lon - originGeo.lon);
+            var hoursOffset = frac * totalHours;
+            var wpEta = new Date(depDt.getTime() + hoursOffset * 3600000);
+            var wpName = i === 0 ? originGeo.name : (i === NUM_SEGMENTS ? destGeo.name : '~' + Math.round(frac * totalDistKm) + ' km');
+            waypoints.push({ lat: wpLat, lon: wpLon, eta: wpEta, name: wpName, distKm: Math.round(frac * totalDistKm) });
+          }
+          var weatherResults = await Promise.all(waypoints.map(function (wp) { return fetchWaypointWeather(wp.lat, wp.lon, wp.eta); }));
+          renderRoute(waypoints, weatherResults, totalDistKm, totalHours, originGeo.name, destGeo.name, depDt);
+        } else {
+          // Multi-stop route (premium, backend or client-side fallback)
+          if (API_URL) {
+            var stopNames = geoResults.map(function (g) { return g.name; }).join(';');
+            var depIso = depDt.toISOString().slice(0, 16);
+            var resp = await fetch(
+              API_URL + '/route/multi?stops=' + encodeURIComponent(stopNames)
+              + '&departure=' + encodeURIComponent(depIso)
+              + '&avg_speed=' + avgSpeed
+            );
+            if (!resp.ok) { var ed = await resp.json().catch(function () { return {}; }); throw new Error(ed.detail || 'HTTP ' + resp.status); }
+            var data = await resp.json();
+            renderMultiRoute(data, depDt);
+          } else {
+            // Direct fallback: call Open-Meteo for each stop's waypoints client-side
+            await calcMultiRouteDirect(geoResults, depDt, avgSpeed);
+          }
         }
-        var weatherResults = await Promise.all(waypoints.map(function (wp) { return fetchWaypointWeather(wp.lat, wp.lon, wp.eta); }));
-        renderRoute(waypoints, weatherResults, totalDistKm, totalHours, originGeo.name, destGeo.name, depDt);
       } catch (e) {
         if (resultEl) resultEl.innerHTML = '<div class="text-danger text-sm py-2 p-4 rounded-xl border border-danger bg-danger/10">⚠️ Eroare: ' + e.message + '</div>';
       }
+    }
+
+    async function calcMultiRouteDirect(geoResults, depDt, avgSpeed) {
+      // Client-side multi-stop: build 3 waypoints per segment, fetch weather
+      var allSegments = [];
+      var elapsed = 0;
+      var totalDist = 0;
+      for (var s = 0; s < geoResults.length - 1; s++) {
+        var ori = geoResults[s], dst = geoResults[s + 1];
+        var segDist = haversineKm(ori.lat, ori.lon, dst.lat, dst.lon);
+        var segH = segDist / avgSpeed;
+        var N = 3;
+        var wps = [];
+        for (var i = 0; i <= N; i++) {
+          var f = i / N;
+          var wpLat = ori.lat + f * (dst.lat - ori.lat);
+          var wpLon = ori.lon + f * (dst.lon - ori.lon);
+          var wpEta = new Date(depDt.getTime() + (elapsed + f * segH) * 3600000);
+          var wpName = i === 0 ? ori.name : (i === N ? dst.name : '~' + Math.round(f * segDist + totalDist) + ' km');
+          wps.push({ lat: wpLat, lon: wpLon, eta: wpEta, name: wpName, distKm: Math.round(f * segDist + totalDist) });
+        }
+        var wxResults = await Promise.all(wps.map(function (wp) { return fetchWaypointWeather(wp.lat, wp.lon, wp.eta); }));
+        allSegments.push({ from: ori.name, to: dst.name, distKm: Math.round(segDist), waypoints: wps, weather: wxResults });
+        elapsed += segH; totalDist += segDist;
+      }
+      renderMultiRouteDirect(allSegments, geoResults, totalDist, elapsed, depDt);
+    }
+
+    function renderMultiRoute(data, depDt) {
+      var resultEl = document.getElementById('route-result');
+      if (!resultEl) return;
+      var durH = Math.floor(data.estimated_duration_h);
+      var durM = Math.round((data.estimated_duration_h - durH) * 60);
+      var html = '<div class="bg-card border border-border rounded-xl p-4 mb-3">';
+      html += '<div class="flex flex-wrap gap-3 text-sm text-muted mb-4">';
+      html += '<span>📍 ' + data.stops.map(function (s) { return '<strong class="text-gray-200">' + s.name + '</strong>'; }).join(' → ') + '</span>';
+      html += '<span>📏 <strong class="text-gray-200">~' + Math.round(data.total_distance_km) + ' km</strong></span>';
+      html += '<span>⏱️ <strong class="text-gray-200">~' + durH + 'h ' + durM + 'min</strong></span>';
+      html += '</div>';
+      data.segments.forEach(function (seg) {
+        html += '<div class="mb-4">';
+        html += '<div class="text-xs font-bold text-muted tracking-widest mb-2">'
+          + '▸ ' + seg.from + ' → ' + seg.to
+          + ' &nbsp;·&nbsp; ' + seg.distance_km + ' km'
+          + ' &nbsp;·&nbsp; ~' + Math.round(seg.duration_h * 60) + 'min</div>';
+        html += '<div class="flex gap-3 overflow-x-auto scroll-x pb-2">';
+        seg.waypoints.forEach(function (wp) {
+          var w = wp.weather;
+          if (!w) { html += '<div class="flex-shrink-0 w-36 bg-bg border border-border rounded-xl p-3 text-center"><div class="text-muted text-xs py-4">—</div></div>'; return; }
+          var ds = w.moto_score || 0;
+          var scoreColor = ds >= 80 ? '#22c55e' : ds >= 60 ? '#f97316' : ds >= 40 ? '#eab308' : '#ef4444';
+          var borderCls = ds < 40 ? 'border-danger' : ds < 60 ? 'border-warn' : 'border-ok';
+          var etaStr = wp.eta_iso ? wp.eta_iso.slice(11, 16) : '—';
+          html += '<div class="flex-shrink-0 bg-card border ' + borderCls + ' rounded-xl p-3 w-36 flex flex-col items-center gap-1">';
+          html += '<div class="text-xs font-bold text-muted">' + wp.name + '</div>';
+          html += '<div class="text-xs text-muted">ETA ' + etaStr + '</div>';
+          html += '<div style="font-size:2rem;line-height:1.2">' + (w.icon || '🌡️') + '</div>';
+          html += '<div class="font-display text-2xl font-bold text-gray-100">' + (w.temperature != null ? Math.round(w.temperature) + '°' : '—') + '</div>';
+          html += '<div class="text-xs text-muted text-center leading-tight">' + (w.description || '') + '</div>';
+          html += '<div class="mt-1 w-full score-bar-track"><div class="score-bar-fill" style="width:' + ds + '%;background:' + scoreColor + '"></div></div>';
+          html += '<div class="text-xs font-bold" style="color:' + scoreColor + '">' + ds + '</div>';
+          html += '</div>';
+        });
+        html += '</div></div>';
+      });
+      html += '<div class="text-xs text-muted/60 mt-2">⚠️ Distanța este calculată în linie dreaptă. Distanța reală pe drum poate fi cu 20-40% mai mare.</div>';
+      html += '</div>';
+      resultEl.innerHTML = html;
+    }
+
+    function renderMultiRouteDirect(segments, geoResults, totalDist, totalH, depDt) {
+      var resultEl = document.getElementById('route-result');
+      if (!resultEl) return;
+      var durH = Math.floor(totalH); var durM = Math.round((totalH - durH) * 60);
+      var html = '<div class="bg-card border border-border rounded-xl p-4 mb-3">';
+      html += '<div class="flex flex-wrap gap-3 text-sm text-muted mb-4">';
+      html += '<span>📍 ' + geoResults.map(function (g) { return '<strong class="text-gray-200">' + g.name + '</strong>'; }).join(' → ') + '</span>';
+      html += '<span>📏 <strong class="text-gray-200">~' + Math.round(totalDist) + ' km</strong></span>';
+      html += '<span>⏱️ <strong class="text-gray-200">~' + durH + 'h ' + durM + 'min</strong></span>';
+      html += '</div>';
+      segments.forEach(function (seg) {
+        html += '<div class="mb-4">';
+        html += '<div class="text-xs font-bold text-muted tracking-widest mb-2">▸ ' + seg.from + ' → ' + seg.to + ' &nbsp;·&nbsp; ' + seg.distKm + ' km</div>';
+        html += '<div class="flex gap-3 overflow-x-auto scroll-x pb-2">';
+        seg.waypoints.forEach(function (wp, wIdx) {
+          var w = seg.weather[wIdx];
+          if (!w) { html += '<div class="flex-shrink-0 w-36 bg-bg border border-border rounded-xl p-3 text-center"><div class="text-muted text-xs py-4">—</div></div>'; return; }
+          var ds = w.moto_score || 0;
+          var scoreColor = ds >= 80 ? '#22c55e' : ds >= 60 ? '#f97316' : ds >= 40 ? '#eab308' : '#ef4444';
+          var borderCls = ds < 40 ? 'border-danger' : ds < 60 ? 'border-warn' : 'border-ok';
+          var etaStr = wp.eta.getHours().toString().padStart(2, '0') + ':' + wp.eta.getMinutes().toString().padStart(2, '0');
+          html += '<div class="flex-shrink-0 bg-card border ' + borderCls + ' rounded-xl p-3 w-36 flex flex-col items-center gap-1">';
+          html += '<div class="text-xs font-bold text-muted">' + wp.name + '</div>';
+          html += '<div class="text-xs text-muted">ETA ' + etaStr + '</div>';
+          html += '<div style="font-size:2rem;line-height:1.2">' + w.icon + '</div>';
+          html += '<div class="font-display text-2xl font-bold text-gray-100">' + (w.temperature != null ? Math.round(w.temperature) + '°' : '—') + '</div>';
+          html += '<div class="text-xs text-muted text-center leading-tight">' + (w.description || '') + '</div>';
+          html += '<div class="mt-1 w-full score-bar-track"><div class="score-bar-fill" style="width:' + ds + '%;background:' + scoreColor + '"></div></div>';
+          html += '<div class="text-xs font-bold" style="color:' + scoreColor + '">' + ds + '</div>';
+          html += '</div>';
+        });
+        html += '</div></div>';
+      });
+      html += '<div class="text-xs text-muted/60 mt-2">⚠️ Distanța este calculată în linie dreaptă. Distanța reală pe drum poate fi cu 20-40% mai mare.</div>';
+      html += '</div>';
+      resultEl.innerHTML = html;
     }
 
     function renderRoute(waypoints, weatherResults, totalDistKm, totalHours, originName, destName, depDt) {
@@ -975,7 +1453,7 @@
         daily: "weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,"
           + "apparent_temperature_min,precipitation_sum,wind_speed_10m_max,wind_gusts_10m_max,"
           + "precipitation_probability_max,sunrise,sunset",
-        timezone: "auto", forecast_days: 7, wind_speed_unit: "kmh",
+        timezone: "auto", forecast_days: isPremium() ? 14 : 7, wind_speed_unit: "kmh",
       });
       var [omResp, owm, metData] = await Promise.all([
         fetch("https://api.open-meteo.com/v1/forecast?" + params),
@@ -1295,7 +1773,8 @@
           // No backend configured — call Open-Meteo directly from the browser
           d = await fetchDirect(LAT, LON, CITY);
         } else {
-          var url = API_URL + "/weather?lat=" + LAT + "&lon=" + LON + "&city=" + encodeURIComponent(CITY);
+          var days = isPremium() ? 14 : 7;
+          var url = API_URL + "/weather?lat=" + LAT + "&lon=" + LON + "&city=" + encodeURIComponent(CITY) + "&days=" + days;
           var res;
           try { res = await fetch(url); }
           catch (_) { throw new Error(BACKEND_UNAVAILABLE_MSG); }
@@ -1308,9 +1787,10 @@
         }
         render(d);
         saveCity(); renderFavsBar();
+        _updatePremiumUI();
         // Sync route planner origin with current city
-        var routeOriginEl = document.getElementById('route-origin');
-        if (routeOriginEl && !routeOriginEl.value) routeOriginEl.value = CITY;
+        var routeStop0 = document.getElementById('route-stop-0');
+        if (routeStop0 && !routeStop0.value) routeStop0.value = CITY;
         // Record fetch time for visibility-based refresh
         try { localStorage.setItem('lastWeatherFetch', String(Date.now())); } catch (_) { }
         document.getElementById("upd").innerHTML =
@@ -1434,6 +1914,9 @@
       var allMin = Math.min.apply(null, daily.map(function (x) { return x.temp_min; }));
       var allMax = Math.max.apply(null, daily.map(function (x) { return x.temp_max; }));
       var html = '';
+
+      // Custom alert banners (premium)
+      html += checkAlerts(c);
 
       // Frost / ice risk alert banner
       if (c.frost_risk || c.feels_like < 3) {
@@ -1566,9 +2049,11 @@
       html += '</div>';
 
       // Daily forecast — responsive + expandable
-      html += secTitle('Prognoză ' + daily.length + ' zile');
+      html += secTitle('Prognoză ' + (isPremium() ? daily.length : Math.min(daily.length, 7)) + ' zile'
+        + (daily.length > 7 && isPremium() ? '' : (daily.length > 7 ? ' <span class="text-xs text-accent/60 font-normal normal-case ml-2">+7 zile → ⚡ Premium</span>' : '')));
       html += '<div class="flex flex-col gap-2 mb-8">';
-      daily.forEach(function (day, i) {
+      var maxDay = isPremium() ? daily.length : Math.min(daily.length, 7);
+      daily.slice(0, maxDay).forEach(function (day, i) {
         var date = new Date(day.date + "T12:00:00");
         var dname = i === 0 ? "AZI" : (i === 1 ? "MÂINE" : DAYS[date.getDay()]);
         var tMin = Math.round(day.temp_min);
@@ -1674,7 +2159,48 @@
         html += '</div>'; // end details
         html += '</div>'; // end wrapper
       });
+
+      // Locked premium days preview (show 3 blurred rows if not premium and >7 days available)
+      if (!isPremium() && daily.length > 7) {
+        html += '<div class="relative mt-2">';
+        for (var li = 7; li < Math.min(daily.length, 10); li++) {
+          var lday = daily[li];
+          var ldate = new Date(lday.date + 'T12:00:00');
+          var ldname = DAYS[ldate.getDay()];
+          html += '<div class="bg-card border border-border border-l-4 border-l-border rounded-xl overflow-hidden mb-2 opacity-40 blur-[1.5px] pointer-events-none">';
+          html += '<div class="px-3 py-3 flex items-center gap-1.5 sm:gap-3">';
+          html += '<div class="flex-shrink-0 w-8 text-center" style="font-size:1.75rem">' + lday.icon + '</div>';
+          html += '<div class="flex-shrink-0 w-14 sm:w-20"><div class="font-display text-sm font-bold text-gray-100">' + ldname + '</div></div>';
+          html += '<div class="flex-1 h-1.5 bg-border rounded-full"></div>';
+          html += '<div class="text-danger text-xs font-bold">?</div>';
+          html += '</div></div>';
+        }
+        html += '<div class="absolute inset-0 flex flex-col items-center justify-center rounded-xl">';
+        html += '<button onclick="openPaywall(\'Prognoză 14 zile\')" class="bg-card border border-accent/40 rounded-xl px-6 py-4 flex flex-col items-center gap-2 shadow-xl hover:border-accent transition-colors">';
+        html += '<span class="text-3xl">🔒</span>';
+        html += '<span class="font-display font-bold text-accent tracking-wider">DEBLOCHEAZĂ 14 ZILE</span>';
+        html += '<span class="text-xs text-muted">⚡ MotoMeteo Plus</span>';
+        html += '</button></div></div>';
+      }
+
       html += '</div>';
+
+      // ── Precipitation radar card (premium) ──────────────────────────────
+      if (isPremium()) {
+        html += secTitle('🗺️ Radar precipitații');
+        html += '<div class="bg-card border border-border rounded-xl overflow-hidden mb-6">';
+        html += '<div id="radar-map" style="height:260px;background:#13151a"></div>';
+        html += '<div class="px-3 py-2 text-xs text-muted/60 flex justify-between">'
+          + '<span>Sursa: RainViewer &amp; OpenStreetMap</span>'
+          + '<span>Live · actualizare automată 10min</span>'
+          + '</div></div>';
+      } else {
+        html += '<div class="mb-6 border border-dashed border-accent/25 rounded-xl p-5 flex items-center gap-4 cursor-pointer hover:border-accent/50 transition-colors" onclick="openPaywall(\'Radar precipitații\')">';
+        html += '<span class="text-4xl flex-shrink-0">🔒</span>';
+        html += '<div><div class="font-display font-bold text-accent tracking-wider">RADAR PRECIPITAȚII</div>';
+        html += '<div class="text-sm text-muted mt-0.5">Hartă interactivă cu precipitații în timp real — ⚡ Premium</div></div>';
+        html += '</div>';
+      }
 
       html += '<div class="border-t border-border pt-4 pb-8 text-xs text-muted tracking-widest text-center">'
         + '<div>DATE: OPEN-METEO.COM &middot; OPENWEATHERMAP &middot; MET NORWAY (ECMWF)</div>'
@@ -1683,13 +2209,54 @@
 
       document.getElementById("app").innerHTML = html;
       renderChart(hourly);
+      if (isPremium()) initRadarMap(d.latitude, d.longitude);
     }
 
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js').catch(function () { });
     }
 
-    // ── iOS-specific enhancements ──────────────────────────────────────────
+    // -----------------------------------------------------------------------
+    // Precipitation radar (Leaflet + RainViewer) — premium
+    // -----------------------------------------------------------------------
+    function initRadarMap(lat, lon) {
+      function _doInit() {
+        var container = document.getElementById('radar-map');
+        if (!container || !window.L) return;
+        if (window._radarMap) { window._radarMap.remove(); window._radarMap = null; }
+        var map = window.L.map('radar-map', {
+          zoomControl: true, attributionControl: true, scrollWheelZoom: false
+        }).setView([lat, lon], 8);
+        window._radarMap = map;
+        window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 13, attribution: '&copy; <a href="https://osm.org/copyright">OSM</a>'
+        }).addTo(map);
+        window.L.circleMarker([lat, lon], {
+          radius: 7, color: '#f97316', fillColor: '#f97316', fillOpacity: 0.9
+        }).addTo(map);
+        fetch('https://api.rainviewer.com/public/weather-maps.json')
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (rv) {
+            if (!rv || !rv.radar || !rv.radar.past) return;
+            var frame = rv.radar.past[rv.radar.past.length - 1];
+            window.L.tileLayer(
+              'https://tilecache.rainviewer.com' + frame.path + '/256/{z}/{x}/{y}/4/1_1.png',
+              { opacity: 0.6, attribution: '<a href="https://www.rainviewer.com">RainViewer</a>' }
+            ).addTo(map);
+          }).catch(function () { });
+      }
+      if (window.L) { _doInit(); return; }
+      if (window._leafletLoading) { return; }
+      window._leafletLoading = true;
+      var css = document.createElement('link');
+      css.rel = 'stylesheet';
+      css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(css);
+      var scr = document.createElement('script');
+      scr.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      scr.onload = function () { window._leafletLoading = false; _doInit(); };
+      document.head.appendChild(scr);
+    }
 
     // Haptic feedback wrapper using the Vibration API
     // iOS Safari 16.4+ supports navigator.vibrate in PWA/standalone mode
@@ -1743,11 +2310,10 @@
     // Set default departure time for route planner (now, rounded to hour)
     (function () {
       var depEl = document.getElementById('route-departure');
-      if (depEl) {
-        var now = new Date();
-        now.setMinutes(0, 0, 0);
-        depEl.value = now.toISOString().slice(0, 16);
-      }
+      if (depEl) { var now = new Date(); now.setMinutes(0, 0, 0); depEl.value = now.toISOString().slice(0, 16); }
+      // Pre-seed origin from current city
+      var stop0 = document.getElementById('route-stop-0');
+      if (stop0 && CITY !== 'București') stop0.value = CITY;
     })();
     // Pre-fill route origin with current city when it changes
     loadProfileUI();

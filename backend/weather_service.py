@@ -476,7 +476,9 @@ async def geocode_city(city: str, client: httpx.AsyncClient) -> dict[str, Any]:
 # Fetch from Open-Meteo
 # ---------------------------------------------------------------------------
 
-async def _fetch_openmeteo(lat: float, lon: float, client: httpx.AsyncClient) -> dict[str, Any]:
+async def _fetch_openmeteo(
+    lat: float, lon: float, client: httpx.AsyncClient, forecast_days: int = 7
+) -> dict[str, Any]:
     params = {
         "latitude": lat,
         "longitude": lon,
@@ -496,7 +498,7 @@ async def _fetch_openmeteo(lat: float, lon: float, client: httpx.AsyncClient) ->
             "precipitation_probability_max,sunrise,sunset"
         ),
         "timezone": "auto",
-        "forecast_days": 7,
+        "forecast_days": min(max(int(forecast_days), 1), 16),
         "wind_speed_unit": "kmh",
     }
     resp = await client.get(OPENMETEO_BASE, params=params, timeout=15)
@@ -939,14 +941,16 @@ async def get_weather(
     lon: float,
     city_name: str,
     owm_api_key: str,
+    forecast_days: int = 7,
 ) -> dict[str, Any]:
     """
     Fetch and aggregate weather data from Open-Meteo and OpenWeatherMap.
     Returns a unified JSON-serialisable dict.
+    forecast_days: 7 (free) or 14 (premium — Open-Meteo supports up to 16).
     """
     async with httpx.AsyncClient() as client:
         # Launch all requests concurrently
-        om_task = _fetch_openmeteo(lat, lon, client)
+        om_task = _fetch_openmeteo(lat, lon, client, forecast_days=forecast_days)
         owm_cur_task = _fetch_owm_current(lat, lon, owm_api_key, client)
         owm_fc_task = _fetch_owm_forecast(lat, lon, owm_api_key, client)
         owm_air_task = _fetch_owm_air(lat, lon, owm_api_key, client)
@@ -967,4 +971,109 @@ async def get_weather(
         "current": current,
         "daily": daily,
         "hourly": hourly,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Multi-stop route weather (premium)
+# ---------------------------------------------------------------------------
+
+async def get_multi_route_weather(
+    stops: list[dict],
+    departure_iso: str,
+    avg_speed_kmh: float,
+    owm_api_key: str,
+) -> dict[str, Any]:
+    """
+    Compute weather along a multi-stop motorcycle route.
+
+    Parameters
+    ----------
+    stops: list of dicts with keys ``name``, ``lat``, ``lon`` (2–5 items).
+    departure_iso: ISO-8601 departure time string.
+    avg_speed_kmh: average speed in km/h.
+    owm_api_key: OpenWeatherMap API key.
+
+    Returns a dict with ``segments`` (one entry per consecutive stop pair),
+    ``total_distance_km``, ``estimated_duration_h``, and ``stops`` metadata.
+    """
+    try:
+        dep_dt = datetime.fromisoformat(departure_iso)
+    except ValueError:
+        dep_dt = datetime.now()
+
+    segments: list[dict[str, Any]] = []
+    elapsed_hours = 0.0
+    total_dist_km = 0.0
+
+    all_waypoints: list[dict[str, Any]] = []
+
+    for seg_idx in range(len(stops) - 1):
+        origin = stops[seg_idx]
+        dest = stops[seg_idx + 1]
+
+        seg_dist_km = _haversine_km(origin["lat"], origin["lon"], dest["lat"], dest["lon"])
+        seg_hours = seg_dist_km / avg_speed_kmh if avg_speed_kmh > 0 else 0
+
+        num_seg = 3  # intermediate points per segment
+        seg_waypoints: list[dict[str, Any]] = []
+        for i in range(num_seg + 1):
+            frac = i / num_seg
+            wp_lat = origin["lat"] + frac * (dest["lat"] - origin["lat"])
+            wp_lon = origin["lon"] + frac * (dest["lon"] - origin["lon"])
+            wp_eta = dep_dt + timedelta(hours=elapsed_hours + frac * seg_hours)
+
+            if i == 0:
+                wp_name = origin["name"]
+            elif i == num_seg:
+                wp_name = dest["name"]
+            else:
+                wp_name = f"~{round(frac * seg_dist_km + total_dist_km)} km"
+
+            seg_waypoints.append({
+                "index": len(all_waypoints) + i,
+                "name": wp_name,
+                "lat": round(wp_lat, 4),
+                "lon": round(wp_lon, 4),
+                "distance_from_start_km": round(total_dist_km + frac * seg_dist_km, 1),
+                "eta_iso": wp_eta.isoformat()[:16],
+            })
+
+        all_waypoints.extend(seg_waypoints[:-1] if seg_idx < len(stops) - 2 else seg_waypoints)
+        total_dist_km += seg_dist_km
+        elapsed_hours += seg_hours
+
+        segments.append({
+            "from": origin["name"],
+            "to": dest["name"],
+            "distance_km": round(seg_dist_km, 1),
+            "duration_h": round(seg_hours, 2),
+            "waypoints": seg_waypoints,
+        })
+
+    # Fetch weather for unique waypoints concurrently
+    async with httpx.AsyncClient() as client:
+        tasks = [
+            _fetch_waypoint_weather(wp["lat"], wp["lon"], wp["eta_iso"], client)
+            for wp in all_waypoints
+        ]
+        weather_results = await asyncio.gather(*tasks)
+
+    # Attach weather to waypoints
+    for wp, weather in zip(all_waypoints, weather_results):
+        wp["weather"] = weather
+
+    # Map weather back to segment waypoints by index
+    weather_by_index = {wp["index"]: wp["weather"] for wp in all_waypoints}
+    for seg in segments:
+        for wp in seg["waypoints"]:
+            wp["weather"] = weather_by_index.get(wp["index"], {})
+
+    return {
+        "stops": [{"name": s["name"], "lat": s["lat"], "lon": s["lon"]} for s in stops],
+        "departure": departure_iso,
+        "avg_speed_kmh": avg_speed_kmh,
+        "total_distance_km": round(total_dist_km, 1),
+        "estimated_duration_h": round(elapsed_hours, 2),
+        "segments": segments,
     }

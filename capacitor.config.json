@@ -13,7 +13,13 @@
             "fonts.googleapis.com",
             "fonts.gstatic.com",
             "cdn.tailwindcss.com",
-            "cdn.jsdelivr.net"
+            "cdn.jsdelivr.net",
+            "unpkg.com",
+            "tilecache.rainviewer.com",
+            "api.rainviewer.com",
+            "tile.openstreetmap.org",
+            "revenuecat.com",
+            "api.revenuecat.com"
         ]
     },
     "plugins": {
@@ -28,6 +34,13 @@
             "style": "Dark",
             "backgroundColor": "#0b0c0f",
             "overlaysWebView": true
+        },
+        "PushNotifications": {
+            "presentationOptions": [
+                "badge",
+                "sound",
+                "alert"
+            ]
         }
     },
     "ios": {
