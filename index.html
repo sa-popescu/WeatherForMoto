@@ -223,7 +223,7 @@
   </header>
 
   <!-- PROFIL MOTO -->
-  <div id="profile-panel" class="hidden bg-surface border-b border-border" style="display:none">
+  <div id="profile-panel" class="bg-surface border-b border-border" style="display:none">
     <div class="max-w-5xl mx-auto px-3 sm:px-4 py-4">
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div>
@@ -291,7 +291,7 @@
         </div>
         <div>
           <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Viteză medie (km/h)</label>
-          <input id="route-speed" type="number" value="80" min="20" max="250"
+          <input id="route-speed" type="number" value="80" min="20" max="180"
             class="w-full bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent transition-colors" />
         </div>
       </div>
@@ -387,9 +387,8 @@
     function toggleProfile() {
       var panel = document.getElementById('profile-panel');
       if (!panel) return;
-      var isHidden = panel.style.display === 'none' || panel.classList.contains('hidden');
+      var isHidden = panel.style.display === 'none';
       panel.style.display = isHidden ? '' : 'none';
-      panel.classList.toggle('hidden', !isHidden);
       if (isHidden) loadProfileUI();
     }
 

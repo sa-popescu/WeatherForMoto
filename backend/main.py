@@ -19,6 +19,7 @@ GET /geocode?city=Cluj-Napoca
 import logging
 import os
 import asyncio
+from datetime import datetime as _dt
 import pathlib
 from contextlib import asynccontextmanager
 from typing import Annotated
@@ -200,7 +201,7 @@ async def route_weather(
     ] = None,
     avg_speed: Annotated[
         float,
-        Query(gt=0, le=250, description="Average riding speed in km/h"),
+        Query(gt=0, le=180, description="Average riding speed in km/h"),
     ] = 80.0,
 ):
     """
@@ -211,8 +212,6 @@ async def route_weather(
     spaced by linear (great-circle) interpolation; actual road distance may
     differ.
     """
-    from datetime import datetime as _dt
-
     if departure is None:
         departure = _dt.now().isoformat()[:16]
 
