@@ -208,23 +208,163 @@
         + '</svg>';
     }
 
+    // -----------------------------------------------------------------------
+    // WMO code helpers (mirror of weather_service.py)
+    // -----------------------------------------------------------------------
+    var WMO_MAP = {
+      0: ["Cer senin", "☀️"], 1: ["Predominant senin", "🌤️"], 2: ["Parțial înnorat", "⛅"],
+      3: ["Înnorat", "☁️"], 45: ["Ceață", "🌫️"], 48: ["Ceață cu chiciură", "🌫️"],
+      51: ["Burniță ușoară", "🌦️"], 53: ["Burniță moderată", "🌦️"], 55: ["Burniță densă", "🌧️"],
+      61: ["Ploaie ușoară", "🌧️"], 63: ["Ploaie moderată", "🌧️"], 65: ["Ploaie torențială", "🌧️"],
+      71: ["Ninsoare ușoară", "🌨️"], 73: ["Ninsoare moderată", "❄️"], 75: ["Ninsoare puternică", "❄️"],
+      80: ["Averse ușoare", "🌦️"], 81: ["Averse moderate", "🌧️"], 82: ["Averse violente", "⛈️"],
+      95: ["Furtună", "⛈️"], 96: ["Furtună cu grindină", "⛈️"], 99: ["Furtună puternică cu grindină", "⛈️"],
+    };
+    function wmoDesc(c) { return ((WMO_MAP[c] || [])[0]) || "—"; }
+    function wmoIcon(c) { return ((WMO_MAP[c] || [])[1]) || "🌡️"; }
+    function windDirLabel(deg) {
+      if (deg == null) return "—";
+      return ["N", "NE", "E", "SE", "S", "SV", "V", "NV"][Math.round(deg / 45) % 8];
+    }
+    function beaufortScale(kmh) {
+      if (kmh == null) return "—";
+      var mps = kmh / 3.6;
+      var sc = [0.3, 1.5, 3.4, 5.4, 7.9, 10.7, 13.8, 17.1, 20.7, 24.4, 28.4, 32.6];
+      for (var i = 0; i < sc.length; i++) if (mps < sc[i]) return String(i);
+      return "12";
+    }
+    function motoLabel(s) {
+      if (s >= 80) return "IDEAL"; if (s >= 60) return "OK";
+      if (s >= 40) return "ACCEPTABIL"; if (s >= 20) return "RISCANT"; return "EVITĂ";
+    }
+    function omSafe(lst, i) { return (lst && i < lst.length) ? lst[i] : null; }
+
+    // -----------------------------------------------------------------------
+    // Direct Open-Meteo fetch (no backend needed)
+    // -----------------------------------------------------------------------
+    async function geocodeDirect(city) {
+      var resp = await fetch(
+        "https://geocoding-api.open-meteo.com/v1/search?name=" +
+        encodeURIComponent(city) + "&count=1&language=ro"
+      );
+      if (!resp.ok) throw new Error("Geocoding eșuat: HTTP " + resp.status);
+      var data = await resp.json();
+      if (!data.results || !data.results.length)
+        throw new Error("Orașul '" + city + "' nu a fost găsit.");
+      var r = data.results[0];
+      return {
+        lat: r.latitude, lon: r.longitude, name: r.name,
+        country: r.country_code || "", timezone: r.timezone || "auto"
+      };
+    }
+
+    async function fetchDirect(lat, lon, cityName) {
+      var params = new URLSearchParams({
+        latitude: lat, longitude: lon,
+        current: "temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,"
+          + "wind_gusts_10m,wind_direction_10m,precipitation,weather_code,surface_pressure,visibility",
+        hourly: "temperature_2m,apparent_temperature,precipitation_probability,"
+          + "precipitation,weather_code,wind_speed_10m,wind_gusts_10m",
+        daily: "weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,"
+          + "apparent_temperature_min,precipitation_sum,wind_speed_10m_max,wind_gusts_10m_max,"
+          + "precipitation_probability_max",
+        timezone: "auto", forecast_days: 7, wind_speed_unit: "kmh",
+      });
+      var resp = await fetch("https://api.open-meteo.com/v1/forecast?" + params);
+      if (!resp.ok) throw new Error("Open-Meteo HTTP " + resp.status);
+      var om = await resp.json();
+      if (om.error) throw new Error("Open-Meteo: " + (om.reason || "eroare"));
+
+      var c = om.current || {};
+      var prec = c.precipitation || 0;
+      var code = c.weather_code;
+      var windSpeed = c.wind_speed_10m;
+      var windGusts = c.wind_gusts_10m;
+      var feels = c.apparent_temperature;
+      var motoScore = scoreHourly(feels, windGusts, prec, code);
+      var current = {
+        temperature: c.temperature_2m,
+        feels_like: feels,
+        humidity: c.relative_humidity_2m,
+        wind_speed_kmh: windSpeed,
+        wind_gusts_kmh: windGusts,
+        wind_direction_deg: c.wind_direction_10m,
+        wind_direction: windDirLabel(c.wind_direction_10m),
+        beaufort: beaufortScale(windSpeed),
+        precipitation_mm: prec,
+        weather_code: code,
+        description: wmoDesc(code),
+        icon: wmoIcon(code),
+        pressure_hpa: c.surface_pressure,
+        visibility_km: c.visibility != null ? Math.round(c.visibility / 100) / 10 : null,
+        aqi: null,
+        moto_score: motoScore,
+        moto_label: motoLabel(motoScore),
+        sources: ["open-meteo"],
+      };
+
+      var daily = [];
+      var dd = om.daily || {};
+      var dates = dd.time || [];
+      for (var i = 0; i < dates.length; i++) {
+        var dcode = omSafe(dd.weather_code, i);
+        var precSum = omSafe(dd.precipitation_sum, i) || 0;
+        var famax = omSafe(dd.apparent_temperature_max, i);
+        var gustMax = omSafe(dd.wind_gusts_10m_max, i);
+        var ds = scoreHourly(famax, gustMax, precSum, dcode);
+        daily.push({
+          date: dates[i], weather_code: dcode, icon: wmoIcon(dcode), description: wmoDesc(dcode),
+          temp_max: omSafe(dd.temperature_2m_max, i), temp_min: omSafe(dd.temperature_2m_min, i),
+          feels_max: famax, feels_min: omSafe(dd.apparent_temperature_min, i),
+          precipitation_mm: Math.round((precSum) * 10) / 10,
+          precipitation_probability: omSafe(dd.precipitation_probability_max, i) || 0,
+          wind_max_kmh: omSafe(dd.wind_speed_10m_max, i), wind_gusts_kmh: gustMax,
+          moto_score: ds, moto_label: motoLabel(ds),
+        });
+      }
+
+      var hourly = [];
+      var hh = om.hourly || {};
+      var times = hh.time || [];
+      for (var i = 0; i < times.length; i++) {
+        var hcode = omSafe(hh.weather_code, i);
+        hourly.push({
+          time: times[i],
+          temperature: omSafe(hh.temperature_2m, i),
+          feels_like: omSafe(hh.apparent_temperature, i),
+          precipitation_mm: omSafe(hh.precipitation, i),
+          precipitation_probability: omSafe(hh.precipitation_probability, i),
+          wind_speed_kmh: omSafe(hh.wind_speed_10m, i),
+          wind_gusts_kmh: omSafe(hh.wind_gusts_10m, i),
+          weather_code: hcode, icon: wmoIcon(hcode), description: wmoDesc(hcode),
+        });
+      }
+
+      return {
+        city: cityName, latitude: lat, longitude: lon,
+        timezone: om.timezone || "UTC", current: current, daily: daily, hourly: hourly
+      };
+    }
+
+    // -----------------------------------------------------------------------
     async function searchCity() {
       var q = document.getElementById("city-in").value.trim();
       if (!q) return;
-      if (API_URL === null) {
-        _showBackendConfigForm('Configurează URL-ul backend-ului înainte de a căuta un oraș.');
-        return;
-      }
       try {
-        var r;
-        try { r = await fetch(API_URL + "/geocode?city=" + encodeURIComponent(q)); }
-        catch (_) { throw new Error(BACKEND_UNAVAILABLE_MSG); }
-        if (!r.ok) {
-          var errMsg = "HTTP " + r.status;
-          try { var ed = await r.json(); errMsg = ed.detail || errMsg; } catch (_) { }
-          throw new Error(errMsg);
+        var geo;
+        if (API_URL === null) {
+          geo = await geocodeDirect(q);
+        } else {
+          var r;
+          try { r = await fetch(API_URL + "/geocode?city=" + encodeURIComponent(q)); }
+          catch (_) { throw new Error(BACKEND_UNAVAILABLE_MSG); }
+          if (!r.ok) {
+            var errMsg = "HTTP " + r.status;
+            try { var ed = await r.json(); errMsg = ed.detail || errMsg; } catch (_) { }
+            throw new Error(errMsg);
+          }
+          geo = await r.json();
         }
-        var geo = await r.json();
         LAT = geo.lat; LON = geo.lon;
         CITY = geo.name + (geo.country && geo.country !== "RO" ? ", " + geo.country : "");
         loadWeather();
@@ -233,66 +373,36 @@
 
     document.getElementById("city-in").addEventListener("keydown", function (e) { if (e.key === "Enter") searchCity(); });
 
-    function _showBackendConfigForm(reason) {
-      var stored = localStorage.getItem('motoMeteoBackendUrl') || '';
-      document.getElementById("app").innerHTML =
-        '<div class="mt-4 p-5 rounded-xl border border-warn bg-warn/10 text-warn text-base font-semibold">'
-        + '⚙️ ' + reason
-        + '</div>'
-        + '<div class="mt-4 p-4 rounded-xl border border-border bg-card">'
-        + '<div class="text-sm text-muted mb-2 font-semibold tracking-widest uppercase">URL Backend Railway</div>'
-        + '<div class="flex gap-2">'
-        + '<input id="backend-url-cfg" type="url" placeholder="https://your-app.up.railway.app" value="' + stored + '"'
-        + ' class="flex-1 bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent placeholder-muted"/>'
-        + '<button onclick="setBackendUrl()" class="bg-accent hover:bg-orange-400 text-black font-display font-bold text-sm tracking-wider px-4 py-2 rounded-lg transition-colors">SALVEAZĂ</button>'
-        + '</div>'
-        + '<div class="text-xs text-muted mt-2 opacity-70">Introdu URL-ul backend-ului Railway (ex: https://xyz.up.railway.app). Se salvează în browser.</div>'
-        + '</div>';
-    }
-
     async function loadWeather() {
-      // GitHub Pages: backend is on a different host — show config UI if URL not set
-      if (API_URL === null) {
-        _showBackendConfigForm('Configurează URL-ul backend-ului pentru a încărca datele meteo.');
-        return;
-      }
       document.getElementById("app").innerHTML =
         '<div class="flex flex-col items-center justify-center py-24 text-muted">'
         + '<span class="spin-anim text-5xl mb-4">⚙️</span>'
         + '<span class="font-display text-xl tracking-widest pulse-anim">SE ÎNCARCĂ...</span>'
         + '</div>';
       try {
-        var url = API_URL + "/weather?lat=" + LAT + "&lon=" + LON + "&city=" + encodeURIComponent(CITY);
-        var res;
-        try { res = await fetch(url); }
-        catch (_) { throw new Error(BACKEND_UNAVAILABLE_MSG); }
-        if (!res.ok) {
-          var errMsg = "HTTP " + res.status;
-          try { var ed = await res.json(); errMsg = ed.detail || errMsg; } catch (_) { }
-          throw new Error(errMsg);
+        var d;
+        if (API_URL === null) {
+          // No backend configured — call Open-Meteo directly from the browser
+          d = await fetchDirect(LAT, LON, CITY);
+        } else {
+          var url = API_URL + "/weather?lat=" + LAT + "&lon=" + LON + "&city=" + encodeURIComponent(CITY);
+          var res;
+          try { res = await fetch(url); }
+          catch (_) { throw new Error(BACKEND_UNAVAILABLE_MSG); }
+          if (!res.ok) {
+            var errMsg = "HTTP " + res.status;
+            try { var ed = await res.json(); errMsg = ed.detail || errMsg; } catch (_) { }
+            throw new Error(errMsg);
+          }
+          d = await res.json();
         }
-        var d = await res.json();
         render(d);
         document.getElementById("upd").textContent =
           "ACTUALIZAT: " + new Date().toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" });
       } catch (e) {
-        var currentBackend = API_URL || location.origin;
         document.getElementById("app").innerHTML =
           '<div class="mt-4 p-5 rounded-xl border border-danger bg-danger/10 text-danger text-base font-semibold">'
-          + '⚠️ Backend indisponibil: ' + e.message
-          + '<small class="block mt-2 text-sm font-normal opacity-70">URL curent: <code class="bg-black/30 px-1 rounded">' + currentBackend + '</code></small>'
-          + '<small class="block mt-1 text-sm font-normal opacity-70">Pornește backend-ul local: '
-          + '<code class="bg-black/30 px-1 rounded">cd backend &amp;&amp; uvicorn main:app --reload</code></small>'
-          + '</div>'
-          + '<div class="mt-4 p-4 rounded-xl border border-border bg-card">'
-          + '<div class="text-sm text-muted mb-2 font-semibold tracking-widest uppercase">Configurează URL backend</div>'
-          + '<div class="flex gap-2">'
-          + '<input id="backend-url-cfg" type="url" placeholder="https://your-app.up.railway.app" value="' + (localStorage.getItem('motoMeteoBackendUrl') || '') + '"'
-          + ' class="flex-1 bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent placeholder-muted"/>'
-          + '<button onclick="setBackendUrl()" class="bg-accent hover:bg-orange-400 text-black font-display font-bold text-sm tracking-wider px-4 py-2 rounded-lg transition-colors">SALVEAZĂ</button>'
-          + '<button onclick="clearBackendUrl()" class="bg-card border border-border text-muted hover:text-gray-200 text-sm px-3 py-2 rounded-lg transition-colors">✕</button>'
-          + '</div>'
-          + '<div class="text-xs text-muted mt-2 opacity-70">Introdu URL-ul backend-ului Railway (ex: https://xyz.up.railway.app). Se salvează în browser.</div>'
+          + '⚠️ Eroare la încărcare: ' + e.message
           + '</div>'
           + '<button onclick="loadWeather()" class="mt-4 bg-accent hover:bg-orange-400 text-black font-display font-bold'
           + ' tracking-wider px-6 py-2 rounded-lg transition-colors">RETRY</button>';
