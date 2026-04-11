@@ -4,187 +4,94 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Moto Meteo</title>
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<title>MotoMeteo — Vremea pentru motocicliști</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: {
+        display: ['Rajdhani', 'sans-serif'],
+        body: ['Inter', 'sans-serif'],
+      },
+      colors: {
+        bg:      '#0b0c0f',
+        surface: '#13151a',
+        card:    '#181b22',
+        border:  '#232731',
+        accent:  '#f97316',
+        danger:  '#ef4444',
+        warn:    '#eab308',
+        ok:      '#22c55e',
+        muted:   '#6b7280',
+      },
+    },
+  },
+};
+</script>
 <style>
-:root {
-  --bg: #0d0f12; --surface: #13161b; --border: #1e2229;
-  --accent: #f97316; --danger: #ef4444; --warn: #eab308;
-  --ok: #22c55e; --text: #e8eaed; --muted: #6b7280;
-}
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: var(--bg); color: var(--text); font-family: 'IBM Plex Mono', monospace; min-height: 100vh; }
-.display { font-family: 'Bebas Neue', sans-serif; }
-
-/* HEADER */
-.header {
-background: var(--surface); border-bottom: 1px solid var(--border);
-padding: 14px 20px; display: flex; align-items: center;
-justify-content: space-between; flex-wrap: wrap; gap: 10px;
-position: sticky; top: 0; z-index: 100;
-}
-.logo { font-size: 26px; letter-spacing: 2px; color: var(--accent); line-height: 1; }
-.logo span { color: var(--text); opacity: 0.4; font-size: 18px; }
-.updated { font-size: 10px; color: var(--muted); letter-spacing: 1px; margin-top: 2px; }
-.search { display: flex; gap: 8px; align-items: center; }
-.search input {
-background: var(--bg); border: 1px solid var(--border); color: var(--text);
-font-family: ‘IBM Plex Mono’, monospace; font-size: 12px;
-padding: 7px 12px; border-radius: 4px; width: 170px; outline: none;
-}
-.search input:focus { border-color: var(--accent); }
-.search input::placeholder { color: var(--muted); }
-.btn {
-background: var(--accent); border: none; color: #000;
-font-family: ‘Bebas Neue’, sans-serif; font-size: 15px;
-letter-spacing: 1px; padding: 7px 16px; border-radius: 4px; cursor: pointer;
-}
-.btn-sm {
-background: var(--surface); border: 1px solid var(--border); color: var(--muted);
-font-family: ‘Bebas Neue’, sans-serif; font-size: 15px;
-padding: 7px 12px; border-radius: 4px; cursor: pointer;
-}
-
-/* MAIN */
-.main { max-width: 880px; margin: 0 auto; padding: 20px 16px; }
-
-/* LOCATION */
-.location-title { font-size: 44px; letter-spacing: 3px; line-height: 1; margin-bottom: 2px; }
-.location-sub { font-size: 10px; color: var(--muted); letter-spacing: 2px; margin-bottom: 22px; }
-
-/* SCORE */
-.score-card {
-background: var(--surface); border: 1px solid var(--border);
-border-radius: 8px; padding: 18px 22px; margin-bottom: 16px;
-display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
-}
-.score-num { font-size: 72px; line-height: 1; min-width: 90px; }
-.score-title { font-size: 20px; letter-spacing: 2px; margin-bottom: 4px; }
-.score-msg { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
-.score-detail { font-size: 11px; color: var(--muted); }
-
-/* NOW GRID */
-.now-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 20px; }
-.stat {
-background: var(--surface); border: 1px solid var(--border);
-border-radius: 6px; padding: 12px 14px; position: relative;
-}
-.stat-lbl { font-size: 9px; color: var(--muted); letter-spacing: 2px; margin-bottom: 6px; }
-.stat-val { font-size: 30px; line-height: 1; }
-.stat-sub { font-size: 10px; color: var(--muted); margin-top: 3px; }
-.stat-icon { position: absolute; top: 10px; right: 10px; font-size: 18px; opacity: 0.35; }
-
-/* SECTION */
-.sec-title {
-font-size: 13px; letter-spacing: 3px; color: var(--muted);
-margin-bottom: 10px; margin-top: 22px;
-display: flex; align-items: center; gap: 8px;
-}
-.sec-line { flex: 1; height: 1px; background: var(--border); }
-
-/* HOURLY */
-.hourly { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px; }
-.hourly::-webkit-scrollbar { height: 3px; }
-.hourly::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-.hour {
-background: var(--surface); border: 1px solid var(--border);
-border-radius: 6px; padding: 10px 8px; min-width: 68px;
-text-align: center; flex-shrink: 0;
-}
-.hour-time { font-size: 10px; color: var(--muted); margin-bottom: 5px; letter-spacing: 1px; }
-.hour-icon { font-size: 20px; margin-bottom: 5px; }
-.hour-temp { font-size: 22px; }
-.hour-rain { font-size: 10px; margin-top: 3px; }
-.hour-wind { font-size: 10px; color: var(--muted); margin-top: 2px; }
-
-/* DAILY */
-.daily { display: flex; flex-direction: column; gap: 8px; }
-.day {
-background: var(--surface); border: 1px solid var(--border);
-border-radius: 6px; padding: 12px 16px;
-display: grid; grid-template-columns: 90px 36px 1fr 65px 65px 80px;
-align-items: center; gap: 10px;
-}
-.day-name { font-size: 16px; letter-spacing: 1px; }
-.day-icon { font-size: 22px; }
-.bar-wrap { display: flex; align-items: center; gap: 6px; }
-.bar-min { font-size: 11px; color: var(--muted); min-width: 28px; text-align: right; }
-.bar-max { font-size: 11px; min-width: 28px; }
-.bar-bg { flex: 1; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
-.bar-fill { height: 100%; border-radius: 2px; background: linear-gradient(90deg, #60a5fa, #f97316); }
-.day-stat { text-align: center; }
-.day-stat-val { font-size: 16px; }
-.day-stat-lbl { font-size: 9px; color: var(--muted); letter-spacing: 1px; }
-.verdict {
-font-size: 10px; padding: 3px 8px; border-radius: 3px;
-text-align: center; letter-spacing: 1px; font-size: 11px;
-}
-.v-ok { background: rgba(34,197,94,0.15); color: var(--ok); }
-.v-warn { background: rgba(234,179,8,0.15); color: var(--warn); }
-.v-bad { background: rgba(239,68,68,0.15); color: var(--danger); }
-
-/* STATES */
-.loading {
-text-align: center; padding: 60px 20px; color: var(--muted);
-font-size: 13px; letter-spacing: 2px;
-}
-.spin { font-size: 36px; display: block; margin-bottom: 16px; animation: spin 1s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-.err {
-background: rgba(239,68,68,0.1); border: 1px solid var(--danger);
-border-radius: 6px; padding: 16px; color: var(--danger); font-size: 12px; margin-top: 16px;
-}
-.err-hint { opacity: 0.7; margin-top: 6px; display: block; }
-.footer { margin-top: 28px; padding-top: 14px; border-top: 1px solid var(--border); font-size: 10px; color: var(--muted); letter-spacing: 1px; text-align: center; }
-
-@media (max-width: 580px) {
-.header { flex-direction: column; align-items: flex-start; }
-.search input { width: 140px; }
-.location-title { font-size: 34px; }
-.day { grid-template-columns: 70px 28px 1fr 55px 55px; }
-.day .verdict { display: none; }
-}
+@keyframes spin-slow { to { transform: rotate(360deg); } }
+@keyframes pulse-soft { 0%,100%{opacity:1;} 50%{opacity:.55;} }
+.spin-anim { animation: spin-slow 1.2s linear infinite; display:inline-block; }
+.pulse-anim { animation: pulse-soft 1.8s ease-in-out infinite; }
+.gauge-ring { transition: stroke-dashoffset .6s cubic-bezier(.4,0,.2,1); }
+.scroll-x::-webkit-scrollbar { height: 4px; }
+.scroll-x::-webkit-scrollbar-track { background: transparent; }
+.scroll-x::-webkit-scrollbar-thumb { background: #232731; border-radius: 2px; }
+.wx-icon     { font-size: 4rem;   line-height:1; }
+.wx-icon-lg  { font-size: 6.5rem; line-height:1; }
+#tempChart   { width:100%!important; height:180px!important; }
+html { scroll-behavior:smooth; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 </head>
-<body>
+<body class="bg-bg text-gray-100 font-body min-h-screen">
 
-<div class="header">
-  <div>
-    <div class="logo display">MOTO <span>///</span> METEO</div>
-    <div class="updated" id="upd">—</div>
+<!-- HEADER -->
+<header class="bg-surface border-b border-border sticky top-0 z-50">
+  <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-4 flex-wrap">
+    <div class="flex items-center gap-3">
+      <span class="text-4xl leading-none">🏍️</span>
+      <div>
+        <div class="font-display text-3xl font-bold tracking-widest text-accent leading-none">MOTO<span class="text-gray-600 text-2xl"> /// </span>METEO</div>
+        <div id="upd" class="text-xs text-muted tracking-widest mt-0.5">—</div>
+      </div>
+    </div>
+    <div class="flex gap-2 items-center">
+      <input id="city-in" type="text" placeholder="Caută oraș..." value="Bucharest"
+        class="bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg w-44
+               focus:outline-none focus:border-accent placeholder-muted transition-colors" />
+      <button onclick="searchCity()"
+        class="bg-accent hover:bg-orange-400 text-black font-display font-bold text-base tracking-wider
+               px-4 py-2 rounded-lg transition-colors">CAUTĂ</button>
+      <button onclick="loadWeather()" title="Reîncarcă"
+        class="bg-card border border-border text-muted hover:text-gray-200 hover:border-gray-500
+               font-display text-base px-3 py-2 rounded-lg transition-colors">↻</button>
+    </div>
   </div>
-  <div class="search">
-    <input id="city-in" type="text" placeholder="Oraș..." value="Bucharest" />
-    <button class="btn display" onclick="searchCity()">GO</button>
-    <button class="btn-sm display" onclick="reload()" title="Reîncarcă">↻</button>
-  </div>
-</div>
+</header>
 
-<div class="main" id="app">
-  <div class="loading"><span class="spin">⚙</span>SE ÎNCARCĂ...</div>
-</div>
+<!-- MAIN -->
+<main class="max-w-5xl mx-auto px-4 py-6" id="app">
+  <div class="flex flex-col items-center justify-center py-24 text-muted">
+    <span class="spin-anim text-5xl mb-4">⚙️</span>
+    <span class="font-display text-xl tracking-widest pulse-anim">SE ÎNCARCĂ...</span>
+  </div>
+</main>
 
 <script>
-// ── Configuration ──────────────────────────────────────────────────────────
-// When opened as a local file (file://) defaults to localhost:8000.
-// When served via HTTP, defaults to the same origin (backend behind same host/reverse-proxy).
-// Override this variable if your backend runs on a different host or port.
 var API_URL = (location.protocol === 'file:') ? "http://localhost:8000" : location.origin;
-
-// ── State ──────────────────────────────────────────────────────────────────
 var LAT = 44.4268, LON = 26.1025, CITY = "București";
 var _chart = null;
 var DAYS = ["Duminică","Luni","Marți","Miercuri","Joi","Vineri","Sâmbătă"];
 
-// ── Colour helpers ─────────────────────────────────────────────────────────
-function rainColor(p){return p>60?"var(--danger)":p>30?"var(--warn)":"var(--muted)";}
-function windColor(g){return g>50?"var(--danger)":g>35?"var(--warn)":"var(--text)";}
-function tempColor(t){return t<5?"var(--danger)":t>32?"var(--warn)":"var(--text)";}
-function aqiColor(a){return a>=4?"var(--danger)":a>=3?"var(--warn)":"var(--ok)";}
-function aqiLabel(a){return["—","Bun","Acceptabil","Moderat","Rău","Foarte rău"][a]||"—";}
+function rainCls(p){ return p>60?"text-danger":p>30?"text-warn":"text-muted"; }
+function windCls(g){ return g>50?"text-danger":g>35?"text-warn":"text-gray-100"; }
+function tempCls(t){ return t<5?"text-danger":t>32?"text-warn":"text-gray-100"; }
+function aqiCls(a){ return a>=4?"text-danger":a>=3?"text-warn":"text-ok"; }
+function aqiLabel(a){ return["—","Bun","Acceptabil","Moderat","Rău","Foarte rău"][a]||"—"; }
 
-// ── Hourly moto score (backend only returns it for current/daily) ───────────
 function scoreHourly(feels, gusts, prec, code){
   var s=100;
   if(prec>5)s-=50; else if(prec>1)s-=30; else if(prec>0.2)s-=15;
@@ -196,20 +103,29 @@ function scoreHourly(feels, gusts, prec, code){
 }
 
 function scoreInfo(s){
-  if(s>=80)return{label:"IDEAL PENTRU MERS",color:"var(--ok)",msg:"Condiții bune. Drum liber! 🏍️"};
-  if(s>=60)return{label:"ACCEPTABIL",color:"var(--accent)",msg:"Condiții ok, fii atent la schimbări."};
-  if(s>=40)return{label:"CU PRECAUȚIE",color:"var(--warn)",msg:"Mergi cu atenție sporită."};
-  return{label:"NU RECOMAND",color:"var(--danger)",msg:"Condiții periculoase pentru două roți."};
+  if(s>=80) return {label:"IDEAL PENTRU MERS", color:"#22c55e", cls:"text-ok",    msg:"Condiții excelente. Drum liber! 🏍️"};
+  if(s>=60) return {label:"ACCEPTABIL",         color:"#f97316", cls:"text-accent", msg:"Condiții bune, atenție la schimbări."};
+  if(s>=40) return {label:"CU PRECAUȚIE",        color:"#eab308", cls:"text-warn",  msg:"Mergi cu atenție sporită."};
+  return            {label:"NU RECOMAND",         color:"#ef4444", cls:"text-danger", msg:"Condiții periculoase pentru două roți."};
 }
 
-function verdictHtml(s){
-  if(s>=75)return'<span class="verdict v-ok display">OK</span>';
-  if(s>=45)return'<span class="verdict v-warn display">PRECAUȚIE</span>';
-  return'<span class="verdict v-bad display">EVITĂ</span>';
+function verdictBadge(s){
+  if(s>=75) return '<span class="inline-block px-3 py-1 rounded-md text-xs font-semibold tracking-widest bg-ok/15 text-ok">✓ OK</span>';
+  if(s>=45) return '<span class="inline-block px-3 py-1 rounded-md text-xs font-semibold tracking-widest bg-warn/15 text-warn">⚠ PRECAUȚIE</span>';
+  return            '<span class="inline-block px-3 py-1 rounded-md text-xs font-semibold tracking-widest bg-danger/15 text-danger">✗ EVITĂ</span>';
 }
 
-// ── Actions ────────────────────────────────────────────────────────────────
-function reload(){loadWeather();}
+function gaugeHtml(score, color){
+  var r=54, cx=64, cy=64;
+  var circ=2*Math.PI*r;
+  var dash=circ*(score/100);
+  var gap=circ-dash;
+  return '<svg viewBox="0 0 128 128" class="w-40 h-40 -rotate-90 drop-shadow-lg">'
+    +'<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="#232731" stroke-width="10"/>'
+    +'<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+color+'" stroke-width="10"'
+    +' stroke-linecap="round" stroke-dasharray="'+dash+' '+gap+'" class="gauge-ring"/>'
+    +'</svg>';
+}
 
 async function searchCity(){
   var q=document.getElementById("city-in").value.trim();
@@ -227,30 +143,33 @@ async function searchCity(){
 document.getElementById("city-in").addEventListener("keydown",function(e){if(e.key==="Enter")searchCity();});
 
 async function loadWeather(){
-  document.getElementById("app").innerHTML='<div class="loading"><span class="spin">⚙</span>SE ÎNCARCĂ...</div>';
+  document.getElementById("app").innerHTML=
+    '<div class="flex flex-col items-center justify-center py-24 text-muted">'
+    +'<span class="spin-anim text-5xl mb-4">⚙️</span>'
+    +'<span class="font-display text-xl tracking-widest pulse-anim">SE ÎNCARCĂ...</span>'
+    +'</div>';
   try{
     var url=API_URL+"/weather?lat="+LAT+"&lon="+LON+"&city="+encodeURIComponent(CITY);
     var res=await fetch(url);
     var d=await res.json();
     if(!res.ok)throw new Error(d.detail||"HTTP "+res.status);
     render(d);
-    document.getElementById("upd").textContent="ACTUALIZAT: "+new Date().toLocaleTimeString("ro-RO",{hour:"2-digit",minute:"2-digit"});
+    document.getElementById("upd").textContent=
+      "ACTUALIZAT: "+new Date().toLocaleTimeString("ro-RO",{hour:"2-digit",minute:"2-digit"});
   }catch(e){
     document.getElementById("app").innerHTML=
-      '<div class="err">⚠ Backend indisponibil: '+e.message+
-      '<small class="err-hint">Pornește backend-ul: <code>cd backend &amp;&amp; uvicorn main:app --reload</code></small></div>'+
-      '<button class="btn display" style="margin-top:12px" onclick="loadWeather()">RETRY</button>';
+      '<div class="mt-4 p-5 rounded-xl border border-danger bg-danger/10 text-danger text-base font-semibold">'
+      +'⚠️ Backend indisponibil: '+e.message
+      +'<small class="block mt-2 text-sm font-normal opacity-70">Pornește backend-ul: '
+      +'<code class="bg-black/30 px-1 rounded">cd backend &amp;&amp; uvicorn main:app --reload</code></small></div>'
+      +'<button onclick="loadWeather()" class="mt-4 bg-accent hover:bg-orange-400 text-black font-display font-bold'
+      +' tracking-wider px-6 py-2 rounded-lg transition-colors">RETRY</button>';
   }
 }
 
-// ── Chart.js – hourly temperature/precipitation chart ─────────────────────
 function renderChart(hourly){
   var canvas=document.getElementById("tempChart");
-  if(!canvas){return;}
-  if(typeof Chart==="undefined"){
-    console.warn("Chart.js nu a putut fi încărcat (verifică conexiunea la internet).");
-    return;
-  }
+  if(!canvas||typeof Chart==="undefined") return;
   var labels=hourly.map(function(h){
     var t=new Date(h.time);
     return t.getHours().toString().padStart(2,"0")+":00";
@@ -262,129 +181,127 @@ function renderChart(hourly){
       labels:labels,
       datasets:[
         {label:"Temperatură (°C)",data:hourly.map(function(h){return h.temperature;}),
-          borderColor:"#f97316",backgroundColor:"rgba(249,115,22,0.08)",tension:0.4,pointRadius:2,yAxisID:"y"},
+          borderColor:"#f97316",backgroundColor:"rgba(249,115,22,0.10)",tension:0.4,pointRadius:3,yAxisID:"y"},
         {label:"Resimțit (°C)",data:hourly.map(function(h){return h.feels_like;}),
-          borderColor:"#60a5fa",backgroundColor:"transparent",tension:0.4,pointRadius:2,borderDash:[4,4],yAxisID:"y"},
+          borderColor:"#60a5fa",backgroundColor:"transparent",tension:0.4,pointRadius:2,borderDash:[5,4],yAxisID:"y"},
         {label:"Prob. ploaie (%)",data:hourly.map(function(h){return h.precipitation_probability||0;}),
-          borderColor:"#3b82f6",backgroundColor:"rgba(59,130,246,0.10)",tension:0.4,pointRadius:0,yAxisID:"y2",fill:true}
+          borderColor:"#3b82f6",backgroundColor:"rgba(59,130,246,0.12)",tension:0.4,pointRadius:0,yAxisID:"y2",fill:true}
       ]
     },
     options:{
       responsive:true,maintainAspectRatio:false,
       interaction:{mode:"index",intersect:false},
-      plugins:{legend:{labels:{color:"#6b7280",font:{family:"IBM Plex Mono",size:10},boxWidth:12}}},
+      plugins:{legend:{labels:{color:"#9ca3af",font:{family:"Inter",size:11},boxWidth:14,padding:16}}},
       scales:{
-        x:{ticks:{color:"#6b7280",font:{size:10},maxTicksLimit:12},grid:{color:"#1e2229"}},
-        y:{ticks:{color:"#6b7280",font:{size:10}},grid:{color:"#1e2229"},
-           title:{display:true,text:"°C",color:"#6b7280"}},
+        x:{ticks:{color:"#6b7280",font:{size:11},maxTicksLimit:12},grid:{color:"rgba(35,39,49,0.8)"}},
+        y:{ticks:{color:"#9ca3af",font:{size:11}},grid:{color:"rgba(35,39,49,0.8)"},
+           title:{display:true,text:"°C",color:"#9ca3af",font:{size:12}}},
         y2:{position:"right",min:0,max:100,
-            ticks:{color:"#3b82f6",font:{size:10}},grid:{drawOnChartArea:false},
-            title:{display:true,text:"%",color:"#3b82f6"}}
+            ticks:{color:"#60a5fa",font:{size:11}},grid:{drawOnChartArea:false},
+            title:{display:true,text:"%",color:"#60a5fa",font:{size:12}}}
       }
     }
   });
 }
 
-// ── Main render ────────────────────────────────────────────────────────────
+function secTitle(label){
+  return '<div class="flex items-center gap-3 mt-8 mb-4">'
+    +'<span class="font-display text-sm font-bold tracking-[0.25em] text-muted uppercase">'+label+'</span>'
+    +'<div class="flex-1 h-px bg-border"></div>'
+    +'</div>';
+}
+
+function statCard(icon, label, value, valueCls, sub){
+  return '<div class="bg-card border border-border rounded-xl p-4 flex flex-col gap-1">'
+    +'<div class="text-3xl mb-1">'+icon+'</div>'
+    +'<div class="text-xs text-muted font-semibold tracking-widest uppercase">'+label+'</div>'
+    +'<div class="font-display text-4xl font-bold leading-none '+valueCls+'">'+value+'</div>'
+    +'<div class="text-xs text-muted mt-1 leading-snug">'+sub+'</div>'
+    +'</div>';
+}
+
 function render(d){
   var c=d.current;
   var now=new Date();
   var si=scoreInfo(c.moto_score);
-
-  // Hourly: entries from now onward, up to 24 h
   var hourly=d.hourly.filter(function(h){return new Date(h.time)>=now;}).slice(0,24);
-
   var daily=d.daily;
   var allMin=Math.min.apply(null,daily.map(function(x){return x.temp_min;}));
   var allMax=Math.max.apply(null,daily.map(function(x){return x.temp_max;}));
-
   var html='';
 
   // Location
-  html+='<div class="location-title display">'+d.city.toUpperCase()+'</div>';
-  html+='<div class="location-sub">'+d.latitude.toFixed(4)+'° N · '+d.longitude.toFixed(4)+'° E · '+d.timezone+'</div>';
+  html+='<div class="mb-6">';
+  html+='<h1 class="font-display text-5xl sm:text-6xl font-bold tracking-widest leading-none text-gray-100">'+d.city.toUpperCase()+'</h1>';
+  html+='<p class="text-sm text-muted tracking-widest mt-1">'+d.latitude.toFixed(4)+'° N &nbsp;·&nbsp; '+d.longitude.toFixed(4)+'° E &nbsp;·&nbsp; '+d.timezone+'</p>';
+  html+='</div>';
 
-  // Score card
-  html+='<div class="score-card" style="border-left:4px solid '+si.color+'">';
-  html+='<div class="score-num display" style="color:'+si.color+'">'+c.moto_score+'</div>';
-  html+='<div>';
-  html+='<div class="score-title display" style="color:'+si.color+'">'+si.label+'</div>';
-  html+='<div class="score-msg">'+si.msg+'</div>';
-  html+='<div class="score-detail">'+c.icon+' '+c.description+
-        ' &nbsp;·&nbsp; Resimțit '+Math.round(c.feels_like)+'°C'+
-        ' &nbsp;·&nbsp; Rafale '+Math.round(c.wind_gusts_kmh)+' km/h';
+  // Hero card
+  html+='<div class="bg-card border border-border rounded-2xl p-6 mb-6 flex flex-col sm:flex-row items-center gap-6" style="border-left:5px solid '+si.color+'">';
+  html+='<div class="relative flex-shrink-0 flex items-center justify-center w-40 h-40">';
+  html+=gaugeHtml(c.moto_score, si.color);
+  html+='<div class="absolute inset-0 flex flex-col items-center justify-center">';
+  html+='<span class="font-display text-5xl font-bold leading-none" style="color:'+si.color+'">'+c.moto_score+'</span>';
+  html+='<span class="text-xs text-muted tracking-wider mt-1">/ 100</span>';
+  html+='</div></div>';
+  html+='<div class="flex-1 text-center sm:text-left">';
+  html+='<div style="font-size:6rem;line-height:1" class="mb-2">'+c.icon+'</div>';
+  html+='<div class="font-display text-3xl sm:text-4xl font-bold tracking-wide mb-1" style="color:'+si.color+'">'+si.label+'</div>';
+  html+='<div class="text-base text-gray-300 mb-3">'+si.msg+'</div>';
+  html+='<div class="flex flex-wrap gap-3 text-sm text-muted justify-center sm:justify-start">';
+  html+='<span class="bg-bg/60 rounded-lg px-3 py-1 border border-border">'+c.description+'</span>';
+  html+='<span class="bg-bg/60 rounded-lg px-3 py-1 border border-border">🌡️ Resimțit <strong class="text-gray-200">'+Math.round(c.feels_like)+'°C</strong></span>';
+  html+='<span class="bg-bg/60 rounded-lg px-3 py-1 border border-border">💨 Rafale <strong class="text-gray-200">'+Math.round(c.wind_gusts_kmh)+' km/h</strong></span>';
   if(c.sources&&c.sources.length>1){
-    html+=' &nbsp;·&nbsp; <span style="color:var(--ok);font-size:9px;letter-spacing:1px">⬆ '+c.sources.join(' + ')+'</span>';
+    html+='<span class="bg-ok/10 rounded-lg px-3 py-1 border border-ok/20 text-ok text-xs">⬆ '+c.sources.join(' + ')+'</span>';
   }
   html+='</div></div></div>';
 
   // Stats grid
-  html+='<div class="now-grid">';
-  html+='<div class="stat"><div class="stat-lbl">TEMPERATURĂ</div>'+
-        '<div class="stat-val display" style="color:'+tempColor(c.temperature)+'">'+Math.round(c.temperature)+'°</div>'+
-        '<div class="stat-sub">resimțit '+Math.round(c.feels_like)+'°C</div>'+
-        '<div class="stat-icon">🌡️</div></div>';
-  html+='<div class="stat"><div class="stat-lbl">VÂNT / RAFALE</div>'+
-        '<div class="stat-val display" style="color:'+windColor(c.wind_gusts_kmh)+'">'+Math.round(c.wind_speed_kmh)+'</div>'+
-        '<div class="stat-sub">rafale '+Math.round(c.wind_gusts_kmh)+' km/h · '+c.wind_direction+' · B'+c.beaufort+'</div>'+
-        '<div class="stat-icon">💨</div></div>';
-  html+='<div class="stat"><div class="stat-lbl">PRECIPITAȚII</div>'+
-        '<div class="stat-val display" style="color:'+(c.precipitation_mm>1?"var(--danger)":c.precipitation_mm>0.1?"var(--warn)":"var(--ok)")+'">'+
-        c.precipitation_mm.toFixed(1)+'</div>'+
-        '<div class="stat-sub">mm / oră curentă</div>'+
-        '<div class="stat-icon">🌧️</div></div>';
-  html+='<div class="stat"><div class="stat-lbl">UMIDITATE</div>'+
-        '<div class="stat-val display" style="color:'+(c.humidity>90?"var(--warn)":"var(--text)")+'">'+c.humidity+'%</div>'+
-        '<div class="stat-sub">drum potențial umed</div>'+
-        '<div class="stat-icon">💧</div></div>';
-  if(c.pressure_hpa!=null){
-    html+='<div class="stat"><div class="stat-lbl">PRESIUNE</div>'+
-          '<div class="stat-val display">'+Math.round(c.pressure_hpa)+'</div>'+
-          '<div class="stat-sub">hPa</div>'+
-          '<div class="stat-icon">🔵</div></div>';
-  }
-  if(c.visibility_km!=null){
-    html+='<div class="stat"><div class="stat-lbl">VIZIBILITATE</div>'+
-          '<div class="stat-val display" style="color:'+(c.visibility_km<1?"var(--danger)":c.visibility_km<5?"var(--warn)":"var(--text)")+'">'+
-          c.visibility_km+'</div>'+
-          '<div class="stat-sub">km</div>'+
-          '<div class="stat-icon">👁️</div></div>';
-  }
-  if(c.aqi!=null){
-    html+='<div class="stat"><div class="stat-lbl">CALITATE AER</div>'+
-          '<div class="stat-val display" style="color:'+aqiColor(c.aqi)+'">'+c.aqi+'</div>'+
-          '<div class="stat-sub">'+aqiLabel(c.aqi)+'</div>'+
-          '<div class="stat-icon">🍃</div></div>';
-  }
+  html+=secTitle('Condiții actuale');
+  html+='<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-2">';
+  html+=statCard('🌡️','Temperatură',Math.round(c.temperature)+'°',tempCls(c.temperature),'resimțit '+Math.round(c.feels_like)+'°C');
+  html+=statCard('💨','Vânt',Math.round(c.wind_speed_kmh)+'<span class="text-lg"> km/h</span>',windCls(c.wind_gusts_kmh),'rafale '+Math.round(c.wind_gusts_kmh)+' km/h · '+c.wind_direction+' · Beaufort '+c.beaufort);
+  html+=statCard('🌧️','Precipitații',c.precipitation_mm.toFixed(1)+'<span class="text-xl"> mm</span>',(c.precipitation_mm>1?'text-danger':c.precipitation_mm>0.1?'text-warn':'text-ok'),'mm / oră curentă');
+  html+=statCard('💧','Umiditate',c.humidity+'<span class="text-xl">%</span>',(c.humidity>90?'text-warn':'text-gray-100'),'drum potențial umed');
+  if(c.pressure_hpa!=null)
+    html+=statCard('🔵','Presiune',Math.round(c.pressure_hpa)+'<span class="text-xl"> hPa</span>','text-gray-100','presiune atmosferică');
+  if(c.visibility_km!=null)
+    html+=statCard('👁️','Vizibilitate',c.visibility_km+'<span class="text-xl"> km</span>',(c.visibility_km<1?'text-danger':c.visibility_km<5?'text-warn':'text-gray-100'),'distanța de vizibilitate');
+  if(c.aqi!=null)
+    html+=statCard('🍃','Calitate aer',c.aqi,aqiCls(c.aqi),aqiLabel(c.aqi));
   html+='</div>';
 
   // Chart
-  html+='<div class="sec-title display">GRAFIC 24H<div class="sec-line"></div></div>';
-  html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:12px;margin-bottom:8px;height:180px;">';
+  html+=secTitle('Grafic temperatură &amp; ploaie — 24h');
+  html+='<div class="bg-card border border-border rounded-xl p-4 mb-2" style="height:200px;">';
   html+='<canvas id="tempChart"></canvas></div>';
 
-  // Hourly cards
-  html+='<div class="sec-title display">ORA CU ORA — 24H<div class="sec-line"></div></div>';
-  html+='<div class="hourly">';
+  // Hourly scroll
+  html+=secTitle('Orar — 24h');
+  html+='<div class="flex gap-3 overflow-x-auto scroll-x pb-2 mb-2">';
   hourly.forEach(function(h,idx){
     var t=new Date(h.time);
     var hh=t.getHours().toString().padStart(2,"0")+":00";
     var rp=h.precipitation_probability||0;
     var hs=scoreHourly(h.feels_like,h.wind_gusts_kmh,h.precipitation_mm,h.weather_code);
-    var bc=hs<40?"var(--danger)":rp>40?"var(--warn)":idx===0?"var(--accent)":"var(--border)";
-    html+='<div class="hour" style="border-color:'+bc+'">';
-    html+='<div class="hour-time">'+(idx===0?"ACUM":hh)+'</div>';
-    html+='<div class="hour-icon">'+h.icon+'</div>';
-    html+='<div class="hour-temp display">'+Math.round(h.temperature)+'°</div>';
-    html+='<div class="hour-rain" style="color:'+rainColor(rp)+'">'+rp+'% 💧</div>';
-    html+='<div class="hour-wind">'+Math.round(h.wind_speed_kmh)+' km/h</div>';
+    var borderCol=hs<40?"border-danger":rp>40?"border-warn":idx===0?"border-accent":"border-border";
+    var activeRing=idx===0?"ring-1 ring-accent/40":"";
+    html+='<div class="flex-shrink-0 bg-card border '+borderCol+' '+activeRing+' rounded-xl p-3 w-24 text-center flex flex-col items-center gap-1">';
+    html+='<div class="text-xs font-semibold tracking-widest '+(idx===0?'text-accent':'text-muted')+'">'+(idx===0?"ACUM":hh)+'</div>';
+    html+='<div style="font-size:2.5rem;line-height:1">'+h.icon+'</div>';
+    html+='<div class="font-display text-3xl font-bold leading-none text-gray-100">'+Math.round(h.temperature)+'°</div>';
+    html+='<div class="text-xs '+rainCls(rp)+'">'+rp+'% 💧</div>';
+    html+='<div class="text-xs text-muted">'+Math.round(h.wind_speed_kmh)+' km/h</div>';
+    html+='<div class="mt-1 w-full h-1 rounded-full" style="background:linear-gradient(90deg,'
+          +(hs>=80?'#22c55e':hs>=60?'#f97316':hs>=40?'#eab308':'#ef4444')+',transparent)"></div>';
     html+='</div>';
   });
   html+='</div>';
 
-  // Daily
-  html+='<div class="sec-title display" style="margin-top:22px">PROGNOZĂ '+daily.length+' ZILE<div class="sec-line"></div></div>';
-  html+='<div class="daily">';
+  // Daily forecast
+  html+=secTitle('Prognoză '+daily.length+' zile');
+  html+='<div class="flex flex-col gap-3 mb-8">';
   daily.forEach(function(day,i){
     var date=new Date(day.date+"T12:00:00");
     var dname=i===0?"AZI":DAYS[date.getDay()];
@@ -393,26 +310,33 @@ function render(d){
     var rp=day.precipitation_probability||0;
     var gustMax=Math.round(day.wind_gusts_kmh||0);
     var ds=day.moto_score;
-    var bc=ds<40?"var(--danger)":ds<65?"var(--warn)":"var(--ok)";
+    var borderCol=ds<40?"border-l-danger":ds<65?"border-l-warn":"border-l-ok";
     var range=allMax-allMin||1;
     var bL=Math.round(((tMin-allMin)/range)*100);
-    var bW=Math.round(((tMax-allMin)/range)*100)-bL;
-    html+='<div class="day" style="border-left:3px solid '+bc+'">';
-    html+='<div class="day-name display">'+dname+'</div>';
-    html+='<div class="day-icon">'+day.icon+'</div>';
-    html+='<div class="bar-wrap"><span class="bar-min">'+tMin+'°</span>'+
-          '<div class="bar-bg"><div class="bar-fill" style="margin-left:'+bL+'%;width:'+bW+'%"></div></div>'+
-          '<span class="bar-max">'+tMax+'°</span></div>';
-    html+='<div class="day-stat"><div class="day-stat-val display" style="color:'+rainColor(rp)+'">'+rp+'%</div>'+
-          '<div class="day-stat-lbl">PLOAIE</div></div>';
-    html+='<div class="day-stat"><div class="day-stat-val display" style="color:'+windColor(gustMax)+'">'+gustMax+'</div>'+
-          '<div class="day-stat-lbl">RAFALE</div></div>';
-    html+=verdictHtml(ds);
+    var bW=Math.max(4,Math.round(((tMax-allMin)/range)*100)-bL);
+    html+='<div class="bg-card border border-border border-l-4 '+borderCol+' rounded-xl px-4 py-3'
+         +' grid items-center gap-3" style="grid-template-columns:90px 48px 1fr 70px 70px 90px">';
+    html+='<div class="font-display text-xl font-bold tracking-wide text-gray-100">'+dname+'</div>';
+    html+='<div style="font-size:2rem;text-align:center">'+day.icon+'</div>';
+    html+='<div class="flex items-center gap-2">'
+         +'<span class="text-sm text-muted w-8 text-right">'+tMin+'°</span>'
+         +'<div class="flex-1 h-2 bg-border rounded-full overflow-hidden">'
+         +'<div class="h-full rounded-full" style="margin-left:'+bL+'%;width:'+bW+'%;background:linear-gradient(90deg,#60a5fa,#f97316)"></div>'
+         +'</div>'
+         +'<span class="text-sm text-gray-200 w-8">'+tMax+'°</span>'
+         +'</div>';
+    html+='<div class="text-center"><div class="font-display text-xl font-bold '+rainCls(rp)+'">'+rp+'%</div>'
+         +'<div class="text-xs text-muted tracking-wider">PLOAIE</div></div>';
+    html+='<div class="text-center"><div class="font-display text-xl font-bold '+windCls(gustMax)+'">'+gustMax+'</div>'
+         +'<div class="text-xs text-muted tracking-wider">KM/H</div></div>';
+    html+=verdictBadge(ds);
     html+='</div>';
   });
   html+='</div>';
 
-  html+='<div class="footer">DATE: OPEN-METEO.COM + OPENWEATHERMAP · ACTUALIZAT ORAR</div>';
+  html+='<div class="border-t border-border pt-4 pb-8 text-xs text-muted tracking-widest text-center">'
+       +'DATE: OPEN-METEO.COM + OPENWEATHERMAP &nbsp;·&nbsp; ACTUALIZAT ORAR'
+       +'</div>';
 
   document.getElementById("app").innerHTML=html;
   renderChart(hourly);
