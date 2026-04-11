@@ -675,40 +675,78 @@
       var modal = document.getElementById('paywall-modal');
       if (modal) modal.classList.add('hidden');
     }
+    var APPSTORE_URL = 'https://apps.apple.com/app/motometeo/id000000000'; // înlocuiește cu ID-ul real după publicare
+
     function activatePremium() {
-      // In a native Capacitor build this would invoke RevenueCat purchase flow.
-      // Web / demo: toggle premium state immediately (useful for testing).
       if (typeof window.Purchases !== 'undefined') {
-        window.Purchases.getOfferings().then(function (offerings) {
-          var pkg = offerings.current && offerings.current.availablePackages[0];
-          if (pkg) window.Purchases.purchasePackage(pkg);
-        });
+        // Native iOS / Android — RevenueCat purchase flow
+        window.Purchases.getOfferings()
+          .then(function (offerings) {
+            var pkg = offerings.current && offerings.current.availablePackages[0];
+            if (!pkg) { _showPremiumError('Nicio ofertă disponibilă. Încearcă mai târziu.'); return; }
+            return window.Purchases.purchasePackage(pkg);
+          })
+          .then(function (purchaseResult) {
+            if (!purchaseResult) return;
+            var active = purchaseResult.customerInfo
+              && purchaseResult.customerInfo.entitlements
+              && purchaseResult.customerInfo.entitlements.active
+              && purchaseResult.customerInfo.entitlements.active['premium'];
+            if (active) {
+              _setPremium(true);
+              closePaywall();
+              loadWeather();
+            }
+          })
+          .catch(function (err) {
+            // User cancelled purchase — not an error
+            if (err && err.userCancelled) return;
+            _showPremiumError('Eroare la procesarea plății: ' + (err && err.message || err));
+          });
       } else {
-        _setPremium(true);
-        closePaywall();
-        loadWeather();
+        // Web browser — redirect to App Store
+        _showWebPremiumMessage();
       }
     }
+
     function restorePremium() {
       if (typeof window.Purchases !== 'undefined') {
-        window.Purchases.restorePurchases().then(function (info) {
-          var active = info.activeSubscriptions && info.activeSubscriptions.length > 0;
-          _setPremium(active);
-          closePaywall();
-          if (active) loadWeather();
-          else alert('Nu s-a găsit nicio achiziție anterioară.');
-        });
+        window.Purchases.restorePurchases()
+          .then(function (info) {
+            var active = info
+              && info.entitlements
+              && info.entitlements.active
+              && info.entitlements.active['premium'];
+            _setPremium(!!active);
+            closePaywall();
+            if (active) { loadWeather(); }
+            else { alert('Nu s-a găsit nicio achiziție anterioară asociată contului Apple.'); }
+          })
+          .catch(function (err) {
+            _showPremiumError('Eroare la restaurare: ' + (err && err.message || err));
+          });
       } else {
-        // Web demo: accept a simple unlock code
-        var code = prompt('Introdu codul de activare Premium (sau lasă gol):');
-        if (code === 'MOTO2024' || code === 'PLUS' || code === 'PREMIUM') {
-          _setPremium(true);
-          closePaywall();
-          loadWeather();
-        } else if (code !== null) {
-          alert('Cod invalid.');
-        }
+        _showWebPremiumMessage();
       }
+    }
+
+    function _showPremiumError(msg) {
+      var el = document.getElementById('paywall-feature-name');
+      if (el) { el.textContent = '⚠️ ' + msg; el.classList.remove('hidden'); el.style.color = '#ef4444'; }
+    }
+
+    function _showWebPremiumMessage() {
+      // Close paywall and show a non-dismissible info banner
+      closePaywall();
+      var app = document.getElementById('app');
+      if (!app) return;
+      var banner = document.createElement('div');
+      banner.className = 'fixed inset-x-4 top-20 z-[300] bg-card border border-accent rounded-xl p-5 shadow-2xl max-w-sm mx-auto';
+      banner.innerHTML = '<div class="font-display text-lg font-bold text-accent tracking-wider mb-2">⚡ MotoMeteo Plus</div>'
+        + '<div class="text-sm text-gray-300 mb-4 leading-relaxed">Abonamentul se activează exclusiv prin <strong>aplicația iOS</strong> — plata este procesată securizat de Apple.</div>'
+        + '<a href="' + APPSTORE_URL + '" target="_blank" class="block w-full bg-accent hover:bg-orange-400 text-black font-display font-bold tracking-wider py-3 rounded-xl text-center mb-2 transition-colors">📱 Descarcă din App Store</a>'
+        + '<button onclick="this.parentNode.remove()" class="w-full text-xs text-muted hover:text-gray-300 py-2 transition-colors">Închide</button>';
+      document.body.appendChild(banner);
     }
 
     // -----------------------------------------------------------------------
@@ -2316,6 +2354,22 @@
       if (stop0 && CITY !== 'București') stop0.value = CITY;
     })();
     // Pre-fill route origin with current city when it changes
+    // Initialize RevenueCat if running in Capacitor native build
+    (function () {
+      if (typeof window.Purchases === 'undefined') return;
+      var RC_API_KEY_IOS = 'appl_REPLACE_WITH_REVENUECAT_IOS_KEY'; // <-- înlocuiește după configurare RevenueCat
+      try {
+        window.Purchases.configure({ apiKey: RC_API_KEY_IOS });
+        window.Purchases.getCustomerInfo().then(function (info) {
+          var active = info
+            && info.entitlements
+            && info.entitlements.active
+            && info.entitlements.active['premium'];
+          _setPremium(!!active);
+        }).catch(function () { });
+      } catch (_) { }
+    }());
+
     loadProfileUI();
     renderFavsBar();
     loadWeather();
