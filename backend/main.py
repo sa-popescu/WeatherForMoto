@@ -19,6 +19,7 @@ GET /geocode?city=Cluj-Napoca
 import logging
 import os
 import pathlib
+from contextlib import asynccontextmanager
 from typing import Annotated
 
 from dotenv import load_dotenv
@@ -54,6 +55,23 @@ _REPO_ROOT = pathlib.Path(__file__).parent.parent
 INDEX_HTML = _REPO_ROOT / "index.html"
 
 # ---------------------------------------------------------------------------
+# Lifespan (startup / shutdown)
+# ---------------------------------------------------------------------------
+
+@asynccontextmanager
+async def lifespan(fastapi_app: FastAPI):
+    logger.info("WeatherForMoto backend starting up")
+    logger.info("INDEX_HTML path: %s (exists=%s)", INDEX_HTML, INDEX_HTML.is_file())
+    logger.info("DEFAULT_CITY: %s", DEFAULT_CITY)
+    logger.info(
+        "OWM API key configured: %s",
+        "yes (custom)" if OWM_API_KEY != _DEMO_OWM_KEY else "no (using demo key)",
+    )
+    logger.info("Expected port: %d", int(os.getenv("PORT", 8000)))
+    yield
+
+
+# ---------------------------------------------------------------------------
 # App
 # ---------------------------------------------------------------------------
 app = FastAPI(
@@ -63,6 +81,7 @@ app = FastAPI(
         "(OpenWeatherMap + Open-Meteo) optimised for motorcyclists."
     ),
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -72,23 +91,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-# ---------------------------------------------------------------------------
-# Startup event
-# ---------------------------------------------------------------------------
-
-@app.on_event("startup")
-async def on_startup() -> None:
-    logger.info("WeatherForMoto backend starting up")
-    logger.info("INDEX_HTML path: %s (exists=%s)", INDEX_HTML, INDEX_HTML.is_file())
-    logger.info("DEFAULT_CITY: %s", DEFAULT_CITY)
-    logger.info(
-        "OWM API key configured: %s",
-        "yes (custom)" if OWM_API_KEY != _DEMO_OWM_KEY else "no (using demo key)",
-    )
-    port = int(os.getenv("PORT", 8000))
-    logger.info("Expected port: %d", port)
 
 
 # ---------------------------------------------------------------------------
@@ -179,8 +181,7 @@ async def weather(
             status_code=502, detail=f"Weather data error: {exc}"
         ) from exc
 
-    sources = data.get("current", {}).get("sources", [])
-    logger.info("Weather data returned successfully (sources: %s)", sources)
+    logger.info("Weather data returned successfully")
     return data
 
 
