@@ -1,416 +1,508 @@
 <!DOCTYPE html>
 
 <html lang="ro">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MotoMeteo — Vremea pentru motocicliști</title>
-<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<script src="https://cdn.tailwindcss.com"></script>
-<script>
-tailwind.config = {
-  theme: {
-    extend: {
-      fontFamily: {
-        display: ['Rajdhani', 'sans-serif'],
-        body: ['Inter', 'sans-serif'],
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MotoMeteo — Vremea pentru motocicliști</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600&display=swap"
+    rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['Rajdhani', 'sans-serif'],
+            body: ['Inter', 'sans-serif'],
+          },
+          colors: {
+            bg: '#0b0c0f',
+            surface: '#13151a',
+            card: '#181b22',
+            border: '#232731',
+            accent: '#f97316',
+            danger: '#ef4444',
+            warn: '#eab308',
+            ok: '#22c55e',
+            muted: '#6b7280',
+          },
+        },
       },
-      colors: {
-        bg:      '#0b0c0f',
-        surface: '#13151a',
-        card:    '#181b22',
-        border:  '#232731',
-        accent:  '#f97316',
-        danger:  '#ef4444',
-        warn:    '#eab308',
-        ok:      '#22c55e',
-        muted:   '#6b7280',
-      },
-    },
-  },
-};
-</script>
-<style>
-@keyframes spin-slow { to { transform: rotate(360deg); } }
-@keyframes pulse-soft { 0%,100%{opacity:1;} 50%{opacity:.55;} }
-.spin-anim { animation: spin-slow 1.2s linear infinite; display:inline-block; }
-.pulse-anim { animation: pulse-soft 1.8s ease-in-out infinite; }
-.gauge-ring { transition: stroke-dashoffset .6s cubic-bezier(.4,0,.2,1); }
-.scroll-x::-webkit-scrollbar { height: 4px; }
-.scroll-x::-webkit-scrollbar-track { background: transparent; }
-.scroll-x::-webkit-scrollbar-thumb { background: #232731; border-radius: 2px; }
-.wx-icon     { font-size: 4rem;   line-height:1; }
-.wx-icon-lg  { font-size: 6.5rem; line-height:1; }
-#tempChart   { width:100%!important; height:180px!important; }
-html { scroll-behavior:smooth; }
-</style>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
-</head>
-<body class="bg-bg text-gray-100 font-body min-h-screen">
-
-<!-- HEADER -->
-<header class="bg-surface border-b border-border sticky top-0 z-50">
-  <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-4 flex-wrap">
-    <div class="flex items-center gap-3">
-      <span class="text-4xl leading-none">🏍️</span>
-      <div>
-        <div class="font-display text-3xl font-bold tracking-widest text-accent leading-none">MOTO<span class="text-gray-600 text-2xl"> /// </span>METEO</div>
-        <div id="upd" class="text-xs text-muted tracking-widest mt-0.5">—</div>
-      </div>
-    </div>
-    <div class="flex gap-2 items-center">
-      <input id="city-in" type="text" placeholder="Caută oraș..." value="Bucharest"
-        class="bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg w-44
-               focus:outline-none focus:border-accent placeholder-muted transition-colors" />
-      <button onclick="searchCity()"
-        class="bg-accent hover:bg-orange-400 text-black font-display font-bold text-base tracking-wider
-               px-4 py-2 rounded-lg transition-colors">CAUTĂ</button>
-      <button onclick="loadWeather()" title="Reîncarcă"
-        class="bg-card border border-border text-muted hover:text-gray-200 hover:border-gray-500
-               font-display text-base px-3 py-2 rounded-lg transition-colors">↻</button>
-    </div>
-  </div>
-</header>
-
-<!-- MAIN -->
-<main class="max-w-5xl mx-auto px-4 py-6" id="app">
-  <div class="flex flex-col items-center justify-center py-24 text-muted">
-    <span class="spin-anim text-5xl mb-4">⚙️</span>
-    <span class="font-display text-xl tracking-widest pulse-anim">SE ÎNCARCĂ...</span>
-  </div>
-</main>
-
-<script>
-// ---------------------------------------------------------------------------
-// Backend URL configuration
-// ---------------------------------------------------------------------------
-// When the frontend is served directly by the FastAPI/Railway backend,
-// an empty string causes the browser to use relative URLs (same origin) –
-// no configuration needed.
-//
-// When the frontend is served from a different host (e.g. GitHub Pages),
-// set a custom URL here OR the user can enter it in the error banner that
-// appears on failure (it is then stored in localStorage for future visits).
-//
-//   Example:  var CONFIGURED_BACKEND_URL = "https://your-app.up.railway.app";
-var CONFIGURED_BACKEND_URL = "";
-
-function _resolveApiUrl() {
-  if (location.protocol === 'file:') {
-    return localStorage.getItem('motoMeteoBackendUrl') || "http://localhost:8000";
-  }
-  if (CONFIGURED_BACKEND_URL) return CONFIGURED_BACKEND_URL.replace(/\/$/, '');
-  var stored = localStorage.getItem('motoMeteoBackendUrl');
-  if (stored) return stored.replace(/\/$/, '');
-  // Default: relative URL (works when served by the FastAPI backend directly)
-  return "";
-}
-var API_URL = _resolveApiUrl();
-
-var LAT = 44.4268, LON = 26.1025, CITY = "București";
-var _chart = null;
-var DAYS = ["Duminică","Luni","Marți","Miercuri","Joi","Vineri","Sâmbătă"];
-var BACKEND_UNAVAILABLE_MSG = "Nu se poate conecta la backend. Asigură-te că serverul rulează.";
-
-function rainCls(p){ return p>60?"text-danger":p>30?"text-warn":"text-muted"; }
-function windCls(g){ return g>50?"text-danger":g>35?"text-warn":"text-gray-100"; }
-function tempCls(t){ return t<5?"text-danger":t>32?"text-warn":"text-gray-100"; }
-function aqiCls(a){ return a>=4?"text-danger":a>=3?"text-warn":"text-ok"; }
-function aqiLabel(a){ return["—","Bun","Acceptabil","Moderat","Rău","Foarte rău"][a]||"—"; }
-
-function scoreHourly(feels, gusts, prec, code){
-  var s=100;
-  if(prec>5)s-=50; else if(prec>1)s-=30; else if(prec>0.2)s-=15;
-  if([95,96,99].indexOf(code)>-1)s-=40;
-  if(gusts>70)s-=30; else if(gusts>50)s-=15; else if(gusts>35)s-=8;
-  if(feels<5)s-=25; else if(feels<10)s-=12; else if(feels>36)s-=10;
-  if([45,48].indexOf(code)>-1)s-=20;
-  return Math.max(0,Math.min(100,Math.round(s)));
-}
-
-function scoreInfo(s){
-  if(s>=80) return {label:"IDEAL PENTRU MERS", color:"#22c55e", cls:"text-ok",    msg:"Condiții excelente. Drum liber! 🏍️"};
-  if(s>=60) return {label:"ACCEPTABIL",         color:"#f97316", cls:"text-accent", msg:"Condiții bune, atenție la schimbări."};
-  if(s>=40) return {label:"CU PRECAUȚIE",        color:"#eab308", cls:"text-warn",  msg:"Mergi cu atenție sporită."};
-  return            {label:"NU RECOMAND",         color:"#ef4444", cls:"text-danger", msg:"Condiții periculoase pentru două roți."};
-}
-
-function verdictBadge(s){
-  if(s>=75) return '<span class="inline-block px-3 py-1 rounded-md text-xs font-semibold tracking-widest bg-ok/15 text-ok">✓ OK</span>';
-  if(s>=45) return '<span class="inline-block px-3 py-1 rounded-md text-xs font-semibold tracking-widest bg-warn/15 text-warn">⚠ PRECAUȚIE</span>';
-  return            '<span class="inline-block px-3 py-1 rounded-md text-xs font-semibold tracking-widest bg-danger/15 text-danger">✗ EVITĂ</span>';
-}
-
-function gaugeHtml(score, color){
-  var r=54, cx=64, cy=64;
-  var circ=2*Math.PI*r;
-  var dash=circ*(score/100);
-  var gap=circ-dash;
-  return '<svg viewBox="0 0 128 128" class="w-40 h-40 -rotate-90 drop-shadow-lg">'
-    +'<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="#232731" stroke-width="10"/>'
-    +'<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+color+'" stroke-width="10"'
-    +' stroke-linecap="round" stroke-dasharray="'+dash+' '+gap+'" class="gauge-ring"/>'
-    +'</svg>';
-}
-
-async function searchCity(){
-  var q=document.getElementById("city-in").value.trim();
-  if(!q)return;
-  try{
-    var r;
-    try{r=await fetch(API_URL+"/geocode?city="+encodeURIComponent(q));}
-    catch(_){throw new Error(BACKEND_UNAVAILABLE_MSG);}
-    if(!r.ok){
-      var errMsg="HTTP "+r.status;
-      try{var ed=await r.json();errMsg=ed.detail||errMsg;}catch(_){}
-      throw new Error(errMsg);
-    }
-    var geo=await r.json();
-    LAT=geo.lat; LON=geo.lon;
-    CITY=geo.name+(geo.country&&geo.country!=="RO"?", "+geo.country:"");
-    loadWeather();
-  }catch(e){alert("Eroare geocoding: "+e.message);}
-}
-
-document.getElementById("city-in").addEventListener("keydown",function(e){if(e.key==="Enter")searchCity();});
-
-async function loadWeather(){
-  document.getElementById("app").innerHTML=
-    '<div class="flex flex-col items-center justify-center py-24 text-muted">'
-    +'<span class="spin-anim text-5xl mb-4">⚙️</span>'
-    +'<span class="font-display text-xl tracking-widest pulse-anim">SE ÎNCARCĂ...</span>'
-    +'</div>';
-  try{
-    var url=API_URL+"/weather?lat="+LAT+"&lon="+LON+"&city="+encodeURIComponent(CITY);
-    var res;
-    try{res=await fetch(url);}
-    catch(_){throw new Error(BACKEND_UNAVAILABLE_MSG);}
-    if(!res.ok){
-      var errMsg="HTTP "+res.status;
-      try{var ed=await res.json();errMsg=ed.detail||errMsg;}catch(_){}
-      throw new Error(errMsg);
-    }
-    var d=await res.json();
-    render(d);
-    document.getElementById("upd").textContent=
-      "ACTUALIZAT: "+new Date().toLocaleTimeString("ro-RO",{hour:"2-digit",minute:"2-digit"});
-  }catch(e){
-    var currentBackend=API_URL||location.origin;
-    document.getElementById("app").innerHTML=
-      '<div class="mt-4 p-5 rounded-xl border border-danger bg-danger/10 text-danger text-base font-semibold">'
-      +'⚠️ Backend indisponibil: '+e.message
-      +'<small class="block mt-2 text-sm font-normal opacity-70">URL curent: <code class="bg-black/30 px-1 rounded">'+currentBackend+'</code></small>'
-      +'<small class="block mt-1 text-sm font-normal opacity-70">Pornește backend-ul local: '
-      +'<code class="bg-black/30 px-1 rounded">cd backend &amp;&amp; uvicorn main:app --reload</code></small>'
-      +'</div>'
-      +'<div class="mt-4 p-4 rounded-xl border border-border bg-card">'
-      +'<div class="text-sm text-muted mb-2 font-semibold tracking-widest uppercase">Configurează URL backend</div>'
-      +'<div class="flex gap-2">'
-      +'<input id="backend-url-cfg" type="url" placeholder="https://your-app.up.railway.app" value="'+(localStorage.getItem('motoMeteoBackendUrl')||'')+'"'
-      +' class="flex-1 bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent placeholder-muted"/>'
-      +'<button onclick="setBackendUrl()" class="bg-accent hover:bg-orange-400 text-black font-display font-bold text-sm tracking-wider px-4 py-2 rounded-lg transition-colors">SALVEAZĂ</button>'
-      +'<button onclick="clearBackendUrl()" class="bg-card border border-border text-muted hover:text-gray-200 text-sm px-3 py-2 rounded-lg transition-colors">✕</button>'
-      +'</div>'
-      +'<div class="text-xs text-muted mt-2 opacity-70">Introdu URL-ul backend-ului Railway (ex: https://xyz.up.railway.app). Se salvează în browser.</div>'
-      +'</div>'
-      +'<button onclick="loadWeather()" class="mt-4 bg-accent hover:bg-orange-400 text-black font-display font-bold'
-      +' tracking-wider px-6 py-2 rounded-lg transition-colors">RETRY</button>';
-  }
-}
-
-function setBackendUrl(){
-  var el=document.getElementById('backend-url-cfg');
-  var val=el?el.value.trim().replace(/\/$/,''):'';
-  if(val){
-    try{new URL(val);}catch(_){alert("URL invalid. Introdu o adresă completă, ex: https://your-app.up.railway.app");return;}
-    localStorage.setItem('motoMeteoBackendUrl',val);API_URL=val;
-  }else{localStorage.removeItem('motoMeteoBackendUrl');API_URL=_resolveApiUrl();}
-  loadWeather();
-}
-
-function clearBackendUrl(){
-  localStorage.removeItem('motoMeteoBackendUrl');
-  API_URL=_resolveApiUrl();
-  loadWeather();
-}
-
-function renderChart(hourly){
-  var canvas=document.getElementById("tempChart");
-  if(!canvas||typeof Chart==="undefined") return;
-  var labels=hourly.map(function(h){
-    var t=new Date(h.time);
-    return t.getHours().toString().padStart(2,"0")+":00";
-  });
-  if(_chart){_chart.destroy();}
-  _chart=new Chart(canvas,{
-    type:"line",
-    data:{
-      labels:labels,
-      datasets:[
-        {label:"Temperatură (°C)",data:hourly.map(function(h){return h.temperature;}),
-          borderColor:"#f97316",backgroundColor:"rgba(249,115,22,0.10)",tension:0.4,pointRadius:3,yAxisID:"y"},
-        {label:"Resimțit (°C)",data:hourly.map(function(h){return h.feels_like;}),
-          borderColor:"#60a5fa",backgroundColor:"transparent",tension:0.4,pointRadius:2,borderDash:[5,4],yAxisID:"y"},
-        {label:"Prob. ploaie (%)",data:hourly.map(function(h){return h.precipitation_probability||0;}),
-          borderColor:"#3b82f6",backgroundColor:"rgba(59,130,246,0.12)",tension:0.4,pointRadius:0,yAxisID:"y2",fill:true}
-      ]
-    },
-    options:{
-      responsive:true,maintainAspectRatio:false,
-      interaction:{mode:"index",intersect:false},
-      plugins:{legend:{labels:{color:"#9ca3af",font:{family:"Inter",size:11},boxWidth:14,padding:16}}},
-      scales:{
-        x:{ticks:{color:"#6b7280",font:{size:11},maxTicksLimit:12},grid:{color:"rgba(35,39,49,0.8)"}},
-        y:{ticks:{color:"#9ca3af",font:{size:11}},grid:{color:"rgba(35,39,49,0.8)"},
-           title:{display:true,text:"°C",color:"#9ca3af",font:{size:12}}},
-        y2:{position:"right",min:0,max:100,
-            ticks:{color:"#60a5fa",font:{size:11}},grid:{drawOnChartArea:false},
-            title:{display:true,text:"%",color:"#60a5fa",font:{size:12}}}
+    };
+  </script>
+  <style>
+    @keyframes spin-slow {
+      to {
+        transform: rotate(360deg);
       }
     }
-  });
-}
 
-function secTitle(label){
-  return '<div class="flex items-center gap-3 mt-8 mb-4">'
-    +'<span class="font-display text-sm font-bold tracking-[0.25em] text-muted uppercase">'+label+'</span>'
-    +'<div class="flex-1 h-px bg-border"></div>'
-    +'</div>';
-}
+    @keyframes pulse-soft {
 
-function statCard(icon, label, value, valueCls, sub){
-  return '<div class="bg-card border border-border rounded-xl p-4 flex flex-col gap-1">'
-    +'<div class="text-3xl mb-1">'+icon+'</div>'
-    +'<div class="text-xs text-muted font-semibold tracking-widest uppercase">'+label+'</div>'
-    +'<div class="font-display text-4xl font-bold leading-none '+valueCls+'">'+value+'</div>'
-    +'<div class="text-xs text-muted mt-1 leading-snug">'+sub+'</div>'
-    +'</div>';
-}
+      0%,
+      100% {
+        opacity: 1;
+      }
 
-function render(d){
-  var c=d.current;
-  var now=new Date();
-  var si=scoreInfo(c.moto_score);
-  var hourly=d.hourly.filter(function(h){return new Date(h.time)>=now;}).slice(0,24);
-  var daily=d.daily;
-  var allMin=Math.min.apply(null,daily.map(function(x){return x.temp_min;}));
-  var allMax=Math.max.apply(null,daily.map(function(x){return x.temp_max;}));
-  var html='';
+      50% {
+        opacity: .55;
+      }
+    }
 
-  // Location
-  html+='<div class="mb-6">';
-  html+='<h1 class="font-display text-5xl sm:text-6xl font-bold tracking-widest leading-none text-gray-100">'+d.city.toUpperCase()+'</h1>';
-  html+='<p class="text-sm text-muted tracking-widest mt-1">'+d.latitude.toFixed(4)+'° N &nbsp;·&nbsp; '+d.longitude.toFixed(4)+'° E &nbsp;·&nbsp; '+d.timezone+'</p>';
-  html+='</div>';
+    .spin-anim {
+      animation: spin-slow 1.2s linear infinite;
+      display: inline-block;
+    }
 
-  // Hero card
-  html+='<div class="bg-card border border-border rounded-2xl p-6 mb-6 flex flex-col sm:flex-row items-center gap-6" style="border-left:5px solid '+si.color+'">';
-  html+='<div class="relative flex-shrink-0 flex items-center justify-center w-40 h-40">';
-  html+=gaugeHtml(c.moto_score, si.color);
-  html+='<div class="absolute inset-0 flex flex-col items-center justify-center">';
-  html+='<span class="font-display text-5xl font-bold leading-none" style="color:'+si.color+'">'+c.moto_score+'</span>';
-  html+='<span class="text-xs text-muted tracking-wider mt-1">/ 100</span>';
-  html+='</div></div>';
-  html+='<div class="flex-1 text-center sm:text-left">';
-  html+='<div style="font-size:6rem;line-height:1" class="mb-2">'+c.icon+'</div>';
-  html+='<div class="font-display text-3xl sm:text-4xl font-bold tracking-wide mb-1" style="color:'+si.color+'">'+si.label+'</div>';
-  html+='<div class="text-base text-gray-300 mb-3">'+si.msg+'</div>';
-  html+='<div class="flex flex-wrap gap-3 text-sm text-muted justify-center sm:justify-start">';
-  html+='<span class="bg-bg/60 rounded-lg px-3 py-1 border border-border">'+c.description+'</span>';
-  html+='<span class="bg-bg/60 rounded-lg px-3 py-1 border border-border">🌡️ Resimțit <strong class="text-gray-200">'+Math.round(c.feels_like)+'°C</strong></span>';
-  html+='<span class="bg-bg/60 rounded-lg px-3 py-1 border border-border">💨 Rafale <strong class="text-gray-200">'+Math.round(c.wind_gusts_kmh)+' km/h</strong></span>';
-  if(c.sources&&c.sources.length>1){
-    html+='<span class="bg-ok/10 rounded-lg px-3 py-1 border border-ok/20 text-ok text-xs">⬆ '+c.sources.join(' + ')+'</span>';
-  }
-  html+='</div></div></div>';
+    .pulse-anim {
+      animation: pulse-soft 1.8s ease-in-out infinite;
+    }
 
-  // Stats grid
-  html+=secTitle('Condiții actuale');
-  html+='<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-2">';
-  html+=statCard('🌡️','Temperatură',Math.round(c.temperature)+'°',tempCls(c.temperature),'resimțit '+Math.round(c.feels_like)+'°C');
-  html+=statCard('💨','Vânt',Math.round(c.wind_speed_kmh)+'<span class="text-lg"> km/h</span>',windCls(c.wind_gusts_kmh),'rafale '+Math.round(c.wind_gusts_kmh)+' km/h · '+c.wind_direction+' · Beaufort '+c.beaufort);
-  html+=statCard('🌧️','Precipitații',c.precipitation_mm.toFixed(1)+'<span class="text-xl"> mm</span>',(c.precipitation_mm>1?'text-danger':c.precipitation_mm>0.1?'text-warn':'text-ok'),'mm / oră curentă');
-  html+=statCard('💧','Umiditate',c.humidity+'<span class="text-xl">%</span>',(c.humidity>90?'text-warn':'text-gray-100'),'drum potențial umed');
-  if(c.pressure_hpa!=null)
-    html+=statCard('🔵','Presiune',Math.round(c.pressure_hpa)+'<span class="text-xl"> hPa</span>','text-gray-100','presiune atmosferică');
-  if(c.visibility_km!=null)
-    html+=statCard('👁️','Vizibilitate',c.visibility_km+'<span class="text-xl"> km</span>',(c.visibility_km<1?'text-danger':c.visibility_km<5?'text-warn':'text-gray-100'),'distanța de vizibilitate');
-  if(c.aqi!=null)
-    html+=statCard('🍃','Calitate aer',c.aqi,aqiCls(c.aqi),aqiLabel(c.aqi));
-  html+='</div>';
+    .gauge-ring {
+      transition: stroke-dashoffset .6s cubic-bezier(.4, 0, .2, 1);
+    }
 
-  // Chart
-  html+=secTitle('Grafic temperatură &amp; ploaie — 24h');
-  html+='<div class="bg-card border border-border rounded-xl p-4 mb-2" style="height:200px;">';
-  html+='<canvas id="tempChart"></canvas></div>';
+    .scroll-x::-webkit-scrollbar {
+      height: 4px;
+    }
 
-  // Hourly scroll
-  html+=secTitle('Orar — 24h');
-  html+='<div class="flex gap-3 overflow-x-auto scroll-x pb-2 mb-2">';
-  hourly.forEach(function(h,idx){
-    var t=new Date(h.time);
-    var hh=t.getHours().toString().padStart(2,"0")+":00";
-    var rp=h.precipitation_probability||0;
-    var hs=scoreHourly(h.feels_like,h.wind_gusts_kmh,h.precipitation_mm,h.weather_code);
-    var borderCol=hs<40?"border-danger":rp>40?"border-warn":idx===0?"border-accent":"border-border";
-    var activeRing=idx===0?"ring-1 ring-accent/40":"";
-    html+='<div class="flex-shrink-0 bg-card border '+borderCol+' '+activeRing+' rounded-xl p-3 w-24 text-center flex flex-col items-center gap-1">';
-    html+='<div class="text-xs font-semibold tracking-widest '+(idx===0?'text-accent':'text-muted')+'">'+(idx===0?"ACUM":hh)+'</div>';
-    html+='<div style="font-size:2.5rem;line-height:1">'+h.icon+'</div>';
-    html+='<div class="font-display text-3xl font-bold leading-none text-gray-100">'+Math.round(h.temperature)+'°</div>';
-    html+='<div class="text-xs '+rainCls(rp)+'">'+rp+'% 💧</div>';
-    html+='<div class="text-xs text-muted">'+Math.round(h.wind_speed_kmh)+' km/h</div>';
-    html+='<div class="mt-1 w-full h-1 rounded-full" style="background:linear-gradient(90deg,'
-          +(hs>=80?'#22c55e':hs>=60?'#f97316':hs>=40?'#eab308':'#ef4444')+',transparent)"></div>';
-    html+='</div>';
-  });
-  html+='</div>';
+    .scroll-x::-webkit-scrollbar-track {
+      background: transparent;
+    }
 
-  // Daily forecast
-  html+=secTitle('Prognoză '+daily.length+' zile');
-  html+='<div class="flex flex-col gap-3 mb-8">';
-  daily.forEach(function(day,i){
-    var date=new Date(day.date+"T12:00:00");
-    var dname=i===0?"AZI":DAYS[date.getDay()];
-    var tMin=Math.round(day.temp_min);
-    var tMax=Math.round(day.temp_max);
-    var rp=day.precipitation_probability||0;
-    var gustMax=Math.round(day.wind_gusts_kmh||0);
-    var ds=day.moto_score;
-    var borderCol=ds<40?"border-l-danger":ds<65?"border-l-warn":"border-l-ok";
-    var range=allMax-allMin||1;
-    var bL=Math.round(((tMin-allMin)/range)*100);
-    var bW=Math.max(4,Math.round(((tMax-allMin)/range)*100)-bL);
-    html+='<div class="bg-card border border-border border-l-4 '+borderCol+' rounded-xl px-4 py-3'
-         +' grid items-center gap-3" style="grid-template-columns:90px 48px 1fr 70px 70px 90px">';
-    html+='<div class="font-display text-xl font-bold tracking-wide text-gray-100">'+dname+'</div>';
-    html+='<div style="font-size:2rem;text-align:center">'+day.icon+'</div>';
-    html+='<div class="flex items-center gap-2">'
-         +'<span class="text-sm text-muted w-8 text-right">'+tMin+'°</span>'
-         +'<div class="flex-1 h-2 bg-border rounded-full overflow-hidden">'
-         +'<div class="h-full rounded-full" style="margin-left:'+bL+'%;width:'+bW+'%;background:linear-gradient(90deg,#60a5fa,#f97316)"></div>'
-         +'</div>'
-         +'<span class="text-sm text-gray-200 w-8">'+tMax+'°</span>'
-         +'</div>';
-    html+='<div class="text-center"><div class="font-display text-xl font-bold '+rainCls(rp)+'">'+rp+'%</div>'
-         +'<div class="text-xs text-muted tracking-wider">PLOAIE</div></div>';
-    html+='<div class="text-center"><div class="font-display text-xl font-bold '+windCls(gustMax)+'">'+gustMax+'</div>'
-         +'<div class="text-xs text-muted tracking-wider">KM/H</div></div>';
-    html+=verdictBadge(ds);
-    html+='</div>';
-  });
-  html+='</div>';
+    .scroll-x::-webkit-scrollbar-thumb {
+      background: #232731;
+      border-radius: 2px;
+    }
 
-  html+='<div class="border-t border-border pt-4 pb-8 text-xs text-muted tracking-widest text-center">'
-       +'DATE: OPEN-METEO.COM + OPENWEATHERMAP &nbsp;·&nbsp; ACTUALIZAT ORAR'
-       +'</div>';
+    .wx-icon {
+      font-size: 4rem;
+      line-height: 1;
+    }
 
-  document.getElementById("app").innerHTML=html;
-  renderChart(hourly);
-}
+    .wx-icon-lg {
+      font-size: 6.5rem;
+      line-height: 1;
+    }
 
-loadWeather();
-</script>
+    #tempChart {
+      width: 100% !important;
+      height: 180px !important;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+</head>
+
+<body class="bg-bg text-gray-100 font-body min-h-screen">
+
+  <!-- HEADER -->
+  <header class="bg-surface border-b border-border sticky top-0 z-50">
+    <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-4 flex-wrap">
+      <div class="flex items-center gap-3">
+        <span class="text-4xl leading-none">🏍️</span>
+        <div>
+          <div class="font-display text-3xl font-bold tracking-widest text-accent leading-none">MOTO<span
+              class="text-gray-600 text-2xl"> /// </span>METEO</div>
+          <div id="upd" class="text-xs text-muted tracking-widest mt-0.5">—</div>
+        </div>
+      </div>
+      <div class="flex gap-2 items-center">
+        <input id="city-in" type="text" placeholder="Caută oraș..." value="Bucharest" class="bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg w-44
+               focus:outline-none focus:border-accent placeholder-muted transition-colors" />
+        <button onclick="searchCity()" class="bg-accent hover:bg-orange-400 text-black font-display font-bold text-base tracking-wider
+               px-4 py-2 rounded-lg transition-colors">CAUTĂ</button>
+        <button onclick="loadWeather()" title="Reîncarcă" class="bg-card border border-border text-muted hover:text-gray-200 hover:border-gray-500
+               font-display text-base px-3 py-2 rounded-lg transition-colors">↻</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN -->
+  <main class="max-w-5xl mx-auto px-4 py-6" id="app">
+    <div class="flex flex-col items-center justify-center py-24 text-muted">
+      <span class="spin-anim text-5xl mb-4">⚙️</span>
+      <span class="font-display text-xl tracking-widest pulse-anim">SE ÎNCARCĂ...</span>
+    </div>
+  </main>
+
+  <script>
+    // ---------------------------------------------------------------------------
+    // Backend URL configuration
+    // ---------------------------------------------------------------------------
+    // When the frontend is served directly by the FastAPI/Railway backend,
+    // an empty string causes the browser to use relative URLs (same origin) –
+    // no configuration needed.
+    //
+    // When the frontend is served from a different host (e.g. GitHub Pages),
+    // set a custom URL here OR the user can enter it in the error banner that
+    // appears on failure (it is then stored in localStorage for future visits).
+    //
+    //   Example:  var CONFIGURED_BACKEND_URL = "https://your-app.up.railway.app";
+    var CONFIGURED_BACKEND_URL = "";
+
+    function _resolveApiUrl() {
+      if (location.protocol === 'file:') {
+        return localStorage.getItem('motoMeteoBackendUrl') || "http://localhost:8000";
+      }
+      if (CONFIGURED_BACKEND_URL) return CONFIGURED_BACKEND_URL.replace(/\/$/, '');
+      var stored = localStorage.getItem('motoMeteoBackendUrl');
+      if (stored) return stored.replace(/\/$/, '');
+      // On GitHub Pages the backend is on a different host — return null to
+      // trigger the configuration UI instead of a failing relative request.
+      if (location.hostname.endsWith('.github.io')) return null;
+      // Default: relative URL (works when served by the FastAPI backend directly)
+      return "";
+    }
+    var API_URL = _resolveApiUrl();
+
+    var LAT = 44.4268, LON = 26.1025, CITY = "București";
+    var _chart = null;
+    var DAYS = ["Duminică", "Luni", "Marți", "Miercuri", "Joi", "Vineri", "Sâmbătă"];
+    var BACKEND_UNAVAILABLE_MSG = "Nu se poate conecta la backend. Asigură-te că serverul rulează.";
+
+    function rainCls(p) { return p > 60 ? "text-danger" : p > 30 ? "text-warn" : "text-muted"; }
+    function windCls(g) { return g > 50 ? "text-danger" : g > 35 ? "text-warn" : "text-gray-100"; }
+    function tempCls(t) { return t < 5 ? "text-danger" : t > 32 ? "text-warn" : "text-gray-100"; }
+    function aqiCls(a) { return a >= 4 ? "text-danger" : a >= 3 ? "text-warn" : "text-ok"; }
+    function aqiLabel(a) { return ["—", "Bun", "Acceptabil", "Moderat", "Rău", "Foarte rău"][a] || "—"; }
+
+    function scoreHourly(feels, gusts, prec, code) {
+      var s = 100;
+      if (prec > 5) s -= 50; else if (prec > 1) s -= 30; else if (prec > 0.2) s -= 15;
+      if ([95, 96, 99].indexOf(code) > -1) s -= 40;
+      if (gusts > 70) s -= 30; else if (gusts > 50) s -= 15; else if (gusts > 35) s -= 8;
+      if (feels < 5) s -= 25; else if (feels < 10) s -= 12; else if (feels > 36) s -= 10;
+      if ([45, 48].indexOf(code) > -1) s -= 20;
+      return Math.max(0, Math.min(100, Math.round(s)));
+    }
+
+    function scoreInfo(s) {
+      if (s >= 80) return { label: "IDEAL PENTRU MERS", color: "#22c55e", cls: "text-ok", msg: "Condiții excelente. Drum liber! 🏍️" };
+      if (s >= 60) return { label: "ACCEPTABIL", color: "#f97316", cls: "text-accent", msg: "Condiții bune, atenție la schimbări." };
+      if (s >= 40) return { label: "CU PRECAUȚIE", color: "#eab308", cls: "text-warn", msg: "Mergi cu atenție sporită." };
+      return { label: "NU RECOMAND", color: "#ef4444", cls: "text-danger", msg: "Condiții periculoase pentru două roți." };
+    }
+
+    function verdictBadge(s) {
+      if (s >= 75) return '<span class="inline-block px-3 py-1 rounded-md text-xs font-semibold tracking-widest bg-ok/15 text-ok">✓ OK</span>';
+      if (s >= 45) return '<span class="inline-block px-3 py-1 rounded-md text-xs font-semibold tracking-widest bg-warn/15 text-warn">⚠ PRECAUȚIE</span>';
+      return '<span class="inline-block px-3 py-1 rounded-md text-xs font-semibold tracking-widest bg-danger/15 text-danger">✗ EVITĂ</span>';
+    }
+
+    function gaugeHtml(score, color) {
+      var r = 54, cx = 64, cy = 64;
+      var circ = 2 * Math.PI * r;
+      var dash = circ * (score / 100);
+      var gap = circ - dash;
+      return '<svg viewBox="0 0 128 128" class="w-40 h-40 -rotate-90 drop-shadow-lg">'
+        + '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="#232731" stroke-width="10"/>'
+        + '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="' + color + '" stroke-width="10"'
+        + ' stroke-linecap="round" stroke-dasharray="' + dash + ' ' + gap + '" class="gauge-ring"/>'
+        + '</svg>';
+    }
+
+    async function searchCity() {
+      var q = document.getElementById("city-in").value.trim();
+      if (!q) return;
+      if (API_URL === null) {
+        _showBackendConfigForm('Configurează URL-ul backend-ului înainte de a căuta un oraș.');
+        return;
+      }
+      try {
+        var r;
+        try { r = await fetch(API_URL + "/geocode?city=" + encodeURIComponent(q)); }
+        catch (_) { throw new Error(BACKEND_UNAVAILABLE_MSG); }
+        if (!r.ok) {
+          var errMsg = "HTTP " + r.status;
+          try { var ed = await r.json(); errMsg = ed.detail || errMsg; } catch (_) { }
+          throw new Error(errMsg);
+        }
+        var geo = await r.json();
+        LAT = geo.lat; LON = geo.lon;
+        CITY = geo.name + (geo.country && geo.country !== "RO" ? ", " + geo.country : "");
+        loadWeather();
+      } catch (e) { alert("Eroare geocoding: " + e.message); }
+    }
+
+    document.getElementById("city-in").addEventListener("keydown", function (e) { if (e.key === "Enter") searchCity(); });
+
+    function _showBackendConfigForm(reason) {
+      var stored = localStorage.getItem('motoMeteoBackendUrl') || '';
+      document.getElementById("app").innerHTML =
+        '<div class="mt-4 p-5 rounded-xl border border-warn bg-warn/10 text-warn text-base font-semibold">'
+        + '⚙️ ' + reason
+        + '</div>'
+        + '<div class="mt-4 p-4 rounded-xl border border-border bg-card">'
+        + '<div class="text-sm text-muted mb-2 font-semibold tracking-widest uppercase">URL Backend Railway</div>'
+        + '<div class="flex gap-2">'
+        + '<input id="backend-url-cfg" type="url" placeholder="https://your-app.up.railway.app" value="' + stored + '"'
+        + ' class="flex-1 bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent placeholder-muted"/>'
+        + '<button onclick="setBackendUrl()" class="bg-accent hover:bg-orange-400 text-black font-display font-bold text-sm tracking-wider px-4 py-2 rounded-lg transition-colors">SALVEAZĂ</button>'
+        + '</div>'
+        + '<div class="text-xs text-muted mt-2 opacity-70">Introdu URL-ul backend-ului Railway (ex: https://xyz.up.railway.app). Se salvează în browser.</div>'
+        + '</div>';
+    }
+
+    async function loadWeather() {
+      // GitHub Pages: backend is on a different host — show config UI if URL not set
+      if (API_URL === null) {
+        _showBackendConfigForm('Configurează URL-ul backend-ului pentru a încărca datele meteo.');
+        return;
+      }
+      document.getElementById("app").innerHTML =
+        '<div class="flex flex-col items-center justify-center py-24 text-muted">'
+        + '<span class="spin-anim text-5xl mb-4">⚙️</span>'
+        + '<span class="font-display text-xl tracking-widest pulse-anim">SE ÎNCARCĂ...</span>'
+        + '</div>';
+      try {
+        var url = API_URL + "/weather?lat=" + LAT + "&lon=" + LON + "&city=" + encodeURIComponent(CITY);
+        var res;
+        try { res = await fetch(url); }
+        catch (_) { throw new Error(BACKEND_UNAVAILABLE_MSG); }
+        if (!res.ok) {
+          var errMsg = "HTTP " + res.status;
+          try { var ed = await res.json(); errMsg = ed.detail || errMsg; } catch (_) { }
+          throw new Error(errMsg);
+        }
+        var d = await res.json();
+        render(d);
+        document.getElementById("upd").textContent =
+          "ACTUALIZAT: " + new Date().toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" });
+      } catch (e) {
+        var currentBackend = API_URL || location.origin;
+        document.getElementById("app").innerHTML =
+          '<div class="mt-4 p-5 rounded-xl border border-danger bg-danger/10 text-danger text-base font-semibold">'
+          + '⚠️ Backend indisponibil: ' + e.message
+          + '<small class="block mt-2 text-sm font-normal opacity-70">URL curent: <code class="bg-black/30 px-1 rounded">' + currentBackend + '</code></small>'
+          + '<small class="block mt-1 text-sm font-normal opacity-70">Pornește backend-ul local: '
+          + '<code class="bg-black/30 px-1 rounded">cd backend &amp;&amp; uvicorn main:app --reload</code></small>'
+          + '</div>'
+          + '<div class="mt-4 p-4 rounded-xl border border-border bg-card">'
+          + '<div class="text-sm text-muted mb-2 font-semibold tracking-widest uppercase">Configurează URL backend</div>'
+          + '<div class="flex gap-2">'
+          + '<input id="backend-url-cfg" type="url" placeholder="https://your-app.up.railway.app" value="' + (localStorage.getItem('motoMeteoBackendUrl') || '') + '"'
+          + ' class="flex-1 bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent placeholder-muted"/>'
+          + '<button onclick="setBackendUrl()" class="bg-accent hover:bg-orange-400 text-black font-display font-bold text-sm tracking-wider px-4 py-2 rounded-lg transition-colors">SALVEAZĂ</button>'
+          + '<button onclick="clearBackendUrl()" class="bg-card border border-border text-muted hover:text-gray-200 text-sm px-3 py-2 rounded-lg transition-colors">✕</button>'
+          + '</div>'
+          + '<div class="text-xs text-muted mt-2 opacity-70">Introdu URL-ul backend-ului Railway (ex: https://xyz.up.railway.app). Se salvează în browser.</div>'
+          + '</div>'
+          + '<button onclick="loadWeather()" class="mt-4 bg-accent hover:bg-orange-400 text-black font-display font-bold'
+          + ' tracking-wider px-6 py-2 rounded-lg transition-colors">RETRY</button>';
+      }
+    }
+
+    function setBackendUrl() {
+      var el = document.getElementById('backend-url-cfg');
+      var val = el ? el.value.trim().replace(/\/$/, '') : '';
+      if (val) {
+        try { new URL(val); } catch (_) { alert("URL invalid. Introdu o adresă completă, ex: https://your-app.up.railway.app"); return; }
+        localStorage.setItem('motoMeteoBackendUrl', val); API_URL = val;
+      } else { localStorage.removeItem('motoMeteoBackendUrl'); API_URL = _resolveApiUrl(); }
+      loadWeather();
+    }
+
+    function clearBackendUrl() {
+      localStorage.removeItem('motoMeteoBackendUrl');
+      API_URL = _resolveApiUrl();
+      loadWeather();
+    }
+
+    function renderChart(hourly) {
+      var canvas = document.getElementById("tempChart");
+      if (!canvas || typeof Chart === "undefined") return;
+      var labels = hourly.map(function (h) {
+        var t = new Date(h.time);
+        return t.getHours().toString().padStart(2, "0") + ":00";
+      });
+      if (_chart) { _chart.destroy(); }
+      _chart = new Chart(canvas, {
+        type: "line",
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: "Temperatură (°C)", data: hourly.map(function (h) { return h.temperature; }),
+              borderColor: "#f97316", backgroundColor: "rgba(249,115,22,0.10)", tension: 0.4, pointRadius: 3, yAxisID: "y"
+            },
+            {
+              label: "Resimțit (°C)", data: hourly.map(function (h) { return h.feels_like; }),
+              borderColor: "#60a5fa", backgroundColor: "transparent", tension: 0.4, pointRadius: 2, borderDash: [5, 4], yAxisID: "y"
+            },
+            {
+              label: "Prob. ploaie (%)", data: hourly.map(function (h) { return h.precipitation_probability || 0; }),
+              borderColor: "#3b82f6", backgroundColor: "rgba(59,130,246,0.12)", tension: 0.4, pointRadius: 0, yAxisID: "y2", fill: true
+            }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { mode: "index", intersect: false },
+          plugins: { legend: { labels: { color: "#9ca3af", font: { family: "Inter", size: 11 }, boxWidth: 14, padding: 16 } } },
+          scales: {
+            x: { ticks: { color: "#6b7280", font: { size: 11 }, maxTicksLimit: 12 }, grid: { color: "rgba(35,39,49,0.8)" } },
+            y: {
+              ticks: { color: "#9ca3af", font: { size: 11 } }, grid: { color: "rgba(35,39,49,0.8)" },
+              title: { display: true, text: "°C", color: "#9ca3af", font: { size: 12 } }
+            },
+            y2: {
+              position: "right", min: 0, max: 100,
+              ticks: { color: "#60a5fa", font: { size: 11 } }, grid: { drawOnChartArea: false },
+              title: { display: true, text: "%", color: "#60a5fa", font: { size: 12 } }
+            }
+          }
+        }
+      });
+    }
+
+    function secTitle(label) {
+      return '<div class="flex items-center gap-3 mt-8 mb-4">'
+        + '<span class="font-display text-sm font-bold tracking-[0.25em] text-muted uppercase">' + label + '</span>'
+        + '<div class="flex-1 h-px bg-border"></div>'
+        + '</div>';
+    }
+
+    function statCard(icon, label, value, valueCls, sub) {
+      return '<div class="bg-card border border-border rounded-xl p-4 flex flex-col gap-1">'
+        + '<div class="text-3xl mb-1">' + icon + '</div>'
+        + '<div class="text-xs text-muted font-semibold tracking-widest uppercase">' + label + '</div>'
+        + '<div class="font-display text-4xl font-bold leading-none ' + valueCls + '">' + value + '</div>'
+        + '<div class="text-xs text-muted mt-1 leading-snug">' + sub + '</div>'
+        + '</div>';
+    }
+
+    function render(d) {
+      var c = d.current;
+      var now = new Date();
+      var si = scoreInfo(c.moto_score);
+      var hourly = d.hourly.filter(function (h) { return new Date(h.time) >= now; }).slice(0, 24);
+      var daily = d.daily;
+      var allMin = Math.min.apply(null, daily.map(function (x) { return x.temp_min; }));
+      var allMax = Math.max.apply(null, daily.map(function (x) { return x.temp_max; }));
+      var html = '';
+
+      // Location
+      html += '<div class="mb-6">';
+      html += '<h1 class="font-display text-5xl sm:text-6xl font-bold tracking-widest leading-none text-gray-100">' + d.city.toUpperCase() + '</h1>';
+      html += '<p class="text-sm text-muted tracking-widest mt-1">' + d.latitude.toFixed(4) + '° N &nbsp;·&nbsp; ' + d.longitude.toFixed(4) + '° E &nbsp;·&nbsp; ' + d.timezone + '</p>';
+      html += '</div>';
+
+      // Hero card
+      html += '<div class="bg-card border border-border rounded-2xl p-6 mb-6 flex flex-col sm:flex-row items-center gap-6" style="border-left:5px solid ' + si.color + '">';
+      html += '<div class="relative flex-shrink-0 flex items-center justify-center w-40 h-40">';
+      html += gaugeHtml(c.moto_score, si.color);
+      html += '<div class="absolute inset-0 flex flex-col items-center justify-center">';
+      html += '<span class="font-display text-5xl font-bold leading-none" style="color:' + si.color + '">' + c.moto_score + '</span>';
+      html += '<span class="text-xs text-muted tracking-wider mt-1">/ 100</span>';
+      html += '</div></div>';
+      html += '<div class="flex-1 text-center sm:text-left">';
+      html += '<div style="font-size:6rem;line-height:1" class="mb-2">' + c.icon + '</div>';
+      html += '<div class="font-display text-3xl sm:text-4xl font-bold tracking-wide mb-1" style="color:' + si.color + '">' + si.label + '</div>';
+      html += '<div class="text-base text-gray-300 mb-3">' + si.msg + '</div>';
+      html += '<div class="flex flex-wrap gap-3 text-sm text-muted justify-center sm:justify-start">';
+      html += '<span class="bg-bg/60 rounded-lg px-3 py-1 border border-border">' + c.description + '</span>';
+      html += '<span class="bg-bg/60 rounded-lg px-3 py-1 border border-border">🌡️ Resimțit <strong class="text-gray-200">' + Math.round(c.feels_like) + '°C</strong></span>';
+      html += '<span class="bg-bg/60 rounded-lg px-3 py-1 border border-border">💨 Rafale <strong class="text-gray-200">' + Math.round(c.wind_gusts_kmh) + ' km/h</strong></span>';
+      if (c.sources && c.sources.length > 1) {
+        html += '<span class="bg-ok/10 rounded-lg px-3 py-1 border border-ok/20 text-ok text-xs">⬆ ' + c.sources.join(' + ') + '</span>';
+      }
+      html += '</div></div></div>';
+
+      // Stats grid
+      html += secTitle('Condiții actuale');
+      html += '<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-2">';
+      html += statCard('🌡️', 'Temperatură', Math.round(c.temperature) + '°', tempCls(c.temperature), 'resimțit ' + Math.round(c.feels_like) + '°C');
+      html += statCard('💨', 'Vânt', Math.round(c.wind_speed_kmh) + '<span class="text-lg"> km/h</span>', windCls(c.wind_gusts_kmh), 'rafale ' + Math.round(c.wind_gusts_kmh) + ' km/h · ' + c.wind_direction + ' · Beaufort ' + c.beaufort);
+      html += statCard('🌧️', 'Precipitații', c.precipitation_mm.toFixed(1) + '<span class="text-xl"> mm</span>', (c.precipitation_mm > 1 ? 'text-danger' : c.precipitation_mm > 0.1 ? 'text-warn' : 'text-ok'), 'mm / oră curentă');
+      html += statCard('💧', 'Umiditate', c.humidity + '<span class="text-xl">%</span>', (c.humidity > 90 ? 'text-warn' : 'text-gray-100'), 'drum potențial umed');
+      if (c.pressure_hpa != null)
+        html += statCard('🔵', 'Presiune', Math.round(c.pressure_hpa) + '<span class="text-xl"> hPa</span>', 'text-gray-100', 'presiune atmosferică');
+      if (c.visibility_km != null)
+        html += statCard('👁️', 'Vizibilitate', c.visibility_km + '<span class="text-xl"> km</span>', (c.visibility_km < 1 ? 'text-danger' : c.visibility_km < 5 ? 'text-warn' : 'text-gray-100'), 'distanța de vizibilitate');
+      if (c.aqi != null)
+        html += statCard('🍃', 'Calitate aer', c.aqi, aqiCls(c.aqi), aqiLabel(c.aqi));
+      html += '</div>';
+
+      // Chart
+      html += secTitle('Grafic temperatură &amp; ploaie — 24h');
+      html += '<div class="bg-card border border-border rounded-xl p-4 mb-2" style="height:200px;">';
+      html += '<canvas id="tempChart"></canvas></div>';
+
+      // Hourly scroll
+      html += secTitle('Orar — 24h');
+      html += '<div class="flex gap-3 overflow-x-auto scroll-x pb-2 mb-2">';
+      hourly.forEach(function (h, idx) {
+        var t = new Date(h.time);
+        var hh = t.getHours().toString().padStart(2, "0") + ":00";
+        var rp = h.precipitation_probability || 0;
+        var hs = scoreHourly(h.feels_like, h.wind_gusts_kmh, h.precipitation_mm, h.weather_code);
+        var borderCol = hs < 40 ? "border-danger" : rp > 40 ? "border-warn" : idx === 0 ? "border-accent" : "border-border";
+        var activeRing = idx === 0 ? "ring-1 ring-accent/40" : "";
+        html += '<div class="flex-shrink-0 bg-card border ' + borderCol + ' ' + activeRing + ' rounded-xl p-3 w-24 text-center flex flex-col items-center gap-1">';
+        html += '<div class="text-xs font-semibold tracking-widest ' + (idx === 0 ? 'text-accent' : 'text-muted') + '">' + (idx === 0 ? "ACUM" : hh) + '</div>';
+        html += '<div style="font-size:2.5rem;line-height:1">' + h.icon + '</div>';
+        html += '<div class="font-display text-3xl font-bold leading-none text-gray-100">' + Math.round(h.temperature) + '°</div>';
+        html += '<div class="text-xs ' + rainCls(rp) + '">' + rp + '% 💧</div>';
+        html += '<div class="text-xs text-muted">' + Math.round(h.wind_speed_kmh) + ' km/h</div>';
+        html += '<div class="mt-1 w-full h-1 rounded-full" style="background:linear-gradient(90deg,'
+          + (hs >= 80 ? '#22c55e' : hs >= 60 ? '#f97316' : hs >= 40 ? '#eab308' : '#ef4444') + ',transparent)"></div>';
+        html += '</div>';
+      });
+      html += '</div>';
+
+      // Daily forecast
+      html += secTitle('Prognoză ' + daily.length + ' zile');
+      html += '<div class="flex flex-col gap-3 mb-8">';
+      daily.forEach(function (day, i) {
+        var date = new Date(day.date + "T12:00:00");
+        var dname = i === 0 ? "AZI" : DAYS[date.getDay()];
+        var tMin = Math.round(day.temp_min);
+        var tMax = Math.round(day.temp_max);
+        var rp = day.precipitation_probability || 0;
+        var gustMax = Math.round(day.wind_gusts_kmh || 0);
+        var ds = day.moto_score;
+        var borderCol = ds < 40 ? "border-l-danger" : ds < 65 ? "border-l-warn" : "border-l-ok";
+        var range = allMax - allMin || 1;
+        var bL = Math.round(((tMin - allMin) / range) * 100);
+        var bW = Math.max(4, Math.round(((tMax - allMin) / range) * 100) - bL);
+        html += '<div class="bg-card border border-border border-l-4 ' + borderCol + ' rounded-xl px-4 py-3'
+          + ' grid items-center gap-3" style="grid-template-columns:90px 48px 1fr 70px 70px 90px">';
+        html += '<div class="font-display text-xl font-bold tracking-wide text-gray-100">' + dname + '</div>';
+        html += '<div style="font-size:2rem;text-align:center">' + day.icon + '</div>';
+        html += '<div class="flex items-center gap-2">'
+          + '<span class="text-sm text-muted w-8 text-right">' + tMin + '°</span>'
+          + '<div class="flex-1 h-2 bg-border rounded-full overflow-hidden">'
+          + '<div class="h-full rounded-full" style="margin-left:' + bL + '%;width:' + bW + '%;background:linear-gradient(90deg,#60a5fa,#f97316)"></div>'
+          + '</div>'
+          + '<span class="text-sm text-gray-200 w-8">' + tMax + '°</span>'
+          + '</div>';
+        html += '<div class="text-center"><div class="font-display text-xl font-bold ' + rainCls(rp) + '">' + rp + '%</div>'
+          + '<div class="text-xs text-muted tracking-wider">PLOAIE</div></div>';
+        html += '<div class="text-center"><div class="font-display text-xl font-bold ' + windCls(gustMax) + '">' + gustMax + '</div>'
+          + '<div class="text-xs text-muted tracking-wider">KM/H</div></div>';
+        html += verdictBadge(ds);
+        html += '</div>';
+      });
+      html += '</div>';
+
+      html += '<div class="border-t border-border pt-4 pb-8 text-xs text-muted tracking-widest text-center">'
+        + 'DATE: OPEN-METEO.COM + OPENWEATHERMAP &nbsp;·&nbsp; ACTUALIZAT ORAR'
+        + '</div>';
+
+      document.getElementById("app").innerHTML = html;
+      renderChart(hourly);
+    }
+
+    loadWeather();
+  </script>
 
 </body>
+
 </html>
