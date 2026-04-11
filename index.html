@@ -219,9 +219,12 @@ async function loadWeather(){
 }
 
 function setBackendUrl(){
-  var val=(document.getElementById('backend-url-cfg')||{value:''}).value.trim().replace(/\/$/,'');
-  if(val){localStorage.setItem('motoMeteoBackendUrl',val);API_URL=val;}
-  else{localStorage.removeItem('motoMeteoBackendUrl');API_URL=_resolveApiUrl();}
+  var el=document.getElementById('backend-url-cfg');
+  var val=el?el.value.trim().replace(/\/$/,''):'';
+  if(val){
+    try{new URL(val);}catch(_){alert("URL invalid. Introdu o adresă completă, ex: https://your-app.up.railway.app");return;}
+    localStorage.setItem('motoMeteoBackendUrl',val);API_URL=val;
+  }else{localStorage.removeItem('motoMeteoBackendUrl');API_URL=_resolveApiUrl();}
   loadWeather();
 }
 
