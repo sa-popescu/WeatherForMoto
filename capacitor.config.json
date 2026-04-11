@@ -1,0 +1,37 @@
+{
+    "appId": "ro.motometeo.app",
+    "appName": "MotoMeteo",
+    "webDir": ".",
+    "server": {
+        "androidScheme": "https",
+        "allowNavigation": [
+            "api.open-meteo.com",
+            "geocoding-api.open-meteo.com",
+            "api.openweathermap.org",
+            "api.met.no",
+            "nominatim.openstreetmap.org",
+            "fonts.googleapis.com",
+            "fonts.gstatic.com",
+            "cdn.tailwindcss.com",
+            "cdn.jsdelivr.net"
+        ]
+    },
+    "plugins": {
+        "SplashScreen": {
+            "launchAutoHide": true,
+            "launchShowDuration": 1500,
+            "backgroundColor": "#0b0c0f",
+            "androidSplashResourceName": "splash",
+            "showSpinner": false
+        },
+        "StatusBar": {
+            "style": "Dark",
+            "backgroundColor": "#0b0c0f",
+            "overlaysWebView": true
+        }
+    },
+    "ios": {
+        "contentInset": "always",
+        "backgroundColor": "#0b0c0f"
+    }
+}
