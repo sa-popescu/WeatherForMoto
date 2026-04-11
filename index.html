@@ -101,22 +101,40 @@
     .wx-card {
       transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
     }
+
     .wx-card:hover {
       transform: translateY(-3px);
       box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
     }
 
     /* Gauge glow based on score */
-    .gauge-glow-ok    { filter: drop-shadow(0 0 14px rgba(34, 197,  94, 0.45)); }
-    .gauge-glow-warn  { filter: drop-shadow(0 0 14px rgba(249, 115,  22, 0.45)); }
-    .gauge-glow-caution { filter: drop-shadow(0 0 14px rgba(234, 179,   8, 0.45)); }
-    .gauge-glow-danger{ filter: drop-shadow(0 0 14px rgba(239,  68,  68, 0.45)); }
+    .gauge-glow-ok {
+      filter: drop-shadow(0 0 14px rgba(34, 197, 94, 0.45));
+    }
+
+    .gauge-glow-warn {
+      filter: drop-shadow(0 0 14px rgba(249, 115, 22, 0.45));
+    }
+
+    .gauge-glow-caution {
+      filter: drop-shadow(0 0 14px rgba(234, 179, 8, 0.45));
+    }
+
+    .gauge-glow-danger {
+      filter: drop-shadow(0 0 14px rgba(239, 68, 68, 0.45));
+    }
 
     /* Skeleton shimmer */
     @keyframes skeleton-shimmer {
-      0%   { background-position: -200% 0; }
-      100% { background-position:  200% 0; }
+      0% {
+        background-position: -200% 0;
+      }
+
+      100% {
+        background-position: 200% 0;
+      }
     }
+
     .skeleton {
       background: linear-gradient(90deg, #181b22 25%, #232731 50%, #181b22 75%);
       background-size: 200% 100%;
@@ -131,21 +149,28 @@
       opacity: 0.7;
       transition: opacity 0.3s;
     }
-    .refresh-pill:hover { opacity: 1; }
+
+    .refresh-pill:hover {
+      opacity: 1;
+    }
 
     /* Hourly card active "ACUM" glow */
     .hourly-now {
-      box-shadow: 0 0 0 2px rgba(249,115,22,0.35), 0 4px 16px rgba(249,115,22,0.15);
+      box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.35), 0 4px 16px rgba(249, 115, 22, 0.15);
     }
 
     /* Arrow toggle for daily expand */
     .day-arrow {
-      transition: transform 0.25s cubic-bezier(.4,0,.2,1);
+      transition: transform 0.25s cubic-bezier(.4, 0, .2, 1);
       display: inline-block;
       font-size: 0.65rem;
       opacity: 0.5;
     }
-    .day-arrow.open { transform: rotate(180deg); opacity: 0.9; }
+
+    .day-arrow.open {
+      transform: rotate(180deg);
+      opacity: 0.9;
+    }
 
     /* Score bar in hourly */
     .score-bar-track {
@@ -154,10 +179,11 @@
       overflow: hidden;
       height: 5px;
     }
+
     .score-bar-fill {
       height: 100%;
       border-radius: 4px;
-      transition: width 0.5s cubic-bezier(.4,0,.2,1);
+      transition: width 0.5s cubic-bezier(.4, 0, .2, 1);
     }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
@@ -167,7 +193,7 @@
   <meta name="apple-mobile-web-app-title" content="MotoMeteo">
 </head>
 
-<body class="bg-bg text-gray-100 font-body min-h-screen">
+<body class="bg-bg text-gray-100 font-body min-h-screen overflow-x-hidden">
 
   <!-- HEADER -->
   <header class="bg-surface border-b border-border sticky top-0 z-50">
@@ -181,17 +207,13 @@
         </div>
       </div>
       <div class="flex gap-1.5 sm:gap-2 items-center">
-        <input id="city-in" type="text" placeholder="Caută oraș..." value="Bucharest"
-               class="bg-bg border border-border text-gray-100 font-body text-sm px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg w-32 sm:w-44
+        <input id="city-in" type="text" placeholder="Caută oraș..." value="Bucharest" class="bg-bg border border-border text-gray-100 font-body text-sm px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg w-32 sm:w-44
                       focus:outline-none focus:border-accent placeholder-muted transition-colors" />
-        <button onclick="searchCity()"
-                class="bg-accent hover:bg-orange-400 text-black font-display font-bold text-sm sm:text-base tracking-wider
+        <button onclick="searchCity()" class="bg-accent hover:bg-orange-400 text-black font-display font-bold text-sm sm:text-base tracking-wider
                        px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg transition-colors">CAUTĂ</button>
-        <button onclick="geolocate()" title="Locația mea"
-                class="bg-card border border-border text-muted hover:text-accent hover:border-accent
+        <button onclick="geolocate()" title="Locația mea" class="bg-card border border-border text-muted hover:text-accent hover:border-accent
                        text-base px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors">📍</button>
-        <button onclick="loadWeather()" title="Reîncarcă"
-                class="bg-card border border-border text-muted hover:text-gray-200 hover:border-gray-500
+        <button onclick="loadWeather()" title="Reîncarcă" class="bg-card border border-border text-muted hover:text-gray-200 hover:border-gray-500
                        text-base px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors">↻</button>
       </div>
     </div>
@@ -199,7 +221,7 @@
   </header>
 
   <!-- MAIN -->
-  <main class="max-w-5xl mx-auto px-4 py-6" id="app">
+  <main class="max-w-5xl mx-auto px-3 sm:px-4 py-6 min-w-0" id="app">
   </main>
 
   <script>
@@ -292,9 +314,9 @@
     }
 
     function verdictBadge(s) {
-      if (s >= 75) return '<span class="inline-block px-3 py-1 rounded-md text-xs font-semibold tracking-widest bg-ok/15 text-ok">✓ OK</span>';
-      if (s >= 45) return '<span class="inline-block px-3 py-1 rounded-md text-xs font-semibold tracking-widest bg-warn/15 text-warn">⚠ PRECAUȚIE</span>';
-      return '<span class="inline-block px-3 py-1 rounded-md text-xs font-semibold tracking-widest bg-danger/15 text-danger">✗ EVITĂ</span>';
+      if (s >= 75) return '<span class="inline-block px-2 sm:px-3 py-0.5 sm:py-1 rounded-md text-xs font-semibold sm:tracking-widest bg-ok/15 text-ok whitespace-nowrap">✓ OK</span>';
+      if (s >= 45) return '<span class="inline-block px-2 sm:px-3 py-0.5 sm:py-1 rounded-md text-xs font-semibold sm:tracking-widest bg-warn/15 text-warn whitespace-nowrap"><span class="hidden sm:inline">⚠ PRECAUȚIE</span><span class="sm:hidden">⚠</span></span>';
+      return '<span class="inline-block px-2 sm:px-3 py-0.5 sm:py-1 rounded-md text-xs font-semibold sm:tracking-widest bg-danger/15 text-danger whitespace-nowrap"><span class="hidden sm:inline">✗ EVITĂ</span><span class="sm:hidden">✗</span></span>';
     }
 
     function gaugeHtml(score, color) {
@@ -942,10 +964,10 @@
       var win = findBestWindow(d.hourly);
       var winTom = findTomorrowWindow(d.hourly);
       if (win || winTom) {
-        var _wBanner = function(w, label) {
+        var _wBanner = function (w, label) {
           var wBorderCls = w.avg >= 80 ? 'border-ok' : w.avg >= 60 ? 'border-accent' : 'border-warn';
-          var wTextCls   = w.avg >= 80 ? 'text-ok'   : w.avg >= 60 ? 'text-accent'   : 'text-warn';
-          var wBgCls     = w.avg >= 80 ? 'bg-ok/5'   : w.avg >= 60 ? 'bg-accent/5'   : 'bg-warn/5';
+          var wTextCls = w.avg >= 80 ? 'text-ok' : w.avg >= 60 ? 'text-accent' : 'text-warn';
+          var wBgCls = w.avg >= 80 ? 'bg-ok/5' : w.avg >= 60 ? 'bg-accent/5' : 'bg-warn/5';
           return '<div class="mb-3 p-4 rounded-xl border ' + wBorderCls + ' ' + wBgCls + ' flex items-center gap-4">'
             + '<span class="text-3xl flex-shrink-0">🎯</span>'
             + '<div class="flex-1">'
@@ -1068,7 +1090,7 @@
         html += '<div class="bg-card border border-border border-l-4 ' + borderCol + ' rounded-xl overflow-hidden">';
 
         // ── Clickable summary row ──────────────────────────────────────────
-        html += '<div onclick="toggleDay(' + i + ')" class="px-3 sm:px-4 py-3 flex items-center gap-2 sm:gap-3 cursor-pointer select-none">';
+        html += '<div onclick="toggleDay(' + i + ')" class="px-3 sm:px-4 py-3 flex items-center gap-1.5 sm:gap-3 cursor-pointer select-none">';
 
         // Icon
         html += '<div class="flex-shrink-0 w-8 sm:w-10 text-center" style="font-size:1.75rem;line-height:1" title="' + day.description + '">' + day.icon + '</div>';
@@ -1092,19 +1114,19 @@
           + '</div>';
 
         // Rain %
-        html += '<div class="flex-shrink-0 text-center w-10 sm:w-14">'
+        html += '<div class="flex-shrink-0 text-center w-9 sm:w-14">'
           + '<div class="font-display text-sm sm:text-xl font-bold ' + rainCls(rp) + '">' + rp + '%</div>'
           + '<div class="text-xs text-muted hidden sm:block">PLOAIE</div>'
           + '</div>';
 
-        // Wind (hidden on mobile)
-        html += '<div class="hidden sm:block flex-shrink-0 text-center w-14">'
+        // Wind (hidden on mobile/tablet, shown on lg+)
+        html += '<div class="hidden lg:block flex-shrink-0 text-center w-14">'
           + '<div class="font-display text-xl font-bold ' + windCls(gustMax) + '">' + gustMax + '</div>'
           + '<div class="text-xs text-muted">KM/H</div>'
           + '</div>';
 
         // Score + verdict
-        html += '<div class="flex-shrink-0 flex flex-col items-center gap-0.5 w-12 sm:w-16">'
+        html += '<div class="flex-shrink-0 flex flex-col items-center gap-0.5 min-w-0">'
           + '<div class="font-display text-sm font-bold" style="color:' + scoreColor + '">' + ds + '</div>'
           + verdictBadge(ds)
           + '</div>';
@@ -1148,7 +1170,7 @@
         if (gustMax) html += '<span>💨 rafale max <strong class="' + windCls(gustMax) + '">' + gustMax + ' km/h</strong></span>';
         if (day.precipitation_mm > 0) html += '<span>🌧️ precipitații <strong class="text-gray-300">' + day.precipitation_mm + ' mm</strong></span>';
         if (day.sunrise) html += '<span>🌅 răsărit <strong class="text-gray-300">' + fmtTime(day.sunrise) + '</strong></span>';
-        if (day.sunset)  html += '<span>🌇 apus <strong class="text-gray-300">' + fmtTime(day.sunset) + '</strong></span>';
+        if (day.sunset) html += '<span>🌇 apus <strong class="text-gray-300">' + fmtTime(day.sunset) + '</strong></span>';
         html += '</div>';
 
         html += '</div>'; // end details
