@@ -279,7 +279,7 @@ def test_haversine_km_same_point():
 def test_haversine_km_bucharest_cluj():
     # Bucharest to Cluj-Napoca ~326 km straight line
     d = _haversine_km(44.43, 26.10, 46.77, 23.60)
-    assert 300 < d < 360
+    assert abs(d - 326) < 15  # within 15 km of known value
 
 
 # ---------------------------------------------------------------------------
