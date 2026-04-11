@@ -3,7 +3,9 @@ builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
 
 [deploy]
+# The start command is defined in backend/entrypoint.sh (via Dockerfile ENTRYPOINT).
+# healthcheckPath must respond with 2xx; see GET /health in backend/main.py.
 healthcheckPath = "/health"
-healthcheckTimeout = 10
+healthcheckTimeout = 30
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3

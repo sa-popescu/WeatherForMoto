@@ -81,7 +81,32 @@ html { scroll-behavior:smooth; }
 </main>
 
 <script>
-var API_URL = (location.protocol === 'file:') ? "http://localhost:8000" : location.origin;
+// ---------------------------------------------------------------------------
+// Backend URL configuration
+// ---------------------------------------------------------------------------
+// When the frontend is served directly by the FastAPI/Railway backend,
+// an empty string causes the browser to use relative URLs (same origin) –
+// no configuration needed.
+//
+// When the frontend is served from a different host (e.g. GitHub Pages),
+// set a custom URL here OR the user can enter it in the error banner that
+// appears on failure (it is then stored in localStorage for future visits).
+//
+//   Example:  var CONFIGURED_BACKEND_URL = "https://your-app.up.railway.app";
+var CONFIGURED_BACKEND_URL = "";
+
+function _resolveApiUrl() {
+  if (location.protocol === 'file:') {
+    return localStorage.getItem('motoMeteoBackendUrl') || "http://localhost:8000";
+  }
+  if (CONFIGURED_BACKEND_URL) return CONFIGURED_BACKEND_URL.replace(/\/$/, '');
+  var stored = localStorage.getItem('motoMeteoBackendUrl');
+  if (stored) return stored.replace(/\/$/, '');
+  // Default: relative URL (works when served by the FastAPI backend directly)
+  return "";
+}
+var API_URL = _resolveApiUrl();
+
 var LAT = 44.4268, LON = 26.1025, CITY = "București";
 var _chart = null;
 var DAYS = ["Duminică","Luni","Marți","Miercuri","Joi","Vineri","Sâmbătă"];
@@ -170,14 +195,40 @@ async function loadWeather(){
     document.getElementById("upd").textContent=
       "ACTUALIZAT: "+new Date().toLocaleTimeString("ro-RO",{hour:"2-digit",minute:"2-digit"});
   }catch(e){
+    var currentBackend=API_URL||location.origin;
     document.getElementById("app").innerHTML=
       '<div class="mt-4 p-5 rounded-xl border border-danger bg-danger/10 text-danger text-base font-semibold">'
       +'⚠️ Backend indisponibil: '+e.message
-      +'<small class="block mt-2 text-sm font-normal opacity-70">Pornește backend-ul: '
-      +'<code class="bg-black/30 px-1 rounded">cd backend &amp;&amp; uvicorn main:app --reload</code></small></div>'
+      +'<small class="block mt-2 text-sm font-normal opacity-70">URL curent: <code class="bg-black/30 px-1 rounded">'+currentBackend+'</code></small>'
+      +'<small class="block mt-1 text-sm font-normal opacity-70">Pornește backend-ul local: '
+      +'<code class="bg-black/30 px-1 rounded">cd backend &amp;&amp; uvicorn main:app --reload</code></small>'
+      +'</div>'
+      +'<div class="mt-4 p-4 rounded-xl border border-border bg-card">'
+      +'<div class="text-sm text-muted mb-2 font-semibold tracking-widest uppercase">Configurează URL backend</div>'
+      +'<div class="flex gap-2">'
+      +'<input id="backend-url-cfg" type="url" placeholder="https://your-app.up.railway.app" value="'+(localStorage.getItem('motoMeteoBackendUrl')||'')+'"'
+      +' class="flex-1 bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent placeholder-muted"/>'
+      +'<button onclick="setBackendUrl()" class="bg-accent hover:bg-orange-400 text-black font-display font-bold text-sm tracking-wider px-4 py-2 rounded-lg transition-colors">SALVEAZĂ</button>'
+      +'<button onclick="clearBackendUrl()" class="bg-card border border-border text-muted hover:text-gray-200 text-sm px-3 py-2 rounded-lg transition-colors">✕</button>'
+      +'</div>'
+      +'<div class="text-xs text-muted mt-2 opacity-70">Introdu URL-ul backend-ului Railway (ex: https://xyz.up.railway.app). Se salvează în browser.</div>'
+      +'</div>'
       +'<button onclick="loadWeather()" class="mt-4 bg-accent hover:bg-orange-400 text-black font-display font-bold'
       +' tracking-wider px-6 py-2 rounded-lg transition-colors">RETRY</button>';
   }
+}
+
+function setBackendUrl(){
+  var val=(document.getElementById('backend-url-cfg')||{value:''}).value.trim().replace(/\/$/,'');
+  if(val){localStorage.setItem('motoMeteoBackendUrl',val);API_URL=val;}
+  else{localStorage.removeItem('motoMeteoBackendUrl');API_URL=_resolveApiUrl();}
+  loadWeather();
+}
+
+function clearBackendUrl(){
+  localStorage.removeItem('motoMeteoBackendUrl');
+  API_URL=_resolveApiUrl();
+  loadWeather();
 }
 
 function renderChart(hourly){
