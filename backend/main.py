@@ -17,11 +17,13 @@ GET /geocode?city=Cluj-Napoca
 """
 
 import os
+import pathlib
 from typing import Annotated
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 
 from weather_service import geocode_city, get_weather
 import httpx
@@ -36,6 +38,10 @@ load_dotenv()
 _DEMO_OWM_KEY = "3e17019022d624b5b3d26b54f7c6b8a5"
 OWM_API_KEY: str = os.getenv("OPENWEATHERMAP_API_KEY", _DEMO_OWM_KEY)
 DEFAULT_CITY: str = os.getenv("DEFAULT_CITY", "Bucharest")
+
+# Path to the frontend index.html (one level above the backend/ directory)
+_REPO_ROOT = pathlib.Path(__file__).parent.parent
+INDEX_HTML = _REPO_ROOT / "index.html"
 
 # ---------------------------------------------------------------------------
 # App
@@ -66,6 +72,14 @@ app.add_middleware(
 async def health() -> dict:
     """Returns API status."""
     return {"status": "ok", "version": "1.0.0"}
+
+
+@app.get("/", include_in_schema=False)
+async def serve_frontend():
+    """Serve the frontend single-page application."""
+    if not INDEX_HTML.is_file():
+        raise HTTPException(status_code=404, detail=f"Frontend not found at {INDEX_HTML}.")
+    return FileResponse(INDEX_HTML, media_type="text/html")
 
 
 @app.get("/geocode", tags=["location"])
