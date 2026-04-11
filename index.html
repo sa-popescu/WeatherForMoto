@@ -98,6 +98,10 @@
     }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0b0c0f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="MotoMeteo">
 </head>
 
 <body class="bg-bg text-gray-100 font-body min-h-screen">
@@ -118,10 +122,13 @@
                focus:outline-none focus:border-accent placeholder-muted transition-colors" />
         <button onclick="searchCity()" class="bg-accent hover:bg-orange-400 text-black font-display font-bold text-base tracking-wider
                px-4 py-2 rounded-lg transition-colors">CAUTĂ</button>
+        <button onclick="geolocate()" title="Locația mea" class="bg-card border border-border text-muted hover:text-accent hover:border-accent
+               font-display text-base px-3 py-2 rounded-lg transition-colors">📍</button>
         <button onclick="loadWeather()" title="Reîncarcă" class="bg-card border border-border text-muted hover:text-gray-200 hover:border-gray-500
                font-display text-base px-3 py-2 rounded-lg transition-colors">↻</button>
       </div>
     </div>
+    <div id="favs-bar" class="max-w-5xl mx-auto px-4 pb-2"></div>
   </header>
 
   <!-- MAIN -->
@@ -189,6 +196,19 @@
       if (s >= 60) return { label: "ACCEPTABIL", color: "#f97316", cls: "text-accent", msg: "Condiții bune, atenție la schimbări." };
       if (s >= 40) return { label: "CU PRECAUȚIE", color: "#eab308", cls: "text-warn", msg: "Mergi cu atenție sporită." };
       return { label: "NU RECOMAND", color: "#ef4444", cls: "text-danger", msg: "Condiții periculoase pentru două roți." };
+    }
+
+    function fmtTime(iso) {
+      if (!iso) return "—";
+      var d = new Date(iso);
+      return d.getHours().toString().padStart(2, "0") + ":" + d.getMinutes().toString().padStart(2, "0");
+    }
+    function uvCls(uv) { return uv >= 8 ? "text-danger" : uv >= 5 ? "text-warn" : uv >= 3 ? "text-accent" : "text-ok"; }
+    function uvDesc(uv) {
+      if (uv >= 8) return "Foarte ridicat — protecție maximă";
+      if (uv >= 6) return "Ridicat — aplicați protecție solară";
+      if (uv >= 3) return "Moderat";
+      return "Scăzut";
     }
 
     function verdictBadge(s) {
@@ -330,10 +350,10 @@
         current: "temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,"
           + "wind_gusts_10m,wind_direction_10m,precipitation,weather_code,surface_pressure,visibility",
         hourly: "temperature_2m,apparent_temperature,precipitation_probability,"
-          + "precipitation,weather_code,wind_speed_10m,wind_gusts_10m",
+          + "precipitation,weather_code,wind_speed_10m,wind_gusts_10m,uv_index",
         daily: "weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,"
           + "apparent_temperature_min,precipitation_sum,wind_speed_10m_max,wind_gusts_10m_max,"
-          + "precipitation_probability_max",
+          + "precipitation_probability_max,sunrise,sunset",
         timezone: "auto", forecast_days: 7, wind_speed_unit: "kmh",
       });
       var [omResp, owm, metData] = await Promise.all([
@@ -459,6 +479,7 @@
           precipitation_probability: omSafe(dd.precipitation_probability_max, i) || 0,
           wind_max_kmh: omSafe(dd.wind_speed_10m_max, i), wind_gusts_kmh: gustMax,
           moto_score: ds, moto_label: motoLabel(ds),
+          sunrise: omSafe(dd.sunrise, i), sunset: omSafe(dd.sunset, i),
         });
       }
 
@@ -482,12 +503,126 @@
           wind_speed_kmh: _wavg([omSafe(hh.wind_speed_10m, i), metHInst.wind_speed != null ? metHInst.wind_speed * 3.6 : null], [1, 1.2]),
           wind_gusts_kmh: _wavg([omSafe(hh.wind_gusts_10m, i), metHInst.wind_speed_of_gust != null ? metHInst.wind_speed_of_gust * 3.6 : null], [1, 1.2]),
           weather_code: hfinalCode, icon: wmoIcon(hfinalCode), description: wmoDesc(hfinalCode),
+          uv_index: omSafe(hh.uv_index, i),
         });
       }
+
+      // ---- enrich current with UV + frost risk from hourly data ----
+      var nowIso = new Date().toISOString().slice(0, 13);
+      var uvNow = null;
+      for (var j = 0; j < hourly.length; j++) {
+        if (hourly[j].time.slice(0, 13) >= nowIso) { uvNow = hourly[j].uv_index; break; }
+      }
+      current.uv_index = uvNow;
+      current.frost_risk = (temp != null && temp < 4 && humidity != null && humidity > 75);
 
       return {
         city: cityName, latitude: lat, longitude: lon,
         timezone: om.timezone || "UTC", current: current, daily: daily, hourly: hourly
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // Geolocation
+    // -----------------------------------------------------------------------
+    function geolocate() {
+      if (!navigator.geolocation) { alert("Geolocalizare indisponibilă în acest browser."); return; }
+      var btn = document.querySelector('button[onclick="geolocate()"]');
+      if (btn) btn.textContent = "⏳";
+      navigator.geolocation.getCurrentPosition(function (pos) {
+        LAT = pos.coords.latitude;
+        LON = pos.coords.longitude;
+        CITY = "Locația mea";
+        // Reverse geocode via Nominatim (OpenStreetMap)
+        fetch("https://nominatim.openstreetmap.org/reverse?lat=" + LAT + "&lon=" + LON + "&format=json")
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            var a = d.address || {};
+            CITY = a.city || a.town || a.village || a.county || "Locația mea";
+            document.getElementById("city-in").value = CITY;
+            if (btn) btn.textContent = "📍";
+            loadWeather();
+          }).catch(function () { if (btn) btn.textContent = "📍"; loadWeather(); });
+      }, function () {
+        if (btn) btn.textContent = "📍";
+        alert("Nu am putut obține locația. Verifică permisiunile browserului.");
+      });
+    }
+
+    // -----------------------------------------------------------------------
+    // Favourite / recent cities (localStorage)
+    // -----------------------------------------------------------------------
+    var MAX_FAVS = 5;
+    function _getFavs() {
+      try { return JSON.parse(localStorage.getItem("motoFavs") || "[]"); } catch (_) { return []; }
+    }
+    function _saveFavs(list) { localStorage.setItem("motoFavs", JSON.stringify(list)); }
+    function saveCity() {
+      if (!CITY || CITY === "Locația mea") return;
+      var favs = _getFavs().filter(function (f) { return f.name !== CITY; });
+      favs.unshift({ name: CITY, lat: LAT, lon: LON });
+      _saveFavs(favs.slice(0, MAX_FAVS));
+    }
+    function loadFav(name, lat, lon) {
+      CITY = name; LAT = lat; LON = lon;
+      document.getElementById("city-in").value = name;
+      loadWeather();
+    }
+    function removeFav(name) {
+      _saveFavs(_getFavs().filter(function (f) { return f.name !== name; }));
+      renderFavsBar();
+    }
+    function renderFavsBar() {
+      var el = document.getElementById("favs-bar");
+      if (!el) return;
+      var favs = _getFavs();
+      if (!favs.length) { el.innerHTML = ""; return; }
+      var html = '<div class="flex gap-2 flex-wrap items-center">';
+      html += '<span class="text-xs text-muted tracking-widest mr-1">★</span>';
+      favs.forEach(function (f) {
+        html += '<span class="flex items-center gap-0.5 bg-card border border-border rounded-lg text-xs">';
+        html += '<button onclick="loadFav(' + JSON.stringify(f.name) + ',' + f.lat + ',' + f.lon + ')"'
+          + ' class="px-2 py-1 text-gray-300 hover:text-accent transition-colors">' + f.name + '</button>';
+        html += '<button onclick="removeFav(' + JSON.stringify(f.name) + ')"'
+          + ' class="pr-2 text-muted hover:text-danger transition-colors text-sm leading-none">&times;</button>';
+        html += '</span>';
+      });
+      html += '</div>';
+      el.innerHTML = html;
+    }
+
+    // -----------------------------------------------------------------------
+    // Best riding window finder
+    // -----------------------------------------------------------------------
+    function findBestWindow(hourly) {
+      if (!hourly || hourly.length < 2) return null;
+      var now = new Date();
+      var today = now.toISOString().slice(0, 10);
+      var todayH = hourly.filter(function (h) { return h.time.startsWith(today) && new Date(h.time) >= now; });
+      if (!todayH.length) return null;
+      var scores = todayH.map(function (h) {
+        return scoreHourly(h.feels_like, h.wind_gusts_kmh, h.precipitation_mm, h.weather_code);
+      });
+      var bestAvg = -1, bestStart = -1, bestLen = 0;
+      for (var i = 0; i < scores.length; i++) {
+        if (scores[i] < 45) continue;
+        var j = i;
+        while (j < scores.length && scores[j] >= 45) j++;
+        var len = j - i;
+        var sum = 0; for (var k = i; k < j; k++) sum += scores[k];
+        var avg = sum / len;
+        if (avg > bestAvg || (avg === bestAvg && len > bestLen)) {
+          bestAvg = avg; bestStart = i; bestLen = len;
+        }
+        i = j - 1;
+      }
+      if (bestStart === -1) return null;
+      var from = todayH[bestStart];
+      var to = todayH[Math.min(bestStart + bestLen - 1, todayH.length - 1)];
+      return {
+        avg: Math.round(bestAvg), len: bestLen,
+        fromH: new Date(from.time).getHours().toString().padStart(2, "0") + ":00",
+        toH: new Date(to.time).getHours().toString().padStart(2, "0") + ":00",
       };
     }
 
@@ -512,6 +647,7 @@
         }
         LAT = geo.lat; LON = geo.lon;
         CITY = geo.name + (geo.country && geo.country !== "RO" ? ", " + geo.country : "");
+        saveCity(); renderFavsBar();
         loadWeather();
       } catch (e) { alert("Eroare geocoding: " + e.message); }
     }
@@ -542,6 +678,7 @@
           d = await res.json();
         }
         render(d);
+        saveCity(); renderFavsBar();
         document.getElementById("upd").textContent =
           "ACTUALIZAT: " + new Date().toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" });
       } catch (e) {
@@ -643,6 +780,30 @@
       var allMax = Math.max.apply(null, daily.map(function (x) { return x.temp_max; }));
       var html = '';
 
+      // Frost / ice risk alert banner
+      if (c.frost_risk || c.feels_like < 3) {
+        var iceMsg = c.frost_risk
+          ? '🧊 <strong>RISC DE GHEĄȞĂ / ÎNGHEȞ</strong> — umiditate ridicată + temperaturi sub 4°C. Suprafețe alunecoase posibile.'
+          : '🥶 <strong>TEMPERATURI RESIMȞITE FOARTE SCĂZUTE</strong> — îmbracă-te corespunzător.';
+        html += '<div class="mb-5 p-4 rounded-xl border border-danger bg-danger/10 text-danger text-sm flex items-center gap-3">'
+          + '<div>' + iceMsg + '</div></div>';
+      }
+
+      // Best riding window banner
+      var win = findBestWindow(d.hourly);
+      if (win) {
+        var wBorderCls = win.avg >= 80 ? 'border-ok' : win.avg >= 60 ? 'border-accent' : 'border-warn';
+        var wTextCls = win.avg >= 80 ? 'text-ok' : win.avg >= 60 ? 'text-accent' : 'text-warn';
+        html += '<div class="mb-5 p-4 rounded-xl border bg-card ' + wBorderCls + ' flex items-center gap-4">'
+          + '<span class="text-3xl flex-shrink-0">🎯</span>'
+          + '<div>'
+          + '<div class="font-display text-lg font-bold tracking-wide ' + wTextCls + '">FEREASTRĂ OPTIMĂ AZI: '
+          + win.fromH + ' – ' + win.toH + '</div>'
+          + '<div class="text-xs text-muted mt-0.5">Scor mediu <strong class="' + wTextCls + '">' + win.avg + '/100</strong>'
+          + ' &middot; ' + win.len + 'h consecutiv de condiții bune</div>'
+          + '</div></div>';
+      }
+
       // Location
       html += '<div class="mb-6">';
       html += '<h1 class="font-display text-5xl sm:text-6xl font-bold tracking-widest leading-none text-gray-100">' + d.city.toUpperCase() + '</h1>';
@@ -683,6 +844,12 @@
         html += statCard('👁️', 'Vizibilitate', c.visibility_km + '<span class="text-xl"> km</span>', (c.visibility_km < 1 ? 'text-danger' : c.visibility_km < 5 ? 'text-warn' : 'text-gray-100'), 'distanța de vizibilitate');
       if (c.aqi != null)
         html += statCard('🍃', 'Calitate aer', c.aqi, aqiCls(c.aqi), aqiLabel(c.aqi));
+      if (c.uv_index != null)
+        html += statCard('☀️', 'Indice UV', c.uv_index.toFixed(1), uvCls(c.uv_index), uvDesc(c.uv_index));
+      if (daily.length && daily[0].sunrise)
+        html += statCard('🌅', 'Răsărit', fmtTime(daily[0].sunrise), 'text-gray-100', 'ora răsăritului soarelui');
+      if (daily.length && daily[0].sunset)
+        html += statCard('🌇', 'Apus', fmtTime(daily[0].sunset), 'text-gray-100', 'ora apusului soarelui');
       html += '</div>';
 
       // Chart
@@ -706,6 +873,8 @@
         html += '<div class="font-display text-3xl font-bold leading-none text-gray-100">' + Math.round(h.temperature) + '°</div>';
         html += '<div class="text-xs ' + rainCls(rp) + '">' + rp + '% 💧</div>';
         html += '<div class="text-xs text-muted">' + Math.round(h.wind_speed_kmh) + ' km/h</div>';
+        if (h.uv_index != null && h.uv_index > 0)
+          html += '<div class="text-xs ' + uvCls(h.uv_index) + '">UV ' + h.uv_index.toFixed(0) + '</div>';
         html += '<div class="mt-1 w-full h-1 rounded-full" style="background:linear-gradient(90deg,'
           + (hs >= 80 ? '#22c55e' : hs >= 60 ? '#f97316' : hs >= 40 ? '#eab308' : '#ef4444') + ',transparent)"></div>';
         html += '</div>';
@@ -748,13 +917,17 @@
       html += '</div>';
 
       html += '<div class="border-t border-border pt-4 pb-8 text-xs text-muted tracking-widest text-center">'
-        + 'DATE: OPEN-METEO.COM + OPENWEATHERMAP &nbsp;·&nbsp; ACTUALIZAT ORAR'
+        + 'DATE: OPEN-METEO.COM &middot; OPENWEATHERMAP &middot; MET NORWAY (ECMWF) &nbsp;&middot;&nbsp; ACTUALIZAT ORAR'
         + '</div>';
 
       document.getElementById("app").innerHTML = html;
       renderChart(hourly);
     }
 
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch(function () {});
+    }
+    renderFavsBar();
     loadWeather();
   </script>
 
