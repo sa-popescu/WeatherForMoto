@@ -12,6 +12,7 @@ giving more accurate results than any single source alone.
 
 import asyncio
 import math
+from datetime import datetime, timedelta
 from typing import Any
 
 import httpx
@@ -116,6 +117,256 @@ def _moto_label(score: int) -> str:
     if score >= 20:
         return "RISCANT"
     return "EVITĂ"
+
+
+def _gear_recommendation(
+    feels_like: float | None,
+    wind_gusts_kmh: float | None,
+    precipitation_mm: float | None,
+    weather_code: int | None,
+) -> list[dict]:
+    """
+    Return gear recommendations based on weather conditions.
+    Each item: {category, item, reason, urgency: 'info'|'warn'|'required', icon}
+    """
+    f = feels_like if feels_like is not None else 20
+    g = wind_gusts_kmh or 0
+    p = precipitation_mm or 0
+    code = weather_code or 0
+    recs: list[dict] = []
+
+    # ── Rain / waterproofing ──────────────────────────────────────────────
+    raining = p > 0.2 or code in (51, 53, 55, 61, 63, 65, 80, 81, 82, 95, 96, 99)
+    if raining:
+        urgency = "required" if p > 1 or code in (63, 65, 81, 82, 95, 96, 99) else "warn"
+        recs.append({
+            "category": "ploaie",
+            "item": "Costum impermeabil / oversuit",
+            "reason": f"Precipitații active ({p:.1f} mm/h) — rămâi uscat și cald",
+            "urgency": urgency,
+            "icon": "🌧️",
+        })
+        recs.append({
+            "category": "mănuși_ploaie",
+            "item": "Mănuși impermeabile",
+            "reason": "Mâinile ude reduc controlul și răspunsul la frână",
+            "urgency": urgency,
+            "icon": "🧤",
+        })
+
+    # ── Jacket ───────────────────────────────────────────────────────────
+    if f < 0:
+        recs.append({
+            "category": "geacă",
+            "item": "Geacă de iarnă cu protecții CE + liner termic",
+            "reason": f"Temperatură resimțită {f:.0f}°C — condiții extreme de frig",
+            "urgency": "required",
+            "icon": "🧥",
+        })
+        recs.append({
+            "category": "strat_baza",
+            "item": "Strat termic de bază (top + pantaloni)",
+            "reason": "Protecție împotriva hipotermiei sub 0°C",
+            "urgency": "required",
+            "icon": "🎿",
+        })
+    elif f < 10:
+        recs.append({
+            "category": "geacă",
+            "item": "Geacă de moto 3 sezoane cu liner termic activ",
+            "reason": f"Temperatură resimțită {f:.0f}°C — vreme rece",
+            "urgency": "required",
+            "icon": "🧥",
+        })
+        recs.append({
+            "category": "strat_baza",
+            "item": "Strat termic de bază",
+            "reason": "Confort termic la temperaturi scăzute",
+            "urgency": "warn",
+            "icon": "🎿",
+        })
+    elif f < 18:
+        recs.append({
+            "category": "geacă",
+            "item": "Geacă de moto 3 sezoane (fără liner sau cu liner subțire)",
+            "reason": f"Temperatură resimțită {f:.0f}°C — vreme răcoroasă",
+            "urgency": "warn",
+            "icon": "🧥",
+        })
+    elif f < 28:
+        recs.append({
+            "category": "geacă",
+            "item": "Geacă de moto din textil / piele cu protecții",
+            "reason": f"Temperatură resimțită {f:.0f}°C — condiții ideale",
+            "urgency": "info",
+            "icon": "🧥",
+        })
+    else:
+        recs.append({
+            "category": "geacă",
+            "item": "Geacă mesh cu ventilație maximă + protecții",
+            "reason": f"Temperatură resimțită {f:.0f}°C — căldură puternică",
+            "urgency": "warn",
+            "icon": "🧥",
+        })
+        recs.append({
+            "category": "hidratare",
+            "item": "Hidratare frecventă (min 500 ml/h)",
+            "reason": "Risc de deshidratare și colaps termic",
+            "urgency": "warn",
+            "icon": "💧",
+        })
+
+    # ── Gloves ───────────────────────────────────────────────────────────
+    if f < 5:
+        recs.append({
+            "category": "mănuși",
+            "item": "Mănuși de iarnă / cu încălzire electrică",
+            "reason": f"Sub {f:.0f}°C degetele amorțesc și pierzi controlul frenei",
+            "urgency": "required",
+            "icon": "🧤",
+        })
+    elif f < 12:
+        recs.append({
+            "category": "mănuși",
+            "item": "Mănuși de moto cu dublură termică",
+            "reason": f"Temperatura mâinilor scade rapid la {f:.0f}°C în mers",
+            "urgency": "warn",
+            "icon": "🧤",
+        })
+    elif not raining:
+        recs.append({
+            "category": "mănuși",
+            "item": "Mănuși de moto standard cu protecții",
+            "reason": "Protecție esențială la orice temperatură",
+            "urgency": "info",
+            "icon": "🧤",
+        })
+
+    # ── Pants ────────────────────────────────────────────────────────────
+    if f < 5:
+        recs.append({
+            "category": "pantaloni",
+            "item": "Pantaloni de moto cu liner termic + protecții CE",
+            "reason": "Protecție termică și impact la temperaturi sub 5°C",
+            "urgency": "required",
+            "icon": "👖",
+        })
+    elif f < 15:
+        recs.append({
+            "category": "pantaloni",
+            "item": "Pantaloni de moto cu protecții (opțional liner)",
+            "reason": "Vreme răcoroasă — protejează genunchii și coapsele",
+            "urgency": "warn",
+            "icon": "👖",
+        })
+    else:
+        recs.append({
+            "category": "pantaloni",
+            "item": "Pantaloni de moto textil / piele cu protecții",
+            "reason": "Protecție la impact — obligatorie",
+            "urgency": "info",
+            "icon": "👖",
+        })
+
+    # ── Wind / visor ─────────────────────────────────────────────────────
+    if g > 50:
+        recs.append({
+            "category": "vizor",
+            "item": "Vizor complet închis + colier gât aerodinamic",
+            "reason": f"Rafale de {g:.0f} km/h — turbulențe puternice, oboseală musculară",
+            "urgency": "required",
+            "icon": "⛑️",
+        })
+    elif g > 35:
+        recs.append({
+            "category": "vizor",
+            "item": "Vizor intermediar sau complet",
+            "reason": f"Rafale de {g:.0f} km/h — confort redus la viteze mari",
+            "urgency": "warn",
+            "icon": "⛑️",
+        })
+
+    # ── Fog / visibility ─────────────────────────────────────────────────
+    if code in (45, 48):
+        recs.append({
+            "category": "vizibilitate",
+            "item": "Vestă reflectorizantă fluorescent-galbenă",
+            "reason": "Ceață densă — fii văzut de ceilalți participanți la trafic",
+            "urgency": "required",
+            "icon": "🦺",
+        })
+
+    # ── Ice / frost risk ─────────────────────────────────────────────────
+    if f < 3:
+        recs.append({
+            "category": "anvelope",
+            "item": "Verifică aderența anvelopelor + presiunea",
+            "reason": f"Risc de gheață / brumă la {f:.0f}°C — aderență redusă drastic",
+            "urgency": "required",
+            "icon": "⚠️",
+        })
+
+    return recs
+
+
+def _road_surface_temp(
+    air_temp: float | None,
+    humidity: float | None,
+    weather_code: int | None,
+    precipitation_mm: float | None,
+) -> float | None:
+    """
+    Estimate road surface temperature.
+    Dark asphalt absorbs solar radiation — on sunny days it can be
+    significantly warmer than the air. Wet roads approach air temp.
+    """
+    if air_temp is None:
+        return None
+
+    t = air_temp
+    h = humidity or 60
+    code = weather_code or 0
+    p = precipitation_mm or 0
+
+    if p > 0.5 or code in (51, 53, 55, 61, 63, 65, 80, 81, 82, 95, 96, 99):
+        # Wet road — evaporative cooling, close to air temp
+        road_temp = t - 1.0
+    elif code in (0, 1):
+        # Clear sky — dark asphalt strongly absorbs solar radiation
+        road_temp = t + 9.0 if t > 15 else t + 4.0
+    elif code == 2:
+        # Partly cloudy
+        road_temp = t + 4.0
+    elif code == 3:
+        # Overcast
+        road_temp = t + 1.0
+    elif code in (45, 48):
+        # Fog — high humidity, reduced solar
+        road_temp = t - 0.5
+    elif code in (71, 73, 75):
+        # Snow — insulating layer, road near air temp
+        road_temp = t
+    else:
+        road_temp = t + 1.0
+
+    # High humidity reduces the solar heating effect
+    if h > 85 and p < 0.2:
+        road_temp -= 2.0
+
+    return round(road_temp, 1)
+
+
+def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Compute great-circle distance in km between two points."""
+    R = 6371.0
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = (
+        math.sin(dlat / 2) ** 2
+        + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2
+    )
+    return R * 2 * math.asin(math.sqrt(a))
 
 
 # ---------------------------------------------------------------------------
@@ -409,6 +660,8 @@ def _merge_current(om_data: dict, owm_current: dict | None, owm_air: dict | None
         "aqi": aqi,
         "moto_score": score,
         "moto_label": _moto_label(score),
+        "gear_recommendation": _gear_recommendation(feels, wind_gusts, precipitation, om_code),
+        "road_surface_temp": _road_surface_temp(temp, humidity, om_code, precipitation),
         "sources": ["open-meteo"] + (["openweathermap"] if owm_current else []),
     }
 
@@ -532,6 +785,146 @@ def _safe(lst: list | None, i: int) -> Any:
     if lst is None or i >= len(lst):
         return None
     return lst[i]
+
+
+# ---------------------------------------------------------------------------
+# Route planner helpers
+# ---------------------------------------------------------------------------
+
+async def _fetch_waypoint_weather(
+    lat: float, lon: float, eta_iso: str, client: httpx.AsyncClient
+) -> dict[str, Any]:
+    """
+    Fetch an hourly weather snapshot for a waypoint at a given ETA.
+    Matches the closest forecast hour to the ETA timestamp.
+    """
+    params = {
+        "latitude": lat,
+        "longitude": lon,
+        "hourly": (
+            "temperature_2m,apparent_temperature,precipitation_probability,"
+            "precipitation,weather_code,wind_speed_10m,wind_gusts_10m"
+        ),
+        "timezone": "auto",
+        "forecast_days": 7,
+        "wind_speed_unit": "kmh",
+    }
+    try:
+        resp = await client.get(OPENMETEO_BASE, params=params, timeout=15)
+        if not resp.is_success:
+            return {}
+        data = resp.json()
+        if data.get("error"):
+            return {}
+
+        hourly = data.get("hourly", {})
+        times = hourly.get("time", [])
+
+        # Find the first hour >= ETA (truncated to the hour)
+        eta_prefix = eta_iso[:13]  # "YYYY-MM-DDTHH"
+        best_idx = 0
+        for j, t in enumerate(times):
+            if t[:13] >= eta_prefix:
+                best_idx = j
+                break
+
+        code = _safe(hourly.get("weather_code"), best_idx)
+        feels = _safe(hourly.get("apparent_temperature"), best_idx)
+        gusts = _safe(hourly.get("wind_gusts_10m"), best_idx)
+        prec = _safe(hourly.get("precipitation"), best_idx)
+        score = _moto_score(feels, gusts, prec, code)
+
+        return {
+            "time": times[best_idx] if best_idx < len(times) else eta_iso,
+            "temperature": _safe(hourly.get("temperature_2m"), best_idx),
+            "feels_like": feels,
+            "precipitation_mm": prec,
+            "precipitation_probability": _safe(hourly.get("precipitation_probability"), best_idx),
+            "wind_speed_kmh": _safe(hourly.get("wind_speed_10m"), best_idx),
+            "wind_gusts_kmh": gusts,
+            "weather_code": code,
+            "icon": _wmo_icon(code),
+            "description": _wmo_desc(code),
+            "moto_score": score,
+            "moto_label": _moto_label(score),
+        }
+    except Exception:
+        return {}
+
+
+async def get_route_weather(
+    origin_lat: float,
+    origin_lon: float,
+    origin_name: str,
+    dest_lat: float,
+    dest_lon: float,
+    dest_name: str,
+    departure_iso: str,
+    avg_speed_kmh: float,
+    owm_api_key: str,
+    num_segments: int = 4,
+) -> dict[str, Any]:
+    """
+    Compute weather along a motorcycle route from origin to destination.
+
+    Uses linear (great-circle) interpolation for intermediate waypoints.
+    Returns num_segments+1 waypoints with weather snapshots at estimated ETAs.
+    """
+    try:
+        dep_dt = datetime.fromisoformat(departure_iso)
+    except ValueError:
+        dep_dt = datetime.now()
+
+    total_dist_km = _haversine_km(origin_lat, origin_lon, dest_lat, dest_lon)
+    total_hours = total_dist_km / avg_speed_kmh if avg_speed_kmh > 0 else 0
+
+    # Build waypoint metadata (start, N-1 intermediate, destination)
+    waypoints_meta: list[dict[str, Any]] = []
+    for i in range(num_segments + 1):
+        frac = i / num_segments
+        wp_lat = origin_lat + frac * (dest_lat - origin_lat)
+        wp_lon = origin_lon + frac * (dest_lon - origin_lon)
+        hours_offset = frac * total_hours
+        wp_eta = dep_dt + timedelta(hours=hours_offset)
+
+        if i == 0:
+            wp_name = origin_name
+        elif i == num_segments:
+            wp_name = dest_name
+        else:
+            wp_name = f"~{round(frac * total_dist_km)} km"
+
+        waypoints_meta.append({
+            "index": i,
+            "name": wp_name,
+            "lat": round(wp_lat, 4),
+            "lon": round(wp_lon, 4),
+            "distance_from_origin_km": round(frac * total_dist_km, 1),
+            "eta_iso": wp_eta.isoformat()[:16],
+        })
+
+    # Fetch weather for all waypoints concurrently
+    async with httpx.AsyncClient() as client:
+        tasks = [
+            _fetch_waypoint_weather(wp["lat"], wp["lon"], wp["eta_iso"], client)
+            for wp in waypoints_meta
+        ]
+        weather_results = await asyncio.gather(*tasks)
+
+    result_waypoints = [
+        {**wp, "weather": weather}
+        for wp, weather in zip(waypoints_meta, weather_results)
+    ]
+
+    return {
+        "origin": {"name": origin_name, "lat": origin_lat, "lon": origin_lon},
+        "destination": {"name": dest_name, "lat": dest_lat, "lon": dest_lon},
+        "departure": departure_iso,
+        "avg_speed_kmh": avg_speed_kmh,
+        "total_distance_km": round(total_dist_km, 1),
+        "estimated_duration_h": round(total_hours, 2),
+        "waypoints": result_waypoints,
+    }
 
 
 # ---------------------------------------------------------------------------
