@@ -134,6 +134,16 @@ async def serve_manifest():
     return FileResponse(MANIFEST_JSON, media_type="application/manifest+json")
 
 
+@app.get("/privacy-policy", include_in_schema=False)
+@app.get("/privacy-policy.html", include_in_schema=False)
+async def serve_privacy_policy():
+    """Serve the privacy policy page."""
+    privacy = _REPO_ROOT / "privacy-policy.html"
+    if not privacy.is_file():
+        raise HTTPException(status_code=404, detail="Privacy policy not found.")
+    return FileResponse(privacy, media_type="text/html")
+
+
 @app.get("/geocode", tags=["location"])
 async def geocode(
     city: Annotated[str, Query(description="City name to look up")] = DEFAULT_CITY,
