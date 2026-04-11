@@ -1,0 +1,30 @@
+# Byte-compiled / optimised Python files
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Environment variable files (never commit secrets)
+.env
+backend/.env
+
+# IDE and OS files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Test artefacts
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Git metadata
+.git/
+.gitignore

@@ -1,0 +1,41 @@
+# ---- Build stage ----
+FROM python:3.11-slim AS builder
+
+WORKDIR /app
+
+COPY backend/requirements.txt ./
+RUN pip install --no-cache-dir --upgrade pip \
+ && pip install --no-cache-dir -r requirements.txt
+
+# ---- Runtime stage ----
+FROM python:3.11-slim
+
+# Create a non-root user for security
+RUN useradd -m -u 1000 appuser
+
+WORKDIR /app
+
+# Copy installed packages from builder
+COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+
+# Copy the frontend (served by FastAPI at /)
+COPY index.html ./
+
+# Copy the backend source code
+COPY backend/ ./backend/
+
+# Ensure the non-root user owns the app files
+RUN chown -R appuser:appuser /app
+
+USER appuser
+
+ENV PORT=8000
+EXPOSE 8000
+
+WORKDIR /app/backend
+
+# entrypoint.sh uses exec so signals (SIGTERM/SIGINT) reach uvicorn directly
+RUN chmod +x entrypoint.sh
+
+ENTRYPOINT ["./entrypoint.sh"]
