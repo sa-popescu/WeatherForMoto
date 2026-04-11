@@ -85,6 +85,7 @@ var API_URL = (location.protocol === 'file:') ? "http://localhost:8000" : locati
 var LAT = 44.4268, LON = 26.1025, CITY = "București";
 var _chart = null;
 var DAYS = ["Duminică","Luni","Marți","Miercuri","Joi","Vineri","Sâmbătă"];
+var BACKEND_UNAVAILABLE_MSG = "Nu se poate conecta la backend. Asigură-te că serverul rulează.";
 
 function rainCls(p){ return p>60?"text-danger":p>30?"text-warn":"text-muted"; }
 function windCls(g){ return g>50?"text-danger":g>35?"text-warn":"text-gray-100"; }
@@ -131,7 +132,9 @@ async function searchCity(){
   var q=document.getElementById("city-in").value.trim();
   if(!q)return;
   try{
-    var r=await fetch(API_URL+"/geocode?city="+encodeURIComponent(q));
+    var r;
+    try{r=await fetch(API_URL+"/geocode?city="+encodeURIComponent(q));}
+    catch(_){throw new Error(BACKEND_UNAVAILABLE_MSG);}
     if(!r.ok){
       var errMsg="HTTP "+r.status;
       try{var ed=await r.json();errMsg=ed.detail||errMsg;}catch(_){}
@@ -154,7 +157,9 @@ async function loadWeather(){
     +'</div>';
   try{
     var url=API_URL+"/weather?lat="+LAT+"&lon="+LON+"&city="+encodeURIComponent(CITY);
-    var res=await fetch(url);
+    var res;
+    try{res=await fetch(url);}
+    catch(_){throw new Error(BACKEND_UNAVAILABLE_MSG);}
     if(!res.ok){
       var errMsg="HTTP "+res.status;
       try{var ed=await res.json();errMsg=ed.detail||errMsg;}catch(_){}
@@ -165,13 +170,9 @@ async function loadWeather(){
     document.getElementById("upd").textContent=
       "ACTUALIZAT: "+new Date().toLocaleTimeString("ro-RO",{hour:"2-digit",minute:"2-digit"});
   }catch(e){
-    var msg=e.message;
-    if(e instanceof TypeError){
-      msg="Nu se poate conecta la backend. Asigură-te că serverul rulează.";
-    }
     document.getElementById("app").innerHTML=
       '<div class="mt-4 p-5 rounded-xl border border-danger bg-danger/10 text-danger text-base font-semibold">'
-      +'⚠️ Backend indisponibil: '+msg
+      +'⚠️ Backend indisponibil: '+e.message
       +'<small class="block mt-2 text-sm font-normal opacity-70">Pornește backend-ul: '
       +'<code class="bg-black/30 px-1 rounded">cd backend &amp;&amp; uvicorn main:app --reload</code></small></div>'
       +'<button onclick="loadWeather()" class="mt-4 bg-accent hover:bg-orange-400 text-black font-display font-bold'
