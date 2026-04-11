@@ -361,7 +361,7 @@ def _merge_current(om_data: dict, owm_current: dict | None, owm_air: dict | None
         if owm_current
         else None
     )
-    precipitation = _weighted_avg([om_prec, owm_prec or 0.0], [1.0, 1.0])
+    precipitation = _weighted_avg([om_prec, owm_prec], [1.0, 1.0])
 
     # --- weather code / description
     om_code = c.get("weather_code")
