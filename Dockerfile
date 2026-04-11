@@ -25,8 +25,9 @@ COPY index.html ./
 # Copy the backend source code
 COPY backend/ ./backend/
 
-# Ensure the non-root user owns the app files
-RUN chown -R appuser:appuser /app
+# Fix permissions BEFORE switching to non-root user
+RUN chmod +x /app/backend/entrypoint.sh \
+ && chown -R appuser:appuser /app
 
 USER appuser
 
@@ -36,6 +37,4 @@ EXPOSE 8000
 WORKDIR /app/backend
 
 # entrypoint.sh uses exec so signals (SIGTERM/SIGINT) reach uvicorn directly
-RUN chmod +x entrypoint.sh
-
 ENTRYPOINT ["./entrypoint.sh"]
