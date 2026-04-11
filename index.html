@@ -271,7 +271,34 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="MotoMeteo">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="apple-touch-icon" href="/icon-apple.png">
+  <!-- iOS home screen icons -->
+  <link rel="apple-touch-icon" href="/icons/icon-180.png">
+  <link rel="apple-touch-icon" sizes="167x167" href="/icons/icon-167.png">
+  <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152.png">
+  <link rel="apple-touch-icon" sizes="120x120" href="/icons/icon-120.png">
+  <!-- iOS startup/splash screen (PWA fullscreen mode) -->
+  <link rel="apple-touch-startup-image" href="/icons/splash-2048x2732.png"
+    media="(device-width:1024px) and (device-height:1366px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)">
+  <link rel="apple-touch-startup-image" href="/icons/splash-1668x2388.png"
+    media="(device-width:834px) and (device-height:1194px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)">
+  <link rel="apple-touch-startup-image" href="/icons/splash-1536x2048.png"
+    media="(device-width:768px) and (device-height:1024px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)">
+  <link rel="apple-touch-startup-image" href="/icons/splash-1284x2778.png"
+    media="(device-width:428px) and (device-height:926px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+  <link rel="apple-touch-startup-image" href="/icons/splash-1170x2532.png"
+    media="(device-width:390px) and (device-height:844px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+  <link rel="apple-touch-startup-image" href="/icons/splash-1125x2436.png"
+    media="(device-width:375px) and (device-height:812px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+  <link rel="apple-touch-startup-image" href="/icons/splash-1242x2688.png"
+    media="(device-width:414px) and (device-height:896px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+  <link rel="apple-touch-startup-image" href="/icons/splash-828x1792.png"
+    media="(device-width:414px) and (device-height:896px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)">
+  <link rel="apple-touch-startup-image" href="/icons/splash-1242x2208.png"
+    media="(device-width:414px) and (device-height:736px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+  <link rel="apple-touch-startup-image" href="/icons/splash-750x1334.png"
+    media="(device-width:375px) and (device-height:667px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)">
+  <link rel="apple-touch-startup-image" href="/icons/splash-640x1136.png"
+    media="(device-width:320px) and (device-height:568px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)">
 </head>
 
 <body class="bg-bg text-gray-100 font-body min-h-screen overflow-x-hidden">
@@ -414,6 +441,14 @@
     var OWM_API_KEY = "3e17019022d624b5b3d26b54f7c6b8a5"; // default key; overridable via GH Actions secret OWM_API_KEY
 
     function _resolveApiUrl() {
+      // Capacitor native (iOS/Android) — app runs at capacitor://localhost or http://localhost
+      // Relative URLs cannot reach the remote backend; use stored URL or fall back to null
+      // so the "direct fetch" path is used (calls external APIs directly from the app).
+      var isCapacitor = location.protocol === 'capacitor:'
+        || (location.protocol === 'http:' && location.hostname === 'localhost' && typeof window.Capacitor !== 'undefined');
+      if (isCapacitor) {
+        return localStorage.getItem('motoMeteoBackendUrl') || null;
+      }
       if (location.protocol === 'file:') {
         return localStorage.getItem('motoMeteoBackendUrl') || "http://localhost:8000";
       }

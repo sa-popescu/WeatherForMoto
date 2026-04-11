@@ -28,4 +28,11 @@ htmlcov/
 
 # OS
 .DS_Store
+
+# Node / Capacitor
+node_modules/
+ios/
+android/
+.capacitor/
+
 Thumbs.db
