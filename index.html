@@ -520,7 +520,7 @@
       html += '<span class="bg-bg/60 rounded-lg px-3 py-1 border border-border">' + c.description + '</span>';
       html += '<span class="bg-bg/60 rounded-lg px-3 py-1 border border-border">🌡️ Resimțit <strong class="text-gray-200">' + Math.round(c.feels_like) + '°C</strong></span>';
       html += '<span class="bg-bg/60 rounded-lg px-3 py-1 border border-border">💨 Rafale <strong class="text-gray-200">' + Math.round(c.wind_gusts_kmh) + ' km/h</strong></span>';
-      if (c.sources && c.sources.length > 1) {
+      if (c.sources && c.sources.length > 0) {
         html += '<span class="bg-ok/10 rounded-lg px-3 py-1 border border-ok/20 text-ok text-xs">⬆ ' + c.sources.join(' + ') + '</span>';
       }
       html += '</div></div></div>';
