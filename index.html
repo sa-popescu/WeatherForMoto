@@ -146,7 +146,7 @@
     //
     //   Example:  var CONFIGURED_BACKEND_URL = "https://your-app.up.railway.app";
     var CONFIGURED_BACKEND_URL = "";
-    var OWM_API_KEY = ""; // injected at build time by GitHub Actions (secret: OWM_API_KEY)
+    var OWM_API_KEY = "3e17019022d624b5b3d26b54f7c6b8a5"; // default key; overridable via GH Actions secret OWM_API_KEY
 
     function _resolveApiUrl() {
       if (location.protocol === 'file:') {
@@ -289,7 +289,7 @@
           fetch(base + "/data/2.5/air_pollution?lat=" + lat + "&lon=" + lon + "&appid=" + key),
         ]);
         var cur = results[0].status === "fulfilled" && results[0].value.ok ? await results[0].value.json() : null;
-        var fc  = results[1].status === "fulfilled" && results[1].value.ok ? await results[1].value.json() : null;
+        var fc = results[1].status === "fulfilled" && results[1].value.ok ? await results[1].value.json() : null;
         var air = results[2].status === "fulfilled" && results[2].value.ok ? await results[2].value.json() : null;
         return { current: cur, forecast: fc, air: air };
       } catch (_) { return { current: null, forecast: null, air: null }; }
@@ -318,19 +318,19 @@
 
       // ---- current: weighted merge of both sources ----
       var c = om.current || {};
-      var temp     = _wavg([c.temperature_2m,      owmCur ? owmCur.main.temp : null],                                   [1, 1]);
-      var feels    = _wavg([c.apparent_temperature, owmCur ? owmCur.main.feels_like : null],                            [1, 1]);
-      var humidity = _wavg([c.relative_humidity_2m, owmCur ? owmCur.main.humidity : null],                             [1, 1]);
-      var windSpeed = _wavg([c.wind_speed_10m,       owmCur ? owmCur.wind.speed * 3.6 : null],                         [1, 1]);
-      var windGusts = _wavg([c.wind_gusts_10m,       owmCur ? (owmCur.wind.gust || owmCur.wind.speed) * 3.6 : null],  [1.2, 0.8]);
-      var prec      = _wavg([c.precipitation || 0,   owmCur ? ((owmCur.rain && owmCur.rain["1h"]) || 0) : null],      [1, 1]) || 0;
-      var omCode    = c.weather_code;
+      var temp = _wavg([c.temperature_2m, owmCur ? owmCur.main.temp : null], [1, 1]);
+      var feels = _wavg([c.apparent_temperature, owmCur ? owmCur.main.feels_like : null], [1, 1]);
+      var humidity = _wavg([c.relative_humidity_2m, owmCur ? owmCur.main.humidity : null], [1, 1]);
+      var windSpeed = _wavg([c.wind_speed_10m, owmCur ? owmCur.wind.speed * 3.6 : null], [1, 1]);
+      var windGusts = _wavg([c.wind_gusts_10m, owmCur ? (owmCur.wind.gust || owmCur.wind.speed) * 3.6 : null], [1.2, 0.8]);
+      var prec = _wavg([c.precipitation || 0, owmCur ? ((owmCur.rain && owmCur.rain["1h"]) || 0) : null], [1, 1]) || 0;
+      var omCode = c.weather_code;
       var finalCode = owmCur ? owmIdToWmo(owmCur.weather[0].id) : omCode;
       var description = owmCur
         ? owmCur.weather[0].description.charAt(0).toUpperCase() + owmCur.weather[0].description.slice(1)
         : wmoDesc(omCode);
-      var pressure  = owmCur ? owmCur.main.pressure : c.surface_pressure;
-      var visKm     = owmCur && owmCur.visibility != null
+      var pressure = owmCur ? owmCur.main.pressure : c.surface_pressure;
+      var visKm = owmCur && owmCur.visibility != null
         ? Math.round(owmCur.visibility / 100) / 10
         : (c.visibility != null ? Math.round(c.visibility / 100) / 10 : null);
       var aqi = owmAir && owmAir.list && owmAir.list.length ? owmAir.list[0].main.aqi : null;
@@ -358,24 +358,24 @@
         });
       }
       for (var i = 0; i < dates.length; i++) {
-        var dcode    = omSafe(dd.weather_code, i);
-        var tMax     = omSafe(dd.temperature_2m_max, i);
-        var tMin     = omSafe(dd.temperature_2m_min, i);
-        var famax    = omSafe(dd.apparent_temperature_max, i);
-        var famin    = omSafe(dd.apparent_temperature_min, i);
-        var gustMax  = omSafe(dd.wind_gusts_10m_max, i);
-        var precSum  = omSafe(dd.precipitation_sum, i) || 0;
+        var dcode = omSafe(dd.weather_code, i);
+        var tMax = omSafe(dd.temperature_2m_max, i);
+        var tMin = omSafe(dd.temperature_2m_min, i);
+        var famax = omSafe(dd.apparent_temperature_max, i);
+        var famin = omSafe(dd.apparent_temperature_min, i);
+        var gustMax = omSafe(dd.wind_gusts_10m_max, i);
+        var precSum = omSafe(dd.precipitation_sum, i) || 0;
         var owmItems = owmByDate[dates[i]] || [];
         if (owmItems.length) {
           var owmTemps = owmItems.map(function (x) { return x.main.temp; });
           var owmFeels = owmItems.map(function (x) { return x.main.feels_like; });
-          tMax    = _wavg([tMax,    Math.max.apply(null, owmTemps)], [1, 1]);
-          tMin    = _wavg([tMin,    Math.min.apply(null, owmTemps)], [1, 1]);
-          famax   = _wavg([famax,   Math.max.apply(null, owmFeels)], [1, 1]);
-          famin   = _wavg([famin,   Math.min.apply(null, owmFeels)], [1, 1]);
-          var precOwm  = owmItems.reduce(function (s, x) { return s + ((x.rain && x.rain["3h"]) || 0) + ((x.snow && x.snow["3h"]) || 0); }, 0);
+          tMax = _wavg([tMax, Math.max.apply(null, owmTemps)], [1, 1]);
+          tMin = _wavg([tMin, Math.min.apply(null, owmTemps)], [1, 1]);
+          famax = _wavg([famax, Math.max.apply(null, owmFeels)], [1, 1]);
+          famin = _wavg([famin, Math.min.apply(null, owmFeels)], [1, 1]);
+          var precOwm = owmItems.reduce(function (s, x) { return s + ((x.rain && x.rain["3h"]) || 0) + ((x.snow && x.snow["3h"]) || 0); }, 0);
           precSum = _wavg([precSum, precOwm], [1, 1]) || 0;
-          var gustOwm  = Math.max.apply(null, owmItems.map(function (x) { return (x.wind.gust || x.wind.speed) * 3.6; }));
+          var gustOwm = Math.max.apply(null, owmItems.map(function (x) { return (x.wind.gust || x.wind.speed) * 3.6; }));
           gustMax = _wavg([gustMax, gustOwm], [1.2, 0.8]);
           var codeFreq = {}, modeCode = dcode;
           owmItems.forEach(function (x) {
