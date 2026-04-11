@@ -21,6 +21,9 @@ workflows:
         distribution_type: app_store
         bundle_identifier: ro.motometeo.app
 
+    integrations:
+      app_store_connect: Codemagic_ASC_Integration
+
     triggering:
       events:
         - push
