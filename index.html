@@ -215,14 +215,91 @@
                        text-base px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors">📍</button>
         <button onclick="loadWeather()" title="Reîncarcă" class="bg-card border border-border text-muted hover:text-gray-200 hover:border-gray-500
                        text-base px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors">↻</button>
+        <button onclick="toggleProfile()" title="Profil moto" class="bg-card border border-border text-muted hover:text-accent hover:border-accent
+                       text-base px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors">⚙</button>
       </div>
     </div>
     <div id="favs-bar" class="max-w-5xl mx-auto px-3 sm:px-4 pb-2"></div>
   </header>
 
+  <!-- PROFIL MOTO -->
+  <div id="profile-panel" class="bg-surface border-b border-border" style="display:none">
+    <div class="max-w-5xl mx-auto px-3 sm:px-4 py-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div>
+          <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Tipul motocicletei</label>
+          <select id="profile-moto-type" onchange="saveProfile()" class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent">
+            <option value="naked">Naked / Roadster</option>
+            <option value="touring">Touring</option>
+            <option value="enduro">Enduro / Adventure</option>
+            <option value="sport">Supersport</option>
+            <option value="scooter">Scooter</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Temperatura de confort: <span id="profile-temp-val">20</span>°C</label>
+          <input id="profile-comfort-temp" type="range" min="5" max="35" value="20"
+            oninput="document.getElementById('profile-temp-val').textContent=this.value; saveProfile()"
+            class="w-full accent-accent mt-2">
+        </div>
+        <div>
+          <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Toleranță vânt</label>
+          <select id="profile-wind-tol" onchange="saveProfile()" class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent">
+            <option value="low">Scăzută</option>
+            <option value="medium">Medie</option>
+            <option value="high">Ridicată</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Toleranță ploaie</label>
+          <select id="profile-rain-tol" onchange="saveProfile()" class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent">
+            <option value="low">Scăzută</option>
+            <option value="medium">Medie</option>
+            <option value="high">Ridicată</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- MAIN -->
   <main class="max-w-5xl mx-auto px-3 sm:px-4 py-6 min-w-0" id="app">
   </main>
+
+  <!-- PLANIFICATOR TRASEU -->
+  <section class="max-w-5xl mx-auto px-3 sm:px-4 pb-10">
+    <div class="flex items-center gap-3 mt-2 mb-4">
+      <span class="font-display text-sm font-bold tracking-[0.25em] text-muted uppercase">🗺️ Planificator traseu</span>
+      <div class="flex-1 h-px bg-border"></div>
+    </div>
+    <div class="bg-card border border-border rounded-xl p-4 mb-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+        <div>
+          <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Plecare din</label>
+          <input id="route-origin" type="text" placeholder="Oraș plecare..."
+            class="w-full bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent placeholder-muted transition-colors" />
+        </div>
+        <div>
+          <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Destinație</label>
+          <input id="route-dest" type="text" placeholder="Oraș destinație..."
+            class="w-full bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent placeholder-muted transition-colors" />
+        </div>
+        <div>
+          <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Ora plecării</label>
+          <input id="route-departure" type="datetime-local"
+            class="w-full bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent transition-colors" />
+        </div>
+        <div>
+          <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Viteză medie (km/h)</label>
+          <input id="route-speed" type="number" value="80" min="20" max="180"
+            class="w-full bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent transition-colors" />
+        </div>
+      </div>
+      <button onclick="calcRoute()" class="bg-accent hover:bg-orange-400 text-black font-display font-bold tracking-wider
+                     px-5 py-2 rounded-lg transition-colors text-sm">🗺️ CALCULEAZĂ TRASEU</button>
+    </div>
+    <div id="route-result"></div>
+  </section>
 
   <script>
     // ---------------------------------------------------------------------------
@@ -276,6 +353,270 @@
       }, 1000);
     }
     var BACKEND_UNAVAILABLE_MSG = "Nu se poate conecta la backend. Asigură-te că serverul rulează.";
+
+    // -----------------------------------------------------------------------
+    // Personal profile (localStorage)
+    // -----------------------------------------------------------------------
+    var DEFAULT_PROFILE = { motoType: 'naked', comfortTemp: 20, windTolerance: 'medium', rainTolerance: 'medium' };
+
+    function getProfile() {
+      try { return Object.assign({}, DEFAULT_PROFILE, JSON.parse(localStorage.getItem('motoProfile') || '{}')); }
+      catch (_) { return Object.assign({}, DEFAULT_PROFILE); }
+    }
+
+    function saveProfile() {
+      var p = {
+        motoType: (document.getElementById('profile-moto-type') || {}).value || DEFAULT_PROFILE.motoType,
+        comfortTemp: parseInt((document.getElementById('profile-comfort-temp') || {}).value || DEFAULT_PROFILE.comfortTemp, 10),
+        windTolerance: (document.getElementById('profile-wind-tol') || {}).value || DEFAULT_PROFILE.windTolerance,
+        rainTolerance: (document.getElementById('profile-rain-tol') || {}).value || DEFAULT_PROFILE.rainTolerance,
+      };
+      localStorage.setItem('motoProfile', JSON.stringify(p));
+    }
+
+    function loadProfileUI() {
+      var p = getProfile(), el;
+      if ((el = document.getElementById('profile-moto-type'))) el.value = p.motoType;
+      if ((el = document.getElementById('profile-comfort-temp'))) el.value = p.comfortTemp;
+      var tv = document.getElementById('profile-temp-val');
+      if (tv) tv.textContent = p.comfortTemp;
+      if ((el = document.getElementById('profile-wind-tol'))) el.value = p.windTolerance;
+      if ((el = document.getElementById('profile-rain-tol'))) el.value = p.rainTolerance;
+    }
+
+    function toggleProfile() {
+      var panel = document.getElementById('profile-panel');
+      if (!panel) return;
+      var isHidden = panel.style.display === 'none';
+      panel.style.display = isHidden ? '' : 'none';
+      if (isHidden) loadProfileUI();
+    }
+
+    function profileAdjustedScore(score, feels, gusts, prec) {
+      var p = getProfile();
+      var adj = score;
+      var delta = (feels != null ? feels : 20) - p.comfortTemp;
+      if (delta < -15) adj -= 8; else if (delta < -5) adj -= 4; else if (delta > 20) adj -= 6;
+      if (p.windTolerance === 'low' && (gusts || 0) > 25) adj -= 8;
+      else if (p.windTolerance === 'high' && (gusts || 0) < 45) adj += 4;
+      if (p.rainTolerance === 'low' && (prec || 0) > 0) adj -= 10;
+      else if (p.rainTolerance === 'high') adj += 2;
+      return Math.max(0, Math.min(100, Math.round(adj)));
+    }
+
+    // -----------------------------------------------------------------------
+    // Gear recommendation (client-side mirror of weather_service.py)
+    // -----------------------------------------------------------------------
+    function gearRecommendationClient(feels, gusts, prec, code) {
+      var f = feels != null ? feels : 20, g = gusts || 0, p = prec || 0, c = code || 0;
+      var recs = [];
+      var raining = p > 0.2 || [51, 53, 55, 61, 63, 65, 80, 81, 82, 95, 96, 99].indexOf(c) > -1;
+      if (raining) {
+        var u = (p > 1 || [63, 65, 81, 82, 95, 96, 99].indexOf(c) > -1) ? 'required' : 'warn';
+        recs.push({ category: 'ploaie', item: 'Costum impermeabil / oversuit', reason: 'Precipitații active (' + p.toFixed(1) + ' mm/h) — rămâi uscat și cald', urgency: u, icon: '🌧️' });
+        recs.push({ category: 'mănuși_ploaie', item: 'Mănuși impermeabile', reason: 'Mâinile ude reduc controlul și răspunsul la frână', urgency: u, icon: '🧤' });
+      }
+      if (f < 0) {
+        recs.push({ category: 'geacă', item: 'Geacă de iarnă cu protecții CE + liner termic', reason: 'Temperatură resimțită ' + Math.round(f) + '°C — condiții extreme de frig', urgency: 'required', icon: '🧥' });
+        recs.push({ category: 'strat_baza', item: 'Strat termic de bază (top + pantaloni)', reason: 'Protecție împotriva hipotermiei sub 0°C', urgency: 'required', icon: '🎿' });
+      } else if (f < 10) {
+        recs.push({ category: 'geacă', item: 'Geacă de moto 3 sezoane cu liner termic activ', reason: 'Temperatură resimțită ' + Math.round(f) + '°C — vreme rece', urgency: 'required', icon: '🧥' });
+        recs.push({ category: 'strat_baza', item: 'Strat termic de bază', reason: 'Confort termic la temperaturi scăzute', urgency: 'warn', icon: '🎿' });
+      } else if (f < 18) {
+        recs.push({ category: 'geacă', item: 'Geacă de moto 3 sezoane (fără liner sau cu liner subțire)', reason: 'Temperatură resimțită ' + Math.round(f) + '°C — vreme răcoroasă', urgency: 'warn', icon: '🧥' });
+      } else if (f < 28) {
+        recs.push({ category: 'geacă', item: 'Geacă de moto din textil / piele cu protecții', reason: 'Temperatură resimțită ' + Math.round(f) + '°C — condiții ideale', urgency: 'info', icon: '🧥' });
+      } else {
+        recs.push({ category: 'geacă', item: 'Geacă mesh cu ventilație maximă + protecții', reason: 'Temperatură resimțită ' + Math.round(f) + '°C — căldură puternică', urgency: 'warn', icon: '🧥' });
+        recs.push({ category: 'hidratare', item: 'Hidratare frecventă (min 500 ml/h)', reason: 'Risc de deshidratare și colaps termic', urgency: 'warn', icon: '💧' });
+      }
+      if (f < 5) recs.push({ category: 'mănuși', item: 'Mănuși de iarnă / cu încălzire electrică', reason: 'Sub ' + Math.round(f) + '°C degetele amorțesc și pierzi controlul frenei', urgency: 'required', icon: '🧤' });
+      else if (f < 12) recs.push({ category: 'mănuși', item: 'Mănuși de moto cu dublură termică', reason: 'Temperatura mâinilor scade rapid la ' + Math.round(f) + '°C în mers', urgency: 'warn', icon: '🧤' });
+      else if (!raining) recs.push({ category: 'mănuși', item: 'Mănuși de moto standard cu protecții', reason: 'Protecție esențială la orice temperatură', urgency: 'info', icon: '🧤' });
+      if (f < 5) recs.push({ category: 'pantaloni', item: 'Pantaloni de moto cu liner termic + protecții CE', reason: 'Protecție termică și impact la temperaturi sub 5°C', urgency: 'required', icon: '👖' });
+      else if (f < 15) recs.push({ category: 'pantaloni', item: 'Pantaloni de moto cu protecții (opțional liner)', reason: 'Vreme răcoroasă — protejează genunchii și coapsele', urgency: 'warn', icon: '👖' });
+      else recs.push({ category: 'pantaloni', item: 'Pantaloni de moto textil / piele cu protecții', reason: 'Protecție la impact — obligatorie', urgency: 'info', icon: '👖' });
+      if (g > 50) recs.push({ category: 'vizor', item: 'Vizor complet închis + colier gât aerodinamic', reason: 'Rafale de ' + Math.round(g) + ' km/h — turbulențe puternice', urgency: 'required', icon: '⛑️' });
+      else if (g > 35) recs.push({ category: 'vizor', item: 'Vizor intermediar sau complet', reason: 'Rafale de ' + Math.round(g) + ' km/h — confort redus la viteze mari', urgency: 'warn', icon: '⛑️' });
+      if (c === 45 || c === 48) recs.push({ category: 'vizibilitate', item: 'Vestă reflectorizantă fluorescent-galbenă', reason: 'Ceață densă — fii văzut de ceilalți participanți la trafic', urgency: 'required', icon: '🦺' });
+      if (f < 3) recs.push({ category: 'anvelope', item: 'Verifică aderența anvelopelor + presiunea', reason: 'Risc de gheață / brumă la ' + Math.round(f) + '°C — aderență redusă drastic', urgency: 'required', icon: '⚠️' });
+      return recs;
+    }
+
+    function gearRecommendationHtml(recs) {
+      if (!recs || !recs.length) return '';
+      var p = getProfile();
+      var motoTypeLabel = { naked: 'Naked / Roadster', touring: 'Touring', enduro: 'Enduro / Adventure', sport: 'Supersport', scooter: 'Scooter' }[p.motoType] || p.motoType;
+      var html = secTitle('🎒 Ce să îmbrac?');
+      html += '<div class="bg-card border border-border rounded-xl p-4 mb-4">';
+      html += '<div class="flex items-center gap-2 mb-3">'
+        + '<span class="text-xs text-muted tracking-widest">🏍️ ' + motoTypeLabel + ' &middot; Confort <strong class="text-gray-300">' + p.comfortTemp + '°C</strong></span>'
+        + '<button onclick="toggleProfile()" class="ml-auto text-xs text-muted hover:text-accent transition-colors">⚙ profil</button>'
+        + '</div>';
+      html += '<div class="flex flex-col gap-2">';
+      recs.forEach(function (rec) {
+        var bgCls = rec.urgency === 'required' ? 'bg-danger/10 border-danger/40'
+          : rec.urgency === 'warn' ? 'bg-warn/10 border-warn/40'
+          : 'bg-surface border-border';
+        var badgeBg = rec.urgency === 'required' ? 'bg-danger/20 text-danger'
+          : rec.urgency === 'warn' ? 'bg-warn/20 text-warn'
+          : 'bg-ok/20 text-ok';
+        var badgeLabel = rec.urgency === 'required' ? 'OBLIGATORIU' : rec.urgency === 'warn' ? 'RECOMANDAT' : 'OK';
+        html += '<div class="flex items-start gap-3 p-3 rounded-lg border ' + bgCls + '">';
+        html += '<span class="text-2xl flex-shrink-0 leading-none mt-0.5">' + rec.icon + '</span>';
+        html += '<div class="flex-1 min-w-0">';
+        html += '<div class="flex flex-wrap items-center gap-2 mb-0.5">';
+        html += '<span class="font-semibold text-sm text-gray-100">' + rec.item + '</span>';
+        html += '<span class="text-xs px-1.5 py-0.5 rounded font-bold tracking-wider ' + badgeBg + '">' + badgeLabel + '</span>';
+        html += '</div>';
+        html += '<div class="text-xs text-muted leading-snug">' + rec.reason + '</div>';
+        html += '</div></div>';
+      });
+      html += '</div></div>';
+      return html;
+    }
+
+    // -----------------------------------------------------------------------
+    // Road surface temperature (client-side mirror of weather_service.py)
+    // -----------------------------------------------------------------------
+    function roadSurfaceTempClient(airTemp, humidity, code, prec) {
+      if (airTemp == null) return null;
+      var t = airTemp, h = humidity || 60, c = code || 0, p = prec || 0;
+      var road;
+      if (p > 0.5 || [51, 53, 55, 61, 63, 65, 80, 81, 82, 95, 96, 99].indexOf(c) > -1) road = t - 1;
+      else if (c === 0 || c === 1) road = t > 15 ? t + 9 : t + 4;
+      else if (c === 2) road = t + 4;
+      else if (c === 3) road = t + 1;
+      else if (c === 45 || c === 48) road = t - 0.5;
+      else if (c === 71 || c === 73 || c === 75) road = t;
+      else road = t + 1;
+      if (h > 85 && p < 0.2) road -= 2;
+      return Math.round(road * 10) / 10;
+    }
+
+    // -----------------------------------------------------------------------
+    // Route planner helpers
+    // -----------------------------------------------------------------------
+    function haversineKm(lat1, lon1, lat2, lon2) {
+      var R = 6371;
+      var dlat = (lat2 - lat1) * Math.PI / 180;
+      var dlon = (lon2 - lon1) * Math.PI / 180;
+      var a = Math.sin(dlat / 2) * Math.sin(dlat / 2)
+        + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180)
+        * Math.sin(dlon / 2) * Math.sin(dlon / 2);
+      return R * 2 * Math.asin(Math.sqrt(a));
+    }
+
+    async function fetchWaypointWeather(lat, lon, etaDt) {
+      var params = new URLSearchParams({
+        latitude: lat.toFixed(4), longitude: lon.toFixed(4),
+        hourly: "temperature_2m,apparent_temperature,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_gusts_10m",
+        timezone: "auto", forecast_days: 7, wind_speed_unit: "kmh",
+      });
+      try {
+        var resp = await fetch("https://api.open-meteo.com/v1/forecast?" + params);
+        if (!resp.ok) return null;
+        var data = await resp.json();
+        if (data.error) return null;
+        var h = data.hourly || {};
+        var times = h.time || [];
+        var etaPrefix = typeof etaDt === 'string' ? etaDt.slice(0, 13) : etaDt.toISOString().slice(0, 13);
+        var bestIdx = 0;
+        for (var j = 0; j < times.length; j++) {
+          if (times[j].slice(0, 13) >= etaPrefix) { bestIdx = j; break; }
+        }
+        var code = omSafe(h.weather_code, bestIdx);
+        var feels = omSafe(h.apparent_temperature, bestIdx);
+        var gusts = omSafe(h.wind_gusts_10m, bestIdx);
+        var prec = omSafe(h.precipitation, bestIdx);
+        var hs = scoreHourly(feels, gusts, prec, code);
+        return {
+          time: times[bestIdx] || etaPrefix,
+          temperature: omSafe(h.temperature_2m, bestIdx),
+          feels_like: feels, precipitation_mm: prec,
+          precipitation_probability: omSafe(h.precipitation_probability, bestIdx),
+          wind_speed_kmh: omSafe(h.wind_speed_10m, bestIdx), wind_gusts_kmh: gusts,
+          weather_code: code, icon: wmoIcon(code), description: wmoDesc(code),
+          moto_score: hs, moto_label: motoLabel(hs),
+        };
+      } catch (_) { return null; }
+    }
+
+    async function calcRoute() {
+      var routeOriginEl = document.getElementById('route-origin');
+      var routeDestEl = document.getElementById('route-dest');
+      var routeDepEl = document.getElementById('route-departure');
+      var routeSpeedEl = document.getElementById('route-speed');
+      var originStr = routeOriginEl ? routeOriginEl.value.trim() : '';
+      var destStr = routeDestEl ? routeDestEl.value.trim() : '';
+      var deptTime = routeDepEl ? routeDepEl.value : '';
+      var avgSpeed = parseFloat(routeSpeedEl ? routeSpeedEl.value : 80) || 80;
+      if (!originStr || !destStr) { alert('Completează orașele de plecare și destinație'); return; }
+      var resultEl = document.getElementById('route-result');
+      if (resultEl) resultEl.innerHTML = '<div class="text-muted text-sm py-4 text-center pulse-anim">⏳ Se calculează traseul…</div>';
+      try {
+        var geoResults = await Promise.all([geocodeDirect(originStr), geocodeDirect(destStr)]);
+        var originGeo = geoResults[0], destGeo = geoResults[1];
+        var depDt = deptTime ? new Date(deptTime) : new Date();
+        var totalDistKm = haversineKm(originGeo.lat, originGeo.lon, destGeo.lat, destGeo.lon);
+        var totalHours = totalDistKm / avgSpeed;
+        var NUM_SEGMENTS = 4;
+        var waypoints = [];
+        for (var i = 0; i <= NUM_SEGMENTS; i++) {
+          var frac = i / NUM_SEGMENTS;
+          var wpLat = originGeo.lat + frac * (destGeo.lat - originGeo.lat);
+          var wpLon = originGeo.lon + frac * (destGeo.lon - originGeo.lon);
+          var hoursOffset = frac * totalHours;
+          var wpEta = new Date(depDt.getTime() + hoursOffset * 3600000);
+          var wpName = i === 0 ? originGeo.name : (i === NUM_SEGMENTS ? destGeo.name : '~' + Math.round(frac * totalDistKm) + ' km');
+          waypoints.push({ lat: wpLat, lon: wpLon, eta: wpEta, name: wpName, distKm: Math.round(frac * totalDistKm) });
+        }
+        var weatherResults = await Promise.all(waypoints.map(function (wp) { return fetchWaypointWeather(wp.lat, wp.lon, wp.eta); }));
+        renderRoute(waypoints, weatherResults, totalDistKm, totalHours, originGeo.name, destGeo.name, depDt);
+      } catch (e) {
+        if (resultEl) resultEl.innerHTML = '<div class="text-danger text-sm py-2 p-4 rounded-xl border border-danger bg-danger/10">⚠️ Eroare: ' + e.message + '</div>';
+      }
+    }
+
+    function renderRoute(waypoints, weatherResults, totalDistKm, totalHours, originName, destName, depDt) {
+      var resultEl = document.getElementById('route-result');
+      if (!resultEl) return;
+      var durH = Math.floor(totalHours);
+      var durM = Math.round((totalHours - durH) * 60);
+      var html = '<div class="bg-card border border-border rounded-xl p-4 mb-3">';
+      html += '<div class="flex flex-wrap gap-3 sm:gap-4 text-sm text-muted mb-4">';
+      html += '<span>📍 <strong class="text-gray-200">' + originName + '</strong> → <strong class="text-gray-200">' + destName + '</strong></span>';
+      html += '<span>📏 <strong class="text-gray-200">~' + Math.round(totalDistKm) + ' km</strong> <span class="text-xs">(linie dreaptă)</span></span>';
+      html += '<span>⏱️ <strong class="text-gray-200">~' + durH + 'h ' + durM + 'min</strong></span>';
+      html += '<span>🕐 Plecare: <strong class="text-gray-200">' + depDt.toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" }) + '</strong></span>';
+      html += '</div>';
+      html += '<div class="flex gap-3 overflow-x-auto scroll-x pb-2">';
+      waypoints.forEach(function (wp, idx) {
+        var w = weatherResults[idx];
+        if (!w) { html += '<div class="flex-shrink-0 w-36 bg-bg border border-border rounded-xl p-3 text-center"><div class="text-muted text-xs py-4">—</div></div>'; return; }
+        var ds = w.moto_score || 0;
+        var scoreColor = ds >= 80 ? '#22c55e' : ds >= 60 ? '#f97316' : ds >= 40 ? '#eab308' : '#ef4444';
+        var borderCls = ds < 40 ? 'border-danger' : ds < 60 ? 'border-warn' : 'border-ok';
+        var etaStr = wp.eta.getHours().toString().padStart(2, '0') + ':' + wp.eta.getMinutes().toString().padStart(2, '0');
+        var prec = w.precipitation_mm || 0;
+        html += '<div class="flex-shrink-0 bg-card border ' + borderCls + ' rounded-xl p-3 w-40 flex flex-col items-center gap-1">';
+        html += '<div class="text-xs font-bold tracking-widest ' + (idx === 0 ? 'text-ok' : idx === waypoints.length - 1 ? 'text-accent' : 'text-muted') + '">'
+          + (idx === 0 ? 'START' : idx === waypoints.length - 1 ? 'SOSIRE' : wp.distKm + ' km') + '</div>';
+        html += '<div class="text-xs text-gray-200 font-semibold text-center leading-tight">' + wp.name + '</div>';
+        html += '<div class="text-xs text-muted">ETA ' + etaStr + '</div>';
+        html += '<div style="font-size:2rem;line-height:1.2">' + w.icon + '</div>';
+        html += '<div class="font-display text-2xl font-bold text-gray-100">' + (w.temperature != null ? Math.round(w.temperature) + '°' : '—') + '</div>';
+        html += '<div class="text-xs text-muted text-center leading-tight">' + (w.description || '') + '</div>';
+        if (prec > 0) html += '<div class="text-xs text-warn">' + prec.toFixed(1) + ' mm 💧</div>';
+        html += '<div class="mt-2 w-full score-bar-track"><div class="score-bar-fill" style="width:' + ds + '%;background:' + scoreColor + '"></div></div>';
+        html += '<div class="text-xs font-bold mt-0.5" style="color:' + scoreColor + '">' + ds + '</div>';
+        html += '</div>';
+      });
+      html += '</div>';
+      html += '<div class="text-xs text-muted/60 mt-2">⚠️ Distanța este calculată în linie dreaptă. Distanța reală pe drum poate fi cu 20-40% mai mare.</div>';
+      html += '</div>';
+      resultEl.innerHTML = html;
+    }
 
     function rainCls(p) { return p > 60 ? "text-danger" : p > 30 ? "text-warn" : "text-muted"; }
     function windCls(g) { return g > 50 ? "text-danger" : g > 35 ? "text-warn" : "text-gray-100"; }
@@ -552,6 +893,8 @@
         weather_code: finalCode, description: description, icon: wmoIcon(finalCode),
         pressure_hpa: pressure, visibility_km: visKm, aqi: aqi,
         moto_score: motoScore, moto_label: motoLabel(motoScore), sources: sources,
+        gear_recommendation: gearRecommendationClient(feels, windGusts, prec, finalCode),
+        road_surface_temp: roadSurfaceTempClient(temp, humidity, finalCode, prec),
       };
 
       // ---- build MET lookups by date and by time (normalize to YYYY-MM-DDTHH:MM) ----
@@ -829,6 +1172,9 @@
         }
         render(d);
         saveCity(); renderFavsBar();
+        // Sync route planner origin with current city
+        var routeOriginEl = document.getElementById('route-origin');
+        if (routeOriginEl && !routeOriginEl.value) routeOriginEl.value = CITY;
         document.getElementById("upd").innerHTML =
           'ACTUALIZAT: ' + new Date().toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" })
           + ' &nbsp;<span id="refresh-pill" class="refresh-pill text-muted cursor-pointer" onclick="loadWeather()" title="Refresh acum">↻ auto în 30m</span>';
@@ -1028,11 +1374,25 @@
         html += statCard('🍃', 'Calitate aer', c.aqi, aqiCls(c.aqi), aqiLabel(c.aqi));
       if (c.uv_index != null)
         html += statCard('☀️', 'Indice UV', c.uv_index.toFixed(1), uvCls(c.uv_index), uvDesc(c.uv_index));
+      // Road surface temperature — moto-specific
+      var rst = c.road_surface_temp != null ? c.road_surface_temp
+        : roadSurfaceTempClient(c.temperature, c.humidity, c.weather_code, c.precipitation_mm);
+      if (rst != null) {
+        var rstCls = rst < 0 ? 'text-danger' : rst < 5 ? 'text-warn' : rst > 50 ? 'text-warn' : 'text-gray-100';
+        var rstDesc = rst < 0 ? '⚠️ gheață posibilă' : rst < 5 ? 'risc îngheț' : rst < 15 ? 'carosabil rece' : rst > 55 ? 'carosabil fierbinte' : 'carosabil normal';
+        html += statCard('🛣️', 'Temp. carosabil', Math.round(rst) + '°', rstCls, rstDesc + ' (estimat)');
+      }
       if (daily.length && daily[0].sunrise)
         html += statCard('🌅', 'Răsărit', fmtTime(daily[0].sunrise), 'text-gray-100', 'ora răsăritului soarelui');
       if (daily.length && daily[0].sunset)
         html += statCard('🌇', 'Apus', fmtTime(daily[0].sunset), 'text-gray-100', 'ora apusului soarelui');
       html += '</div>';
+
+      // Gear recommendation
+      var gearRecs = c.gear_recommendation && c.gear_recommendation.length
+        ? c.gear_recommendation
+        : gearRecommendationClient(c.feels_like, c.wind_gusts_kmh, c.precipitation_mm, c.weather_code);
+      html += gearRecommendationHtml(gearRecs);
 
       // Chart
       html += secTitle('Grafic temperatură, vânt &amp; ploaie — 24h');
@@ -1190,6 +1550,17 @@
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js').catch(function () { });
     }
+    // Set default departure time for route planner (now, rounded to hour)
+    (function () {
+      var depEl = document.getElementById('route-departure');
+      if (depEl) {
+        var now = new Date();
+        now.setMinutes(0, 0, 0);
+        depEl.value = now.toISOString().slice(0, 16);
+      }
+    })();
+    // Pre-fill route origin with current city when it changes
+    loadProfileUI();
     renderFavsBar();
     loadWeather();
   </script>
