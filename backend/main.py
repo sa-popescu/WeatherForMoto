@@ -16,8 +16,10 @@ GET /geocode?city=Cluj-Napoca
     Returns geocoding results (lat/lon/name) for a city query.
 """
 
+import logging
 import os
 import pathlib
+from contextlib import asynccontextmanager
 from typing import Annotated
 
 from dotenv import load_dotenv
@@ -27,6 +29,15 @@ from fastapi.responses import FileResponse
 
 from weather_service import geocode_city, get_weather
 import httpx
+
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger("weatherformoto")
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -44,6 +55,23 @@ _REPO_ROOT = pathlib.Path(__file__).parent.parent
 INDEX_HTML = _REPO_ROOT / "index.html"
 
 # ---------------------------------------------------------------------------
+# Lifespan (startup / shutdown)
+# ---------------------------------------------------------------------------
+
+@asynccontextmanager
+async def lifespan(fastapi_app: FastAPI):
+    logger.info("WeatherForMoto backend starting up")
+    logger.info("INDEX_HTML path: %s (exists=%s)", INDEX_HTML, INDEX_HTML.is_file())
+    logger.info("DEFAULT_CITY: %s", DEFAULT_CITY)
+    logger.info(
+        "OWM API key configured: %s",
+        "yes (custom)" if OWM_API_KEY != _DEMO_OWM_KEY else "no (using demo key)",
+    )
+    logger.info("Expected port: %d", int(os.getenv("PORT", 8000)))
+    yield
+
+
+# ---------------------------------------------------------------------------
 # App
 # ---------------------------------------------------------------------------
 app = FastAPI(
@@ -53,6 +81,7 @@ app = FastAPI(
         "(OpenWeatherMap + Open-Meteo) optimised for motorcyclists."
     ),
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -78,6 +107,7 @@ async def health() -> dict:
 async def serve_frontend():
     """Serve the frontend single-page application."""
     if not INDEX_HTML.is_file():
+        logger.error("Frontend index.html not found at: %s", INDEX_HTML)
         raise HTTPException(status_code=404, detail=f"Frontend not found at {INDEX_HTML}.")
     return FileResponse(INDEX_HTML, media_type="text/html")
 
@@ -87,12 +117,15 @@ async def geocode(
     city: Annotated[str, Query(description="City name to look up")] = DEFAULT_CITY,
 ):
     """Resolve a city name to coordinates."""
+    logger.info("Geocode request received")
     async with httpx.AsyncClient() as client:
         try:
             result = await geocode_city(city, client)
         except ValueError as exc:
+            logger.warning("Geocoding failed: %s", exc)
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except Exception as exc:
+            logger.exception("Geocoding error: %s", exc)
             raise HTTPException(status_code=502, detail=f"Geocoding error: {exc}") from exc
     return result
 
@@ -121,14 +154,18 @@ async def weather(
     # Resolve location
     if lat is not None and lon is not None:
         resolved_city = city or f"{lat:.4f}, {lon:.4f}"
+        logger.info("Weather request by coordinates (lat/lon provided)")
     else:
         city_query = city or DEFAULT_CITY
+        logger.info("Weather request by city name lookup")
         async with httpx.AsyncClient() as client:
             try:
                 geo = await geocode_city(city_query, client)
             except ValueError as exc:
+                logger.warning("Geocoding failed: %s", exc)
                 raise HTTPException(status_code=404, detail=str(exc)) from exc
             except Exception as exc:
+                logger.exception("Geocoding error: %s", exc)
                 raise HTTPException(
                     status_code=502, detail=f"Geocoding error: {exc}"
                 ) from exc
@@ -139,10 +176,12 @@ async def weather(
     try:
         data = await get_weather(lat, lon, resolved_city, OWM_API_KEY)
     except Exception as exc:
+        logger.exception("Weather fetch error: %s", exc)
         raise HTTPException(
             status_code=502, detail=f"Weather data error: {exc}"
         ) from exc
 
+    logger.info("Weather data returned successfully")
     return data
 
 
