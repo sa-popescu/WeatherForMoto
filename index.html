@@ -417,14 +417,26 @@
                       focus:outline-none focus:border-accent placeholder-muted transition-colors" />
         <button onclick="searchCity();closeMobileMenu()" class="bg-accent hover:bg-orange-400 text-black font-display font-bold text-sm tracking-wider
                        px-4 py-2 rounded-lg transition-colors">CAUTĂ</button>
-        <button onclick="geolocate();closeMobileMenu()" title="Locația mea" class="bg-card border border-border text-muted hover:text-accent hover:border-accent
-                       text-base px-3 py-2 rounded-lg transition-colors">📍</button>
-        <button onclick="loadWeather();closeMobileMenu()" title="Reîncarcă" class="bg-card border border-border text-muted hover:text-gray-200 hover:border-gray-500
-                       text-base px-3 py-2 rounded-lg transition-colors">↻</button>
-        <button onclick="toggleProfile();closeMobileMenu()" title="Profil moto" class="bg-card border border-border text-muted hover:text-accent hover:border-accent
-                       text-base px-3 py-2 rounded-lg transition-colors">⚙</button>
-        <button onclick="toggleAlerts();closeMobileMenu()" title="Alerte personalizate" class="bg-card border border-border text-muted hover:text-warn hover:border-warn
-                       text-base px-3 py-2 rounded-lg transition-colors" id="alerts-hdr-btn">🔔</button>
+        <button onclick="geolocate();closeMobileMenu()" title="Locația mea"
+          class="bg-card border border-border text-muted hover:text-accent hover:border-accent
+                       text-base px-3 py-2 rounded-lg transition-colors flex items-center gap-2 justify-center md:justify-start">
+          <span>📍</span><span class="text-sm md:hidden">Locația mea</span>
+        </button>
+        <button onclick="loadWeather();closeMobileMenu()" title="Reîncarcă"
+          class="bg-card border border-border text-muted hover:text-gray-200 hover:border-gray-500
+                       text-base px-3 py-2 rounded-lg transition-colors flex items-center gap-2 justify-center md:justify-start">
+          <span>↻</span><span class="text-sm md:hidden">Reîncarcă</span>
+        </button>
+        <button onclick="toggleProfile();closeMobileMenu()" title="Profil moto"
+          class="bg-card border border-border text-muted hover:text-accent hover:border-accent
+                       text-base px-3 py-2 rounded-lg transition-colors flex items-center gap-2 justify-center md:justify-start">
+          <span>⚙</span><span class="text-sm md:hidden">Profil</span>
+        </button>
+        <button onclick="toggleAlerts();closeMobileMenu()" title="Alerte personalizate"
+          class="bg-card border border-border text-muted hover:text-warn hover:border-warn
+                       text-base px-3 py-2 rounded-lg transition-colors flex items-center gap-2 justify-center md:justify-start" id="alerts-hdr-btn">
+          <span>🔔</span><span class="text-sm md:hidden">Alerte</span>
+        </button>
       </div>
     </div>
     <div id="favs-bar" class="max-w-5xl mx-auto px-3 sm:px-4 pb-2"></div>
