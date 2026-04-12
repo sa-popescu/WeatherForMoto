@@ -30,8 +30,6 @@ COPY backend/ ./backend/
 RUN chmod +x /app/backend/entrypoint.sh \
     && chown -R appuser:appuser /app
 
-USER appuser
-
 ENV PORT=8000
 EXPOSE 8000
 
