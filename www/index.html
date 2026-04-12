@@ -665,6 +665,11 @@
       </button>
     </div>
     <div id="route-result"></div>
+    <div id="route-tools" class="mt-3"></div>
+    <div id="route-map" class="mt-3 h-64 rounded-xl border border-border overflow-hidden bg-card"></div>
+    <div id="hazard-list" class="mt-3"></div>
+    <div id="saved-routes" class="mt-4"></div>
+    <div id="ride-stats" class="mt-4"></div>
   </section>
 
   <!-- iOS "Add to Home Screen" install banner -->
@@ -1158,6 +1163,8 @@
     }
 
     var LAT = 44.4268, LON = 26.1025, CITY = "București";
+    var LAST_ROUTE_CTX = null;
+    var ROUTE_MAP = null;
     var _chart = null;
     var DAYS = ["Duminică", "Luni", "Marți", "Miercuri", "Joi", "Vineri", "Sâmbătă"];
     var _autoRefreshTimer = null;
@@ -1858,6 +1865,17 @@
       html += '<div class="text-xs text-muted/60 mt-2">⚠️ Distanța este calculată în linie dreaptă. Distanța reală pe drum poate fi cu 20-40% mai mare.</div>';
       html += '</div>';
       resultEl.innerHTML = html;
+
+      var flatWaypoints = [];
+      var scoreValues = [];
+      data.segments.forEach(function (seg) {
+        seg.waypoints.forEach(function (wp) {
+          flatWaypoints.push({ lat: wp.lat, lon: wp.lon, name: wp.name, eta: wp.eta_iso ? new Date(wp.eta_iso) : new Date(), distKm: 0 });
+          if (wp.weather && wp.weather.moto_score != null) scoreValues.push(wp.weather.moto_score);
+        });
+      });
+      var avgScore = scoreValues.length ? Math.round(scoreValues.reduce(function (s, v) { return s + v; }, 0) / scoreValues.length) : null;
+      _afterRouteRendered(flatWaypoints, data.total_distance_km || 0, data.estimated_duration_h || 0, avgScore);
     }
 
     function renderMultiRouteDirect(segments, geoResults, totalDist, totalH, depDt) {
@@ -1896,6 +1914,18 @@
       html += '<div class="text-xs text-muted/60 mt-2">⚠️ Distanța este calculată în linie dreaptă. Distanța reală pe drum poate fi cu 20-40% mai mare.</div>';
       html += '</div>';
       resultEl.innerHTML = html;
+
+      var flatWaypoints = [];
+      var scoreValues = [];
+      segments.forEach(function (seg) {
+        seg.waypoints.forEach(function (wp, idx) {
+          flatWaypoints.push(wp);
+          var w = seg.weather[idx];
+          if (w && w.moto_score != null) scoreValues.push(w.moto_score);
+        });
+      });
+      var avgScore = scoreValues.length ? Math.round(scoreValues.reduce(function (s, v) { return s + v; }, 0) / scoreValues.length) : null;
+      _afterRouteRendered(flatWaypoints, totalDist || 0, totalH || 0, avgScore);
     }
 
     function renderRoute(waypoints, weatherResults, totalDistKm, totalHours, originName, destName, depDt) {
@@ -1936,6 +1966,264 @@
       html += '<div class="text-xs text-muted/60 mt-2">⚠️ Distanța este calculată în linie dreaptă. Distanța reală pe drum poate fi cu 20-40% mai mare.</div>';
       html += '</div>';
       resultEl.innerHTML = html;
+
+      var scoreValues = weatherResults.filter(function (w) { return w && w.moto_score != null; }).map(function (w) { return w.moto_score; });
+      var avgScore = scoreValues.length ? Math.round(scoreValues.reduce(function (s, v) { return s + v; }, 0) / scoreValues.length) : null;
+      _afterRouteRendered(waypoints, totalDistKm || 0, totalHours || 0, avgScore);
+    }
+
+    function _afterRouteRendered(waypoints, totalDistKm, totalHours, avgScore) {
+      LAST_ROUTE_CTX = {
+        waypoints: waypoints || [],
+        totalDistKm: totalDistKm || 0,
+        totalHours: totalHours || 0,
+        avgScore: avgScore,
+      };
+      _renderRouteTools();
+      renderRouteMap();
+      loadHazardsNearRoute();
+      loadSavedRoutes();
+      loadRideStats();
+    }
+
+    function _routeStartName() {
+      if (!LAST_ROUTE_CTX || !LAST_ROUTE_CTX.waypoints || !LAST_ROUTE_CTX.waypoints.length) return CITY;
+      return LAST_ROUTE_CTX.waypoints[0].name || CITY;
+    }
+
+    function _routeEndName() {
+      if (!LAST_ROUTE_CTX || !LAST_ROUTE_CTX.waypoints || !LAST_ROUTE_CTX.waypoints.length) return CITY;
+      return LAST_ROUTE_CTX.waypoints[LAST_ROUTE_CTX.waypoints.length - 1].name || CITY;
+    }
+
+    function _renderRouteTools() {
+      var el = document.getElementById('route-tools');
+      if (!el || !LAST_ROUTE_CTX) return;
+      var dist = Math.round(LAST_ROUTE_CTX.totalDistKm || 0);
+      var h = Math.floor(LAST_ROUTE_CTX.totalHours || 0);
+      var m = Math.round(((LAST_ROUTE_CTX.totalHours || 0) - h) * 60);
+      el.innerHTML = '<div class="bg-card border border-border rounded-xl p-3 flex flex-wrap items-center gap-2">'
+        + '<span class="text-xs text-muted">Faza 3:</span>'
+        + '<button onclick="saveCurrentRoute()" class="text-xs border border-border rounded-lg px-3 py-1.5 hover:border-accent hover:text-accent transition-colors">💾 Salvează ruta</button>'
+        + '<button onclick="logCurrentRide()" class="text-xs border border-border rounded-lg px-3 py-1.5 hover:border-ok hover:text-ok transition-colors">📈 Log ride</button>'
+        + '<button onclick="reportHazardAtCenter()" class="text-xs border border-border rounded-lg px-3 py-1.5 hover:border-warn hover:text-warn transition-colors">⚠️ Raportează hazard</button>'
+        + '<span class="text-xs text-muted ml-auto">~' + dist + ' km · ' + h + 'h ' + m + 'm</span>'
+        + '</div>';
+    }
+
+    async function saveCurrentRoute() {
+      if (!LAST_ROUTE_CTX || !LAST_ROUTE_CTX.waypoints || LAST_ROUTE_CTX.waypoints.length < 2) return;
+      var token = _authToken();
+      if (!token) { alert('Autentifică-te pentru salvarea rutelor.'); return; }
+      var name = prompt('Nume pentru rută:', _routeStartName() + ' → ' + _routeEndName());
+      if (!name) return;
+      var stops = [];
+      var seen = {};
+      LAST_ROUTE_CTX.waypoints.forEach(function (wp) {
+        var n = (wp.name || '').trim();
+        if (!n || n.indexOf('~') === 0) return;
+        if (!seen[n]) { seen[n] = true; stops.push(n); }
+      });
+      if (stops.length < 2) stops = [_routeStartName(), _routeEndName()];
+      try {
+        var resp = await fetch(_api('/me/routes'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify({ name: name, stops: stops, total_distance_km: LAST_ROUTE_CTX.totalDistKm || 0 }),
+        });
+        var data = await resp.json();
+        if (!resp.ok) throw new Error(data.detail || 'Nu am putut salva ruta.');
+        loadSavedRoutes();
+        alert('Ruta a fost salvată.');
+      } catch (e) {
+        alert('Eroare salvare rută: ' + (e && e.message || e));
+      }
+    }
+
+    async function loadSavedRoutes() {
+      var el = document.getElementById('saved-routes');
+      if (!el) return;
+      var token = _authToken();
+      if (!token) { el.innerHTML = ''; return; }
+      try {
+        var resp = await fetch(_api('/me/routes'), { headers: { 'Authorization': 'Bearer ' + token } });
+        var data = await resp.json();
+        if (!resp.ok) throw new Error(data.detail || 'Nu am putut încărca rutele.');
+        var routes = data.routes || [];
+        if (!routes.length) { el.innerHTML = '<div class="text-xs text-muted">Nu ai rute salvate încă.</div>'; return; }
+        var html = '<div class="bg-card border border-border rounded-xl p-3"><div class="text-xs text-muted mb-2">Rute salvate</div><div class="space-y-2">';
+        routes.slice(0, 6).forEach(function (r) {
+          html += '<div class="flex items-center gap-2 text-xs">'
+            + '<button onclick="loadSavedRouteById(' + r.id + ')" class="text-left flex-1 border border-border rounded-lg px-2 py-1.5 hover:border-accent hover:text-accent transition-colors">'
+            + (r.name || 'Rută') + ' · ' + ((r.stops || []).join(' → ')) + '</button>'
+            + '<button onclick="deleteSavedRouteById(' + r.id + ')" class="text-danger hover:text-red-300">✕</button>'
+            + '</div>';
+        });
+        html += '</div></div>';
+        el.innerHTML = html;
+      } catch (_) { el.innerHTML = ''; }
+    }
+
+    async function loadSavedRouteById(routeId) {
+      var token = _authToken();
+      if (!token) return;
+      try {
+        var resp = await fetch(_api('/me/routes'), { headers: { 'Authorization': 'Bearer ' + token } });
+        var data = await resp.json();
+        if (!resp.ok) return;
+        var route = (data.routes || []).find(function (r) { return r.id === routeId; });
+        if (!route || !route.stops || route.stops.length < 2) return;
+        var list = document.getElementById('route-stops-list');
+        if (!list) return;
+        list.innerHTML = '';
+        route.stops.forEach(function (s, idx) {
+          var isFirst = idx === 0;
+          var isLast = idx === route.stops.length - 1;
+          var icon = isFirst ? '🟢' : (isLast ? '🔴' : '📍');
+          var row = document.createElement('div');
+          row.className = 'stop-row flex items-center gap-2 mb-2';
+          row.innerHTML = '<span class="text-xl flex-shrink-0">' + icon + '</span>'
+            + '<input type="text" value="' + s.replace(/"/g, '&quot;') + '" class="route-stop-input w-full bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent placeholder-muted transition-colors" />'
+            + (isFirst || isLast ? '<span class="w-8 flex-shrink-0"></span>' : '<button onclick="removeRouteStop(this)" class="w-8 flex-shrink-0 text-muted hover:text-danger text-sm transition-colors" title="Șterge">✕</button>');
+          list.appendChild(row);
+        });
+      } catch (_) { }
+    }
+
+    async function deleteSavedRouteById(routeId) {
+      var token = _authToken();
+      if (!token) return;
+      try {
+        await fetch(_api('/me/routes/' + routeId), { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + token } });
+        loadSavedRoutes();
+      } catch (_) { }
+    }
+
+    async function logCurrentRide() {
+      if (!LAST_ROUTE_CTX) return;
+      var token = _authToken();
+      if (!token) { alert('Autentifică-te pentru statistici ride.'); return; }
+      try {
+        var payload = {
+          route_name: _routeStartName() + ' → ' + _routeEndName(),
+          start_city: _routeStartName(),
+          end_city: _routeEndName(),
+          distance_km: Math.max(1, LAST_ROUTE_CTX.totalDistKm || 0),
+          duration_min: Math.max(1, Math.round((LAST_ROUTE_CTX.totalHours || 0) * 60)),
+          avg_moto_score: LAST_ROUTE_CTX.avgScore,
+          max_wind_gust: null,
+          max_precip: null,
+        };
+        var resp = await fetch(_api('/me/rides/log'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify(payload),
+        });
+        var data = await resp.json();
+        if (!resp.ok) throw new Error(data.detail || 'Nu am putut salva ride-ul.');
+        loadRideStats();
+        alert('Ride log salvat.');
+      } catch (e) {
+        alert('Eroare ride log: ' + (e && e.message || e));
+      }
+    }
+
+    async function loadRideStats() {
+      var el = document.getElementById('ride-stats');
+      if (!el) return;
+      var token = _authToken();
+      if (!token) { el.innerHTML = ''; return; }
+      try {
+        var resp = await fetch(_api('/me/rides/stats'), { headers: { 'Authorization': 'Bearer ' + token } });
+        var d = await resp.json();
+        if (!resp.ok) throw new Error(d.detail || 'Nu am putut încărca statisticile.');
+        var totalH = Math.floor((d.total_duration_min || 0) / 60);
+        var totalM = (d.total_duration_min || 0) % 60;
+        var html = '<div class="bg-card border border-border rounded-xl p-3">'
+          + '<div class="text-xs text-muted mb-2">Ride stats</div>'
+          + '<div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">'
+          + '<div class="p-2 border border-border rounded-lg"><div class="text-muted">Rides</div><div class="font-semibold">' + (d.rides || 0) + '</div></div>'
+          + '<div class="p-2 border border-border rounded-lg"><div class="text-muted">Distanță</div><div class="font-semibold">' + (d.total_distance_km || 0) + ' km</div></div>'
+          + '<div class="p-2 border border-border rounded-lg"><div class="text-muted">Durată</div><div class="font-semibold">' + totalH + 'h ' + totalM + 'm</div></div>'
+          + '<div class="p-2 border border-border rounded-lg"><div class="text-muted">Scor mediu</div><div class="font-semibold">' + (d.avg_score != null ? d.avg_score : '—') + '</div></div>'
+          + '</div>'
+          + '</div>';
+        el.innerHTML = html;
+      } catch (_) { el.innerHTML = ''; }
+    }
+
+    function _ensureLeaflet(cb) {
+      if (window.L) { cb(); return; }
+      if (window._leafletLoading) return;
+      window._leafletLoading = true;
+      var css = document.createElement('link');
+      css.rel = 'stylesheet';
+      css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(css);
+      var scr = document.createElement('script');
+      scr.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      scr.onload = function () { window._leafletLoading = false; cb(); };
+      document.head.appendChild(scr);
+    }
+
+    function renderRouteMap() {
+      var el = document.getElementById('route-map');
+      if (!el || !LAST_ROUTE_CTX || !LAST_ROUTE_CTX.waypoints || LAST_ROUTE_CTX.waypoints.length < 2) return;
+      _ensureLeaflet(function () {
+        if (ROUTE_MAP) { ROUTE_MAP.remove(); ROUTE_MAP = null; }
+        ROUTE_MAP = window.L.map('route-map', { scrollWheelZoom: false }).setView([LAST_ROUTE_CTX.waypoints[0].lat, LAST_ROUTE_CTX.waypoints[0].lon], 7);
+        window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 13, attribution: '&copy; OSM' }).addTo(ROUTE_MAP);
+        var pts = LAST_ROUTE_CTX.waypoints.map(function (w) { return [w.lat, w.lon]; });
+        window.L.polyline(pts, { color: '#f97316', weight: 4, opacity: 0.85 }).addTo(ROUTE_MAP);
+        pts.forEach(function (p, idx) {
+          window.L.circleMarker(p, { radius: idx === 0 || idx === pts.length - 1 ? 6 : 4, color: '#22c55e', fillOpacity: 0.9 }).addTo(ROUTE_MAP);
+        });
+        ROUTE_MAP.fitBounds(window.L.latLngBounds(pts), { padding: [20, 20] });
+      });
+    }
+
+    async function loadHazardsNearRoute() {
+      var listEl = document.getElementById('hazard-list');
+      if (!listEl) return;
+      if (!LAST_ROUTE_CTX || !LAST_ROUTE_CTX.waypoints || !LAST_ROUTE_CTX.waypoints.length) { listEl.innerHTML = ''; return; }
+      var c = LAST_ROUTE_CTX.waypoints[Math.floor(LAST_ROUTE_CTX.waypoints.length / 2)];
+      try {
+        var resp = await fetch(_api('/hazards?lat=' + c.lat + '&lon=' + c.lon + '&radius_km=120'));
+        var data = await resp.json();
+        if (!resp.ok) throw new Error();
+        var hazards = data.hazards || [];
+        if (!hazards.length) { listEl.innerHTML = '<div class="text-xs text-muted">Nu sunt hazarduri raportate pe zona rutei.</div>'; return; }
+        var html = '<div class="bg-card border border-border rounded-xl p-3"><div class="text-xs text-muted mb-2">Hazarduri pe zonă</div><div class="space-y-2">';
+        hazards.slice(0, 8).forEach(function (h) {
+          html += '<div class="text-xs border border-border rounded-lg p-2"><strong class="text-warn">' + (h.hazard_type || 'hazard') + '</strong> · sev ' + h.severity + ' · ' + h.distance_km + ' km<br><span class="text-muted">' + h.description + '</span></div>';
+        });
+        html += '</div></div>';
+        listEl.innerHTML = html;
+      } catch (_) { listEl.innerHTML = ''; }
+    }
+
+    async function reportHazardAtCenter() {
+      var token = _authToken();
+      if (!token) { alert('Autentifică-te pentru raportare hazard.'); return; }
+      if (!LAST_ROUTE_CTX || !LAST_ROUTE_CTX.waypoints || !LAST_ROUTE_CTX.waypoints.length) return;
+      var c = LAST_ROUTE_CTX.waypoints[Math.floor(LAST_ROUTE_CTX.waypoints.length / 2)];
+      var type = prompt('Tip hazard (ex: gravel, ice, flood, accident):', 'gravel');
+      if (!type) return;
+      var desc = prompt('Descriere scurtă:', 'Atenție pe carosabil');
+      if (!desc) return;
+      try {
+        var resp = await fetch(_api('/hazards'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify({ lat: c.lat, lon: c.lon, hazard_type: type, severity: 3, description: desc, ttl_hours: 8 }),
+        });
+        var d = await resp.json();
+        if (!resp.ok) throw new Error(d.detail || 'Nu am putut raporta hazardul.');
+        loadHazardsNearRoute();
+        alert('Hazard raportat.');
+      } catch (e) {
+        alert('Eroare hazard: ' + (e && e.message || e));
+      }
     }
 
     function rainCls(p) { return p > 60 ? "text-danger" : p > 30 ? "text-warn" : "text-muted"; }
@@ -2700,6 +2988,14 @@
         html += statCard('👁️', 'Vizibilitate', c.visibility_km + '<span class="text-xl"> km</span>', (c.visibility_km < 1 ? 'text-danger' : c.visibility_km < 5 ? 'text-warn' : 'text-gray-100'), 'distanța de vizibilitate');
       if (c.aqi != null)
         html += statCard('🍃', 'Calitate aer', c.aqi, aqiCls(c.aqi), aqiLabel(c.aqi));
+      if (c.pm2_5 != null)
+        html += statCard('🫁', 'PM2.5', Math.round(c.pm2_5) + '<span class="text-lg"> µg/m³</span>', c.pm2_5 > 35 ? 'text-danger' : c.pm2_5 > 20 ? 'text-warn' : 'text-ok', 'particule fine');
+      if (c.pm10 != null)
+        html += statCard('🌫️', 'PM10', Math.round(c.pm10) + '<span class="text-lg"> µg/m³</span>', c.pm10 > 50 ? 'text-danger' : c.pm10 > 30 ? 'text-warn' : 'text-ok', 'particule în suspensie');
+      if (c.ozone != null)
+        html += statCard('🧪', 'Ozon', Math.round(c.ozone) + '<span class="text-lg"> µg/m³</span>', c.ozone > 140 ? 'text-warn' : 'text-gray-100', 'nivel O₃');
+      if (c.pollen_index != null)
+        html += statCard('🌾', 'Pollen index', c.pollen_index.toFixed(0), c.pollen_index > 80 ? 'text-danger' : c.pollen_index > 40 ? 'text-warn' : 'text-ok', 'alergeni atmosferici');
       if (c.uv_index != null)
         html += statCard('☀️', 'Indice UV', c.uv_index.toFixed(1), uvCls(c.uv_index), uvDesc(c.uv_index));
       // Road surface temperature — moto-specific
@@ -3087,6 +3383,8 @@
     _updateAccountButton();
     _refreshPushStatus();
     renderFavsBar();
+    loadSavedRoutes();
+    loadRideStats();
     loadWeather();
   </script>
 

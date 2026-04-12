@@ -23,6 +23,7 @@ import httpx
 OWM_BASE = "https://api.openweathermap.org"
 OPENMETEO_BASE = "https://api.open-meteo.com/v1/forecast"
 GEOCODING_OPENMETEO = "https://geocoding-api.open-meteo.com/v1/search"
+OPENMETEO_AIR_BASE = "https://air-quality-api.open-meteo.com/v1/air-quality"
 OWM_GEO_URL = f"{OWM_BASE}/geo/1.0/direct"
 
 
@@ -570,12 +571,41 @@ async def _fetch_owm_air(
     except Exception:
         return None
 
+async def _fetch_openmeteo_air_quality(
+    lat: float, lon: float, client: httpx.AsyncClient
+) -> dict[str, Any] | None:
+    try:
+        resp = await client.get(
+            OPENMETEO_AIR_BASE,
+            params={
+                "latitude": lat,
+                "longitude": lon,
+                "hourly": (
+                    "pm10,pm2_5,ozone,european_aqi,us_aqi,"
+                    "alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,ragweed_pollen"
+                ),
+                "timezone": "auto",
+                "forecast_days": 1,
+            },
+            timeout=10,
+        )
+        if not resp.is_success:
+            return None
+        return resp.json()
+    except Exception:
+        return None
+
 
 # ---------------------------------------------------------------------------
 # Normalise & merge
 # ---------------------------------------------------------------------------
 
-def _merge_current(om_data: dict, owm_current: dict | None, owm_air: dict | None) -> dict:
+def _merge_current(
+    om_data: dict,
+    owm_current: dict | None,
+    owm_air: dict | None,
+    om_air: dict | None = None,
+) -> dict:
     c = om_data.get("current", {})
 
     # --- temperature & feels-like
@@ -641,6 +671,36 @@ def _merge_current(om_data: dict, owm_current: dict | None, owm_air: dict | None
     if owm_air and owm_air.get("list"):
         aqi = owm_air["list"][0]["main"]["aqi"]
 
+    pm10 = None
+    pm2_5 = None
+    ozone = None
+    eu_aqi = None
+    us_aqi = None
+    pollen_index = None
+    if om_air and om_air.get("hourly"):
+        h = om_air["hourly"]
+
+        def _first(name: str):
+            vals = h.get(name) or []
+            return vals[0] if vals else None
+
+        pm10 = _first("pm10")
+        pm2_5 = _first("pm2_5")
+        ozone = _first("ozone")
+        eu_aqi = _first("european_aqi")
+        us_aqi = _first("us_aqi")
+
+        pollen_vals = [
+            _first("alder_pollen"),
+            _first("birch_pollen"),
+            _first("grass_pollen"),
+            _first("mugwort_pollen"),
+            _first("ragweed_pollen"),
+        ]
+        pollen_vals = [v for v in pollen_vals if v is not None]
+        if pollen_vals:
+            pollen_index = max(float(v) for v in pollen_vals)
+
     # --- moto score
     score = _moto_score(feels, wind_gusts, precipitation, om_code)
 
@@ -660,6 +720,12 @@ def _merge_current(om_data: dict, owm_current: dict | None, owm_air: dict | None
         "pressure_hpa": pressure,
         "visibility_km": visibility_km,
         "aqi": aqi,
+        "pm10": pm10,
+        "pm2_5": pm2_5,
+        "ozone": ozone,
+        "eu_aqi": eu_aqi,
+        "us_aqi": us_aqi,
+        "pollen_index": round(float(pollen_index), 1) if pollen_index is not None else None,
         "moto_score": score,
         "moto_label": _moto_label(score),
         "gear_recommendation": _gear_recommendation(feels, wind_gusts, precipitation, om_code),
@@ -954,12 +1020,17 @@ async def get_weather(
         owm_cur_task = _fetch_owm_current(lat, lon, owm_api_key, client)
         owm_fc_task = _fetch_owm_forecast(lat, lon, owm_api_key, client)
         owm_air_task = _fetch_owm_air(lat, lon, owm_api_key, client)
+        om_air_task = _fetch_openmeteo_air_quality(lat, lon, client)
 
-        om_data, owm_current, owm_forecast, owm_air = await asyncio.gather(
-            om_task, owm_cur_task, owm_fc_task, owm_air_task
+        om_data, owm_current, owm_forecast, owm_air, om_air = await asyncio.gather(
+            om_task,
+            owm_cur_task,
+            owm_fc_task,
+            owm_air_task,
+            om_air_task,
         )
 
-    current = _merge_current(om_data, owm_current, owm_air)
+    current = _merge_current(om_data, owm_current, owm_air, om_air)
     daily = _merge_daily(om_data, owm_forecast)
     hourly = _build_hourly(om_data)
 
