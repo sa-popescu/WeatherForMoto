@@ -70,6 +70,10 @@ self.addEventListener('fetch', function (e) {
     var isApi = url.pathname.startsWith('/weather')
         || url.pathname.startsWith('/geocode')
         || url.pathname.startsWith('/route')
+        || url.pathname.startsWith('/auth')
+        || url.pathname.startsWith('/me')
+        || url.pathname.startsWith('/alerts')
+        || url.pathname.startsWith('/push')
         || url.hostname === 'api.open-meteo.com'
         || url.hostname.endsWith('.open-meteo.com')
         || url.hostname === 'geocoding-api.open-meteo.com'
@@ -102,6 +106,49 @@ self.addEventListener('fetch', function (e) {
                     return new Response(OFFLINE_HTML, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
                 }
             });
+        })
+    );
+});
+
+self.addEventListener('push', function (event) {
+    var payload = {};
+    try {
+        payload = event.data ? event.data.json() : {};
+    } catch (_) {
+        payload = { title: 'MotoMeteo', body: 'Ai o alerta meteo noua.' };
+    }
+
+    var title = payload.title || 'MotoMeteo';
+    var options = {
+        body: payload.body || 'Ai o actualizare meteo.',
+        icon: payload.icon || '/icon-192.png',
+        badge: payload.badge || '/icon-192.png',
+        data: payload.data || { url: '/' },
+    };
+
+    event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', function (event) {
+    event.notification.close();
+    var targetUrl = '/';
+    if (event.notification && event.notification.data) {
+        if (event.notification.data.url) targetUrl = event.notification.data.url;
+        if (event.notification.data.event && event.notification.data.event.type) {
+            targetUrl = '/#alerts';
+        }
+    }
+
+    event.waitUntil(
+        clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
+            for (var i = 0; i < clientList.length; i++) {
+                var client = clientList[i];
+                if (client.url.indexOf(self.location.origin) === 0 && 'focus' in client) {
+                    client.navigate(targetUrl);
+                    return client.focus();
+                }
+            }
+            if (clients.openWindow) return clients.openWindow(targetUrl);
         })
     );
 });
