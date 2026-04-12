@@ -94,6 +94,9 @@ workflows:
           /usr/libexec/PlistBuddy -c 'Print :UUID' /tmp/profile.plist
           /usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' /tmp/profile.plist
 
+      - name: Apply provisioning profiles to Xcode project
+        script: xcode-project use-profiles
+
       - name: Set build number from Codemagic build index
         script: |
           LATEST=$(app-store-connect get-latest-build-number \
@@ -121,7 +124,7 @@ workflows:
           xcode-project build-ipa \
             --workspace "$XCODE_WORKSPACE" \
             --scheme "$XCODE_SCHEME" \
-            --archive-xcargs "CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=87QLJT4NDG PROVISIONING_PROFILE_SPECIFIER='MotoMeteo App Store'" \
+            --archive-xcargs "CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=87QLJT4NDG" \
             --export-options-plist /tmp/export_options.plist
 
     artifacts:
