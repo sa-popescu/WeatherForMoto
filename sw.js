@@ -1,5 +1,6 @@
 // MotoMeteo Service Worker — cache-first strategy for offline support
-var CACHE = 'motometeo-v2';
+var CACHE = 'motometeo-v3';
+var SNOOZED_UNTIL = 0;
 var ASSETS = [
     '/',
     '/index.html',
@@ -111,6 +112,10 @@ self.addEventListener('fetch', function (e) {
 });
 
 self.addEventListener('push', function (event) {
+    if (Date.now() < SNOOZED_UNTIL) {
+        return;
+    }
+
     var payload = {};
     try {
         payload = event.data ? event.data.json() : {};
@@ -124,12 +129,25 @@ self.addEventListener('push', function (event) {
         icon: payload.icon || '/icon-192.png',
         badge: payload.badge || '/icon-192.png',
         data: payload.data || { url: '/' },
+        vibrate: [120, 60, 120],
+        renotify: true,
+        tag: (payload.data && payload.data.event && payload.data.event.type) || 'motometeo-alert',
+        actions: [
+            { action: 'open', title: 'Deschide' },
+            { action: 'snooze', title: 'Amână 30m' }
+        ],
     };
 
     event.waitUntil(self.registration.showNotification(title, options));
 });
 
 self.addEventListener('notificationclick', function (event) {
+    if (event.action === 'snooze') {
+        SNOOZED_UNTIL = Date.now() + 30 * 60 * 1000;
+        event.notification.close();
+        return;
+    }
+
     event.notification.close();
     var targetUrl = '/';
     if (event.notification && event.notification.data) {
