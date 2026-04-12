@@ -54,18 +54,6 @@ workflows:
           cd ios/App
           pod install
 
-      - name: Hotfix RevenueCat Swift ambiguity (Xcode 26)
-        script: |
-          set -e
-          TARGET_FILE=$(find ios/App/Pods -type f -name 'StoreProduct+HybridAdditions.swift' | head -n 1)
-          if [ -n "$TARGET_FILE" ] && [ -f "$TARGET_FILE" ]; then
-            perl -pi -e 's/rc_normalized\(subscriptionPeriod: SubscriptionPeriod\)/rc_normalized(subscriptionPeriod: StoreKit.Product.SubscriptionPeriod)/g' "$TARGET_FILE"
-            perl -pi -e 's/typealias SubscriptionPeriod = Product\.SubscriptionPeriod/typealias SubscriptionPeriod = StoreKit.Product.SubscriptionPeriod/g' "$TARGET_FILE"
-            echo "Applied RevenueCat hotfix in: $TARGET_FILE"
-          else
-            echo "RevenueCat hotfix skipped: StoreProduct+HybridAdditions.swift not found"
-          fi
-
       - name: Import signing assets
         script: |
           set -e
