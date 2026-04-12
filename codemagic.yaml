@@ -12,9 +12,9 @@ workflows:
       # APP_STORE_CONNECT_KEY_IDENTIFIER   (ex: A1B2C3D4E5)
       # APP_STORE_CONNECT_ISSUER_ID        (ex: 12345678-1234-...)
       # APP_STORE_CONNECT_PRIVATE_KEY      (conținutul .p8, cu \n)
-      # CM_CERTIFICATE                     (base64 pentru ios_distribution.p12)
-      # CM_CERTIFICATE_PASSWORD            (parola fișierului .p12)
-      # CM_PROVISIONING_PROFILE            (base64 pentru .mobileprovision)
+      # IOS_CERTIFICATE_B64                (base64 pentru ios_distribution.p12)
+      # IOS_CERTIFICATE_PASSWORD           (parola fișierului .p12)
+      # IOS_PROVISIONING_PROFILE_B64       (base64 pentru .mobileprovision)
       vars:
         BUNDLE_ID: ro.motometeo.app
         XCODE_WORKSPACE: ios/App/App.xcworkspace
@@ -54,30 +54,30 @@ workflows:
       - name: Import signing assets
         script: |
           set -e
-          if [ -z "$CM_CERTIFICATE" ] || [ -z "$CM_PROVISIONING_PROFILE" ] || [ -z "$CM_CERTIFICATE_PASSWORD" ]; then
-            echo "Missing one of: CM_CERTIFICATE, CM_PROVISIONING_PROFILE, CM_CERTIFICATE_PASSWORD"
+          if [ -z "$IOS_CERTIFICATE_B64" ] || [ -z "$IOS_PROVISIONING_PROFILE_B64" ] || [ -z "$IOS_CERTIFICATE_PASSWORD" ]; then
+            echo "Missing one of: IOS_CERTIFICATE_B64, IOS_PROVISIONING_PROFILE_B64, IOS_CERTIFICATE_PASSWORD"
             exit 1
           fi
 
-          if [ -f "$CM_CERTIFICATE" ]; then
-            cp "$CM_CERTIFICATE" /tmp/ios_distribution.p12
+          if [ -f "$IOS_CERTIFICATE_B64" ]; then
+            cp "$IOS_CERTIFICATE_B64" /tmp/ios_distribution.p12
           else
-            printf '%s' "$CM_CERTIFICATE" | tr -d '\r\n\t ' | base64 --decode > /tmp/ios_distribution.p12
+            printf '%s' "$IOS_CERTIFICATE_B64" | tr -d '\r\n\t ' | base64 --decode > /tmp/ios_distribution.p12
           fi
 
-          if [ -f "$CM_PROVISIONING_PROFILE" ]; then
-            cp "$CM_PROVISIONING_PROFILE" /tmp/MotoMeteo_App_Store.mobileprovision
+          if [ -f "$IOS_PROVISIONING_PROFILE_B64" ]; then
+            cp "$IOS_PROVISIONING_PROFILE_B64" /tmp/MotoMeteo_App_Store.mobileprovision
           else
-            printf '%s' "$CM_PROVISIONING_PROFILE" | tr -d '\r\n\t ' | base64 --decode > /tmp/MotoMeteo_App_Store.mobileprovision
+            printf '%s' "$IOS_PROVISIONING_PROFILE_B64" | tr -d '\r\n\t ' | base64 --decode > /tmp/MotoMeteo_App_Store.mobileprovision
           fi
 
           test -s /tmp/ios_distribution.p12
           test -s /tmp/MotoMeteo_App_Store.mobileprovision
-          openssl pkcs12 -in /tmp/ios_distribution.p12 -nokeys -passin pass:"$CM_CERTIFICATE_PASSWORD" >/dev/null
+          openssl pkcs12 -in /tmp/ios_distribution.p12 -nokeys -passin pass:"$IOS_CERTIFICATE_PASSWORD" >/dev/null
           keychain initialize
           keychain add-certificates \
             --certificate /tmp/ios_distribution.p12 \
-            --certificate-password "$CM_CERTIFICATE_PASSWORD"
+            --certificate-password "$IOS_CERTIFICATE_PASSWORD"
           mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
           cp /tmp/MotoMeteo_App_Store.mobileprovision "$HOME/Library/MobileDevice/Provisioning Profiles/"
           security cms -D -i "$HOME/Library/MobileDevice/Provisioning Profiles/MotoMeteo_App_Store.mobileprovision" >/tmp/profile.plist
