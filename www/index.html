@@ -1,0 +1,2380 @@
+<!DOCTYPE html>
+
+<html lang="ro">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>MotoMeteo — Vremea pentru motocicliști</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600&display=swap"
+    rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['Rajdhani', 'sans-serif'],
+            body: ['Inter', 'sans-serif'],
+          },
+          colors: {
+            bg: '#0b0c0f',
+            surface: '#13151a',
+            card: '#181b22',
+            border: '#232731',
+            accent: '#f97316',
+            danger: '#ef4444',
+            warn: '#eab308',
+            ok: '#22c55e',
+            muted: '#6b7280',
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    @keyframes spin-slow {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    @keyframes pulse-soft {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: .55;
+      }
+    }
+
+    .spin-anim {
+      animation: spin-slow 1.2s linear infinite;
+      display: inline-block;
+    }
+
+    .pulse-anim {
+      animation: pulse-soft 1.8s ease-in-out infinite;
+    }
+
+    .gauge-ring {
+      transition: stroke-dashoffset .6s cubic-bezier(.4, 0, .2, 1);
+    }
+
+    .scroll-x::-webkit-scrollbar {
+      height: 4px;
+    }
+
+    .scroll-x::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .scroll-x::-webkit-scrollbar-thumb {
+      background: #232731;
+      border-radius: 2px;
+    }
+
+    .wx-icon {
+      font-size: 4rem;
+      line-height: 1;
+    }
+
+    .wx-icon-lg {
+      font-size: 6.5rem;
+      line-height: 1;
+    }
+
+    #tempChart {
+      width: 100% !important;
+      height: 190px !important;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    /* Card hover lift */
+    .wx-card {
+      transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+    }
+
+    .wx-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+    }
+
+    /* Gauge glow based on score */
+    .gauge-glow-ok {
+      filter: drop-shadow(0 0 14px rgba(34, 197, 94, 0.45));
+    }
+
+    .gauge-glow-warn {
+      filter: drop-shadow(0 0 14px rgba(249, 115, 22, 0.45));
+    }
+
+    .gauge-glow-caution {
+      filter: drop-shadow(0 0 14px rgba(234, 179, 8, 0.45));
+    }
+
+    .gauge-glow-danger {
+      filter: drop-shadow(0 0 14px rgba(239, 68, 68, 0.45));
+    }
+
+    /* Skeleton shimmer */
+    @keyframes skeleton-shimmer {
+      0% {
+        background-position: -200% 0;
+      }
+
+      100% {
+        background-position: 200% 0;
+      }
+    }
+
+    .skeleton {
+      background: linear-gradient(90deg, #181b22 25%, #232731 50%, #181b22 75%);
+      background-size: 200% 100%;
+      animation: skeleton-shimmer 1.6s ease-in-out infinite;
+      border-radius: 0.75rem;
+    }
+
+    /* Auto-refresh countdown pill */
+    .refresh-pill {
+      font-size: 0.65rem;
+      letter-spacing: 0.08em;
+      opacity: 0.7;
+      transition: opacity 0.3s;
+    }
+
+    .refresh-pill:hover {
+      opacity: 1;
+    }
+
+    /* Hourly card active "ACUM" glow */
+    .hourly-now {
+      box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.35), 0 4px 16px rgba(249, 115, 22, 0.15);
+    }
+
+    /* ── Premium features ─────────────────────────────────────────────── */
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: scale(0.96);
+      }
+
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    #paywall-modal>div,
+    #alerts-modal>div {
+      animation: fadeIn 0.2s ease;
+    }
+
+    @keyframes premGlow {
+
+      0%,
+      100% {
+        box-shadow: 0 0 6px rgba(249, 115, 22, 0.25);
+      }
+
+      50% {
+        box-shadow: 0 0 18px rgba(249, 115, 22, 0.6);
+      }
+    }
+
+    .prem-glow {
+      animation: premGlow 2.5s ease-in-out infinite;
+    }
+
+    /* Premium day lock row */
+    .day-locked {
+      opacity: 0.45;
+      position: relative;
+      pointer-events: none;
+    }
+
+    .day-lock-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(11, 12, 15, 0.5);
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 700;
+      font-size: 0.72rem;
+      letter-spacing: 0.18em;
+      color: #f97316;
+      border-radius: inherit;
+      pointer-events: auto;
+      cursor: pointer;
+    }
+
+    .alert-banner {
+      animation: slide-up 0.2s ease;
+    }
+
+    /* Arrow toggle for daily expand */
+    .day-arrow {
+      transition: transform 0.25s cubic-bezier(.4, 0, .2, 1);
+      display: inline-block;
+      font-size: 0.65rem;
+      opacity: 0.5;
+    }
+
+    .day-arrow.open {
+      transform: rotate(180deg);
+      opacity: 0.9;
+    }
+
+    /* Score bar in hourly */
+    .score-bar-track {
+      background: #232731;
+      border-radius: 4px;
+      overflow: hidden;
+      height: 5px;
+    }
+
+    .score-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.5s cubic-bezier(.4, 0, .2, 1);
+    }
+
+    /* ── iOS / PWA enhancements ────────────────────────────────────────── */
+
+    /* Suppress the blue tap flash on all elements */
+    * {
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Prevent text selection on interactive UI chrome */
+    button,
+    select,
+    .wx-card,
+    header,
+    .day-arrow {
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    /* Faster tap response — eliminates 300 ms delay on all tappable elements */
+    button,
+    a,
+    [onclick],
+    input[type="submit"],
+    input[type="button"] {
+      touch-action: manipulation;
+    }
+
+    /* Prevent the iOS Safari pull-to-refresh gesture and overscroll bounce */
+    html {
+      overscroll-behavior-y: contain;
+    }
+
+    /* Prevent input auto-zoom on iOS (triggered when font-size < 16px) */
+    @supports (-webkit-touch-callout: none) {
+
+      input,
+      select,
+      textarea {
+        font-size: 16px;
+      }
+    }
+
+    /* Safe-area padding for the sticky header (notch / Dynamic Island) */
+    header.safe-top {
+      padding-top: env(safe-area-inset-top);
+    }
+
+    /* Extra bottom padding so content isn't hidden behind the home indicator */
+    body {
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    /* iOS "Add to Home Screen" install banner */
+    #ios-install-banner {
+      display: none;
+      position: fixed;
+      bottom: calc(env(safe-area-inset-bottom) + 0.75rem);
+      left: 1rem;
+      right: 1rem;
+      z-index: 100;
+      background: #181b22;
+      border: 1px solid #f97316;
+      border-radius: 1rem;
+      padding: 0.85rem 1rem;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      animation: slide-up 0.35s cubic-bezier(.4, 0, .2, 1);
+    }
+
+    @keyframes slide-up {
+      from {
+        transform: translateY(100%);
+        opacity: 0;
+      }
+
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0b0c0f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="MotoMeteo">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <!-- iOS home screen icons -->
+  <link rel="apple-touch-icon" href="/icons/icon-180.png">
+  <link rel="apple-touch-icon" sizes="167x167" href="/icons/icon-167.png">
+  <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152.png">
+  <link rel="apple-touch-icon" sizes="120x120" href="/icons/icon-120.png">
+  <!-- iOS startup/splash screen (PWA fullscreen mode) -->
+  <link rel="apple-touch-startup-image" href="/icons/splash-2048x2732.png"
+    media="(device-width:1024px) and (device-height:1366px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)">
+  <link rel="apple-touch-startup-image" href="/icons/splash-1668x2388.png"
+    media="(device-width:834px) and (device-height:1194px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)">
+  <link rel="apple-touch-startup-image" href="/icons/splash-1536x2048.png"
+    media="(device-width:768px) and (device-height:1024px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)">
+  <link rel="apple-touch-startup-image" href="/icons/splash-1284x2778.png"
+    media="(device-width:428px) and (device-height:926px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+  <link rel="apple-touch-startup-image" href="/icons/splash-1170x2532.png"
+    media="(device-width:390px) and (device-height:844px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+  <link rel="apple-touch-startup-image" href="/icons/splash-1125x2436.png"
+    media="(device-width:375px) and (device-height:812px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+  <link rel="apple-touch-startup-image" href="/icons/splash-1242x2688.png"
+    media="(device-width:414px) and (device-height:896px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+  <link rel="apple-touch-startup-image" href="/icons/splash-828x1792.png"
+    media="(device-width:414px) and (device-height:896px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)">
+  <link rel="apple-touch-startup-image" href="/icons/splash-1242x2208.png"
+    media="(device-width:414px) and (device-height:736px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+  <link rel="apple-touch-startup-image" href="/icons/splash-750x1334.png"
+    media="(device-width:375px) and (device-height:667px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)">
+  <link rel="apple-touch-startup-image" href="/icons/splash-640x1136.png"
+    media="(device-width:320px) and (device-height:568px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)">
+</head>
+
+<body class="bg-bg text-gray-100 font-body min-h-screen overflow-x-hidden">
+
+  <!-- HEADER -->
+  <header class="bg-surface border-b border-border sticky top-0 z-50 safe-top">
+    <div class="max-w-5xl mx-auto px-3 sm:px-4 py-2 sm:py-3 flex items-center justify-between gap-2 sm:gap-4 flex-wrap">
+      <div class="flex items-center gap-2 sm:gap-3">
+        <span class="text-3xl sm:text-4xl leading-none">🏍️</span>
+        <div>
+          <div class="font-display text-2xl sm:text-3xl font-bold tracking-widest text-accent leading-none">MOTO<span
+              class="text-gray-600 text-xl sm:text-2xl"> /// </span>METEO</div>
+          <div id="upd" class="text-xs text-muted tracking-widest mt-0.5">—</div>
+        </div>
+      </div>
+      <div class="flex gap-1.5 sm:gap-2 items-center">
+        <input id="city-in" type="text" placeholder="Caută oraș..." value="Bucharest" class="bg-bg border border-border text-gray-100 font-body text-sm px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg w-32 sm:w-44
+                      focus:outline-none focus:border-accent placeholder-muted transition-colors" />
+        <button onclick="searchCity()" class="bg-accent hover:bg-orange-400 text-black font-display font-bold text-sm sm:text-base tracking-wider
+                       px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg transition-colors">CAUTĂ</button>
+        <button onclick="geolocate()" title="Locația mea" class="bg-card border border-border text-muted hover:text-accent hover:border-accent
+                       text-base px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors">📍</button>
+        <button onclick="loadWeather()" title="Reîncarcă" class="bg-card border border-border text-muted hover:text-gray-200 hover:border-gray-500
+                       text-base px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors">↻</button>
+        <button onclick="toggleProfile()" title="Profil moto" class="bg-card border border-border text-muted hover:text-accent hover:border-accent
+                       text-base px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors">⚙</button>
+        <button onclick="toggleAlerts()" title="Alerte personalizate" class="bg-card border border-border text-muted hover:text-warn hover:border-warn
+                       text-base px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors"
+          id="alerts-hdr-btn">🔔</button>
+        <button onclick="isPremium() ? showPremiumStatus() : openPaywall('Activează MotoMeteo Plus')"
+          title="MotoMeteo Plus" id="premium-hdr-btn"
+          class="border font-display font-bold tracking-wider text-xs px-2 py-1.5 rounded-lg transition-colors prem-glow bg-accent/10 border-accent/30 text-accent">⚡
+          PLUS</button>
+      </div>
+    </div>
+    <div id="favs-bar" class="max-w-5xl mx-auto px-3 sm:px-4 pb-2"></div>
+  </header>
+
+  <!-- PROFIL MOTO -->
+  <div id="profile-panel" class="bg-surface border-b border-border" style="display:none">
+    <div class="max-w-5xl mx-auto px-3 sm:px-4 py-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div>
+          <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Tipul motocicletei</label>
+          <select id="profile-moto-type" onchange="saveProfile()"
+            class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent">
+            <option value="naked">Naked / Roadster</option>
+            <option value="touring">Touring</option>
+            <option value="enduro">Enduro / Adventure</option>
+            <option value="sport">Supersport</option>
+            <option value="scooter">Scooter</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Temperatura de confort: <span
+              id="profile-temp-val">20</span>°C</label>
+          <input id="profile-comfort-temp" type="range" min="5" max="35" value="20"
+            oninput="document.getElementById('profile-temp-val').textContent=this.value; saveProfile()"
+            class="w-full accent-accent mt-2">
+        </div>
+        <div>
+          <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Toleranță vânt</label>
+          <select id="profile-wind-tol" onchange="saveProfile()"
+            class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent">
+            <option value="low">Scăzută</option>
+            <option value="medium">Medie</option>
+            <option value="high">Ridicată</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Toleranță ploaie</label>
+          <select id="profile-rain-tol" onchange="saveProfile()"
+            class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent">
+            <option value="low">Scăzută</option>
+            <option value="medium">Medie</option>
+            <option value="high">Ridicată</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <main class="max-w-5xl mx-auto px-3 sm:px-4 py-6 min-w-0" id="app">
+  </main>
+
+  <!-- PLANIFICATOR TRASEU -->
+  <section class="max-w-5xl mx-auto px-3 sm:px-4 pb-10">
+    <div class="flex items-center gap-3 mt-2 mb-4">
+      <span class="font-display text-sm font-bold tracking-[0.25em] text-muted uppercase">🗺️ Planificator traseu</span>
+      <div class="flex-1 h-px bg-border"></div>
+      <span class="text-xs text-muted italic hidden sm:inline">opriri multiple → ⚡ Premium</span>
+    </div>
+    <div class="bg-card border border-border rounded-xl p-4 mb-4">
+      <!-- Dynamic stops list -->
+      <div id="route-stops-list" class="mb-3">
+        <div class="stop-row flex items-center gap-2 mb-2">
+          <span class="text-xl flex-shrink-0" title="Start">🟢</span>
+          <input id="route-stop-0" type="text" placeholder="Plecare..."
+            class="route-stop-input w-full bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent placeholder-muted transition-colors" />
+          <span class="w-8 flex-shrink-0"></span>
+        </div>
+        <div class="stop-row flex items-center gap-2 mb-2">
+          <span class="text-xl flex-shrink-0" title="Destinație">🔴</span>
+          <input id="route-stop-1" type="text" placeholder="Destinație..."
+            class="route-stop-input w-full bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent placeholder-muted transition-colors" />
+          <span class="w-8 flex-shrink-0"></span>
+        </div>
+      </div>
+      <button onclick="addRouteStop()" id="add-stop-btn"
+        class="mb-4 text-xs text-accent border border-accent/30 hover:bg-accent/10 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
+        <span class="text-base leading-none font-bold">+</span>
+        <span>Adaugă oprire intermediară</span>
+        <span class="ml-1 text-muted/70">(⚡ Premium · max 5 total)</span>
+      </button>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+        <div>
+          <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Ora plecării</label>
+          <input id="route-departure" type="datetime-local"
+            class="w-full bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent transition-colors" />
+        </div>
+        <div>
+          <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Viteză medie (km/h)</label>
+          <input id="route-speed" type="number" value="80" min="20" max="180"
+            class="w-full bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent transition-colors" />
+        </div>
+      </div>
+      <button onclick="calcRoute()"
+        class="bg-accent hover:bg-orange-400 text-black font-display font-bold tracking-wider px-5 py-2 rounded-lg transition-colors text-sm">
+        🗺️ CALCULEAZĂ TRASEU
+      </button>
+    </div>
+    <div id="route-result"></div>
+  </section>
+
+  <!-- iOS "Add to Home Screen" install banner -->
+  <div id="ios-install-banner" role="alert" aria-live="polite">
+    <div class="flex items-start gap-3">
+      <span class="text-2xl flex-shrink-0">🏍️</span>
+      <div class="flex-1 min-w-0">
+        <div class="font-display font-bold text-sm tracking-widest text-accent">INSTALEAZĂ APLICAȚIA</div>
+        <div class="text-xs text-gray-300 mt-0.5 leading-snug">
+          Apasă butonul <strong>Distribuie</strong> ↑ din bara Safari → <strong>Adaugă pe ecranul de start</strong>
+          pentru experiență completă offline.
+        </div>
+      </div>
+      <button onclick="dismissIosBanner()" aria-label="Închide"
+        class="flex-shrink-0 text-muted hover:text-gray-200 text-lg leading-none transition-colors">✕</button>
+    </div>
+  </div>
+
+  <!-- ══ PAYWALL MODAL ══════════════════════════════════════════════════ -->
+  <div id="paywall-modal" class="hidden fixed inset-0 z-[200] flex items-center justify-center p-4"
+    style="background:rgba(0,0,0,0.8);backdrop-filter:blur(10px)" onclick="event.target===this&&closePaywall()">
+    <div class="bg-card border border-accent/30 rounded-2xl p-6 max-w-sm w-full shadow-2xl">
+      <div class="text-center mb-5">
+        <div class="text-5xl mb-2">🏍️⚡</div>
+        <div class="font-display text-3xl font-bold tracking-widest text-accent">MOTO<span class="text-gray-500"> ///
+          </span>PLUS</div>
+        <div class="text-sm text-muted mt-1">Deblochează toate funcțiile premium</div>
+      </div>
+      <div id="paywall-feature-name"
+        class="mb-4 text-center text-sm text-warn font-semibold py-2 px-3 bg-warn/10 rounded-lg border border-warn/20 hidden">
+      </div>
+      <ul class="mb-5 space-y-2.5 text-sm">
+        <li class="flex items-center gap-3"><span class="text-ok text-lg flex-shrink-0">✓</span><span>Prognoză extinsă
+            <strong class="text-gray-200">14 zile</strong></span></li>
+        <li class="flex items-center gap-3"><span class="text-ok text-lg flex-shrink-0">✓</span><span>Traseu cu <strong
+              class="text-gray-200">până la 5 opriri</strong></span></li>
+        <li class="flex items-center gap-3"><span class="text-ok text-lg flex-shrink-0">✓</span><span><strong
+              class="text-gray-200">Alerte personalizate</strong> de vreme (vânt, ploaie, temperatură)</span></li>
+        <li class="flex items-center gap-3"><span class="text-ok text-lg flex-shrink-0">✓</span><span>Hartă <strong
+              class="text-gray-200">radar precipitații</strong> interactiv</span></li>
+        <li class="flex items-center gap-3"><span class="text-ok text-lg flex-shrink-0">✓</span><span>Notificări <strong
+              class="text-gray-200">Mergi / Nu merge</strong> zilnice</span></li>
+      </ul>
+      <div class="mb-4 bg-bg rounded-xl p-4 text-center border border-border">
+        <div class="font-display text-4xl font-bold text-accent">2,99€<span
+            class="text-base text-muted font-normal">/lună</span></div>
+        <div class="text-xs text-muted mt-1">sau <strong class="text-gray-300">19,99€/an</strong> — economisești 44%
+        </div>
+      </div>
+      <button onclick="activatePremium()"
+        class="w-full bg-accent hover:bg-orange-400 text-black font-display font-bold tracking-wider py-3 rounded-xl transition-colors mb-2 text-lg">
+        ⚡ ABONEAZĂ-TE ACUM
+      </button>
+      <button onclick="restorePremium()"
+        class="w-full border border-border text-muted hover:text-gray-200 hover:border-gray-500 font-body text-sm py-2 rounded-xl transition-colors mb-1">
+        Restaurează achiziția
+      </button>
+      <button onclick="closePaywall()" class="w-full text-xs text-muted/50 hover:text-muted py-1.5 transition-colors">
+        Nu acum
+      </button>
+    </div>
+  </div>
+
+  <!-- ══ ALERTS MODAL ═══════════════════════════════════════════════════ -->
+  <div id="alerts-modal" class="hidden fixed inset-0 z-[200] flex items-center justify-center p-4"
+    style="background:rgba(0,0,0,0.8);backdrop-filter:blur(10px)" onclick="event.target===this&&toggleAlerts()">
+    <div class="bg-card border border-border rounded-2xl p-6 max-w-sm w-full shadow-2xl max-h-[85vh] overflow-y-auto">
+      <div class="flex items-center justify-between mb-5">
+        <div>
+          <div class="font-display text-xl font-bold tracking-widest text-gray-100">🔔 ALERTE VREME</div>
+          <div class="text-xs text-muted mt-0.5">Notificare la fiecare verificare</div>
+        </div>
+        <button onclick="toggleAlerts()" class="text-muted hover:text-gray-200 text-xl transition-colors">✕</button>
+      </div>
+      <div id="alerts-prem-gate"
+        class="hidden mb-4 p-3 rounded-xl border border-warn/30 bg-warn/10 text-xs text-warn text-center">
+        ⚡ Alertele personalizate sunt o funcție Premium.
+        <button onclick="closeAlerts();openPaywall('Alerte personalizate')"
+          class="ml-1 underline hover:text-amber-300 transition-colors">Activează Plus →</button>
+      </div>
+      <!-- Alert toggles -->
+      <div id="alerts-list" class="space-y-3">
+        <!-- generated by renderAlertsForm() -->
+      </div>
+      <button onclick="saveAlerts()"
+        class="mt-4 w-full bg-accent hover:bg-orange-400 text-black font-display font-bold tracking-wider py-2.5 rounded-xl transition-colors">
+        💾 SALVEAZĂ ALERTELE
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // ---------------------------------------------------------------------------
+    // Backend URL configuration
+    // ---------------------------------------------------------------------------
+    // When the frontend is served directly by the FastAPI/Railway backend,
+    // an empty string causes the browser to use relative URLs (same origin) –
+    // no configuration needed.
+    //
+    // When the frontend is served from a different host (e.g. GitHub Pages),
+    // set a custom URL here OR the user can enter it in the error banner that
+    // appears on failure (it is then stored in localStorage for future visits).
+    //
+    //   Example:  var CONFIGURED_BACKEND_URL = "https://your-app.up.railway.app";
+    var CONFIGURED_BACKEND_URL = "https://weatherformoto-production.up.railway.app";
+    var OWM_API_KEY = "3e17019022d624b5b3d26b54f7c6b8a5"; // default key; overridable via GH Actions secret OWM_API_KEY
+
+    function _resolveApiUrl() {
+      // Capacitor native (iOS/Android) — app runs at capacitor://localhost or http://localhost
+      // Relative URLs cannot reach the remote backend; use stored URL or fall back to null
+      // so the "direct fetch" path is used (calls external APIs directly from the app).
+      var isCapacitor = location.protocol === 'capacitor:'
+        || (location.protocol === 'http:' && location.hostname === 'localhost' && typeof window.Capacitor !== 'undefined');
+      if (isCapacitor) {
+        return localStorage.getItem('motoMeteoBackendUrl') || null;
+      }
+      if (location.protocol === 'file:') {
+        return localStorage.getItem('motoMeteoBackendUrl') || "http://localhost:8000";
+      }
+      if (CONFIGURED_BACKEND_URL) return CONFIGURED_BACKEND_URL.replace(/\/$/, '');
+      var stored = localStorage.getItem('motoMeteoBackendUrl');
+      if (stored) return stored.replace(/\/$/, '');
+      // On GitHub Pages the backend is on a different host — return null to
+      // trigger the configuration UI instead of a failing relative request.
+      if (location.hostname.endsWith('.github.io')) return null;
+      // Default: relative URL (works when served by the FastAPI backend directly)
+      return "";
+    }
+    var API_URL = _resolveApiUrl();
+
+    var LAT = 44.4268, LON = 26.1025, CITY = "București";
+    var _chart = null;
+    var DAYS = ["Duminică", "Luni", "Marți", "Miercuri", "Joi", "Vineri", "Sâmbătă"];
+    var _autoRefreshTimer = null;
+    var _refreshSecondsLeft = 0;
+    var AUTO_REFRESH_SEC = 1800; // 30 minutes
+
+    // -----------------------------------------------------------------------
+    // Premium subscription management
+    // -----------------------------------------------------------------------
+    function isPremium() {
+      try { return localStorage.getItem('mmPremium') === '1'; } catch (_) { return false; }
+    }
+    function _setPremium(val) {
+      try { localStorage.setItem('mmPremium', val ? '1' : '0'); } catch (_) { }
+      _updatePremiumUI();
+    }
+    function _updatePremiumUI() {
+      var btn = document.getElementById('premium-hdr-btn');
+      if (!btn) return;
+      if (isPremium()) {
+        btn.textContent = '⚡ PLUS ✓';
+        btn.classList.remove('prem-glow');
+        btn.title = 'MotoMeteo Plus ativo';
+      } else {
+        btn.textContent = '⚡ PLUS';
+        btn.classList.add('prem-glow');
+      }
+    }
+    function showPremiumStatus() {
+      if (confirm('MotoMeteo Plus este activ ✓\n\nDesactivezi abonamentul?')) {
+        _setPremium(false);
+        alert('Abonament dezactivat.');
+        loadWeather();
+      }
+    }
+    function openPaywall(featureName) {
+      var modal = document.getElementById('paywall-modal');
+      if (!modal) return;
+      var nameEl = document.getElementById('paywall-feature-name');
+      if (nameEl) {
+        if (featureName) { nameEl.textContent = '🔒 ' + featureName; nameEl.classList.remove('hidden'); }
+        else nameEl.classList.add('hidden');
+      }
+      modal.classList.remove('hidden');
+      haptic([10, 40, 10]);
+    }
+    function closePaywall() {
+      var modal = document.getElementById('paywall-modal');
+      if (modal) modal.classList.add('hidden');
+    }
+    var APPSTORE_URL = 'https://apps.apple.com/app/motometeo/id000000000'; // înlocuiește cu ID-ul real după publicare
+
+    function activatePremium() {
+      if (typeof window.Purchases !== 'undefined') {
+        // Native iOS / Android — RevenueCat purchase flow
+        window.Purchases.getOfferings()
+          .then(function (offerings) {
+            var pkg = offerings.current && offerings.current.availablePackages[0];
+            if (!pkg) { _showPremiumError('Nicio ofertă disponibilă. Încearcă mai târziu.'); return; }
+            return window.Purchases.purchasePackage(pkg);
+          })
+          .then(function (purchaseResult) {
+            if (!purchaseResult) return;
+            var active = purchaseResult.customerInfo
+              && purchaseResult.customerInfo.entitlements
+              && purchaseResult.customerInfo.entitlements.active
+              && purchaseResult.customerInfo.entitlements.active['premium'];
+            if (active) {
+              _setPremium(true);
+              closePaywall();
+              loadWeather();
+            }
+          })
+          .catch(function (err) {
+            // User cancelled purchase — not an error
+            if (err && err.userCancelled) return;
+            _showPremiumError('Eroare la procesarea plății: ' + (err && err.message || err));
+          });
+      } else {
+        // Web browser — redirect to App Store
+        _showWebPremiumMessage();
+      }
+    }
+
+    function restorePremium() {
+      if (typeof window.Purchases !== 'undefined') {
+        window.Purchases.restorePurchases()
+          .then(function (info) {
+            var active = info
+              && info.entitlements
+              && info.entitlements.active
+              && info.entitlements.active['premium'];
+            _setPremium(!!active);
+            closePaywall();
+            if (active) { loadWeather(); }
+            else { alert('Nu s-a găsit nicio achiziție anterioară asociată contului Apple.'); }
+          })
+          .catch(function (err) {
+            _showPremiumError('Eroare la restaurare: ' + (err && err.message || err));
+          });
+      } else {
+        _showWebPremiumMessage();
+      }
+    }
+
+    function _showPremiumError(msg) {
+      var el = document.getElementById('paywall-feature-name');
+      if (el) { el.textContent = '⚠️ ' + msg; el.classList.remove('hidden'); el.style.color = '#ef4444'; }
+    }
+
+    function _showWebPremiumMessage() {
+      // Close paywall and show a non-dismissible info banner
+      closePaywall();
+      var app = document.getElementById('app');
+      if (!app) return;
+      var banner = document.createElement('div');
+      banner.className = 'fixed inset-x-4 top-20 z-[300] bg-card border border-accent rounded-xl p-5 shadow-2xl max-w-sm mx-auto';
+      banner.innerHTML = '<div class="font-display text-lg font-bold text-accent tracking-wider mb-2">⚡ MotoMeteo Plus</div>'
+        + '<div class="text-sm text-gray-300 mb-4 leading-relaxed">Abonamentul se activează exclusiv prin <strong>aplicația iOS</strong> — plata este procesată securizat de Apple.</div>'
+        + '<a href="' + APPSTORE_URL + '" target="_blank" class="block w-full bg-accent hover:bg-orange-400 text-black font-display font-bold tracking-wider py-3 rounded-xl text-center mb-2 transition-colors">📱 Descarcă din App Store</a>'
+        + '<button onclick="this.parentNode.remove()" class="w-full text-xs text-muted hover:text-gray-300 py-2 transition-colors">Închide</button>';
+      document.body.appendChild(banner);
+    }
+
+    // -----------------------------------------------------------------------
+    // Custom weather alerts (localStorage)
+    // -----------------------------------------------------------------------
+    var ALERT_DEFS = [
+      { id: 'score_low', label: 'Scor Moto < 40', desc: 'Condiții periculoase', field: 'moto_score', op: '<', threshold: 40 },
+      { id: 'wind_high', label: 'Rafale > 50 km/h', desc: 'Vânt puternic', field: 'wind_gusts_kmh', op: '>', threshold: 50 },
+      { id: 'rain_heavy', label: 'Precipitații > 5 mm/h', desc: 'Ploaie torențială', field: 'precipitation_mm', op: '>', threshold: 5 },
+      { id: 'temp_cold', label: 'Temperatură < 5°C', desc: 'Risc de gheații / îngheț', field: 'temperature', op: '<', threshold: 5 },
+      { id: 'temp_hot', label: 'Temperatură > 35°C', desc: 'Caniculă — hidratare obligatorie', field: 'temperature', op: '>', threshold: 35 },
+      { id: 'rain_prob', label: 'Probabilitate ploaie > 70%', desc: 'Ploaie probabilă', field: 'precipitation_probability', op: '>', threshold: 70 },
+    ];
+    function _getAlertState() {
+      try { return JSON.parse(localStorage.getItem('motoAlerts') || '{}'); } catch (_) { return {}; }
+    }
+    function renderAlertsForm() {
+      var state = _getAlertState();
+      var html = '';
+      ALERT_DEFS.forEach(function (a) {
+        var checked = state[a.id] !== false; // default on
+        html += '<label class="flex items-center gap-3 p-3 rounded-xl border border-border hover:border-accent/50 cursor-pointer transition-colors">';
+        html += '<input type="checkbox" id="alert-chk-' + a.id + '" ' + (checked ? 'checked' : '') + ' class="accent-accent w-4 h-4 flex-shrink-0">';
+        html += '<div class="flex-1 min-w-0">';
+        html += '<div class="text-sm font-semibold text-gray-100">' + a.label + '</div>';
+        html += '<div class="text-xs text-muted">' + a.desc + '</div>';
+        html += '</div></label>';
+      });
+      var el = document.getElementById('alerts-list');
+      if (el) el.innerHTML = html;
+    }
+    function saveAlerts() {
+      if (!isPremium()) { closeAlerts(); openPaywall('Alerte personalizate'); return; }
+      var state = {};
+      ALERT_DEFS.forEach(function (a) {
+        var chk = document.getElementById('alert-chk-' + a.id);
+        state[a.id] = chk ? chk.checked : true;
+      });
+      try { localStorage.setItem('motoAlerts', JSON.stringify(state)); } catch (_) { }
+      closeAlerts();
+    }
+    function closeAlerts() {
+      var m = document.getElementById('alerts-modal');
+      if (m) m.classList.add('hidden');
+    }
+    function toggleAlerts() {
+      var m = document.getElementById('alerts-modal');
+      if (!m) return;
+      var isHidden = m.classList.contains('hidden');
+      if (isHidden) {
+        renderAlertsForm();
+        var gate = document.getElementById('alerts-prem-gate');
+        if (gate) gate.classList.toggle('hidden', isPremium());
+        var list = document.getElementById('alerts-list');
+        if (list) {
+          list.style.opacity = isPremium() ? '1' : '0.45';
+          list.style.pointerEvents = isPremium() ? '' : 'none';
+        }
+        m.classList.remove('hidden');
+      } else {
+        m.classList.add('hidden');
+      }
+    }
+    function checkAlerts(current) {
+      if (!isPremium()) return '';
+      var state = _getAlertState();
+      var banners = '';
+      ALERT_DEFS.forEach(function (a) {
+        if (state[a.id] === false) return;
+        var val = current[a.field];
+        if (val == null) return;
+        var triggered = a.op === '<' ? val < a.threshold : val > a.threshold;
+        if (!triggered) return;
+        banners += '<div class="alert-banner mb-3 p-3 rounded-xl border border-warn/40 bg-warn/10 text-warn text-sm flex items-start gap-3">'
+          + '<span class="text-xl flex-shrink-0">🔔</span>'
+          + '<div><div class="font-semibold">' + a.label + '</div>'
+          + '<div class="text-xs text-muted/80 mt-0.5">' + a.desc + ' &nbsp;·&nbsp; valoare curentă: <strong class="text-warn">' + (Math.round(val * 10) / 10) + '</strong></div>'
+          + '</div></div>';
+      });
+      return banners;
+    }
+
+    // -----------------------------------------------------------------------
+    // Multi-stop route helpers
+    // -----------------------------------------------------------------------
+    function getRouteStops() {
+      var inputs = document.querySelectorAll('.route-stop-input');
+      return Array.from(inputs).map(function (inp) { return inp.value.trim(); }).filter(Boolean);
+    }
+    function addRouteStop() {
+      var rows = document.querySelectorAll('#route-stops-list .stop-row');
+      if (rows.length >= 5) { alert('Maxim 5 opriri permise.'); return; }
+      if (rows.length >= 3 && !isPremium()) {
+        openPaywall('Traseu cu opriri multiple');
+        return;
+      }
+      var list = document.getElementById('route-stops-list');
+      var lastRow = list.lastElementChild; // destination row – keep it last
+      var newRow = document.createElement('div');
+      newRow.className = 'stop-row flex items-center gap-2 mb-2';
+      newRow.innerHTML = '<span class="text-xl flex-shrink-0">📍</span>'
+        + '<input type="text" placeholder="Oprire intermediară..." class="route-stop-input w-full bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent placeholder-muted transition-colors" />'
+        + '<button onclick="removeRouteStop(this)" class="w-8 flex-shrink-0 text-muted hover:text-danger text-sm transition-colors" title="Șterge">✕</button>';
+      list.insertBefore(newRow, lastRow);
+      if (rows.length + 1 >= 5) {
+        var addBtn = document.getElementById('add-stop-btn');
+        if (addBtn) addBtn.style.display = 'none';
+      }
+    }
+    function removeRouteStop(btn) {
+      var row = btn.closest('.stop-row');
+      if (row) { row.remove(); }
+      var addBtn = document.getElementById('add-stop-btn');
+      if (addBtn) addBtn.style.display = '';
+    }
+
+    function startAutoRefresh() {
+      if (_autoRefreshTimer) clearInterval(_autoRefreshTimer);
+      _refreshSecondsLeft = AUTO_REFRESH_SEC;
+      _autoRefreshTimer = setInterval(function () {
+        _refreshSecondsLeft--;
+        var pill = document.getElementById('refresh-pill');
+        if (pill) {
+          var m = Math.ceil(_refreshSecondsLeft / 60);
+          pill.textContent = '↻ auto în ' + m + 'm';
+        }
+        if (_refreshSecondsLeft <= 0) loadWeather();
+      }, 1000);
+    }
+    var BACKEND_UNAVAILABLE_MSG = "Nu se poate conecta la backend. Asigură-te că serverul rulează.";
+
+    // -----------------------------------------------------------------------
+    // Personal profile (localStorage)
+    // -----------------------------------------------------------------------
+    var DEFAULT_PROFILE = { motoType: 'naked', comfortTemp: 20, windTolerance: 'medium', rainTolerance: 'medium' };
+
+    function getProfile() {
+      try { return Object.assign({}, DEFAULT_PROFILE, JSON.parse(localStorage.getItem('motoProfile') || '{}')); }
+      catch (_) { return Object.assign({}, DEFAULT_PROFILE); }
+    }
+
+    function saveProfile() {
+      var p = {
+        motoType: (document.getElementById('profile-moto-type') || {}).value || DEFAULT_PROFILE.motoType,
+        comfortTemp: parseInt((document.getElementById('profile-comfort-temp') || {}).value || DEFAULT_PROFILE.comfortTemp, 10),
+        windTolerance: (document.getElementById('profile-wind-tol') || {}).value || DEFAULT_PROFILE.windTolerance,
+        rainTolerance: (document.getElementById('profile-rain-tol') || {}).value || DEFAULT_PROFILE.rainTolerance,
+      };
+      localStorage.setItem('motoProfile', JSON.stringify(p));
+    }
+
+    function loadProfileUI() {
+      var p = getProfile(), el;
+      if ((el = document.getElementById('profile-moto-type'))) el.value = p.motoType;
+      if ((el = document.getElementById('profile-comfort-temp'))) el.value = p.comfortTemp;
+      var tv = document.getElementById('profile-temp-val');
+      if (tv) tv.textContent = p.comfortTemp;
+      if ((el = document.getElementById('profile-wind-tol'))) el.value = p.windTolerance;
+      if ((el = document.getElementById('profile-rain-tol'))) el.value = p.rainTolerance;
+    }
+
+    function toggleProfile() {
+      var panel = document.getElementById('profile-panel');
+      if (!panel) return;
+      var isHidden = panel.style.display === 'none';
+      panel.style.display = isHidden ? '' : 'none';
+      if (isHidden) loadProfileUI();
+    }
+
+    function profileAdjustedScore(score, feels, gusts, prec) {
+      var p = getProfile();
+      var adj = score;
+      var delta = (feels != null ? feels : 20) - p.comfortTemp;
+      if (delta < -15) adj -= 8; else if (delta < -5) adj -= 4; else if (delta > 20) adj -= 6;
+      if (p.windTolerance === 'low' && (gusts || 0) > 25) adj -= 8;
+      else if (p.windTolerance === 'high' && (gusts || 0) < 45) adj += 4;
+      if (p.rainTolerance === 'low' && (prec || 0) > 0) adj -= 10;
+      else if (p.rainTolerance === 'high') adj += 2;
+      return Math.max(0, Math.min(100, Math.round(adj)));
+    }
+
+    // -----------------------------------------------------------------------
+    // Gear recommendation (client-side mirror of weather_service.py)
+    // -----------------------------------------------------------------------
+    function gearRecommendationClient(feels, gusts, prec, code) {
+      var f = feels != null ? feels : 20, g = gusts || 0, p = prec || 0, c = code || 0;
+      var recs = [];
+      var raining = p > 0.2 || [51, 53, 55, 61, 63, 65, 80, 81, 82, 95, 96, 99].indexOf(c) > -1;
+      if (raining) {
+        var u = (p > 1 || [63, 65, 81, 82, 95, 96, 99].indexOf(c) > -1) ? 'required' : 'warn';
+        recs.push({ category: 'ploaie', item: 'Costum impermeabil / oversuit', reason: 'Precipitații active (' + p.toFixed(1) + ' mm/h) — rămâi uscat și cald', urgency: u, icon: '🌧️' });
+        recs.push({ category: 'mănuși_ploaie', item: 'Mănuși impermeabile', reason: 'Mâinile ude reduc controlul și răspunsul la frână', urgency: u, icon: '🧤' });
+      }
+      if (f < 0) {
+        recs.push({ category: 'geacă', item: 'Geacă de iarnă cu protecții CE + liner termic', reason: 'Temperatură resimțită ' + Math.round(f) + '°C — condiții extreme de frig', urgency: 'required', icon: '🧥' });
+        recs.push({ category: 'strat_baza', item: 'Strat termic de bază (top + pantaloni)', reason: 'Protecție împotriva hipotermiei sub 0°C', urgency: 'required', icon: '🎿' });
+      } else if (f < 10) {
+        recs.push({ category: 'geacă', item: 'Geacă de moto 3 sezoane cu liner termic activ', reason: 'Temperatură resimțită ' + Math.round(f) + '°C — vreme rece', urgency: 'required', icon: '🧥' });
+        recs.push({ category: 'strat_baza', item: 'Strat termic de bază', reason: 'Confort termic la temperaturi scăzute', urgency: 'warn', icon: '🎿' });
+      } else if (f < 18) {
+        recs.push({ category: 'geacă', item: 'Geacă de moto 3 sezoane (fără liner sau cu liner subțire)', reason: 'Temperatură resimțită ' + Math.round(f) + '°C — vreme răcoroasă', urgency: 'warn', icon: '🧥' });
+      } else if (f < 28) {
+        recs.push({ category: 'geacă', item: 'Geacă de moto din textil / piele cu protecții', reason: 'Temperatură resimțită ' + Math.round(f) + '°C — condiții ideale', urgency: 'info', icon: '🧥' });
+      } else {
+        recs.push({ category: 'geacă', item: 'Geacă mesh cu ventilație maximă + protecții', reason: 'Temperatură resimțită ' + Math.round(f) + '°C — căldură puternică', urgency: 'warn', icon: '🧥' });
+        recs.push({ category: 'hidratare', item: 'Hidratare frecventă (min 500 ml/h)', reason: 'Risc de deshidratare și colaps termic', urgency: 'warn', icon: '💧' });
+      }
+      if (f < 5) recs.push({ category: 'mănuși', item: 'Mănuși de iarnă / cu încălzire electrică', reason: 'Sub ' + Math.round(f) + '°C degetele amorțesc și pierzi controlul frenei', urgency: 'required', icon: '🧤' });
+      else if (f < 12) recs.push({ category: 'mănuși', item: 'Mănuși de moto cu dublură termică', reason: 'Temperatura mâinilor scade rapid la ' + Math.round(f) + '°C în mers', urgency: 'warn', icon: '🧤' });
+      else if (!raining) recs.push({ category: 'mănuși', item: 'Mănuși de moto standard cu protecții', reason: 'Protecție esențială la orice temperatură', urgency: 'info', icon: '🧤' });
+      if (f < 5) recs.push({ category: 'pantaloni', item: 'Pantaloni de moto cu liner termic + protecții CE', reason: 'Protecție termică și impact la temperaturi sub 5°C', urgency: 'required', icon: '👖' });
+      else if (f < 15) recs.push({ category: 'pantaloni', item: 'Pantaloni de moto cu protecții (opțional liner)', reason: 'Vreme răcoroasă — protejează genunchii și coapsele', urgency: 'warn', icon: '👖' });
+      else recs.push({ category: 'pantaloni', item: 'Pantaloni de moto textil / piele cu protecții', reason: 'Protecție la impact — obligatorie', urgency: 'info', icon: '👖' });
+      if (g > 50) recs.push({ category: 'vizor', item: 'Vizor complet închis + colier gât aerodinamic', reason: 'Rafale de ' + Math.round(g) + ' km/h — turbulențe puternice', urgency: 'required', icon: '⛑️' });
+      else if (g > 35) recs.push({ category: 'vizor', item: 'Vizor intermediar sau complet', reason: 'Rafale de ' + Math.round(g) + ' km/h — confort redus la viteze mari', urgency: 'warn', icon: '⛑️' });
+      if (c === 45 || c === 48) recs.push({ category: 'vizibilitate', item: 'Vestă reflectorizantă fluorescent-galbenă', reason: 'Ceață densă — fii văzut de ceilalți participanți la trafic', urgency: 'required', icon: '🦺' });
+      if (f < 3) recs.push({ category: 'anvelope', item: 'Verifică aderența anvelopelor + presiunea', reason: 'Risc de gheață / brumă la ' + Math.round(f) + '°C — aderență redusă drastic', urgency: 'required', icon: '⚠️' });
+      return recs;
+    }
+
+    function gearRecommendationHtml(recs) {
+      if (!recs || !recs.length) return '';
+      var p = getProfile();
+      var motoTypeLabel = { naked: 'Naked / Roadster', touring: 'Touring', enduro: 'Enduro / Adventure', sport: 'Supersport', scooter: 'Scooter' }[p.motoType] || p.motoType;
+      var html = secTitle('🎒 Ce să îmbrac?');
+      html += '<div class="bg-card border border-border rounded-xl p-4 mb-4">';
+      html += '<div class="flex items-center gap-2 mb-3">'
+        + '<span class="text-xs text-muted tracking-widest">🏍️ ' + motoTypeLabel + ' &middot; Confort <strong class="text-gray-300">' + p.comfortTemp + '°C</strong></span>'
+        + '<button onclick="toggleProfile()" class="ml-auto text-xs text-muted hover:text-accent transition-colors">⚙ profil</button>'
+        + '</div>';
+      html += '<div class="flex flex-col gap-2">';
+      recs.forEach(function (rec) {
+        var bgCls = rec.urgency === 'required' ? 'bg-danger/10 border-danger/40'
+          : rec.urgency === 'warn' ? 'bg-warn/10 border-warn/40'
+            : 'bg-surface border-border';
+        var badgeBg = rec.urgency === 'required' ? 'bg-danger/20 text-danger'
+          : rec.urgency === 'warn' ? 'bg-warn/20 text-warn'
+            : 'bg-ok/20 text-ok';
+        var badgeLabel = rec.urgency === 'required' ? 'OBLIGATORIU' : rec.urgency === 'warn' ? 'RECOMANDAT' : 'OK';
+        html += '<div class="flex items-start gap-3 p-3 rounded-lg border ' + bgCls + '">';
+        html += '<span class="text-2xl flex-shrink-0 leading-none mt-0.5">' + rec.icon + '</span>';
+        html += '<div class="flex-1 min-w-0">';
+        html += '<div class="flex flex-wrap items-center gap-2 mb-0.5">';
+        html += '<span class="font-semibold text-sm text-gray-100">' + rec.item + '</span>';
+        html += '<span class="text-xs px-1.5 py-0.5 rounded font-bold tracking-wider ' + badgeBg + '">' + badgeLabel + '</span>';
+        html += '</div>';
+        html += '<div class="text-xs text-muted leading-snug">' + rec.reason + '</div>';
+        html += '</div></div>';
+      });
+      html += '</div></div>';
+      return html;
+    }
+
+    // -----------------------------------------------------------------------
+    // Road surface temperature (client-side mirror of weather_service.py)
+    // -----------------------------------------------------------------------
+    function roadSurfaceTempClient(airTemp, humidity, code, prec) {
+      if (airTemp == null) return null;
+      var t = airTemp, h = humidity || 60, c = code || 0, p = prec || 0;
+      var road;
+      if (p > 0.5 || [51, 53, 55, 61, 63, 65, 80, 81, 82, 95, 96, 99].indexOf(c) > -1) road = t - 1;
+      else if (c === 0 || c === 1) road = t > 15 ? t + 9 : t + 4;
+      else if (c === 2) road = t + 4;
+      else if (c === 3) road = t + 1;
+      else if (c === 45 || c === 48) road = t - 0.5;
+      else if (c === 71 || c === 73 || c === 75) road = t;
+      else road = t + 1;
+      if (h > 85 && p < 0.2) road -= 2;
+      return Math.round(road * 10) / 10;
+    }
+
+    // -----------------------------------------------------------------------
+    // Route planner helpers
+    // -----------------------------------------------------------------------
+    function haversineKm(lat1, lon1, lat2, lon2) {
+      var R = 6371;
+      var dlat = (lat2 - lat1) * Math.PI / 180;
+      var dlon = (lon2 - lon1) * Math.PI / 180;
+      var a = Math.sin(dlat / 2) * Math.sin(dlat / 2)
+        + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180)
+        * Math.sin(dlon / 2) * Math.sin(dlon / 2);
+      return R * 2 * Math.asin(Math.sqrt(a));
+    }
+
+    async function fetchWaypointWeather(lat, lon, etaDt) {
+      var params = new URLSearchParams({
+        latitude: lat.toFixed(4), longitude: lon.toFixed(4),
+        hourly: "temperature_2m,apparent_temperature,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_gusts_10m",
+        timezone: "auto", forecast_days: 7, wind_speed_unit: "kmh",
+      });
+      try {
+        var resp = await fetch("https://api.open-meteo.com/v1/forecast?" + params);
+        if (!resp.ok) return null;
+        var data = await resp.json();
+        if (data.error) return null;
+        var h = data.hourly || {};
+        var times = h.time || [];
+        var etaPrefix = typeof etaDt === 'string' ? etaDt.slice(0, 13) : etaDt.toISOString().slice(0, 13);
+        var bestIdx = 0;
+        for (var j = 0; j < times.length; j++) {
+          if (times[j].slice(0, 13) >= etaPrefix) { bestIdx = j; break; }
+        }
+        var code = omSafe(h.weather_code, bestIdx);
+        var feels = omSafe(h.apparent_temperature, bestIdx);
+        var gusts = omSafe(h.wind_gusts_10m, bestIdx);
+        var prec = omSafe(h.precipitation, bestIdx);
+        var hs = scoreHourly(feels, gusts, prec, code);
+        return {
+          time: times[bestIdx] || etaPrefix,
+          temperature: omSafe(h.temperature_2m, bestIdx),
+          feels_like: feels, precipitation_mm: prec,
+          precipitation_probability: omSafe(h.precipitation_probability, bestIdx),
+          wind_speed_kmh: omSafe(h.wind_speed_10m, bestIdx), wind_gusts_kmh: gusts,
+          weather_code: code, icon: wmoIcon(code), description: wmoDesc(code),
+          moto_score: hs, moto_label: motoLabel(hs),
+        };
+      } catch (_) { return null; }
+    }
+
+    async function calcRoute() {
+      var stops = getRouteStops();
+      if (stops.length < 2) { alert('Completează cel puțin 2 opriri (plecare și destinație)'); return; }
+      if (stops.length > 2 && !isPremium()) { openPaywall('Traseu cu opriri multiple'); return; }
+
+      var routeDepEl = document.getElementById('route-departure');
+      var routeSpeedEl = document.getElementById('route-speed');
+      var deptTime = routeDepEl ? routeDepEl.value : '';
+      var avgSpeed = parseFloat(routeSpeedEl ? routeSpeedEl.value : 80) || 80;
+
+      var resultEl = document.getElementById('route-result');
+      if (resultEl) resultEl.innerHTML = '<div class="text-muted text-sm py-4 text-center pulse-anim">⏳ Se calculează traseul…</div>';
+
+      try {
+        var geoResults = await Promise.all(stops.map(geocodeDirect));
+        var depDt = deptTime ? new Date(deptTime) : new Date();
+
+        if (stops.length === 2) {
+          // Simple 2-stop route (client-side, existing logic)
+          var originGeo = geoResults[0], destGeo = geoResults[1];
+          var totalDistKm = haversineKm(originGeo.lat, originGeo.lon, destGeo.lat, destGeo.lon);
+          var totalHours = totalDistKm / avgSpeed;
+          var NUM_SEGMENTS = 4;
+          var waypoints = [];
+          for (var i = 0; i <= NUM_SEGMENTS; i++) {
+            var frac = i / NUM_SEGMENTS;
+            var wpLat = originGeo.lat + frac * (destGeo.lat - originGeo.lat);
+            var wpLon = originGeo.lon + frac * (destGeo.lon - originGeo.lon);
+            var hoursOffset = frac * totalHours;
+            var wpEta = new Date(depDt.getTime() + hoursOffset * 3600000);
+            var wpName = i === 0 ? originGeo.name : (i === NUM_SEGMENTS ? destGeo.name : '~' + Math.round(frac * totalDistKm) + ' km');
+            waypoints.push({ lat: wpLat, lon: wpLon, eta: wpEta, name: wpName, distKm: Math.round(frac * totalDistKm) });
+          }
+          var weatherResults = await Promise.all(waypoints.map(function (wp) { return fetchWaypointWeather(wp.lat, wp.lon, wp.eta); }));
+          renderRoute(waypoints, weatherResults, totalDistKm, totalHours, originGeo.name, destGeo.name, depDt);
+        } else {
+          // Multi-stop route (premium, backend or client-side fallback)
+          if (API_URL) {
+            var stopNames = geoResults.map(function (g) { return g.name; }).join(';');
+            var depIso = depDt.toISOString().slice(0, 16);
+            var resp = await fetch(
+              API_URL + '/route/multi?stops=' + encodeURIComponent(stopNames)
+              + '&departure=' + encodeURIComponent(depIso)
+              + '&avg_speed=' + avgSpeed
+            );
+            if (!resp.ok) { var ed = await resp.json().catch(function () { return {}; }); throw new Error(ed.detail || 'HTTP ' + resp.status); }
+            var data = await resp.json();
+            renderMultiRoute(data, depDt);
+          } else {
+            // Direct fallback: call Open-Meteo for each stop's waypoints client-side
+            await calcMultiRouteDirect(geoResults, depDt, avgSpeed);
+          }
+        }
+      } catch (e) {
+        if (resultEl) resultEl.innerHTML = '<div class="text-danger text-sm py-2 p-4 rounded-xl border border-danger bg-danger/10">⚠️ Eroare: ' + e.message + '</div>';
+      }
+    }
+
+    async function calcMultiRouteDirect(geoResults, depDt, avgSpeed) {
+      // Client-side multi-stop: build 3 waypoints per segment, fetch weather
+      var allSegments = [];
+      var elapsed = 0;
+      var totalDist = 0;
+      for (var s = 0; s < geoResults.length - 1; s++) {
+        var ori = geoResults[s], dst = geoResults[s + 1];
+        var segDist = haversineKm(ori.lat, ori.lon, dst.lat, dst.lon);
+        var segH = segDist / avgSpeed;
+        var N = 3;
+        var wps = [];
+        for (var i = 0; i <= N; i++) {
+          var f = i / N;
+          var wpLat = ori.lat + f * (dst.lat - ori.lat);
+          var wpLon = ori.lon + f * (dst.lon - ori.lon);
+          var wpEta = new Date(depDt.getTime() + (elapsed + f * segH) * 3600000);
+          var wpName = i === 0 ? ori.name : (i === N ? dst.name : '~' + Math.round(f * segDist + totalDist) + ' km');
+          wps.push({ lat: wpLat, lon: wpLon, eta: wpEta, name: wpName, distKm: Math.round(f * segDist + totalDist) });
+        }
+        var wxResults = await Promise.all(wps.map(function (wp) { return fetchWaypointWeather(wp.lat, wp.lon, wp.eta); }));
+        allSegments.push({ from: ori.name, to: dst.name, distKm: Math.round(segDist), waypoints: wps, weather: wxResults });
+        elapsed += segH; totalDist += segDist;
+      }
+      renderMultiRouteDirect(allSegments, geoResults, totalDist, elapsed, depDt);
+    }
+
+    function renderMultiRoute(data, depDt) {
+      var resultEl = document.getElementById('route-result');
+      if (!resultEl) return;
+      var durH = Math.floor(data.estimated_duration_h);
+      var durM = Math.round((data.estimated_duration_h - durH) * 60);
+      var html = '<div class="bg-card border border-border rounded-xl p-4 mb-3">';
+      html += '<div class="flex flex-wrap gap-3 text-sm text-muted mb-4">';
+      html += '<span>📍 ' + data.stops.map(function (s) { return '<strong class="text-gray-200">' + s.name + '</strong>'; }).join(' → ') + '</span>';
+      html += '<span>📏 <strong class="text-gray-200">~' + Math.round(data.total_distance_km) + ' km</strong></span>';
+      html += '<span>⏱️ <strong class="text-gray-200">~' + durH + 'h ' + durM + 'min</strong></span>';
+      html += '</div>';
+      data.segments.forEach(function (seg) {
+        html += '<div class="mb-4">';
+        html += '<div class="text-xs font-bold text-muted tracking-widest mb-2">'
+          + '▸ ' + seg.from + ' → ' + seg.to
+          + ' &nbsp;·&nbsp; ' + seg.distance_km + ' km'
+          + ' &nbsp;·&nbsp; ~' + Math.round(seg.duration_h * 60) + 'min</div>';
+        html += '<div class="flex gap-3 overflow-x-auto scroll-x pb-2">';
+        seg.waypoints.forEach(function (wp) {
+          var w = wp.weather;
+          if (!w) { html += '<div class="flex-shrink-0 w-36 bg-bg border border-border rounded-xl p-3 text-center"><div class="text-muted text-xs py-4">—</div></div>'; return; }
+          var ds = w.moto_score || 0;
+          var scoreColor = ds >= 80 ? '#22c55e' : ds >= 60 ? '#f97316' : ds >= 40 ? '#eab308' : '#ef4444';
+          var borderCls = ds < 40 ? 'border-danger' : ds < 60 ? 'border-warn' : 'border-ok';
+          var etaStr = wp.eta_iso ? wp.eta_iso.slice(11, 16) : '—';
+          html += '<div class="flex-shrink-0 bg-card border ' + borderCls + ' rounded-xl p-3 w-36 flex flex-col items-center gap-1">';
+          html += '<div class="text-xs font-bold text-muted">' + wp.name + '</div>';
+          html += '<div class="text-xs text-muted">ETA ' + etaStr + '</div>';
+          html += '<div style="font-size:2rem;line-height:1.2">' + (w.icon || '🌡️') + '</div>';
+          html += '<div class="font-display text-2xl font-bold text-gray-100">' + (w.temperature != null ? Math.round(w.temperature) + '°' : '—') + '</div>';
+          html += '<div class="text-xs text-muted text-center leading-tight">' + (w.description || '') + '</div>';
+          html += '<div class="mt-1 w-full score-bar-track"><div class="score-bar-fill" style="width:' + ds + '%;background:' + scoreColor + '"></div></div>';
+          html += '<div class="text-xs font-bold" style="color:' + scoreColor + '">' + ds + '</div>';
+          html += '</div>';
+        });
+        html += '</div></div>';
+      });
+      html += '<div class="text-xs text-muted/60 mt-2">⚠️ Distanța este calculată în linie dreaptă. Distanța reală pe drum poate fi cu 20-40% mai mare.</div>';
+      html += '</div>';
+      resultEl.innerHTML = html;
+    }
+
+    function renderMultiRouteDirect(segments, geoResults, totalDist, totalH, depDt) {
+      var resultEl = document.getElementById('route-result');
+      if (!resultEl) return;
+      var durH = Math.floor(totalH); var durM = Math.round((totalH - durH) * 60);
+      var html = '<div class="bg-card border border-border rounded-xl p-4 mb-3">';
+      html += '<div class="flex flex-wrap gap-3 text-sm text-muted mb-4">';
+      html += '<span>📍 ' + geoResults.map(function (g) { return '<strong class="text-gray-200">' + g.name + '</strong>'; }).join(' → ') + '</span>';
+      html += '<span>📏 <strong class="text-gray-200">~' + Math.round(totalDist) + ' km</strong></span>';
+      html += '<span>⏱️ <strong class="text-gray-200">~' + durH + 'h ' + durM + 'min</strong></span>';
+      html += '</div>';
+      segments.forEach(function (seg) {
+        html += '<div class="mb-4">';
+        html += '<div class="text-xs font-bold text-muted tracking-widest mb-2">▸ ' + seg.from + ' → ' + seg.to + ' &nbsp;·&nbsp; ' + seg.distKm + ' km</div>';
+        html += '<div class="flex gap-3 overflow-x-auto scroll-x pb-2">';
+        seg.waypoints.forEach(function (wp, wIdx) {
+          var w = seg.weather[wIdx];
+          if (!w) { html += '<div class="flex-shrink-0 w-36 bg-bg border border-border rounded-xl p-3 text-center"><div class="text-muted text-xs py-4">—</div></div>'; return; }
+          var ds = w.moto_score || 0;
+          var scoreColor = ds >= 80 ? '#22c55e' : ds >= 60 ? '#f97316' : ds >= 40 ? '#eab308' : '#ef4444';
+          var borderCls = ds < 40 ? 'border-danger' : ds < 60 ? 'border-warn' : 'border-ok';
+          var etaStr = wp.eta.getHours().toString().padStart(2, '0') + ':' + wp.eta.getMinutes().toString().padStart(2, '0');
+          html += '<div class="flex-shrink-0 bg-card border ' + borderCls + ' rounded-xl p-3 w-36 flex flex-col items-center gap-1">';
+          html += '<div class="text-xs font-bold text-muted">' + wp.name + '</div>';
+          html += '<div class="text-xs text-muted">ETA ' + etaStr + '</div>';
+          html += '<div style="font-size:2rem;line-height:1.2">' + w.icon + '</div>';
+          html += '<div class="font-display text-2xl font-bold text-gray-100">' + (w.temperature != null ? Math.round(w.temperature) + '°' : '—') + '</div>';
+          html += '<div class="text-xs text-muted text-center leading-tight">' + (w.description || '') + '</div>';
+          html += '<div class="mt-1 w-full score-bar-track"><div class="score-bar-fill" style="width:' + ds + '%;background:' + scoreColor + '"></div></div>';
+          html += '<div class="text-xs font-bold" style="color:' + scoreColor + '">' + ds + '</div>';
+          html += '</div>';
+        });
+        html += '</div></div>';
+      });
+      html += '<div class="text-xs text-muted/60 mt-2">⚠️ Distanța este calculată în linie dreaptă. Distanța reală pe drum poate fi cu 20-40% mai mare.</div>';
+      html += '</div>';
+      resultEl.innerHTML = html;
+    }
+
+    function renderRoute(waypoints, weatherResults, totalDistKm, totalHours, originName, destName, depDt) {
+      var resultEl = document.getElementById('route-result');
+      if (!resultEl) return;
+      var durH = Math.floor(totalHours);
+      var durM = Math.round((totalHours - durH) * 60);
+      var html = '<div class="bg-card border border-border rounded-xl p-4 mb-3">';
+      html += '<div class="flex flex-wrap gap-3 sm:gap-4 text-sm text-muted mb-4">';
+      html += '<span>📍 <strong class="text-gray-200">' + originName + '</strong> → <strong class="text-gray-200">' + destName + '</strong></span>';
+      html += '<span>📏 <strong class="text-gray-200">~' + Math.round(totalDistKm) + ' km</strong> <span class="text-xs">(linie dreaptă)</span></span>';
+      html += '<span>⏱️ <strong class="text-gray-200">~' + durH + 'h ' + durM + 'min</strong></span>';
+      html += '<span>🕐 Plecare: <strong class="text-gray-200">' + depDt.toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" }) + '</strong></span>';
+      html += '</div>';
+      html += '<div class="flex gap-3 overflow-x-auto scroll-x pb-2">';
+      waypoints.forEach(function (wp, idx) {
+        var w = weatherResults[idx];
+        if (!w) { html += '<div class="flex-shrink-0 w-36 bg-bg border border-border rounded-xl p-3 text-center"><div class="text-muted text-xs py-4">—</div></div>'; return; }
+        var ds = w.moto_score || 0;
+        var scoreColor = ds >= 80 ? '#22c55e' : ds >= 60 ? '#f97316' : ds >= 40 ? '#eab308' : '#ef4444';
+        var borderCls = ds < 40 ? 'border-danger' : ds < 60 ? 'border-warn' : 'border-ok';
+        var etaStr = wp.eta.getHours().toString().padStart(2, '0') + ':' + wp.eta.getMinutes().toString().padStart(2, '0');
+        var prec = w.precipitation_mm || 0;
+        html += '<div class="flex-shrink-0 bg-card border ' + borderCls + ' rounded-xl p-3 w-40 flex flex-col items-center gap-1">';
+        html += '<div class="text-xs font-bold tracking-widest ' + (idx === 0 ? 'text-ok' : idx === waypoints.length - 1 ? 'text-accent' : 'text-muted') + '">'
+          + (idx === 0 ? 'START' : idx === waypoints.length - 1 ? 'SOSIRE' : wp.distKm + ' km') + '</div>';
+        html += '<div class="text-xs text-gray-200 font-semibold text-center leading-tight">' + wp.name + '</div>';
+        html += '<div class="text-xs text-muted">ETA ' + etaStr + '</div>';
+        html += '<div style="font-size:2rem;line-height:1.2">' + w.icon + '</div>';
+        html += '<div class="font-display text-2xl font-bold text-gray-100">' + (w.temperature != null ? Math.round(w.temperature) + '°' : '—') + '</div>';
+        html += '<div class="text-xs text-muted text-center leading-tight">' + (w.description || '') + '</div>';
+        if (prec > 0) html += '<div class="text-xs text-warn">' + prec.toFixed(1) + ' mm 💧</div>';
+        html += '<div class="mt-2 w-full score-bar-track"><div class="score-bar-fill" style="width:' + ds + '%;background:' + scoreColor + '"></div></div>';
+        html += '<div class="text-xs font-bold mt-0.5" style="color:' + scoreColor + '">' + ds + '</div>';
+        html += '</div>';
+      });
+      html += '</div>';
+      html += '<div class="text-xs text-muted/60 mt-2">⚠️ Distanța este calculată în linie dreaptă. Distanța reală pe drum poate fi cu 20-40% mai mare.</div>';
+      html += '</div>';
+      resultEl.innerHTML = html;
+    }
+
+    function rainCls(p) { return p > 60 ? "text-danger" : p > 30 ? "text-warn" : "text-muted"; }
+    function windCls(g) { return g > 50 ? "text-danger" : g > 35 ? "text-warn" : "text-gray-100"; }
+    function tempCls(t) { return t < 5 ? "text-danger" : t > 32 ? "text-warn" : "text-gray-100"; }
+    function aqiCls(a) { return a >= 4 ? "text-danger" : a >= 3 ? "text-warn" : "text-ok"; }
+    function aqiLabel(a) { return ["—", "Bun", "Acceptabil", "Moderat", "Rău", "Foarte rău"][a] || "—"; }
+
+    function scoreHourly(feels, gusts, prec, code) {
+      var s = 100;
+      if (prec > 5) s -= 50; else if (prec > 1) s -= 30; else if (prec > 0.2) s -= 15;
+      if ([95, 96, 99].indexOf(code) > -1) s -= 40;
+      if (gusts > 70) s -= 30; else if (gusts > 50) s -= 15; else if (gusts > 35) s -= 8;
+      if (feels < 5) s -= 25; else if (feels < 10) s -= 12; else if (feels > 36) s -= 10;
+      if ([45, 48].indexOf(code) > -1) s -= 20;
+      return Math.max(0, Math.min(100, Math.round(s)));
+    }
+
+    function scoreInfo(s) {
+      if (s >= 80) return { label: "IDEAL PENTRU MERS", color: "#22c55e", cls: "text-ok", msg: "Condiții excelente. Drum liber! 🏍️" };
+      if (s >= 60) return { label: "ACCEPTABIL", color: "#f97316", cls: "text-accent", msg: "Condiții bune, atenție la schimbări." };
+      if (s >= 40) return { label: "CU PRECAUȚIE", color: "#eab308", cls: "text-warn", msg: "Mergi cu atenție sporită." };
+      return { label: "NU RECOMAND", color: "#ef4444", cls: "text-danger", msg: "Condiții periculoase pentru două roți." };
+    }
+
+    function fmtTime(iso) {
+      if (!iso) return "—";
+      var d = new Date(iso);
+      return d.getHours().toString().padStart(2, "0") + ":" + d.getMinutes().toString().padStart(2, "0");
+    }
+    function uvCls(uv) { return uv >= 8 ? "text-danger" : uv >= 5 ? "text-warn" : uv >= 3 ? "text-accent" : "text-ok"; }
+    function uvDesc(uv) {
+      if (uv >= 8) return "Foarte ridicat — protecție maximă";
+      if (uv >= 6) return "Ridicat — aplicați protecție solară";
+      if (uv >= 3) return "Moderat";
+      return "Scăzut";
+    }
+
+    function verdictBadge(s) {
+      if (s >= 75) return '<span class="inline-block px-2 sm:px-3 py-0.5 sm:py-1 rounded-md text-xs font-semibold sm:tracking-widest bg-ok/15 text-ok whitespace-nowrap">✓ OK</span>';
+      if (s >= 45) return '<span class="inline-block px-2 sm:px-3 py-0.5 sm:py-1 rounded-md text-xs font-semibold sm:tracking-widest bg-warn/15 text-warn whitespace-nowrap"><span class="hidden sm:inline">⚠ PRECAUȚIE</span><span class="sm:hidden">⚠</span></span>';
+      return '<span class="inline-block px-2 sm:px-3 py-0.5 sm:py-1 rounded-md text-xs font-semibold sm:tracking-widest bg-danger/15 text-danger whitespace-nowrap"><span class="hidden sm:inline">✗ EVITĂ</span><span class="sm:hidden">✗</span></span>';
+    }
+
+    function gaugeHtml(score, color) {
+      var r = 54, cx = 64, cy = 64;
+      var circ = 2 * Math.PI * r;
+      var dash = circ * (score / 100);
+      var gap = circ - dash;
+      return '<svg viewBox="0 0 128 128" class="w-40 h-40 -rotate-90 drop-shadow-lg">'
+        + '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="#232731" stroke-width="10"/>'
+        + '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="' + color + '" stroke-width="10"'
+        + ' stroke-linecap="round" stroke-dasharray="' + dash + ' ' + gap + '" class="gauge-ring"/>'
+        + '</svg>';
+    }
+
+    // -----------------------------------------------------------------------
+    // WMO code helpers (mirror of weather_service.py)
+    // -----------------------------------------------------------------------
+    var WMO_MAP = {
+      0: ["Cer senin", "☀️"], 1: ["Predominant senin", "🌤️"], 2: ["Parțial înnorat", "⛅"],
+      3: ["Înnorat", "☁️"], 45: ["Ceață", "🌫️"], 48: ["Ceață cu chiciură", "🌫️"],
+      51: ["Burniță ușoară", "🌦️"], 53: ["Burniță moderată", "🌦️"], 55: ["Burniță densă", "🌧️"],
+      61: ["Ploaie ușoară", "🌧️"], 63: ["Ploaie moderată", "🌧️"], 65: ["Ploaie torențială", "🌧️"],
+      71: ["Ninsoare ușoară", "🌨️"], 73: ["Ninsoare moderată", "❄️"], 75: ["Ninsoare puternică", "❄️"],
+      80: ["Averse ușoare", "🌦️"], 81: ["Averse moderate", "🌧️"], 82: ["Averse violente", "⛈️"],
+      95: ["Furtună", "⛈️"], 96: ["Furtună cu grindină", "⛈️"], 99: ["Furtună puternică cu grindină", "⛈️"],
+    };
+    function wmoDesc(c) { return ((WMO_MAP[c] || [])[0]) || "—"; }
+    function wmoIcon(c) { return ((WMO_MAP[c] || [])[1]) || "🌡️"; }
+    function windDirLabel(deg) {
+      if (deg == null) return "—";
+      return ["N", "NE", "E", "SE", "S", "SV", "V", "NV"][Math.round(deg / 45) % 8];
+    }
+    function beaufortScale(kmh) {
+      if (kmh == null) return "—";
+      var mps = kmh / 3.6;
+      var sc = [0.3, 1.5, 3.4, 5.4, 7.9, 10.7, 13.8, 17.1, 20.7, 24.4, 28.4, 32.6];
+      for (var i = 0; i < sc.length; i++) if (mps < sc[i]) return String(i);
+      return "12";
+    }
+    function motoLabel(s) {
+      if (s >= 80) return "IDEAL"; if (s >= 60) return "OK";
+      if (s >= 40) return "ACCEPTABIL"; if (s >= 20) return "RISCANT"; return "EVITĂ";
+    }
+    function omSafe(lst, i) { return (lst && i < lst.length) ? lst[i] : null; }
+
+    // SVG compass rose with directional arrow
+    function windCompassSvg(deg) {
+      if (deg == null) return '';
+      // Arrow points FROM where wind comes; rotate so 0° = North (up)
+      var arrowRad = (deg - 90) * Math.PI / 180;
+      var cos = Math.cos(arrowRad), sin = Math.sin(arrowRad);
+      var tx = 12 + 8 * cos, ty = 12 + 8 * sin; // tip (direction wind goes TO)
+      var tx1 = 12 - 5 * cos, ty1 = 12 - 5 * sin; // tail
+      return '<svg viewBox="0 0 24 24" class="inline-block w-5 h-5 align-middle" style="vertical-align:middle;flex-shrink:0">'
+        + '<circle cx="12" cy="12" r="10" fill="none" stroke="#2d3344" stroke-width="1.5"/>'
+        + '<text x="12" y="5.2" text-anchor="middle" dominant-baseline="middle" fill="#4b5563" font-size="3.5" font-family="Inter,sans-serif" font-weight="600">N</text>'
+        + '<text x="12" y="20.5" text-anchor="middle" dominant-baseline="middle" fill="#374151" font-size="3.5" font-family="Inter,sans-serif">S</text>'
+        + '<text x="20.5" y="12.5" text-anchor="middle" dominant-baseline="middle" fill="#374151" font-size="3.5" font-family="Inter,sans-serif">E</text>'
+        + '<text x="3.5" y="12.5" text-anchor="middle" dominant-baseline="middle" fill="#374151" font-size="3.5" font-family="Inter,sans-serif">V</text>'
+        + '<line x1="' + tx1.toFixed(2) + '" y1="' + ty1.toFixed(2) + '" x2="' + tx.toFixed(2) + '" y2="' + ty.toFixed(2) + '" stroke="#f97316" stroke-width="2" stroke-linecap="round"/>'
+        + '<circle cx="' + tx.toFixed(2) + '" cy="' + ty.toFixed(2) + '" r="1.8" fill="#f97316"/>'
+        + '</svg>';
+    }
+
+    // Skeleton loading layout
+    function skeletonHtml() {
+      var col = '<div class="skeleton h-28 flex-1 rounded-xl"></div>';
+      var card = '<div class="skeleton w-24 h-32 flex-shrink-0 rounded-xl"></div>';
+      return '<div class="space-y-5 py-2">'
+        + '<div class="skeleton h-14 w-72 rounded-xl"></div>'
+        + '<div class="skeleton h-52 w-full rounded-2xl"></div>'
+        + '<div class="grid grid-cols-2 sm:grid-cols-4 gap-3">' + col + col + col + col + '</div>'
+        + '<div class="skeleton h-48 w-full rounded-xl"></div>'
+        + '<div class="flex gap-3 overflow-hidden">' + card + card + card + card + card + '</div>'
+        + '<div class="space-y-3">'
+        + '<div class="skeleton h-14 w-full rounded-xl"></div>'.repeat(3)
+        + '</div>'
+        + '</div>';
+    }
+
+    function gaugeGlowCls(score) {
+      if (score >= 80) return 'gauge-glow-ok';
+      if (score >= 60) return 'gauge-glow-warn';
+      if (score >= 40) return 'gauge-glow-caution';
+      return 'gauge-glow-danger';
+    }
+
+    // MET Norway (api.met.no) symbol → WMO code
+    var MET_SYMBOL_WMO = {
+      clearsky: 0, fair: 1, partlycloudy: 2, cloudy: 3, fog: 45,
+      lightrainshowers: 80, rainshowers: 81, heavyrainshowers: 82,
+      lightrainshowersandthunder: 95, rainshowersandthunder: 95, heavyrainshowersandthunder: 99,
+      lightsleetshowers: 80, sleetshowers: 81, heavysleetshowers: 82,
+      lightsnowshowers: 71, snowshowers: 73, heavysnowshowers: 75,
+      lightsnowshowersandthunder: 95, snowshowersandthunder: 95, heavysnowshowersandthunder: 99,
+      lightrain: 61, rain: 63, heavyrain: 65,
+      lightrainandthunder: 95, rainandthunder: 95, heavyrainandthunder: 95,
+      lightsleet: 61, sleet: 63, heavysleet: 65,
+      lightsleetandthunder: 95, sleetandthunder: 95, heavysleetandthunder: 99,
+      lightsnow: 71, snow: 73, heavysnow: 75,
+      lightsnowandthunder: 95, snowandthunder: 95, heavysnowandthunder: 99,
+    };
+    function metSymToWmo(sym) {
+      if (!sym) return null;
+      var v = MET_SYMBOL_WMO[sym.replace(/_day$|_night$|_polartwilight$/, '')];
+      return v !== undefined ? v : null;
+    }
+    async function geocodeDirect(city) {
+      var resp = await fetch(
+        "https://geocoding-api.open-meteo.com/v1/search?name=" +
+        encodeURIComponent(city) + "&count=1&language=ro"
+      );
+      if (!resp.ok) throw new Error("Geocoding eșuat: HTTP " + resp.status);
+      var data = await resp.json();
+      if (!data.results || !data.results.length)
+        throw new Error("Orașul '" + city + "' nu a fost găsit.");
+      var r = data.results[0];
+      return {
+        lat: r.latitude, lon: r.longitude, name: r.name,
+        country: r.country_code || "", timezone: r.timezone || "auto"
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // OWM direct helpers
+    // -----------------------------------------------------------------------
+    function _wavg(vals, weights) {
+      var tw = 0, tv = 0;
+      for (var i = 0; i < vals.length; i++) {
+        if (vals[i] != null) { tv += vals[i] * weights[i]; tw += weights[i]; }
+      }
+      return tw ? Math.round(tv / tw * 100) / 100 : null;
+    }
+    function owmIdToWmo(id) {
+      if (id >= 200 && id < 300) return 95;
+      if (id >= 300 && id < 400) return 53;
+      if (id === 500) return 61; if (id === 501) return 63; if (id >= 500 && id < 510) return 65;
+      if (id >= 510 && id < 600) return 80;
+      if (id === 600) return 71; if (id === 601) return 73; if (id >= 600 && id < 700) return 75;
+      if (id >= 700 && id < 800) return 45;
+      if (id === 800) return 0; if (id === 801) return 1; if (id === 802) return 2;
+      return 3;
+    }
+    async function fetchOWMDirect(lat, lon, key) {
+      try {
+        var base = "https://api.openweathermap.org";
+        var p = "lat=" + lat + "&lon=" + lon + "&appid=" + key + "&units=metric&lang=ro";
+        var results = await Promise.allSettled([
+          fetch(base + "/data/2.5/weather?" + p),
+          fetch(base + "/data/2.5/forecast?" + p + "&cnt=40"),
+          fetch(base + "/data/2.5/air_pollution?lat=" + lat + "&lon=" + lon + "&appid=" + key),
+        ]);
+        var cur = results[0].status === "fulfilled" && results[0].value.ok ? await results[0].value.json() : null;
+        var fc = results[1].status === "fulfilled" && results[1].value.ok ? await results[1].value.json() : null;
+        var air = results[2].status === "fulfilled" && results[2].value.ok ? await results[2].value.json() : null;
+        return { current: cur, forecast: fc, air: air };
+      } catch (_) { return { current: null, forecast: null, air: null }; }
+    }
+
+    async function fetchMET(lat, lon) {
+      // MET Norway Locationforecast 2.0 — free, no key, CORS supported, ECMWF model
+      try {
+        var resp = await fetch(
+          "https://api.met.no/weatherapi/locationforecast/2.0/compact?" +
+          "lat=" + lat.toFixed(4) + "&lon=" + lon.toFixed(4)
+        );
+        if (!resp.ok) return null;
+        return await resp.json();
+      } catch (_) { return null; }
+    }
+
+    async function fetchDirect(lat, lon, cityName) {
+      var params = new URLSearchParams({
+        latitude: lat, longitude: lon,
+        current: "temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,"
+          + "wind_gusts_10m,wind_direction_10m,precipitation,weather_code,surface_pressure,visibility",
+        hourly: "temperature_2m,apparent_temperature,precipitation_probability,"
+          + "precipitation,weather_code,wind_speed_10m,wind_gusts_10m,uv_index",
+        daily: "weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,"
+          + "apparent_temperature_min,precipitation_sum,wind_speed_10m_max,wind_gusts_10m_max,"
+          + "precipitation_probability_max,sunrise,sunset",
+        timezone: "auto", forecast_days: isPremium() ? 14 : 7, wind_speed_unit: "kmh",
+      });
+      var [omResp, owm, metData] = await Promise.all([
+        fetch("https://api.open-meteo.com/v1/forecast?" + params),
+        OWM_API_KEY ? fetchOWMDirect(lat, lon, OWM_API_KEY) : Promise.resolve({ current: null, forecast: null, air: null }),
+        fetchMET(lat, lon),
+      ]);
+      if (!omResp.ok) throw new Error("Open-Meteo HTTP " + omResp.status);
+      var om = await omResp.json();
+      if (om.error) throw new Error("Open-Meteo: " + (om.reason || "eroare"));
+      var owmCur = owm.current, owmFc = owm.forecast, owmAir = owm.air;
+      var metSeries = metData && metData.properties ? metData.properties.timeseries || [] : [];
+      var met0 = metSeries[0] || null;
+      var metInst = met0 ? (met0.data.instant.details || {}) : {};
+      var met1h = met0 ? (met0.data.next_1_hours || met0.data.next_6_hours || {}) : {};
+
+      // ---- current: weighted merge of 3 sources (OM + OWM + MET Norway) ----
+      var c = om.current || {};
+      var metWind = metInst.wind_speed != null ? metInst.wind_speed * 3.6 : null;
+      var metGust = metInst.wind_speed_of_gust != null ? metInst.wind_speed_of_gust * 3.6 : null;
+      var metPrecCur = met1h.details ? (met1h.details.precipitation_amount || 0) : 0;
+      var metCode = met1h.summary ? metSymToWmo(met1h.summary.symbol_code) : null;
+
+      var temp = _wavg([c.temperature_2m, owmCur ? owmCur.main.temp : null, metInst.air_temperature], [1, 1, 1.2]);
+      var feels = _wavg([c.apparent_temperature, owmCur ? owmCur.main.feels_like : null], [1, 1]);
+      var humidity = _wavg([c.relative_humidity_2m, owmCur ? owmCur.main.humidity : null, metInst.relative_humidity], [1, 1, 1]);
+      var windSpeed = _wavg([c.wind_speed_10m, owmCur ? owmCur.wind.speed * 3.6 : null, metWind], [1, 1, 1.2]);
+      var windGusts = _wavg([c.wind_gusts_10m, owmCur ? (owmCur.wind.gust || owmCur.wind.speed) * 3.6 : null, metGust], [1.2, 0.8, 1.2]);
+      var prec = _wavg([c.precipitation || 0, owmCur ? ((owmCur.rain && owmCur.rain["1h"]) || 0) : null, metPrecCur], [1, 1, 1.2]) || 0;
+      var omCode = c.weather_code;
+      var owmCode = owmCur ? owmIdToWmo(owmCur.weather[0].id) : null;
+      // Use most severe code across all sources (safety-first for motorcyclists)
+      var allCodes = [omCode, owmCode, metCode].filter(function (x) { return x != null; });
+      var finalCode = allCodes.length ? allCodes.reduce(function (a, b) { return b > a ? b : a; }) : 0;
+      var description = owmCur
+        ? owmCur.weather[0].description.charAt(0).toUpperCase() + owmCur.weather[0].description.slice(1)
+        : wmoDesc(finalCode);
+      var pressure = owmCur ? owmCur.main.pressure : (metInst.air_pressure_at_sea_level || c.surface_pressure);
+      var visKm = owmCur && owmCur.visibility != null
+        ? Math.round(owmCur.visibility / 100) / 10
+        : (c.visibility != null ? Math.round(c.visibility / 100) / 10 : null);
+      var aqi = owmAir && owmAir.list && owmAir.list.length ? owmAir.list[0].main.aqi : null;
+      var motoScore = scoreHourly(feels, windGusts, prec, finalCode);
+      var sources = ["open-meteo"];
+      if (owmCur) sources.push("openweathermap");
+      if (met0) sources.push("met-norway");
+      var current = {
+        temperature: temp, feels_like: feels, humidity: humidity,
+        wind_speed_kmh: windSpeed, wind_gusts_kmh: windGusts,
+        wind_direction_deg: c.wind_direction_10m, wind_direction: windDirLabel(c.wind_direction_10m),
+        beaufort: beaufortScale(windSpeed), precipitation_mm: prec,
+        weather_code: finalCode, description: description, icon: wmoIcon(finalCode),
+        pressure_hpa: pressure, visibility_km: visKm, aqi: aqi,
+        moto_score: motoScore, moto_label: motoLabel(motoScore), sources: sources,
+        gear_recommendation: gearRecommendationClient(feels, windGusts, prec, finalCode),
+        road_surface_temp: roadSurfaceTempClient(temp, humidity, finalCode, prec),
+      };
+
+      // ---- build MET lookups by date and by time (normalize to YYYY-MM-DDTHH:MM) ----
+      var metByDate = {}, metByTime = {};
+      metSeries.forEach(function (ts) {
+        var d = ts.time.slice(0, 10);
+        (metByDate[d] = metByDate[d] || []).push(ts);
+        metByTime[ts.time.slice(0, 16)] = ts;
+      });
+
+      // ---- daily: merge Open-Meteo daily with OWM 3h + MET hourly ----
+      var daily = [];
+      var dd = om.daily || {};
+      var dates = dd.time || [];
+      var owmByDate = {};
+      if (owmFc && owmFc.list) {
+        owmFc.list.forEach(function (it) {
+          var d = it.dt_txt.slice(0, 10);
+          (owmByDate[d] = owmByDate[d] || []).push(it);
+        });
+      }
+      for (var i = 0; i < dates.length; i++) {
+        var dcode = omSafe(dd.weather_code, i);
+        var tMax = omSafe(dd.temperature_2m_max, i);
+        var tMin = omSafe(dd.temperature_2m_min, i);
+        var famax = omSafe(dd.apparent_temperature_max, i);
+        var famin = omSafe(dd.apparent_temperature_min, i);
+        var gustMax = omSafe(dd.wind_gusts_10m_max, i);
+        var precSum = omSafe(dd.precipitation_sum, i) || 0;
+        var owmItems = owmByDate[dates[i]] || [];
+        var metItems = metByDate[dates[i]] || [];
+        if (owmItems.length) {
+          var owmTemps = owmItems.map(function (x) { return x.main.temp; });
+          var owmFeels = owmItems.map(function (x) { return x.main.feels_like; });
+          tMax = _wavg([tMax, Math.max.apply(null, owmTemps)], [1, 1]);
+          tMin = _wavg([tMin, Math.min.apply(null, owmTemps)], [1, 1]);
+          famax = _wavg([famax, Math.max.apply(null, owmFeels)], [1, 1]);
+          famin = _wavg([famin, Math.min.apply(null, owmFeels)], [1, 1]);
+          var precOwm = owmItems.reduce(function (s, x) { return s + ((x.rain && x.rain["3h"]) || 0) + ((x.snow && x.snow["3h"]) || 0); }, 0);
+          precSum = _wavg([precSum, precOwm], [1, 1]) || 0;
+          var gustOwm = Math.max.apply(null, owmItems.map(function (x) { return (x.wind.gust || x.wind.speed) * 3.6; }));
+          gustMax = _wavg([gustMax, gustOwm], [1.2, 0.8]);
+          var codeFreq = {}, modeCode = dcode;
+          owmItems.forEach(function (x) {
+            var wc = owmIdToWmo(x.weather[0].id);
+            codeFreq[wc] = (codeFreq[wc] || 0) + 1;
+            if (codeFreq[wc] > (codeFreq[modeCode] || 0)) modeCode = wc;
+          });
+          dcode = modeCode;
+        }
+        if (metItems.length) {
+          var metTempsD = metItems.map(function (ts) { return ts.data.instant.details.air_temperature; }).filter(function (x) { return x != null; });
+          var metGustsD = metItems.map(function (ts) { var g = ts.data.instant.details.wind_speed_of_gust, w = ts.data.instant.details.wind_speed; return (g || w) != null ? (g || w) * 3.6 : null; }).filter(function (x) { return x != null; });
+          var metPrecD = metItems.reduce(function (s, ts) { var p = ts.data.next_1_hours || ts.data.next_6_hours; return s + (p && p.details ? (p.details.precipitation_amount || 0) : 0); }, 0);
+          if (metTempsD.length) {
+            tMax = _wavg([tMax, Math.max.apply(null, metTempsD)], [1, 1.2]);
+            tMin = _wavg([tMin, Math.min.apply(null, metTempsD)], [1, 1.2]);
+          }
+          if (metGustsD.length) gustMax = _wavg([gustMax, Math.max.apply(null, metGustsD)], [1, 1.2]);
+          precSum = _wavg([precSum, metPrecD], [1, 1.2]) || 0;
+          var metDayCodes = metItems.map(function (ts) { var p = ts.data.next_1_hours || ts.data.next_6_hours; return p && p.summary ? metSymToWmo(p.summary.symbol_code) : null; }).filter(function (x) { return x != null; });
+          if (metDayCodes.length) { var metMax = metDayCodes.reduce(function (a, b) { return b > a ? b : a; }); if (metMax > dcode) dcode = metMax; }
+        }
+        var ds = scoreHourly(famax, gustMax, precSum, dcode);
+        daily.push({
+          date: dates[i], weather_code: dcode, icon: wmoIcon(dcode), description: wmoDesc(dcode),
+          temp_max: tMax, temp_min: tMin, feels_max: famax, feels_min: famin,
+          precipitation_mm: Math.round(precSum * 10) / 10,
+          precipitation_probability: omSafe(dd.precipitation_probability_max, i) || 0,
+          wind_max_kmh: omSafe(dd.wind_speed_10m_max, i), wind_gusts_kmh: gustMax,
+          moto_score: ds, moto_label: motoLabel(ds),
+          sunrise: omSafe(dd.sunrise, i), sunset: omSafe(dd.sunset, i),
+        });
+      }
+
+      // ---- hourly: Open-Meteo 1h merged with MET Norway where available ----
+      var hourly = [];
+      var hh = om.hourly || {};
+      var times = hh.time || [];
+      for (var i = 0; i < times.length; i++) {
+        var hcode = omSafe(hh.weather_code, i);
+        var metH = metByTime[times[i]] || null;
+        var metHInst = metH ? (metH.data.instant.details || {}) : {};
+        var metH1h = metH ? (metH.data.next_1_hours || metH.data.next_6_hours || {}) : {};
+        var metHCode = metH1h.summary ? metSymToWmo(metH1h.summary.symbol_code) : null;
+        var hfinalCode = (metHCode != null && metHCode > hcode) ? metHCode : hcode;
+        hourly.push({
+          time: times[i],
+          temperature: _wavg([omSafe(hh.temperature_2m, i), metHInst.air_temperature], [1, 1.2]),
+          feels_like: omSafe(hh.apparent_temperature, i),
+          precipitation_mm: _wavg([omSafe(hh.precipitation, i), metH1h.details ? (metH1h.details.precipitation_amount || 0) : null], [1, 1.2]),
+          precipitation_probability: omSafe(hh.precipitation_probability, i),
+          wind_speed_kmh: _wavg([omSafe(hh.wind_speed_10m, i), metHInst.wind_speed != null ? metHInst.wind_speed * 3.6 : null], [1, 1.2]),
+          wind_gusts_kmh: _wavg([omSafe(hh.wind_gusts_10m, i), metHInst.wind_speed_of_gust != null ? metHInst.wind_speed_of_gust * 3.6 : null], [1, 1.2]),
+          weather_code: hfinalCode, icon: wmoIcon(hfinalCode), description: wmoDesc(hfinalCode),
+          uv_index: omSafe(hh.uv_index, i),
+        });
+      }
+
+      // ---- enrich current with UV + frost risk from hourly data ----
+      var nowIso = new Date().toISOString().slice(0, 13);
+      var uvNow = null;
+      for (var j = 0; j < hourly.length; j++) {
+        if (hourly[j].time.slice(0, 13) >= nowIso) { uvNow = hourly[j].uv_index; break; }
+      }
+      current.uv_index = uvNow;
+      current.frost_risk = (temp != null && temp < 4 && humidity != null && humidity > 75);
+
+      return {
+        city: cityName, latitude: lat, longitude: lon,
+        timezone: om.timezone || "UTC", current: current, daily: daily, hourly: hourly
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // Geolocation
+    // -----------------------------------------------------------------------
+    function geolocate() {
+      if (!navigator.geolocation) { alert("Geolocalizare indisponibilă în acest browser."); return; }
+      var btn = document.querySelector('button[onclick="geolocate()"]');
+      if (btn) btn.textContent = "⏳";
+      navigator.geolocation.getCurrentPosition(function (pos) {
+        LAT = pos.coords.latitude;
+        LON = pos.coords.longitude;
+        CITY = "Locația mea";
+        // Reverse geocode via Nominatim (OpenStreetMap)
+        fetch("https://nominatim.openstreetmap.org/reverse?lat=" + LAT + "&lon=" + LON + "&format=json")
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            var a = d.address || {};
+            CITY = a.city || a.town || a.village || a.county || "Locația mea";
+            document.getElementById("city-in").value = CITY;
+            if (btn) btn.textContent = "📍";
+            loadWeather();
+          }).catch(function () { if (btn) btn.textContent = "📍"; loadWeather(); });
+      }, function () {
+        if (btn) btn.textContent = "📍";
+        alert("Nu am putut obține locația. Verifică permisiunile browserului.");
+      });
+    }
+
+    // -----------------------------------------------------------------------
+    // Favourite / recent cities (localStorage)
+    // -----------------------------------------------------------------------
+    var MAX_FAVS = 5;
+    function _getFavs() {
+      try { return JSON.parse(localStorage.getItem("motoFavs") || "[]"); } catch (_) { return []; }
+    }
+    function _saveFavs(list) { localStorage.setItem("motoFavs", JSON.stringify(list)); }
+    function saveCity() {
+      if (!CITY || CITY === "Locația mea") return;
+      var favs = _getFavs().filter(function (f) { return f.name !== CITY; });
+      favs.unshift({ name: CITY, lat: LAT, lon: LON });
+      _saveFavs(favs.slice(0, MAX_FAVS));
+    }
+    function loadFav(name, lat, lon) {
+      CITY = name; LAT = lat; LON = lon;
+      document.getElementById("city-in").value = name;
+      loadWeather();
+    }
+    function removeFav(name) {
+      _saveFavs(_getFavs().filter(function (f) { return f.name !== name; }));
+      renderFavsBar();
+    }
+    function renderFavsBar() {
+      var el = document.getElementById("favs-bar");
+      if (!el) return;
+      var favs = _getFavs();
+      if (!favs.length) { el.innerHTML = ""; return; }
+      var html = '<div class="flex gap-2 flex-wrap items-center">';
+      html += '<span class="text-xs text-muted tracking-widest mr-1">★</span>';
+      favs.forEach(function (f) {
+        html += '<span class="flex items-center gap-0.5 bg-card border border-border rounded-lg text-xs">';
+        html += '<button onclick="loadFav(' + JSON.stringify(f.name) + ',' + f.lat + ',' + f.lon + ')"'
+          + ' class="px-2 py-1 text-gray-300 hover:text-accent transition-colors">' + f.name + '</button>';
+        html += '<button onclick="removeFav(' + JSON.stringify(f.name) + ')"'
+          + ' class="pr-2 text-muted hover:text-danger transition-colors text-sm leading-none">&times;</button>';
+        html += '</span>';
+      });
+      html += '</div>';
+      el.innerHTML = html;
+    }
+
+    // -----------------------------------------------------------------------
+    // Best riding window finder
+    // -----------------------------------------------------------------------
+    function _findWindowForSlice(slice) {
+      if (!slice || slice.length < 1) return null;
+      var scores = slice.map(function (h) {
+        return scoreHourly(h.feels_like, h.wind_gusts_kmh, h.precipitation_mm, h.weather_code);
+      });
+      var bestAvg = -1, bestStart = -1, bestLen = 0;
+      for (var i = 0; i < scores.length; i++) {
+        if (scores[i] < 45) continue;
+        var j = i;
+        while (j < scores.length && scores[j] >= 45) j++;
+        var len = j - i;
+        var sum = 0; for (var k = i; k < j; k++) sum += scores[k];
+        var avg = sum / len;
+        if (avg > bestAvg || (avg === bestAvg && len > bestLen)) {
+          bestAvg = avg; bestStart = i; bestLen = len;
+        }
+        i = j - 1;
+      }
+      if (bestStart === -1) return null;
+      var from = slice[bestStart];
+      var to = slice[Math.min(bestStart + bestLen - 1, slice.length - 1)];
+      return {
+        avg: Math.round(bestAvg), len: bestLen,
+        fromH: new Date(from.time).getHours().toString().padStart(2, "0") + ":00",
+        toH: new Date(to.time).getHours().toString().padStart(2, "0") + ":00",
+      };
+    }
+    function findBestWindow(hourly) {
+      if (!hourly || hourly.length < 2) return null;
+      var now = new Date();
+      var today = now.toISOString().slice(0, 10);
+      var todayH = hourly.filter(function (h) { return h.time.startsWith(today) && new Date(h.time) >= now; });
+      return _findWindowForSlice(todayH);
+    }
+    function findTomorrowWindow(hourly) {
+      if (!hourly || hourly.length < 2) return null;
+      var tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+      var tomorrowStr = tomorrow.toISOString().slice(0, 10);
+      var slice = hourly.filter(function (h) { return h.time.startsWith(tomorrowStr); });
+      return _findWindowForSlice(slice);
+    }
+
+    // -----------------------------------------------------------------------
+    async function searchCity() {
+      var q = document.getElementById("city-in").value.trim();
+      if (!q) return;
+      try {
+        var geo;
+        if (API_URL === null) {
+          geo = await geocodeDirect(q);
+        } else {
+          var r;
+          try { r = await fetch(API_URL + "/geocode?city=" + encodeURIComponent(q)); }
+          catch (_) { throw new Error(BACKEND_UNAVAILABLE_MSG); }
+          if (!r.ok) {
+            var errMsg = "HTTP " + r.status;
+            try { var ed = await r.json(); errMsg = ed.detail || errMsg; } catch (_) { }
+            throw new Error(errMsg);
+          }
+          geo = await r.json();
+        }
+        LAT = geo.lat; LON = geo.lon;
+        CITY = geo.name + (geo.country && geo.country !== "RO" ? ", " + geo.country : "");
+        saveCity(); renderFavsBar();
+        loadWeather();
+      } catch (e) { alert("Eroare geocoding: " + e.message); }
+    }
+
+    document.getElementById("city-in").addEventListener("keydown", function (e) { if (e.key === "Enter") searchCity(); });
+
+    async function loadWeather() {
+      document.getElementById("app").innerHTML = skeletonHtml();
+      try {
+        var d;
+        if (API_URL === null) {
+          // No backend configured — call Open-Meteo directly from the browser
+          d = await fetchDirect(LAT, LON, CITY);
+        } else {
+          var days = isPremium() ? 14 : 7;
+          var url = API_URL + "/weather?lat=" + LAT + "&lon=" + LON + "&city=" + encodeURIComponent(CITY) + "&days=" + days;
+          var res;
+          try { res = await fetch(url); }
+          catch (_) { throw new Error(BACKEND_UNAVAILABLE_MSG); }
+          if (!res.ok) {
+            var errMsg = "HTTP " + res.status;
+            try { var ed = await res.json(); errMsg = ed.detail || errMsg; } catch (_) { }
+            throw new Error(errMsg);
+          }
+          d = await res.json();
+        }
+        render(d);
+        saveCity(); renderFavsBar();
+        _updatePremiumUI();
+        // Sync route planner origin with current city
+        var routeStop0 = document.getElementById('route-stop-0');
+        if (routeStop0 && !routeStop0.value) routeStop0.value = CITY;
+        // Record fetch time for visibility-based refresh
+        try { localStorage.setItem('lastWeatherFetch', String(Date.now())); } catch (_) { }
+        document.getElementById("upd").innerHTML =
+          'ACTUALIZAT: ' + new Date().toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" })
+          + ' &nbsp;<span id="refresh-pill" class="refresh-pill text-muted cursor-pointer" onclick="loadWeather()" title="Refresh acum">↻ auto în 30m</span>';
+        startAutoRefresh();
+      } catch (e) {
+        document.getElementById("app").innerHTML =
+          '<div class="mt-4 p-5 rounded-xl border border-danger bg-danger/10 text-danger text-base font-semibold">'
+          + '⚠️ Eroare la încărcare: ' + e.message
+          + '</div>'
+          + '<button onclick="loadWeather()" class="mt-4 bg-accent hover:bg-orange-400 text-black font-display font-bold'
+          + ' tracking-wider px-6 py-2 rounded-lg transition-colors">RETRY</button>';
+      }
+    }
+
+    function setBackendUrl() {
+      var el = document.getElementById('backend-url-cfg');
+      var val = el ? el.value.trim().replace(/\/$/, '') : '';
+      if (val) {
+        try { new URL(val); } catch (_) { alert("URL invalid. Introdu o adresă completă, ex: https://your-app.up.railway.app"); return; }
+        localStorage.setItem('motoMeteoBackendUrl', val); API_URL = val;
+      } else { localStorage.removeItem('motoMeteoBackendUrl'); API_URL = _resolveApiUrl(); }
+      loadWeather();
+    }
+
+    function clearBackendUrl() {
+      localStorage.removeItem('motoMeteoBackendUrl');
+      API_URL = _resolveApiUrl();
+      loadWeather();
+    }
+
+    function renderChart(hourly) {
+      var canvas = document.getElementById("tempChart");
+      if (!canvas || typeof Chart === "undefined") return;
+      var labels = hourly.map(function (h) {
+        var t = new Date(h.time);
+        return t.getHours().toString().padStart(2, "0") + ":00";
+      });
+      if (_chart) { _chart.destroy(); }
+      _chart = new Chart(canvas, {
+        type: "line",
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: "Temperatură (°C)", data: hourly.map(function (h) { return h.temperature != null ? Math.round(h.temperature * 10) / 10 : null; }),
+              borderColor: "#f97316", backgroundColor: "rgba(249,115,22,0.10)", tension: 0.4, pointRadius: 3, yAxisID: "y"
+            },
+            {
+              label: "Resimțit (°C)", data: hourly.map(function (h) { return h.feels_like != null ? Math.round(h.feels_like * 10) / 10 : null; }),
+              borderColor: "#60a5fa", backgroundColor: "transparent", tension: 0.4, pointRadius: 2, borderDash: [5, 4], yAxisID: "y"
+            },
+            {
+              label: "Rafale vânt (km/h)", data: hourly.map(function (h) { return h.wind_gusts_kmh != null ? Math.round(h.wind_gusts_kmh) : null; }),
+              borderColor: "#a78bfa", backgroundColor: "rgba(167,139,250,0.08)", tension: 0.4, pointRadius: 0, borderWidth: 1.5, borderDash: [3, 3], yAxisID: "y3"
+            },
+            {
+              label: "Prob. ploaie (%)", data: hourly.map(function (h) { return h.precipitation_probability || 0; }),
+              borderColor: "#3b82f6", backgroundColor: "rgba(59,130,246,0.12)", tension: 0.4, pointRadius: 0, yAxisID: "y2", fill: true
+            }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { mode: "index", intersect: false },
+          plugins: { legend: { labels: { color: "#9ca3af", font: { family: "Inter", size: 11 }, boxWidth: 14, padding: 12 } } },
+          scales: {
+            x: { ticks: { color: "#6b7280", font: { size: 11 }, maxTicksLimit: 12 }, grid: { color: "rgba(35,39,49,0.8)" } },
+            y: {
+              ticks: { color: "#9ca3af", font: { size: 11 } }, grid: { color: "rgba(35,39,49,0.8)" },
+              title: { display: true, text: "°C", color: "#9ca3af", font: { size: 12 } }
+            },
+            y2: {
+              position: "right", min: 0, max: 100,
+              ticks: { color: "#60a5fa", font: { size: 11 } }, grid: { drawOnChartArea: false },
+              title: { display: true, text: "%", color: "#60a5fa", font: { size: 12 } }
+            },
+            y3: {
+              position: "right", min: 0,
+              ticks: { color: "#a78bfa", font: { size: 11 } }, grid: { drawOnChartArea: false },
+              title: { display: true, text: "km/h", color: "#a78bfa", font: { size: 12 } },
+              display: false  // hidden axis – values still shown in tooltip
+            }
+          }
+        }
+      });
+    }
+
+    function secTitle(label) {
+      return '<div class="flex items-center gap-3 mt-8 mb-4">'
+        + '<span class="font-display text-sm font-bold tracking-[0.25em] text-muted uppercase">' + label + '</span>'
+        + '<div class="flex-1 h-px bg-border"></div>'
+        + '</div>';
+    }
+
+    function statCard(icon, label, value, valueCls, sub) {
+      return '<div class="bg-card border border-border rounded-xl p-4 flex flex-col gap-1 wx-card">'
+        + '<div class="text-3xl mb-1">' + icon + '</div>'
+        + '<div class="text-xs text-muted font-semibold tracking-widest uppercase">' + label + '</div>'
+        + '<div class="font-display text-4xl font-bold leading-none ' + valueCls + '">' + value + '</div>'
+        + '<div class="text-xs text-muted mt-1 leading-snug flex items-center gap-1">' + sub + '</div>'
+        + '</div>';
+    }
+
+    function toggleDay(idx) {
+      var det = document.getElementById('det-' + idx);
+      var arr = document.getElementById('arr-' + idx);
+      if (!det) return;
+      var opening = det.classList.contains('hidden');
+      det.classList.toggle('hidden');
+      if (arr) arr.classList.toggle('open', opening);
+    }
+
+    function render(d) {
+      var c = d.current;
+      var now = new Date();
+      var si = scoreInfo(c.moto_score);
+      var hourly = d.hourly.filter(function (h) { return new Date(h.time) >= now; }).slice(0, 24);
+      var daily = d.daily;
+      var allMin = Math.min.apply(null, daily.map(function (x) { return x.temp_min; }));
+      var allMax = Math.max.apply(null, daily.map(function (x) { return x.temp_max; }));
+      var html = '';
+
+      // Custom alert banners (premium)
+      html += checkAlerts(c);
+
+      // Frost / ice risk alert banner
+      if (c.frost_risk || c.feels_like < 3) {
+        var iceMsg = c.frost_risk
+          ? '🧊 <strong>RISC DE GHEĄȞĂ / ÎNGHEȞ</strong> — umiditate ridicată + temperaturi sub 4°C. Suprafețe alunecoase posibile.'
+          : '🥶 <strong>TEMPERATURI RESIMȞITE FOARTE SCĂZUTE</strong> — îmbracă-te corespunzător.';
+        html += '<div class="mb-5 p-4 rounded-xl border border-danger bg-danger/10 text-danger text-sm flex items-center gap-3">'
+          + '<div>' + iceMsg + '</div></div>';
+      }
+
+      // Best riding window banners (today + tomorrow)
+      var win = findBestWindow(d.hourly);
+      var winTom = findTomorrowWindow(d.hourly);
+      if (win || winTom) {
+        var _wBanner = function (w, label) {
+          var wBorderCls = w.avg >= 80 ? 'border-ok' : w.avg >= 60 ? 'border-accent' : 'border-warn';
+          var wTextCls = w.avg >= 80 ? 'text-ok' : w.avg >= 60 ? 'text-accent' : 'text-warn';
+          var wBgCls = w.avg >= 80 ? 'bg-ok/5' : w.avg >= 60 ? 'bg-accent/5' : 'bg-warn/5';
+          return '<div class="mb-3 p-4 rounded-xl border ' + wBorderCls + ' ' + wBgCls + ' flex items-center gap-4">'
+            + '<span class="text-3xl flex-shrink-0">🎯</span>'
+            + '<div class="flex-1">'
+            + '<div class="font-display text-lg font-bold tracking-wide ' + wTextCls + '">'
+            + label + ': ' + w.fromH + ' – ' + w.toH + '</div>'
+            + '<div class="text-xs text-muted mt-0.5">Scor mediu <strong class="' + wTextCls + '">' + w.avg + '/100</strong>'
+            + ' &middot; ' + w.len + 'h consecutiv de condiții bune'
+            + (w.avg >= 80 ? ' &middot; <span class="text-ok">Condiții ideale! 🏍️</span>' : '') + '</div>'
+            + '</div>'
+            + '<div class="flex-shrink-0 font-display text-2xl font-bold ' + wTextCls + '">' + w.avg + '</div>'
+            + '</div>';
+        };
+        if (win) html += _wBanner(win, 'FEREASTRĂ OPTIMĂ AZI');
+        if (winTom) html += _wBanner(winTom, 'FEREASTRĂ OPTIMĂ MÂINE');
+      }
+
+      // Location
+      html += '<div class="mb-6">';
+      html += '<h1 class="font-display text-5xl sm:text-6xl font-bold tracking-widest leading-none text-gray-100">' + d.city.toUpperCase() + '</h1>';
+      html += '<p class="text-sm text-muted tracking-widest mt-1">' + d.latitude.toFixed(4) + '° N &nbsp;·&nbsp; ' + d.longitude.toFixed(4) + '° E &nbsp;·&nbsp; ' + d.timezone + '</p>';
+      html += '</div>';
+
+      // Hero card
+      html += '<div class="bg-card border border-border rounded-2xl p-6 mb-6 flex flex-col sm:flex-row items-center gap-6" style="border-left:5px solid ' + si.color + '">';
+      html += '<div class="relative flex-shrink-0 flex items-center justify-center w-40 h-40 ' + gaugeGlowCls(c.moto_score) + '">';
+      html += gaugeHtml(c.moto_score, si.color);
+      html += '<div class="absolute inset-0 flex flex-col items-center justify-center">';
+      html += '<span class="font-display text-5xl font-bold leading-none" style="color:' + si.color + '">' + c.moto_score + '</span>';
+      html += '<span class="text-xs text-muted tracking-wider mt-1">/ 100</span>';
+      html += '</div></div>';
+      html += '<div class="flex-1 text-center sm:text-left">';
+      html += '<div style="font-size:6rem;line-height:1" class="mb-2">' + c.icon + '</div>';
+      html += '<div class="font-display text-3xl sm:text-4xl font-bold tracking-wide mb-1" style="color:' + si.color + '">' + si.label + '</div>';
+      html += '<div class="text-base text-gray-300 mb-3">' + si.msg + '</div>';
+      html += '<div class="flex flex-wrap gap-3 text-sm text-muted justify-center sm:justify-start">';
+      html += '<span class="bg-bg/60 rounded-lg px-3 py-1 border border-border">' + c.description + '</span>';
+      html += '<span class="bg-bg/60 rounded-lg px-3 py-1 border border-border">🌡️ Resimțit <strong class="text-gray-200">' + Math.round(c.feels_like) + '°C</strong></span>';
+      html += '<span class="bg-bg/60 rounded-lg px-3 py-1 border border-border">💨 Rafale <strong class="text-gray-200">' + Math.round(c.wind_gusts_kmh) + ' km/h</strong></span>';
+      if (c.sources && c.sources.length > 0) {
+        html += '<span class="bg-ok/10 rounded-lg px-3 py-1 border border-ok/20 text-ok text-xs">⬆ ' + c.sources.join(' + ') + '</span>';
+      }
+      html += '</div></div></div>';
+
+      // Stats grid
+      html += secTitle('Condiții actuale');
+      html += '<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-2">';
+      html += statCard('🌡️', 'Temperatură', Math.round(c.temperature) + '°', tempCls(c.temperature), 'resimțit ' + Math.round(c.feels_like) + '°C');
+      html += statCard('💨', 'Vânt', Math.round(c.wind_speed_kmh) + '<span class="text-lg"> km/h</span>', windCls(c.wind_gusts_kmh),
+        windCompassSvg(c.wind_direction_deg) + ' <span class="font-semibold text-gray-300">' + c.wind_direction + '</span>'
+        + ' · rafale <strong>' + Math.round(c.wind_gusts_kmh) + ' km/h</strong> · Bf ' + c.beaufort);
+      html += statCard('🌧️', 'Precipitații', c.precipitation_mm.toFixed(1) + '<span class="text-xl"> mm</span>', (c.precipitation_mm > 1 ? 'text-danger' : c.precipitation_mm > 0.1 ? 'text-warn' : 'text-ok'), 'mm / oră curentă');
+      html += statCard('💧', 'Umiditate', c.humidity + '<span class="text-xl">%</span>', (c.humidity > 90 ? 'text-warn' : 'text-gray-100'), 'drum potențial umed');
+      if (c.pressure_hpa != null)
+        html += statCard('🔵', 'Presiune', Math.round(c.pressure_hpa) + '<span class="text-xl"> hPa</span>', 'text-gray-100', 'presiune atmosferică');
+      if (c.visibility_km != null)
+        html += statCard('👁️', 'Vizibilitate', c.visibility_km + '<span class="text-xl"> km</span>', (c.visibility_km < 1 ? 'text-danger' : c.visibility_km < 5 ? 'text-warn' : 'text-gray-100'), 'distanța de vizibilitate');
+      if (c.aqi != null)
+        html += statCard('🍃', 'Calitate aer', c.aqi, aqiCls(c.aqi), aqiLabel(c.aqi));
+      if (c.uv_index != null)
+        html += statCard('☀️', 'Indice UV', c.uv_index.toFixed(1), uvCls(c.uv_index), uvDesc(c.uv_index));
+      // Road surface temperature — moto-specific
+      var rst = c.road_surface_temp != null ? c.road_surface_temp
+        : roadSurfaceTempClient(c.temperature, c.humidity, c.weather_code, c.precipitation_mm);
+      if (rst != null) {
+        var rstCls = rst < 0 ? 'text-danger' : rst < 5 ? 'text-warn' : rst > 50 ? 'text-warn' : 'text-gray-100';
+        var rstDesc = rst < 0 ? '⚠️ gheață posibilă' : rst < 5 ? 'risc îngheț' : rst < 15 ? 'carosabil rece' : rst > 55 ? 'carosabil fierbinte' : 'carosabil normal';
+        html += statCard('🛣️', 'Temp. carosabil', Math.round(rst) + '°', rstCls, rstDesc + ' (estimat)');
+      }
+      if (daily.length && daily[0].sunrise)
+        html += statCard('🌅', 'Răsărit', fmtTime(daily[0].sunrise), 'text-gray-100', 'ora răsăritului soarelui');
+      if (daily.length && daily[0].sunset)
+        html += statCard('🌇', 'Apus', fmtTime(daily[0].sunset), 'text-gray-100', 'ora apusului soarelui');
+      html += '</div>';
+
+      // Gear recommendation
+      var gearRecs = c.gear_recommendation && c.gear_recommendation.length
+        ? c.gear_recommendation
+        : gearRecommendationClient(c.feels_like, c.wind_gusts_kmh, c.precipitation_mm, c.weather_code);
+      html += gearRecommendationHtml(gearRecs);
+
+      // Chart
+      html += secTitle('Grafic temperatură, vânt &amp; ploaie — 24h');
+      html += '<div class="bg-card border border-border rounded-xl p-4 mb-2" style="height:220px;">';
+      html += '<canvas id="tempChart"></canvas></div>';
+
+      // Hourly scroll
+      html += secTitle('Orar — 24h');
+      html += '<div class="flex gap-3 overflow-x-auto scroll-x pb-2 mb-2">';
+      hourly.forEach(function (h, idx) {
+        var t = new Date(h.time);
+        var hh = t.getHours().toString().padStart(2, "0") + ":00";
+        var rp = h.precipitation_probability || 0;
+        var hs = scoreHourly(h.feels_like, h.wind_gusts_kmh, h.precipitation_mm, h.weather_code);
+        var scoreColor = hs >= 80 ? '#22c55e' : hs >= 60 ? '#f97316' : hs >= 40 ? '#eab308' : '#ef4444';
+        var borderCol = hs < 40 ? "border-danger" : rp > 40 ? "border-warn" : idx === 0 ? "border-accent" : "border-border";
+        var nowClass = idx === 0 ? "hourly-now border-accent" : "";
+        html += '<div class="flex-shrink-0 bg-card border ' + borderCol + ' ' + nowClass + ' rounded-xl p-3 w-24 text-center flex flex-col items-center gap-1">';
+        html += '<div class="text-xs font-semibold tracking-widest ' + (idx === 0 ? 'text-accent' : 'text-muted') + '">' + (idx === 0 ? "ACUM" : hh) + '</div>';
+        html += '<div style="font-size:2.5rem;line-height:1">' + h.icon + '</div>';
+        html += '<div class="font-display text-3xl font-bold leading-none text-gray-100">' + Math.round(h.temperature) + '°</div>';
+        html += '<div class="text-xs ' + rainCls(rp) + '">' + rp + '% 💧</div>';
+        html += '<div class="text-xs text-muted">' + Math.round(h.wind_speed_kmh) + ' km/h</div>';
+        if (h.uv_index != null && h.uv_index > 0)
+          html += '<div class="text-xs ' + uvCls(h.uv_index) + '">UV ' + h.uv_index.toFixed(0) + '</div>';
+        // Moto score bar + label
+        html += '<div class="mt-2 w-full score-bar-track">'
+          + '<div class="score-bar-fill" style="width:' + hs + '%;background:' + scoreColor + '"></div>'
+          + '</div>';
+        html += '<div class="text-xs font-bold" style="color:' + scoreColor + '">' + hs + '</div>';
+        html += '</div>';
+      });
+      html += '</div>';
+
+      // Daily forecast — responsive + expandable
+      html += secTitle('Prognoză ' + (isPremium() ? daily.length : Math.min(daily.length, 7)) + ' zile'
+        + (daily.length > 7 && isPremium() ? '' : (daily.length > 7 ? ' <span class="text-xs text-accent/60 font-normal normal-case ml-2">+7 zile → ⚡ Premium</span>' : '')));
+      html += '<div class="flex flex-col gap-2 mb-8">';
+      var maxDay = isPremium() ? daily.length : Math.min(daily.length, 7);
+      daily.slice(0, maxDay).forEach(function (day, i) {
+        var date = new Date(day.date + "T12:00:00");
+        var dname = i === 0 ? "AZI" : (i === 1 ? "MÂINE" : DAYS[date.getDay()]);
+        var tMin = Math.round(day.temp_min);
+        var tMax = Math.round(day.temp_max);
+        var fMin = day.feels_min != null ? Math.round(day.feels_min) : null;
+        var fMax = day.feels_max != null ? Math.round(day.feels_max) : null;
+        var rp = day.precipitation_probability || 0;
+        var gustMax = Math.round(day.wind_gusts_kmh || 0);
+        var ds = day.moto_score;
+        var scoreColor = ds >= 80 ? '#22c55e' : ds >= 60 ? '#f97316' : ds >= 40 ? '#eab308' : '#ef4444';
+        var borderCol = ds < 40 ? "border-l-danger" : ds < 65 ? "border-l-warn" : "border-l-ok";
+        var range = allMax - allMin || 1;
+        var bL = Math.round(((tMin - allMin) / range) * 100);
+        var bW = Math.max(4, Math.round(((tMax - allMin) / range) * 100) - bL);
+
+        // Wrapper
+        html += '<div class="bg-card border border-border border-l-4 ' + borderCol + ' rounded-xl overflow-hidden">';
+
+        // ── Clickable summary row ──────────────────────────────────────────
+        html += '<div onclick="toggleDay(' + i + ')" class="px-3 sm:px-4 py-3 flex items-center gap-1.5 sm:gap-3 cursor-pointer select-none">';
+
+        // Icon
+        html += '<div class="flex-shrink-0 w-8 sm:w-10 text-center" style="font-size:1.75rem;line-height:1" title="' + day.description + '">' + day.icon + '</div>';
+
+        // Day name + date
+        html += '<div class="flex-shrink-0 w-14 sm:w-20">'
+          + '<div class="font-display text-sm sm:text-lg font-bold tracking-wide text-gray-100">' + dname + '</div>'
+          + '<div class="text-xs text-muted">' + date.toLocaleDateString("ro-RO", { day: "numeric", month: "short" }) + '</div>'
+          + '</div>';
+
+        // Temp range bar (flexible)
+        html += '<div class="flex-1 min-w-0">'
+          + '<div class="flex items-center gap-1">'
+          + '<span class="text-xs text-muted flex-shrink-0 w-6 text-right">' + tMin + '°</span>'
+          + '<div class="flex-1 h-1.5 bg-border rounded-full overflow-hidden">'
+          + '<div class="h-full rounded-full" style="margin-left:' + bL + '%;width:' + bW + '%;background:linear-gradient(90deg,#60a5fa,#f97316)"></div>'
+          + '</div>'
+          + '<span class="text-xs text-gray-200 flex-shrink-0 w-6">' + tMax + '°</span>'
+          + '</div>'
+          + (fMin != null ? '<div class="text-xs text-muted mt-0.5 pl-7 hidden sm:block">resimțit ' + fMin + '° – ' + fMax + '°</div>' : '')
+          + '</div>';
+
+        // Rain %
+        html += '<div class="flex-shrink-0 text-center w-9 sm:w-14">'
+          + '<div class="font-display text-sm sm:text-xl font-bold ' + rainCls(rp) + '">' + rp + '%</div>'
+          + '<div class="text-xs text-muted hidden sm:block">PLOAIE</div>'
+          + '</div>';
+
+        // Wind (hidden on mobile/tablet, shown on lg+)
+        html += '<div class="hidden lg:block flex-shrink-0 text-center w-14">'
+          + '<div class="font-display text-xl font-bold ' + windCls(gustMax) + '">' + gustMax + '</div>'
+          + '<div class="text-xs text-muted">KM/H</div>'
+          + '</div>';
+
+        // Score + verdict
+        html += '<div class="flex-shrink-0 flex flex-col items-center gap-0.5 min-w-0">'
+          + '<div class="font-display text-sm font-bold" style="color:' + scoreColor + '">' + ds + '</div>'
+          + verdictBadge(ds)
+          + '</div>';
+
+        // Arrow
+        html += '<span id="arr-' + i + '" class="day-arrow flex-shrink-0">▼</span>';
+
+        html += '</div>'; // end summary row
+
+        // ── Expandable details ─────────────────────────────────────────────
+        var dayHourly = d.hourly.filter(function (h) { return h.time.startsWith(day.date); });
+        html += '<div id="det-' + i + '" class="hidden border-t border-border bg-bg/40">';
+
+        // Hourly mini-cards
+        if (dayHourly.length) {
+          html += '<div class="flex gap-2 overflow-x-auto scroll-x px-3 py-3 pb-2">';
+          dayHourly.forEach(function (h) {
+            var ht = new Date(h.time).getHours().toString().padStart(2, "0") + ":00";
+            var hrp = h.precipitation_probability || 0;
+            var hsc = scoreHourly(h.feels_like, h.wind_gusts_kmh, h.precipitation_mm, h.weather_code);
+            var hCol = hsc >= 80 ? '#22c55e' : hsc >= 60 ? '#f97316' : hsc >= 40 ? '#eab308' : '#ef4444';
+            html += '<div class="flex-shrink-0 bg-card border border-border rounded-xl p-2 w-16 text-center flex flex-col items-center gap-0.5">';
+            html += '<div class="text-xs text-muted font-semibold">' + ht + '</div>';
+            html += '<div style="font-size:1.5rem;line-height:1.2">' + h.icon + '</div>';
+            html += '<div class="font-display text-lg font-bold leading-none text-gray-100">' + Math.round(h.temperature) + '°</div>';
+            if (h.feels_like != null) html += '<div class="text-xs text-muted">res ' + Math.round(h.feels_like) + '°</div>';
+            html += '<div class="text-xs ' + rainCls(hrp) + '">' + hrp + '%💧</div>';
+            html += '<div class="text-xs text-muted">' + Math.round(h.wind_speed_kmh) + 'km/h</div>';
+            if (h.wind_gusts_kmh != null && h.wind_gusts_kmh > h.wind_speed_kmh + 5)
+              html += '<div class="text-xs ' + windCls(h.wind_gusts_kmh) + '">↑' + Math.round(h.wind_gusts_kmh) + '</div>';
+            html += '<div class="mt-1 w-full score-bar-track"><div class="score-bar-fill" style="width:' + hsc + '%;background:' + hCol + '"></div></div>';
+            html += '<div class="text-xs font-bold" style="color:' + hCol + '">' + hsc + '</div>';
+            html += '</div>';
+          });
+          html += '</div>';
+        }
+
+        // Summary pills row
+        html += '<div class="flex flex-wrap gap-x-4 gap-y-1 px-3 pb-3 text-xs text-muted">';
+        if (fMin != null) html += '<span>🌡️ resimțit <strong class="text-gray-300">' + fMin + '° – ' + fMax + '°</strong></span>';
+        if (gustMax) html += '<span>💨 rafale max <strong class="' + windCls(gustMax) + '">' + gustMax + ' km/h</strong></span>';
+        if (day.precipitation_mm > 0) html += '<span>🌧️ precipitații <strong class="text-gray-300">' + day.precipitation_mm + ' mm</strong></span>';
+        if (day.sunrise) html += '<span>🌅 răsărit <strong class="text-gray-300">' + fmtTime(day.sunrise) + '</strong></span>';
+        if (day.sunset) html += '<span>🌇 apus <strong class="text-gray-300">' + fmtTime(day.sunset) + '</strong></span>';
+        html += '</div>';
+
+        html += '</div>'; // end details
+        html += '</div>'; // end wrapper
+      });
+
+      // Locked premium days preview (show 3 blurred rows if not premium and >7 days available)
+      if (!isPremium() && daily.length > 7) {
+        html += '<div class="relative mt-2">';
+        for (var li = 7; li < Math.min(daily.length, 10); li++) {
+          var lday = daily[li];
+          var ldate = new Date(lday.date + 'T12:00:00');
+          var ldname = DAYS[ldate.getDay()];
+          html += '<div class="bg-card border border-border border-l-4 border-l-border rounded-xl overflow-hidden mb-2 opacity-40 blur-[1.5px] pointer-events-none">';
+          html += '<div class="px-3 py-3 flex items-center gap-1.5 sm:gap-3">';
+          html += '<div class="flex-shrink-0 w-8 text-center" style="font-size:1.75rem">' + lday.icon + '</div>';
+          html += '<div class="flex-shrink-0 w-14 sm:w-20"><div class="font-display text-sm font-bold text-gray-100">' + ldname + '</div></div>';
+          html += '<div class="flex-1 h-1.5 bg-border rounded-full"></div>';
+          html += '<div class="text-danger text-xs font-bold">?</div>';
+          html += '</div></div>';
+        }
+        html += '<div class="absolute inset-0 flex flex-col items-center justify-center rounded-xl">';
+        html += '<button onclick="openPaywall(\'Prognoză 14 zile\')" class="bg-card border border-accent/40 rounded-xl px-6 py-4 flex flex-col items-center gap-2 shadow-xl hover:border-accent transition-colors">';
+        html += '<span class="text-3xl">🔒</span>';
+        html += '<span class="font-display font-bold text-accent tracking-wider">DEBLOCHEAZĂ 14 ZILE</span>';
+        html += '<span class="text-xs text-muted">⚡ MotoMeteo Plus</span>';
+        html += '</button></div></div>';
+      }
+
+      html += '</div>';
+
+      // ── Precipitation radar card (premium) ──────────────────────────────
+      if (isPremium()) {
+        html += secTitle('🗺️ Radar precipitații');
+        html += '<div class="bg-card border border-border rounded-xl overflow-hidden mb-6">';
+        html += '<div id="radar-map" style="height:260px;background:#13151a"></div>';
+        html += '<div class="px-3 py-2 text-xs text-muted/60 flex justify-between">'
+          + '<span>Sursa: RainViewer &amp; OpenStreetMap</span>'
+          + '<span>Live · actualizare automată 10min</span>'
+          + '</div></div>';
+      } else {
+        html += '<div class="mb-6 border border-dashed border-accent/25 rounded-xl p-5 flex items-center gap-4 cursor-pointer hover:border-accent/50 transition-colors" onclick="openPaywall(\'Radar precipitații\')">';
+        html += '<span class="text-4xl flex-shrink-0">🔒</span>';
+        html += '<div><div class="font-display font-bold text-accent tracking-wider">RADAR PRECIPITAȚII</div>';
+        html += '<div class="text-sm text-muted mt-0.5">Hartă interactivă cu precipitații în timp real — ⚡ Premium</div></div>';
+        html += '</div>';
+      }
+
+      html += '<div class="border-t border-border pt-4 pb-8 text-xs text-muted tracking-widest text-center">'
+        + '<div>DATE: OPEN-METEO.COM &middot; OPENWEATHERMAP &middot; MET NORWAY (ECMWF)</div>'
+        + '<div class="mt-1 text-muted/60">Datele sunt media ponderată a ' + (c.sources ? c.sources.length : 1) + ' surse &middot; Actualizat la fiecare 30 min automat</div>'
+        + '</div>';
+
+      document.getElementById("app").innerHTML = html;
+      renderChart(hourly);
+      if (isPremium()) initRadarMap(d.latitude, d.longitude);
+    }
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch(function () { });
+    }
+
+    // -----------------------------------------------------------------------
+    // Precipitation radar (Leaflet + RainViewer) — premium
+    // -----------------------------------------------------------------------
+    function initRadarMap(lat, lon) {
+      function _doInit() {
+        var container = document.getElementById('radar-map');
+        if (!container || !window.L) return;
+        if (window._radarMap) { window._radarMap.remove(); window._radarMap = null; }
+        var map = window.L.map('radar-map', {
+          zoomControl: true, attributionControl: true, scrollWheelZoom: false
+        }).setView([lat, lon], 8);
+        window._radarMap = map;
+        window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 13, attribution: '&copy; <a href="https://osm.org/copyright">OSM</a>'
+        }).addTo(map);
+        window.L.circleMarker([lat, lon], {
+          radius: 7, color: '#f97316', fillColor: '#f97316', fillOpacity: 0.9
+        }).addTo(map);
+        fetch('https://api.rainviewer.com/public/weather-maps.json')
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (rv) {
+            if (!rv || !rv.radar || !rv.radar.past) return;
+            var frame = rv.radar.past[rv.radar.past.length - 1];
+            window.L.tileLayer(
+              'https://tilecache.rainviewer.com' + frame.path + '/256/{z}/{x}/{y}/4/1_1.png',
+              { opacity: 0.6, attribution: '<a href="https://www.rainviewer.com">RainViewer</a>' }
+            ).addTo(map);
+          }).catch(function () { });
+      }
+      if (window.L) { _doInit(); return; }
+      if (window._leafletLoading) { return; }
+      window._leafletLoading = true;
+      var css = document.createElement('link');
+      css.rel = 'stylesheet';
+      css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(css);
+      var scr = document.createElement('script');
+      scr.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      scr.onload = function () { window._leafletLoading = false; _doInit(); };
+      document.head.appendChild(scr);
+    }
+
+    // Haptic feedback wrapper using the Vibration API
+    // iOS Safari 16.4+ supports navigator.vibrate in PWA/standalone mode
+    function haptic(pattern) {
+      try {
+        if (navigator.vibrate) navigator.vibrate(pattern || 10);
+      } catch (_) { }
+    }
+
+    // Global capture listener — fires haptic for every button tap, including
+    // dynamically generated ones (hourly cards, daily rows, route planner, etc.)
+    document.addEventListener('click', function (e) {
+      if (e.target.closest('button')) haptic(10);
+    }, { capture: true });
+
+    // iOS "Add to Home Screen" banner – only show on iOS Safari outside standalone mode
+    function _isIos() {
+      return /iphone|ipad|ipod/i.test(navigator.userAgent);
+    }
+    function _isInStandaloneMode() {
+      return (window.navigator.standalone === true)
+        || window.matchMedia('(display-mode: standalone)').matches;
+    }
+    function dismissIosBanner() {
+      var b = document.getElementById('ios-install-banner');
+      if (b) b.style.display = 'none';
+      try { localStorage.setItem('iosBannerDismissed', '1'); } catch (_) { }
+    }
+    (function () {
+      if (_isIos() && !_isInStandaloneMode()) {
+        try { if (localStorage.getItem('iosBannerDismissed')) return; } catch (_) { }
+        var banner = document.getElementById('ios-install-banner');
+        if (banner) {
+          // Delay to let the page settle before animating in
+          setTimeout(function () { banner.style.display = 'block'; }, 2500);
+        }
+      }
+    }());
+
+    // Refresh weather data when the app returns to the foreground (iOS multitasking)
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') {
+        // Only auto-refresh if data is older than 5 minutes
+        var lastFetch = 0;
+        try { lastFetch = parseInt(localStorage.getItem('lastWeatherFetch'), 10) || 0; } catch (_) { }
+        if (Date.now() - lastFetch > 5 * 60 * 1000) {
+          loadWeather();
+        }
+      }
+    });
+    // Set default departure time for route planner (now, rounded to hour)
+    (function () {
+      var depEl = document.getElementById('route-departure');
+      if (depEl) { var now = new Date(); now.setMinutes(0, 0, 0); depEl.value = now.toISOString().slice(0, 16); }
+      // Pre-seed origin from current city
+      var stop0 = document.getElementById('route-stop-0');
+      if (stop0 && CITY !== 'București') stop0.value = CITY;
+    })();
+    // Pre-fill route origin with current city when it changes
+    // Initialize RevenueCat if running in Capacitor native build
+    (function () {
+      if (typeof window.Purchases === 'undefined') return;
+      var RC_API_KEY_IOS = 'appl_REPLACE_WITH_REVENUECAT_IOS_KEY'; // <-- înlocuiește după configurare RevenueCat
+      try {
+        window.Purchases.configure({ apiKey: RC_API_KEY_IOS });
+        window.Purchases.getCustomerInfo().then(function (info) {
+          var active = info
+            && info.entitlements
+            && info.entitlements.active
+            && info.entitlements.active['premium'];
+          _setPremium(!!active);
+        }).catch(function () { });
+      } catch (_) { }
+    }());
+
+    loadProfileUI();
+    renderFavsBar();
+    loadWeather();
+  </script>
+
+</body>
+
+</html>

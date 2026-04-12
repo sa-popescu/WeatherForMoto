@@ -1,0 +1,107 @@
+// MotoMeteo Service Worker — cache-first strategy for offline support
+var CACHE = 'motometeo-v2';
+var ASSETS = [
+    '/',
+    '/index.html',
+    '/manifest.json',
+    '/icon-192.png',
+    '/icon-512.png',
+    '/icon-apple.png',
+    'https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600&display=swap',
+    'https://cdn.tailwindcss.com',
+    'https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js',
+];
+
+var OFFLINE_HTML = [
+    '<!DOCTYPE html>',
+    '<html lang="ro">',
+    '<head>',
+    '  <meta charset="UTF-8">',
+    '  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">',
+    '  <title>MotoMeteo \u2014 Offline</title>',
+    '  <style>',
+    '    *{box-sizing:border-box;margin:0;padding:0}',
+    '    body{background:#0b0c0f;color:#f3f4f6;font-family:system-ui,sans-serif;',
+    '      display:flex;flex-direction:column;align-items:center;justify-content:center;',
+    '      min-height:100vh;',
+    '      padding:env(safe-area-inset-top,0) env(safe-area-inset-right,0)',
+    '             env(safe-area-inset-bottom,0) env(safe-area-inset-left,0);',
+    '      text-align:center;gap:1rem}',
+    '    .icon{font-size:4rem}',
+    '    .title{font-size:1.5rem;font-weight:700;letter-spacing:.1em;color:#f97316}',
+    '    .sub{color:#6b7280;font-size:.95rem;max-width:280px;line-height:1.5}',
+    '    button{margin-top:.5rem;background:#f97316;color:#000;border:none;',
+    '      padding:.75rem 2rem;border-radius:.75rem;font-weight:700;',
+    '      font-size:1rem;cursor:pointer;letter-spacing:.05em}',
+    '  </style>',
+    '</head>',
+    '<body>',
+    '  <div class="icon">\uD83C\uDFCD\uFE0F</div>',
+    '  <div class="title">MOTO // METEO</div>',
+    '  <div class="sub">Nu exist\u0103 conexiune la internet. Datele meteo nu pot fi actualizate momentan.</div>',
+    '  <button onclick="location.reload()">Re\u00EEncerc\u0103</button>',
+    '</body>',
+    '</html>',
+].join('\n');
+
+self.addEventListener('install', function (e) {
+    e.waitUntil(
+        caches.open(CACHE).then(function (c) {
+            // Cache core assets; ignore failures for CDN resources
+            return Promise.allSettled(ASSETS.map(function (url) {
+                return c.add(url).catch(function () { });
+            }));
+        }).then(function () { return self.skipWaiting(); })
+    );
+});
+
+self.addEventListener('activate', function (e) {
+    e.waitUntil(
+        caches.keys().then(function (keys) {
+            return Promise.all(keys.filter(function (k) { return k !== CACHE; }).map(function (k) { return caches.delete(k); }));
+        }).then(function () { return self.clients.claim(); })
+    );
+});
+
+self.addEventListener('fetch', function (e) {
+    var url = new URL(e.request.url);
+
+    // Network-first for weather API calls (always fresh data)
+    var isApi = url.pathname.startsWith('/weather')
+        || url.pathname.startsWith('/geocode')
+        || url.pathname.startsWith('/route')
+        || url.hostname === 'api.open-meteo.com'
+        || url.hostname.endsWith('.open-meteo.com')
+        || url.hostname === 'geocoding-api.open-meteo.com'
+        || url.hostname === 'api.openweathermap.org'
+        || url.hostname === 'api.met.no'
+        || url.hostname === 'nominatim.openstreetmap.org';
+
+    if (isApi) {
+        e.respondWith(
+            fetch(e.request).catch(function () {
+                return caches.match(e.request);
+            })
+        );
+        return;
+    }
+
+    // Cache-first for static assets; fall back to offline page for navigation
+    e.respondWith(
+        caches.match(e.request).then(function (cached) {
+            if (cached) return cached;
+            return fetch(e.request).then(function (resp) {
+                if (resp && resp.status === 200 && e.request.method === 'GET') {
+                    var clone = resp.clone();
+                    caches.open(CACHE).then(function (c) { c.put(e.request, clone); });
+                }
+                return resp;
+            }).catch(function () {
+                // Return offline page for HTML navigation requests
+                if (e.request.mode === 'navigate') {
+                    return new Response(OFFLINE_HTML, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+                }
+            });
+        })
+    );
+});
