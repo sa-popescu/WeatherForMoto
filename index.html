@@ -551,7 +551,7 @@
         <div class="text-5xl mb-2">🏍️⚡</div>
         <div class="font-display text-3xl font-bold tracking-widest text-accent">MOTO<span class="text-gray-500"> ///
           </span>PLUS</div>
-        <div class="text-sm text-muted mt-1">Deblochează toate funcțiile premium</div>
+        <div id="paywall-subtitle" class="text-sm text-muted mt-1">Deblochează toate funcțiile premium</div>
       </div>
       <div id="paywall-feature-name"
         class="mb-4 text-center text-sm text-warn font-semibold py-2 px-3 bg-warn/10 rounded-lg border border-warn/20 hidden">
@@ -571,13 +571,16 @@
       <div class="mb-4 bg-bg rounded-xl p-4 text-center border border-border">
         <div class="font-display text-4xl font-bold text-accent">2,99€<span
             class="text-base text-muted font-normal">/lună</span></div>
-        <div class="text-xs text-muted mt-1">sau <strong class="text-gray-300">19,99€/an</strong> — economisești 44%
+        <div id="paywall-price-note" class="text-xs text-muted mt-1">sau <strong
+            class="text-gray-300">19,99€/an</strong> — economisești 44%
         </div>
       </div>
-      <button onclick="activatePremium()"
+      <button id="paywall-cta-btn" onclick="activatePremium()"
         class="w-full bg-accent hover:bg-orange-400 text-black font-display font-bold tracking-wider py-3 rounded-xl transition-colors mb-2 text-lg">
         ⚡ ABONEAZĂ-TE ACUM
       </button>
+      <div id="paywall-trust-copy" class="text-[11px] text-muted/80 text-center mb-2">Plată securizată prin Apple ·
+        anulare din Subscriptions</div>
       <button onclick="restorePremium()"
         class="w-full border border-border text-muted hover:text-gray-200 hover:border-gray-500 font-body text-sm py-2 rounded-xl transition-colors mb-1">
         Restaurează achiziția
@@ -668,6 +671,45 @@
     var _premiumState = { active: false, verified: false, provider: null };
     var APPSTORE_URL = 'https://apps.apple.com/app/motometeo/id000000000'; // înlocuiește cu ID-ul real după publicare
     var RC_API_KEY_IOS = 'appl_REPLACE_WITH_REVENUECAT_IOS_KEY'; // înlocuiește după configurare RevenueCat
+    var PAYWALL_COPY_VARIANTS = [
+      {
+        subtitle: 'Deblocheaza toate functiile premium',
+        cta: '⚡ ABONEAZA-TE ACUM',
+        price: 'sau <strong class="text-gray-300">19,99€/an</strong> — economisesti 44%',
+        trust: 'Plata securizata prin Apple · anulare din Subscriptions'
+      },
+      {
+        subtitle: 'Mergi cu mai putine surprize pe traseu',
+        cta: '⚡ ACTIVEAZA PLUS',
+        price: 'testeaza lunar la 2,99€ sau anual <strong class="text-gray-300">19,99€</strong>',
+        trust: 'Fara card in aplicatie · facturare si protectie Apple'
+      }
+    ];
+
+    function _paywallVariantIndex() {
+      try {
+        var key = 'mmPaywallVariantV1';
+        var saved = localStorage.getItem(key);
+        if (saved !== null) return parseInt(saved, 10) || 0;
+        var idx = Math.random() < 0.5 ? 0 : 1;
+        localStorage.setItem(key, String(idx));
+        return idx;
+      } catch (_) {
+        return 0;
+      }
+    }
+
+    function _applyPaywallCopy() {
+      var v = PAYWALL_COPY_VARIANTS[_paywallVariantIndex()] || PAYWALL_COPY_VARIANTS[0];
+      var subtitle = document.getElementById('paywall-subtitle');
+      var cta = document.getElementById('paywall-cta-btn');
+      var price = document.getElementById('paywall-price-note');
+      var trust = document.getElementById('paywall-trust-copy');
+      if (subtitle) subtitle.textContent = v.subtitle;
+      if (cta) cta.textContent = v.cta;
+      if (price) price.innerHTML = v.price;
+      if (trust) trust.textContent = v.trust;
+    }
 
     function _isNativePlatform() {
       try {
@@ -704,6 +746,7 @@
     function openPaywall(featureName) {
       var modal = document.getElementById('paywall-modal');
       if (!modal) return;
+      _applyPaywallCopy();
       var nameEl = document.getElementById('paywall-feature-name');
       if (nameEl) {
         if (featureName) { nameEl.textContent = '🔒 ' + featureName; nameEl.classList.remove('hidden'); }
@@ -807,11 +850,16 @@
       closePaywall();
       var app = document.getElementById('app');
       if (!app) return;
+      var existing = document.getElementById('mm-web-plus-banner');
+      if (existing) existing.remove();
+      var v = PAYWALL_COPY_VARIANTS[_paywallVariantIndex()] || PAYWALL_COPY_VARIANTS[0];
       var banner = document.createElement('div');
+      banner.id = 'mm-web-plus-banner';
       banner.className = 'fixed inset-x-4 top-20 z-[300] bg-card border border-accent rounded-xl p-5 shadow-2xl max-w-sm mx-auto';
       banner.innerHTML = '<div class="font-display text-lg font-bold text-accent tracking-wider mb-2">⚡ MotoMeteo Plus</div>'
-        + '<div class="text-sm text-gray-300 mb-4 leading-relaxed">Abonamentul se activează exclusiv prin <strong>aplicația iOS</strong> — plata este procesată securizat de Apple.</div>'
-        + '<a href="' + APPSTORE_URL + '" target="_blank" class="block w-full bg-accent hover:bg-orange-400 text-black font-display font-bold tracking-wider py-3 rounded-xl text-center mb-2 transition-colors">📱 Descarcă din App Store</a>'
+        + '<div class="text-sm text-gray-300 mb-4 leading-relaxed">Abonamentul se activeaza exclusiv prin <strong>aplicatia iOS</strong> — plata este procesata securizat de Apple.</div>'
+        + '<div class="text-xs text-muted/80 mb-3">' + v.trust + '</div>'
+        + '<a href="' + APPSTORE_URL + '" target="_blank" class="block w-full bg-accent hover:bg-orange-400 text-black font-display font-bold tracking-wider py-3 rounded-xl text-center mb-2 transition-colors">📱 ' + (v.cta.indexOf('ACTIVEAZA') > -1 ? 'Activeaza in App Store' : 'Descarca din App Store') + '</a>'
         + '<button onclick="this.parentNode.remove()" class="w-full text-xs text-muted hover:text-gray-300 py-2 transition-colors">Închide</button>';
       document.body.appendChild(banner);
     }
@@ -2100,6 +2148,195 @@
       if (arr) arr.classList.toggle('open', opening);
     }
 
+    var PRE_RIDE_CHECKLIST = [
+      { id: 'tires', icon: '🛞', label: 'Presiune anvelope verificata' },
+      { id: 'chain', icon: '⛓️', label: 'Lant uns si tensionat corect' },
+      { id: 'brakes', icon: '🛑', label: 'Frane si lichid in parametri' },
+      { id: 'lights', icon: '💡', label: 'Faruri / stop / semnalizari functionale' },
+      { id: 'docs', icon: '📄', label: 'Acte + asigurare + permis la tine' },
+    ];
+
+    function _checklistKey() { return 'motoPreRideChecklistV2'; }
+    function _todayKey() { return new Date().toISOString().slice(0, 10); }
+    function _clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+    function _getChecklistState() {
+      try {
+        var raw = JSON.parse(localStorage.getItem(_checklistKey()) || '{}');
+        if (!raw || raw.date !== _todayKey() || !raw.items) {
+          return { date: _todayKey(), items: {} };
+        }
+        return raw;
+      } catch (_) {
+        return { date: _todayKey(), items: {} };
+      }
+    }
+
+    function _saveChecklistState(state) {
+      try { localStorage.setItem(_checklistKey(), JSON.stringify(state)); } catch (_) { }
+    }
+
+    function toggleChecklistItem(id) {
+      var state = _getChecklistState();
+      state.items[id] = !state.items[id];
+      _saveChecklistState(state);
+      if (window._lastWeatherData) render(window._lastWeatherData);
+    }
+
+    function resetChecklist() {
+      _saveChecklistState({ date: _todayKey(), items: {} });
+      if (window._lastWeatherData) render(window._lastWeatherData);
+    }
+
+    function calcRideDna(current) {
+      var rain = current.precipitation_mm || 0;
+      var gusts = current.wind_gusts_kmh || 0;
+      var vis = current.visibility_km;
+      var feels = current.feels_like;
+      var roadT = current.road_surface_temp;
+      var profile = getProfile();
+      var mode = (profile && profile.motoType) || 'naked';
+      var modeCfg = {
+        naked: { name: 'NAKED', gripMul: 1.0, windMul: 1.0, visMul: 1.0, weights: [0.4, 0.35, 0.25] },
+        touring: { name: 'TOURING', gripMul: 0.9, windMul: 0.95, visMul: 1.0, weights: [0.42, 0.3, 0.28] },
+        sport: { name: 'SPORT', gripMul: 1.15, windMul: 1.1, visMul: 1.05, weights: [0.46, 0.32, 0.22] },
+        enduro: { name: 'ADVENTURE', gripMul: 0.8, windMul: 1.0, visMul: 0.95, weights: [0.34, 0.33, 0.33] },
+        scooter: { name: 'SCOOTER', gripMul: 1.1, windMul: 1.2, visMul: 1.1, weights: [0.36, 0.38, 0.26] },
+      }[mode] || { name: 'NAKED', gripMul: 1.0, windMul: 1.0, visMul: 1.0, weights: [0.4, 0.35, 0.25] };
+
+      var grip = 100;
+      if (rain > 0.1) grip -= Math.round(10 * modeCfg.gripMul);
+      if (rain > 1) grip -= Math.round(20 * modeCfg.gripMul);
+      if (rain > 3) grip -= Math.round(20 * modeCfg.gripMul);
+      if (roadT != null && roadT < 3) grip -= Math.round(20 * modeCfg.gripMul);
+      if (roadT != null && roadT > 52) grip -= Math.round(10 * modeCfg.gripMul);
+
+      var wind = 100;
+      if (gusts > 35) wind -= Math.round(15 * modeCfg.windMul);
+      if (gusts > 50) wind -= Math.round(20 * modeCfg.windMul);
+      if (gusts > 70) wind -= Math.round(25 * modeCfg.windMul);
+
+      var visibility = 100;
+      if (vis != null && vis < 8) visibility -= Math.round(15 * modeCfg.visMul);
+      if (vis != null && vis < 4) visibility -= Math.round(20 * modeCfg.visMul);
+      if (vis != null && vis < 1) visibility -= Math.round(30 * modeCfg.visMul);
+      if (feels != null && feels < 2) visibility -= Math.round(10 * modeCfg.visMul);
+
+      grip = Math.round(_clamp(grip, 0, 100));
+      wind = Math.round(_clamp(wind, 0, 100));
+      visibility = Math.round(_clamp(visibility, 0, 100));
+
+      var overall = Math.round(grip * modeCfg.weights[0] + wind * modeCfg.weights[1] + visibility * modeCfg.weights[2]);
+      var label = overall >= 80 ? 'STABIL' : overall >= 60 ? 'ATENTIE MODERATA' : overall >= 40 ? 'RISC CRESCUT' : 'CRITIC';
+      var color = overall >= 80 ? '#22c55e' : overall >= 60 ? '#f97316' : overall >= 40 ? '#eab308' : '#ef4444';
+
+      return { grip: grip, wind: wind, visibility: visibility, overall: overall, label: label, color: color, modeLabel: modeCfg.name };
+    }
+
+    function rideDnaHtml(dna) {
+      var bars = [
+        { key: 'Aderenta', icon: '🛣️', val: dna.grip },
+        { key: 'Stabilitate vant', icon: '💨', val: dna.wind },
+        { key: 'Vizibilitate', icon: '👁️', val: dna.visibility },
+      ];
+      var html = '<div class="bg-card border border-border rounded-xl p-4">';
+      html += '<div class="flex items-center gap-2 mb-3">';
+      html += '<span class="font-display text-sm tracking-[0.2em] text-muted">RIDE DNA</span>';
+      html += '<span class="text-[10px] px-1.5 py-0.5 rounded border border-border text-muted">' + (dna.modeLabel || 'NAKED') + '</span>';
+      html += '<span class="ml-auto text-xs px-2 py-1 rounded-md font-semibold" style="background:' + dna.color + '22;color:' + dna.color + '">' + dna.label + '</span>';
+      html += '</div>';
+      bars.forEach(function (b) {
+        var c = b.val >= 75 ? '#22c55e' : b.val >= 55 ? '#f97316' : b.val >= 35 ? '#eab308' : '#ef4444';
+        html += '<div class="mb-3 last:mb-0">';
+        html += '<div class="flex items-center text-xs text-muted mb-1"><span>' + b.icon + ' ' + b.key + '</span><span class="ml-auto font-bold" style="color:' + c + '">' + b.val + '</span></div>';
+        html += '<div class="w-full h-2 bg-bg border border-border rounded-full overflow-hidden"><div class="h-full" style="width:' + b.val + '%;background:' + c + '"></div></div>';
+        html += '</div>';
+      });
+      html += '<div class="mt-3 pt-3 border-t border-border text-xs text-muted">Scor compozit: <strong style="color:' + dna.color + '">' + dna.overall + '/100</strong></div>';
+      html += '</div>';
+      return html;
+    }
+
+    function getDepartureAdvisor(hourly) {
+      if (!hourly || !hourly.length) return [];
+      var next = hourly.slice(0, 6).map(function (h) {
+        var score = scoreHourly(h.feels_like, h.wind_gusts_kmh, h.precipitation_mm, h.weather_code);
+        return {
+          time: new Date(h.time).getHours().toString().padStart(2, '0') + ':00',
+          score: score,
+          gusts: h.wind_gusts_kmh || 0,
+          rain: h.precipitation_mm || 0,
+          icon: h.icon || '🌤️'
+        };
+      });
+      next.sort(function (a, b) { return b.score - a.score; });
+      return next.slice(0, 2);
+    }
+
+    function departureAdvisorHtml(hourly) {
+      var best = getDepartureAdvisor(hourly);
+      var html = '<div class="bg-card border border-border rounded-xl p-4">';
+      html += '<div class="font-display text-sm tracking-[0.2em] text-muted mb-3">START ADVISOR 6H</div>';
+      if (!best.length) {
+        html += '<div class="text-sm text-muted">Nu exista suficiente date orare pentru recomandare.</div>';
+      } else {
+        best.forEach(function (slot, idx) {
+          var col = slot.score >= 80 ? 'text-ok' : slot.score >= 60 ? 'text-accent' : 'text-warn';
+          html += '<div class="mb-2 last:mb-0 p-3 rounded-lg border border-border bg-bg/40">';
+          html += '<div class="flex items-center gap-2">';
+          html += '<span class="text-xl">' + slot.icon + '</span>';
+          html += '<span class="text-xs tracking-widest text-muted">' + (idx === 0 ? 'FEREASTRA #1' : 'FEREASTRA #2') + '</span>';
+          html += '<span class="ml-auto font-display text-lg ' + col + '">' + slot.time + '</span>';
+          html += '</div>';
+          html += '<div class="text-xs text-muted mt-1">Scor <strong class="' + col + '">' + slot.score + '</strong> · Rafale ' + Math.round(slot.gusts) + ' km/h · Ploaie ' + slot.rain.toFixed(1) + ' mm/h</div>';
+          html += '</div>';
+        });
+      }
+      html += '</div>';
+      return html;
+    }
+
+    function briefingText(current, dna) {
+      var parts = [];
+      if (dna.modeLabel) parts.push('Profil activ: ' + dna.modeLabel + '.');
+      if (dna.overall >= 80) parts.push('Conditii foarte bune pentru o iesire mai lunga.');
+      else if (dna.overall >= 60) parts.push('Conditii decente, dar mentine ritm defensiv.');
+      else if (dna.overall >= 40) parts.push('Conditii mixte, evita depasirile agresive.');
+      else parts.push('Conditii dificile: recomanda amanare sau traseu scurt.');
+
+      if ((current.precipitation_mm || 0) > 1) parts.push('Prioritizeaza echipament impermeabil complet.');
+      if ((current.wind_gusts_kmh || 0) > 50) parts.push('Vant lateral puternic, tine marja pe banda.');
+      if (current.uv_index != null && current.uv_index >= 6) parts.push('UV ridicat, foloseste protectie solara.');
+      if (current.frost_risk) parts.push('Posibil carosabil rece/alunecos in zone umbrite.');
+
+      return parts.join(' ');
+    }
+
+    function checklistHtml() {
+      var st = _getChecklistState();
+      var done = 0;
+      PRE_RIDE_CHECKLIST.forEach(function (it) { if (st.items[it.id]) done++; });
+      var pct = Math.round((done / PRE_RIDE_CHECKLIST.length) * 100);
+      var html = '<div class="bg-card border border-border rounded-xl p-4">';
+      html += '<div class="flex items-center gap-2 mb-3">';
+      html += '<span class="font-display text-sm tracking-[0.2em] text-muted">CHECK PRE-RIDE</span>';
+      html += '<span class="ml-auto text-xs text-gray-300">' + done + '/' + PRE_RIDE_CHECKLIST.length + '</span>';
+      html += '</div>';
+      html += '<div class="w-full h-2 bg-bg border border-border rounded-full overflow-hidden mb-3"><div class="h-full bg-accent" style="width:' + pct + '%"></div></div>';
+      PRE_RIDE_CHECKLIST.forEach(function (it) {
+        var on = !!st.items[it.id];
+        html += '<button onclick="toggleChecklistItem(\'' + it.id + '\')" class="w-full mb-2 last:mb-0 p-2 rounded-lg border text-left transition-colors '
+          + (on ? 'border-ok/40 bg-ok/10 text-gray-100' : 'border-border bg-bg/40 text-muted hover:border-accent/40') + '">'
+          + '<span class="mr-2">' + it.icon + '</span>'
+          + '<span class="text-sm">' + it.label + '</span>'
+          + '<span class="float-right">' + (on ? '✓' : '○') + '</span>'
+          + '</button>';
+      });
+      html += '<button onclick="resetChecklist()" class="mt-3 text-xs text-muted hover:text-accent transition-colors">Reset pentru azi</button>';
+      html += '</div>';
+      return html;
+    }
+
     function render(d) {
       var c = d.current;
       var now = new Date();
@@ -2203,6 +2440,19 @@
       if (daily.length && daily[0].sunset)
         html += statCard('🌇', 'Apus', fmtTime(daily[0].sunset), 'text-gray-100', 'ora apusului soarelui');
       html += '</div>';
+
+      // Differentiation block: Ride DNA + advisor + checklist
+      var dna = calcRideDna(c);
+      html += secTitle('Ride Briefing 360');
+      html += '<div class="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-2">';
+      html += rideDnaHtml(dna);
+      html += departureAdvisorHtml(hourly);
+      html += checklistHtml();
+      html += '</div>';
+      html += '<div class="mb-4 p-4 rounded-xl border border-border bg-card text-sm text-gray-300 leading-relaxed">'
+        + '<span class="font-display text-xs tracking-[0.2em] text-muted block mb-1">BRIEFING PERSONALIZAT</span>'
+        + briefingText(c, dna)
+        + '</div>';
 
       // Gear recommendation
       var gearRecs = c.gear_recommendation && c.gear_recommendation.length
@@ -2405,6 +2655,7 @@
         + '<div class="mt-1 text-muted/60">Fuziune multi-sursă asistată AI pentru scorul moto &middot; ' + sourceUnique.length + ' surse active &middot; Actualizat la fiecare 30 min automat</div>'
         + '</div>';
 
+      window._lastWeatherData = d;
       document.getElementById("app").innerHTML = html;
       renderChart(hourly);
       if (isPremium()) initRadarMap(d.latitude, d.longitude);
