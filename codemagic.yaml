@@ -53,8 +53,27 @@ workflows:
 
       - name: Import signing assets
         script: |
-          echo "$CM_CERTIFICATE" | base64 --decode > /tmp/ios_distribution.p12
-          echo "$CM_PROVISIONING_PROFILE" | base64 --decode > /tmp/MotoMeteo_App_Store.mobileprovision
+          set -e
+          if [ -z "$CM_CERTIFICATE" ] || [ -z "$CM_PROVISIONING_PROFILE" ] || [ -z "$CM_CERTIFICATE_PASSWORD" ]; then
+            echo "Missing one of: CM_CERTIFICATE, CM_PROVISIONING_PROFILE, CM_CERTIFICATE_PASSWORD"
+            exit 1
+          fi
+
+          if [ -f "$CM_CERTIFICATE" ]; then
+            cp "$CM_CERTIFICATE" /tmp/ios_distribution.p12
+          else
+            printf '%s' "$CM_CERTIFICATE" | tr -d '\r\n\t ' | base64 --decode > /tmp/ios_distribution.p12
+          fi
+
+          if [ -f "$CM_PROVISIONING_PROFILE" ]; then
+            cp "$CM_PROVISIONING_PROFILE" /tmp/MotoMeteo_App_Store.mobileprovision
+          else
+            printf '%s' "$CM_PROVISIONING_PROFILE" | tr -d '\r\n\t ' | base64 --decode > /tmp/MotoMeteo_App_Store.mobileprovision
+          fi
+
+          test -s /tmp/ios_distribution.p12
+          test -s /tmp/MotoMeteo_App_Store.mobileprovision
+          openssl pkcs12 -in /tmp/ios_distribution.p12 -nokeys -passin pass:"$CM_CERTIFICATE_PASSWORD" >/dev/null
           keychain initialize
           keychain add-certificates \
             --certificate /tmp/ios_distribution.p12 \
