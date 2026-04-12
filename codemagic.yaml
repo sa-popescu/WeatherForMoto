@@ -5,6 +5,9 @@ workflows:
     instance_type: mac_mini_m2
 
     environment:
+      groups:
+        - ios_signing
+        - app_store_credentials
       node: 20
       xcode: latest
       cocoapods: default
