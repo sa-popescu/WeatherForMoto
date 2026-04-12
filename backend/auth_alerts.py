@@ -174,7 +174,7 @@ def _send_auth_email(email: str, code: str) -> None:
         f"{code}\n\nValabil {AUTH_CODE_TTL_MIN} minute."
     )
 
-    with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+    with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=8) as server:
         server.starttls()
         if SMTP_USER and SMTP_PASS:
             server.login(SMTP_USER, SMTP_PASS)
@@ -257,15 +257,17 @@ async def auth_request_code(payload: RequestCodePayload) -> dict[str, Any]:
     finally:
         conn.close()
 
+    email_sent = False
     try:
         _send_auth_email(payload.email.lower(), code)
+        email_sent = True
     except Exception as exc:
         logger.warning("Could not send auth email: %s", exc)
 
     response: dict[str, Any] = {"ok": True, "message": "Cod trimis. Verifică emailul."}
-    if not SMTP_HOST and ALLOW_INSECURE_AUTH_CODE:
+    if (not SMTP_HOST or not email_sent) and ALLOW_INSECURE_AUTH_CODE:
         response["dev_code"] = code
-        response["message"] = "Cod generat (mod development)."
+        response["message"] = "Cod generat (fallback development)."
     return response
 
 
