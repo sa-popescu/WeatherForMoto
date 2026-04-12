@@ -31,6 +31,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from weather_service import geocode_city, get_weather, get_route_weather, get_multi_route_weather
+from auth_alerts import router as auth_alerts_router, init_db
 import httpx
 
 # ---------------------------------------------------------------------------
@@ -66,6 +67,7 @@ ICONS_DIR = _REPO_ROOT / "icons"
 
 @asynccontextmanager
 async def lifespan(fastapi_app: FastAPI):
+    init_db()
     logger.info("WeatherForMoto backend starting up")
     logger.info("INDEX_HTML path: %s (exists=%s)", INDEX_HTML, INDEX_HTML.is_file())
     logger.info("DEFAULT_CITY: %s", DEFAULT_CITY)
@@ -94,9 +96,11 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=False,
-    allow_methods=["GET"],
+    allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(auth_alerts_router)
 
 
 # ---------------------------------------------------------------------------

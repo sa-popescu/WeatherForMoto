@@ -392,6 +392,16 @@
                        text-base px-3 py-2 rounded-lg transition-colors flex items-center gap-2 justify-center md:justify-start" id="alerts-hdr-btn">
           <span>🔔</span><span class="text-sm md:hidden">Alerte</span>
         </button>
+        <button onclick="accountLoginFlow();closeMobileMenu()" title="Cont"
+          class="bg-card border border-border text-muted hover:text-accent hover:border-accent
+                       text-base px-3 py-2 rounded-lg transition-colors flex items-center gap-2 justify-center md:justify-start" id="account-hdr-btn">
+          <span>👤</span><span class="text-sm md:hidden">Cont</span>
+        </button>
+        <button onclick="togglePushAlerts();closeMobileMenu()" title="Notificari push"
+          class="bg-card border border-border text-muted hover:text-ok hover:border-ok
+                       text-base px-3 py-2 rounded-lg transition-colors flex items-center gap-2 justify-center md:justify-start" id="push-hdr-btn">
+          <span>📲</span><span class="text-sm md:hidden">Push OFF</span>
+        </button>
       </div>
     </div>
     <div id="favs-bar" class="max-w-5xl mx-auto px-3 sm:px-4 pb-2"></div>
@@ -570,6 +580,179 @@
       return "";
     }
     var API_URL = _resolveApiUrl();
+
+    // -----------------------------------------------------------------------
+    // Account + web push (browser-first)
+    // -----------------------------------------------------------------------
+    var AUTH_TOKEN_KEY = 'mmAuthTokenV1';
+    var USER_EMAIL_KEY = 'mmUserEmailV1';
+
+    function _api(path) {
+      return (API_URL === null || API_URL === '') ? path : (API_URL + path);
+    }
+    function _authToken() {
+      try { return localStorage.getItem(AUTH_TOKEN_KEY) || ''; } catch (_) { return ''; }
+    }
+    function _setAuth(token, email) {
+      try {
+        if (token) localStorage.setItem(AUTH_TOKEN_KEY, token); else localStorage.removeItem(AUTH_TOKEN_KEY);
+        if (email) localStorage.setItem(USER_EMAIL_KEY, email); else localStorage.removeItem(USER_EMAIL_KEY);
+      } catch (_) { }
+      _updateAccountButton();
+    }
+    function _updateAccountButton() {
+      var btn = document.getElementById('account-hdr-btn');
+      if (!btn) return;
+      var email = '';
+      try { email = localStorage.getItem(USER_EMAIL_KEY) || ''; } catch (_) { }
+      btn.title = email ? ('Cont: ' + email) : 'Cont';
+      var txt = btn.querySelector('span:last-child');
+      if (txt) txt.textContent = email ? 'Cont ON' : 'Cont';
+    }
+
+    async function accountLoginFlow() {
+      var email = prompt('Introdu emailul contului MotoMeteo:');
+      if (!email) return;
+      email = email.trim().toLowerCase();
+      if (!email) return;
+
+      try {
+        var req = await fetch(_api('/auth/request-code'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email })
+        });
+        var reqData = await req.json();
+        if (!req.ok) throw new Error(reqData.detail || 'Nu am putut trimite codul.');
+
+        var hint = reqData.dev_code ? ('Cod (dev): ' + reqData.dev_code + '\n') : '';
+        var code = prompt(hint + 'Introdu codul primit pe email:');
+        if (!code) return;
+
+        var verify = await fetch(_api('/auth/verify-code'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email, code: code.trim() })
+        });
+        var verifyData = await verify.json();
+        if (!verify.ok) throw new Error(verifyData.detail || 'Cod invalid.');
+
+        _setAuth(verifyData.token, verifyData.user && verifyData.user.email ? verifyData.user.email : email);
+        alert('Autentificat cu succes. Acum poți activa notificările push.');
+      } catch (e) {
+        alert('Eroare autentificare: ' + (e && e.message || e));
+      }
+    }
+
+    function _urlBase64ToUint8Array(base64String) {
+      var padding = '='.repeat((4 - base64String.length % 4) % 4);
+      var base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+      var rawData = atob(base64);
+      var outputArray = new Uint8Array(rawData.length);
+      for (var i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
+      return outputArray;
+    }
+
+    async function _setDefaultPrefs() {
+      var token = _authToken();
+      if (!token) return;
+      try {
+        await fetch(_api('/me/prefs'), {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token,
+          },
+          body: JSON.stringify({
+            enabled: true,
+            min_score: 45,
+            max_wind_gust: 50,
+            max_precip: 2,
+            frost_risk_enabled: true,
+            home_lat: LAT,
+            home_lon: LON,
+            city: CITY,
+          }),
+        });
+      } catch (_) { }
+    }
+
+    async function togglePushAlerts() {
+      var token = _authToken();
+      if (!token) {
+        alert('Autentifică-te mai întâi din butonul Cont.');
+        return;
+      }
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        alert('Push notifications nu sunt suportate în acest browser.');
+        return;
+      }
+
+      try {
+        await _setDefaultPrefs();
+        var reg = await navigator.serviceWorker.ready;
+        var existing = await reg.pushManager.getSubscription();
+
+        if (existing) {
+          await fetch(_api('/me/push-subscriptions?endpoint=' + encodeURIComponent(existing.endpoint)), {
+            method: 'DELETE',
+            headers: { 'Authorization': 'Bearer ' + token }
+          });
+          await existing.unsubscribe();
+          _updatePushButton(false);
+          alert('Notificările push au fost dezactivate.');
+          return;
+        }
+
+        var keyResp = await fetch(_api('/push/public-key'));
+        var keyData = await keyResp.json();
+        if (!keyResp.ok) throw new Error(keyData.detail || 'Cheia VAPID nu este configurată.');
+
+        var subscription = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: _urlBase64ToUint8Array(keyData.publicKey),
+        });
+
+        var subJson = subscription.toJSON();
+        var saveResp = await fetch(_api('/me/push-subscriptions'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token,
+          },
+          body: JSON.stringify(subJson),
+        });
+        var saveData = await saveResp.json();
+        if (!saveResp.ok) throw new Error(saveData.detail || 'Nu am putut salva abonarea push.');
+
+        _updatePushButton(true);
+        alert('Notificările push sunt active. Testez acum alertele pe 24h...');
+        await fetch(_api('/alerts/check-now'), {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+      } catch (e) {
+        alert('Eroare push: ' + (e && e.message || e));
+      }
+    }
+
+    async function _refreshPushStatus() {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+      try {
+        var reg = await navigator.serviceWorker.ready;
+        var sub = await reg.pushManager.getSubscription();
+        _updatePushButton(!!sub);
+      } catch (_) { }
+    }
+
+    function _updatePushButton(enabled) {
+      var btn = document.getElementById('push-hdr-btn');
+      if (!btn) return;
+      var txt = btn.querySelector('span:last-child');
+      if (txt) txt.textContent = enabled ? 'Push ON' : 'Push OFF';
+      btn.classList.toggle('border-ok', !!enabled);
+      btn.classList.toggle('text-ok', !!enabled);
+    }
 
     var LAT = 44.4268, LON = 26.1025, CITY = "București";
     var _chart = null;
@@ -2494,6 +2677,8 @@
 
     loadProfileUI();
     renderFavsBar();
+    _updateAccountButton();
+    _refreshPushStatus();
     loadWeather();
   </script>
 
