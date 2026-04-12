@@ -97,6 +97,46 @@
       scroll-behavior: smooth;
     }
 
+    body,
+    header,
+    .wx-card,
+    .bg-card,
+    .bg-surface,
+    .bg-bg {
+      transition: background-color .25s ease, color .25s ease, border-color .25s ease;
+    }
+
+    html.theme-light body {
+      background: #eef1f6 !important;
+      color: #0f172a !important;
+    }
+
+    html.theme-light .bg-bg {
+      background-color: #eef1f6 !important;
+    }
+
+    html.theme-light .bg-surface {
+      background-color: #ffffff !important;
+    }
+
+    html.theme-light .bg-card {
+      background-color: #ffffff !important;
+    }
+
+    html.theme-light .border-border {
+      border-color: #dbe3ee !important;
+    }
+
+    html.theme-light .text-gray-100,
+    html.theme-light .text-gray-200 {
+      color: #0f172a !important;
+    }
+
+    html.theme-light .text-muted,
+    html.theme-light .text-gray-300 {
+      color: #52607a !important;
+    }
+
     /* Card hover lift */
     .wx-card {
       transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
@@ -387,6 +427,11 @@
                        text-base px-3 py-2 rounded-lg transition-colors flex items-center gap-2 justify-center md:justify-start" id="account-hdr-btn">
           <span>👤</span><span class="text-sm md:hidden">Cont & Setări</span>
         </button>
+        <button id="theme-toggle-btn" onclick="toggleTheme();closeMobileMenu()" title="Schimbă tema"
+          class="bg-card border border-border text-muted hover:text-accent hover:border-accent
+                       text-base px-3 py-2 rounded-lg transition-colors flex items-center gap-2 justify-center md:justify-start">
+          <span id="theme-toggle-icon">🌙</span><span class="text-sm md:hidden">Temă</span>
+        </button>
       </div>
     </div>
     <div id="favs-bar" class="max-w-5xl mx-auto px-3 sm:px-4 pb-2"></div>
@@ -458,6 +503,23 @@
       </div>
       <button onclick="dismissIosBanner()" aria-label="Închide"
         class="flex-shrink-0 text-muted hover:text-gray-200 text-lg leading-none transition-colors">✕</button>
+    </div>
+  </div>
+
+  <div id="pwa-install-banner" class="hidden fixed left-3 right-3 bottom-3 z-[230] sm:left-auto sm:right-4 sm:max-w-sm"
+    role="alert" aria-live="polite">
+    <div class="bg-card border border-accent/40 rounded-xl p-3 shadow-2xl flex items-start gap-3">
+      <span class="text-xl">⬇️</span>
+      <div class="flex-1 min-w-0">
+        <div class="font-display text-xs tracking-widest text-accent">INSTALEAZĂ MOTO METEO</div>
+        <div class="text-xs text-gray-300 mt-1">Instalează aplicația pentru lansare rapidă și notificări mai stabile.
+        </div>
+        <div class="mt-2 flex items-center gap-2">
+          <button onclick="installPwaNow()"
+            class="bg-accent hover:bg-orange-400 text-black text-xs font-display font-bold tracking-wider px-3 py-1.5 rounded-lg">Instalează</button>
+          <button onclick="dismissPwaInstallBanner()" class="text-xs text-muted hover:text-gray-200">Mai târziu</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -561,12 +623,75 @@
 
         <div class="mt-5 border-t border-border pt-4">
           <div class="font-display text-sm font-bold tracking-widest text-gray-100 mb-1">🔔 ALERTE PERSONALIZATE</div>
-          <div class="text-xs text-muted mb-3">Alertele locale se folosesc la evaluarea vremii în aplicație.</div>
+          <div class="text-xs text-muted mb-3">Pragurile de mai jos se sincronizează și cu alertele push/email ale
+            contului.</div>
           <div id="account-alerts-list" class="space-y-2"></div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+            <div>
+              <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Scor minim</label>
+              <input id="alert-min-score" type="number" min="0" max="100" value="45"
+                class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent" />
+            </div>
+            <div>
+              <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Rafale max (km/h)</label>
+              <input id="alert-max-wind" type="number" min="10" max="200" value="50"
+                class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent" />
+            </div>
+            <div>
+              <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Precipitații max (mm/h)</label>
+              <input id="alert-max-precip" type="number" min="0" max="50" step="0.1" value="2"
+                class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent" />
+            </div>
+            <div>
+              <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Prob. ploaie max (%)</label>
+              <input id="alert-max-rain-prob" type="number" min="0" max="100" value="70"
+                class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent" />
+            </div>
+            <div>
+              <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Temp minimă (opțional)</label>
+              <input id="alert-min-temp" type="number" min="-60" max="45" step="0.5" placeholder="ex: 5"
+                class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent" />
+            </div>
+            <div>
+              <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Temp maximă (opțional)</label>
+              <input id="alert-max-temp" type="number" min="-20" max="70" step="0.5" placeholder="ex: 36"
+                class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent" />
+            </div>
+            <div>
+              <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Quiet start</label>
+              <input id="alert-quiet-start" type="number" min="0" max="23" value="22"
+                class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent" />
+            </div>
+            <div>
+              <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Quiet end</label>
+              <input id="alert-quiet-end" type="number" min="0" max="23" value="7"
+                class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent" />
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+            <label class="flex items-center gap-2 text-sm text-gray-200"><input id="alert-quiet-enabled" type="checkbox"
+                class="accent-accent"> Quiet hours active</label>
+            <label class="flex items-center gap-2 text-sm text-gray-200"><input id="alert-frost-enabled" type="checkbox"
+                class="accent-accent" checked> Alertă risc îngheț</label>
+          </div>
           <button onclick="saveAlerts()"
             class="mt-3 w-full bg-accent hover:bg-orange-400 text-black font-display font-bold tracking-wider py-2.5 rounded-xl transition-colors">
             Salvează alertele
           </button>
+        </div>
+
+        <div class="mt-5 border-t border-border pt-4">
+          <div class="font-display text-sm font-bold tracking-widest text-gray-100 mb-1">📊 COMPARATOR LOCAȚII</div>
+          <div class="text-xs text-muted mb-3">Compară rapid condițiile pentru două locații favorite.</div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <select id="cmp-a"
+              class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent"></select>
+            <select id="cmp-b"
+              class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent"></select>
+          </div>
+          <button onclick="compareLocations()"
+            class="mt-3 w-full border border-border text-gray-200 hover:border-accent hover:text-accent py-2 rounded-xl text-sm transition-colors">Compară</button>
+          <div id="compare-result" class="mt-3"></div>
         </div>
       </div>
     </div>
@@ -617,6 +742,9 @@
     var AUTH_TOKEN_KEY = 'mmAuthTokenV1';
     var USER_EMAIL_KEY = 'mmUserEmailV1';
     var USER_NAME_KEY = 'mmUserNameV1';
+    var THEME_KEY = 'mmThemeV1';
+    var ALERT_SETTINGS_KEY = 'motoAlertSettingsV2';
+    var deferredInstallPrompt = null;
 
     function _api(path) {
       return (API_URL === null || API_URL === '') ? path : (API_URL + path);
@@ -661,6 +789,8 @@
       refreshAccountState();
       loadProfileUI();
       renderAlertsForm();
+      renderCompareOptions();
+      _loadAlertPrefsFromServer();
       _refreshPushStatus();
     }
 
@@ -683,6 +813,8 @@
       if (loggedView) loggedView.classList.remove('hidden');
       loadProfileUI();
       renderAlertsForm();
+      renderCompareOptions();
+      _loadAlertPrefsFromServer();
       _refreshPushStatus();
     }
 
@@ -870,7 +1002,14 @@
             min_score: 45,
             max_wind_gust: 50,
             max_precip: 2,
+            max_rain_probability: 70,
+            min_temp: null,
+            max_temp: null,
             frost_risk_enabled: true,
+            quiet_hours_enabled: false,
+            quiet_start_hour: 22,
+            quiet_end_hour: 7,
+            severity: 'medium',
             home_lat: LAT,
             home_lon: LON,
             city: CITY,
@@ -1038,6 +1177,61 @@
     function _getAlertState() {
       try { return JSON.parse(localStorage.getItem('motoAlerts') || '{}'); } catch (_) { return {}; }
     }
+    function _getAlertSettings() {
+      var defaults = {
+        min_score: 45,
+        max_wind_gust: 50,
+        max_precip: 2,
+        max_rain_probability: 70,
+        min_temp: null,
+        max_temp: null,
+        frost_risk_enabled: true,
+        quiet_hours_enabled: false,
+        quiet_start_hour: 22,
+        quiet_end_hour: 7,
+      };
+      try {
+        return Object.assign({}, defaults, JSON.parse(localStorage.getItem(ALERT_SETTINGS_KEY) || '{}'));
+      } catch (_) {
+        return defaults;
+      }
+    }
+    function _saveAlertSettings(settings) {
+      try { localStorage.setItem(ALERT_SETTINGS_KEY, JSON.stringify(settings)); } catch (_) { }
+    }
+    function _applyAlertSettingsToForm(s) {
+      var byId = function (id) { return document.getElementById(id); };
+      if (byId('alert-min-score')) byId('alert-min-score').value = s.min_score;
+      if (byId('alert-max-wind')) byId('alert-max-wind').value = s.max_wind_gust;
+      if (byId('alert-max-precip')) byId('alert-max-precip').value = s.max_precip;
+      if (byId('alert-max-rain-prob')) byId('alert-max-rain-prob').value = s.max_rain_probability;
+      if (byId('alert-min-temp')) byId('alert-min-temp').value = s.min_temp == null ? '' : s.min_temp;
+      if (byId('alert-max-temp')) byId('alert-max-temp').value = s.max_temp == null ? '' : s.max_temp;
+      if (byId('alert-quiet-enabled')) byId('alert-quiet-enabled').checked = !!s.quiet_hours_enabled;
+      if (byId('alert-quiet-start')) byId('alert-quiet-start').value = s.quiet_start_hour;
+      if (byId('alert-quiet-end')) byId('alert-quiet-end').value = s.quiet_end_hour;
+      if (byId('alert-frost-enabled')) byId('alert-frost-enabled').checked = !!s.frost_risk_enabled;
+    }
+    async function _loadAlertPrefsFromServer() {
+      var token = _authToken();
+      if (!token) {
+        _applyAlertSettingsToForm(_getAlertSettings());
+        return;
+      }
+      try {
+        var resp = await fetch(_api('/me'), { headers: { 'Authorization': 'Bearer ' + token } });
+        var data = await resp.json();
+        if (!resp.ok || !data || !data.prefs) {
+          _applyAlertSettingsToForm(_getAlertSettings());
+          return;
+        }
+        var merged = Object.assign({}, _getAlertSettings(), data.prefs || {});
+        _saveAlertSettings(merged);
+        _applyAlertSettingsToForm(merged);
+      } catch (_) {
+        _applyAlertSettingsToForm(_getAlertSettings());
+      }
+    }
     function renderAlertsForm() {
       var state = _getAlertState();
       var html = '';
@@ -1052,14 +1246,63 @@
       });
       var el = document.getElementById('account-alerts-list');
       if (el) el.innerHTML = html;
+      _applyAlertSettingsToForm(_getAlertSettings());
     }
-    function saveAlerts() {
+    async function saveAlerts() {
       var state = {};
       ALERT_DEFS.forEach(function (a) {
         var chk = document.getElementById('alert-chk-' + a.id);
         state[a.id] = chk ? chk.checked : true;
       });
       try { localStorage.setItem('motoAlerts', JSON.stringify(state)); } catch (_) { }
+
+      var settings = {
+        min_score: Math.max(0, Math.min(100, parseInt((document.getElementById('alert-min-score') || {}).value || 45, 10))),
+        max_wind_gust: Math.max(10, Math.min(200, parseFloat((document.getElementById('alert-max-wind') || {}).value || 50))),
+        max_precip: Math.max(0, Math.min(50, parseFloat((document.getElementById('alert-max-precip') || {}).value || 2))),
+        max_rain_probability: Math.max(0, Math.min(100, parseInt((document.getElementById('alert-max-rain-prob') || {}).value || 70, 10))),
+        min_temp: ((document.getElementById('alert-min-temp') || {}).value || '').trim(),
+        max_temp: ((document.getElementById('alert-max-temp') || {}).value || '').trim(),
+        frost_risk_enabled: !!((document.getElementById('alert-frost-enabled') || {}).checked),
+        quiet_hours_enabled: !!((document.getElementById('alert-quiet-enabled') || {}).checked),
+        quiet_start_hour: Math.max(0, Math.min(23, parseInt((document.getElementById('alert-quiet-start') || {}).value || 22, 10))),
+        quiet_end_hour: Math.max(0, Math.min(23, parseInt((document.getElementById('alert-quiet-end') || {}).value || 7, 10))),
+      };
+      settings.min_temp = settings.min_temp === '' ? null : parseFloat(settings.min_temp);
+      settings.max_temp = settings.max_temp === '' ? null : parseFloat(settings.max_temp);
+      _saveAlertSettings(settings);
+
+      var token = _authToken();
+      if (token) {
+        try {
+          await fetch(_api('/me/prefs'), {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ' + token,
+            },
+            body: JSON.stringify({
+              enabled: true,
+              email_alerts_enabled: true,
+              min_score: settings.min_score,
+              max_wind_gust: settings.max_wind_gust,
+              max_precip: settings.max_precip,
+              max_rain_probability: settings.max_rain_probability,
+              min_temp: settings.min_temp,
+              max_temp: settings.max_temp,
+              frost_risk_enabled: settings.frost_risk_enabled,
+              quiet_hours_enabled: settings.quiet_hours_enabled,
+              quiet_start_hour: settings.quiet_start_hour,
+              quiet_end_hour: settings.quiet_end_hour,
+              severity: 'medium',
+              home_lat: LAT,
+              home_lon: LON,
+              city: CITY,
+            }),
+          });
+        } catch (_) { }
+      }
+
       alert('Alertele personalizate au fost salvate.');
     }
 
@@ -1068,20 +1311,76 @@
     }
     function checkAlerts(current) {
       var state = _getAlertState();
+      var cfg = _getAlertSettings();
       var banners = '';
       ALERT_DEFS.forEach(function (a) {
         if (state[a.id] === false) return;
         var val = current[a.field];
         if (val == null) return;
-        var triggered = a.op === '<' ? val < a.threshold : val > a.threshold;
+        var threshold = a.threshold;
+        if (a.id === 'score_low') threshold = cfg.min_score;
+        if (a.id === 'wind_high') threshold = cfg.max_wind_gust;
+        if (a.id === 'rain_heavy') threshold = cfg.max_precip;
+        if (a.id === 'rain_prob') threshold = cfg.max_rain_probability;
+        if (a.id === 'temp_cold' && cfg.min_temp != null) threshold = cfg.min_temp;
+        if (a.id === 'temp_hot' && cfg.max_temp != null) threshold = cfg.max_temp;
+        var triggered = a.op === '<' ? val < threshold : val > threshold;
         if (!triggered) return;
         banners += '<div class="alert-banner mb-3 p-3 rounded-xl border border-warn/40 bg-warn/10 text-warn text-sm flex items-start gap-3">'
           + '<span class="text-xl flex-shrink-0">🔔</span>'
           + '<div><div class="font-semibold">' + a.label + '</div>'
-          + '<div class="text-xs text-muted/80 mt-0.5">' + a.desc + ' &nbsp;·&nbsp; valoare curentă: <strong class="text-warn">' + (Math.round(val * 10) / 10) + '</strong></div>'
+          + '<div class="text-xs text-muted/80 mt-0.5">' + a.desc + ' &nbsp;·&nbsp; prag: <strong class="text-warn">' + threshold + '</strong> &nbsp;·&nbsp; valoare: <strong class="text-warn">' + (Math.round(val * 10) / 10) + '</strong></div>'
           + '</div></div>';
       });
       return banners;
+    }
+
+    function renderCompareOptions() {
+      var a = document.getElementById('cmp-a');
+      var b = document.getElementById('cmp-b');
+      if (!a || !b) return;
+      var favs = _getFavs();
+      if (!favs.length) {
+        a.innerHTML = '<option>Fără favorite</option>';
+        b.innerHTML = '<option>Fără favorite</option>';
+        return;
+      }
+      var opts = favs.map(function (f, i) {
+        return '<option value="' + i + '">' + f.name + '</option>';
+      }).join('');
+      a.innerHTML = opts;
+      b.innerHTML = opts;
+      if (favs.length > 1) b.value = '1';
+    }
+
+    async function compareLocations() {
+      var favs = _getFavs();
+      var idxA = parseInt((document.getElementById('cmp-a') || {}).value || '0', 10);
+      var idxB = parseInt((document.getElementById('cmp-b') || {}).value || '1', 10);
+      var out = document.getElementById('compare-result');
+      if (!out) return;
+      if (!favs.length || !favs[idxA] || !favs[idxB]) {
+        out.innerHTML = '<div class="text-xs text-muted">Adaugă mai întâi locații favorite.</div>';
+        return;
+      }
+      var fa = favs[idxA], fb = favs[idxB];
+      out.innerHTML = '<div class="text-xs text-muted">Compar...</div>';
+      try {
+        var days = 1;
+        var urlA = _api('/weather?lat=' + fa.lat + '&lon=' + fa.lon + '&city=' + encodeURIComponent(fa.name) + '&days=' + days);
+        var urlB = _api('/weather?lat=' + fb.lat + '&lon=' + fb.lon + '&city=' + encodeURIComponent(fb.name) + '&days=' + days);
+        var res = await Promise.all([fetch(urlA), fetch(urlB)]);
+        if (!res[0].ok || !res[1].ok) throw new Error('Nu am putut încărca datele pentru comparator.');
+        var data = await Promise.all([res[0].json(), res[1].json()]);
+        var ca = data[0].current || {}, cb = data[1].current || {};
+        var winner = (ca.moto_score || 0) >= (cb.moto_score || 0) ? fa.name : fb.name;
+        out.innerHTML = '<div class="grid grid-cols-1 sm:grid-cols-2 gap-2">'
+          + '<div class="p-3 rounded-xl border border-border bg-bg"><div class="text-xs text-muted">' + fa.name + '</div><div class="text-lg font-display font-bold">' + (ca.moto_score || 0) + '/100</div><div class="text-xs text-muted">' + (ca.temperature != null ? ca.temperature + '°C' : '—') + ' · ' + (ca.wind_gusts_kmh != null ? Math.round(ca.wind_gusts_kmh) + ' km/h' : '—') + '</div></div>'
+          + '<div class="p-3 rounded-xl border border-border bg-bg"><div class="text-xs text-muted">' + fb.name + '</div><div class="text-lg font-display font-bold">' + (cb.moto_score || 0) + '/100</div><div class="text-xs text-muted">' + (cb.temperature != null ? cb.temperature + '°C' : '—') + ' · ' + (cb.wind_gusts_kmh != null ? Math.round(cb.wind_gusts_kmh) + ' km/h' : '—') + '</div></div>'
+          + '</div><div class="text-xs text-ok mt-2">Recomandare: ' + winner + '</div>';
+      } catch (e) {
+        out.innerHTML = '<div class="text-xs text-danger">' + (e && e.message || 'Eroare comparator') + '</div>';
+      }
     }
 
     // -----------------------------------------------------------------------
@@ -2033,6 +2332,7 @@
       });
       html += '</div>';
       el.innerHTML = html;
+      renderCompareOptions();
     }
 
     // -----------------------------------------------------------------------
@@ -2762,6 +3062,49 @@
       navigator.serviceWorker.register('sw.js').catch(function () { });
     }
 
+    function applyTheme() {
+      var theme = 'dark';
+      try { theme = localStorage.getItem(THEME_KEY) || 'dark'; } catch (_) { }
+      var root = document.documentElement;
+      if (theme === 'light') root.classList.add('theme-light');
+      else root.classList.remove('theme-light');
+      var icon = document.getElementById('theme-toggle-icon');
+      if (icon) icon.textContent = theme === 'light' ? '☀️' : '🌙';
+    }
+
+    function toggleTheme() {
+      var next = document.documentElement.classList.contains('theme-light') ? 'dark' : 'light';
+      try { localStorage.setItem(THEME_KEY, next); } catch (_) { }
+      applyTheme();
+    }
+
+    function dismissPwaInstallBanner() {
+      var b = document.getElementById('pwa-install-banner');
+      if (b) b.classList.add('hidden');
+      try { localStorage.setItem('pwaInstallDismissed', '1'); } catch (_) { }
+    }
+
+    async function installPwaNow() {
+      if (!deferredInstallPrompt) return;
+      deferredInstallPrompt.prompt();
+      try { await deferredInstallPrompt.userChoice; } catch (_) { }
+      deferredInstallPrompt = null;
+      dismissPwaInstallBanner();
+    }
+
+    window.addEventListener('beforeinstallprompt', function (e) {
+      e.preventDefault();
+      deferredInstallPrompt = e;
+      try { if (localStorage.getItem('pwaInstallDismissed')) return; } catch (_) { }
+      var banner = document.getElementById('pwa-install-banner');
+      if (banner) banner.classList.remove('hidden');
+    });
+
+    window.addEventListener('appinstalled', function () {
+      deferredInstallPrompt = null;
+      dismissPwaInstallBanner();
+    });
+
     // -----------------------------------------------------------------------
     // Precipitation radar (Leaflet + RainViewer)
     // -----------------------------------------------------------------------
@@ -2876,6 +3219,7 @@
 
     loadProfileUI();
     renderFavsBar();
+    applyTheme();
     _updateAccountButton();
     _refreshPushStatus();
     loadWeather();

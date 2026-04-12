@@ -74,7 +74,14 @@ class AlertPrefsPayload(BaseModel):
     min_score: int = Field(default=45, ge=0, le=100)
     max_wind_gust: float = Field(default=50, ge=10, le=200)
     max_precip: float = Field(default=2, ge=0, le=50)
+    max_rain_probability: int = Field(default=70, ge=0, le=100)
+    min_temp: float | None = Field(default=None, ge=-60, le=45)
+    max_temp: float | None = Field(default=None, ge=-20, le=70)
     frost_risk_enabled: bool = True
+    quiet_hours_enabled: bool = False
+    quiet_start_hour: int = Field(default=22, ge=0, le=23)
+    quiet_end_hour: int = Field(default=7, ge=0, le=23)
+    severity: str = Field(default="medium", pattern="^(low|medium|high)$")
     home_lat: float | None = Field(default=None, ge=-90, le=90)
     home_lon: float | None = Field(default=None, ge=-180, le=180)
     city: str | None = None
@@ -175,6 +182,48 @@ def init_db() -> None:
             "alert_prefs",
             "email_alerts_enabled",
             "ALTER TABLE alert_prefs ADD COLUMN email_alerts_enabled INTEGER NOT NULL DEFAULT 1",
+        )
+        _ensure_column(
+            conn,
+            "alert_prefs",
+            "max_rain_probability",
+            "ALTER TABLE alert_prefs ADD COLUMN max_rain_probability INTEGER NOT NULL DEFAULT 70",
+        )
+        _ensure_column(
+            conn,
+            "alert_prefs",
+            "min_temp",
+            "ALTER TABLE alert_prefs ADD COLUMN min_temp REAL",
+        )
+        _ensure_column(
+            conn,
+            "alert_prefs",
+            "max_temp",
+            "ALTER TABLE alert_prefs ADD COLUMN max_temp REAL",
+        )
+        _ensure_column(
+            conn,
+            "alert_prefs",
+            "quiet_hours_enabled",
+            "ALTER TABLE alert_prefs ADD COLUMN quiet_hours_enabled INTEGER NOT NULL DEFAULT 0",
+        )
+        _ensure_column(
+            conn,
+            "alert_prefs",
+            "quiet_start_hour",
+            "ALTER TABLE alert_prefs ADD COLUMN quiet_start_hour INTEGER NOT NULL DEFAULT 22",
+        )
+        _ensure_column(
+            conn,
+            "alert_prefs",
+            "quiet_end_hour",
+            "ALTER TABLE alert_prefs ADD COLUMN quiet_end_hour INTEGER NOT NULL DEFAULT 7",
+        )
+        _ensure_column(
+            conn,
+            "alert_prefs",
+            "severity",
+            "ALTER TABLE alert_prefs ADD COLUMN severity TEXT NOT NULL DEFAULT 'medium'",
         )
         conn.commit()
     finally:
@@ -307,8 +356,8 @@ def _upsert_default_prefs(conn: sqlite3.Connection, user_id: int) -> None:
     now = _utc_now().isoformat()
     conn.execute(
         """
-        INSERT INTO alert_prefs(user_id, enabled, email_alerts_enabled, min_score, max_wind_gust, max_precip, frost_risk_enabled, updated_at)
-        VALUES (?, 1, 1, 45, 50, 2, 1, ?)
+        INSERT INTO alert_prefs(user_id, enabled, email_alerts_enabled, min_score, max_wind_gust, max_precip, max_rain_probability, min_temp, max_temp, frost_risk_enabled, quiet_hours_enabled, quiet_start_hour, quiet_end_hour, severity, updated_at)
+        VALUES (?, 1, 1, 45, 50, 2, 70, NULL, NULL, 1, 0, 22, 7, 'medium', ?)
         ON CONFLICT(user_id) DO NOTHING
         """,
         (user_id, now),
@@ -463,7 +512,7 @@ async def me(user: SessionUser = Depends(get_current_user)) -> dict[str, Any]:
             (user.user_id,),
         ).fetchone()
         prefs = conn.execute(
-            "SELECT enabled, email_alerts_enabled, min_score, max_wind_gust, max_precip, frost_risk_enabled, home_lat, home_lon, city FROM alert_prefs WHERE user_id = ?",
+            "SELECT enabled, email_alerts_enabled, min_score, max_wind_gust, max_precip, max_rain_probability, min_temp, max_temp, frost_risk_enabled, quiet_hours_enabled, quiet_start_hour, quiet_end_hour, severity, home_lat, home_lon, city FROM alert_prefs WHERE user_id = ?",
             (user.user_id,),
         ).fetchone()
         sub_count = conn.execute(
@@ -488,15 +537,22 @@ async def update_prefs(payload: AlertPrefsPayload, user: SessionUser = Depends(g
         now = _utc_now().isoformat()
         conn.execute(
             """
-            INSERT INTO alert_prefs(user_id, enabled, email_alerts_enabled, min_score, max_wind_gust, max_precip, frost_risk_enabled, home_lat, home_lon, city, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO alert_prefs(user_id, enabled, email_alerts_enabled, min_score, max_wind_gust, max_precip, max_rain_probability, min_temp, max_temp, frost_risk_enabled, quiet_hours_enabled, quiet_start_hour, quiet_end_hour, severity, home_lat, home_lon, city, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(user_id) DO UPDATE SET
                 enabled = excluded.enabled,
                 email_alerts_enabled = excluded.email_alerts_enabled,
                 min_score = excluded.min_score,
                 max_wind_gust = excluded.max_wind_gust,
                 max_precip = excluded.max_precip,
+                max_rain_probability = excluded.max_rain_probability,
+                min_temp = excluded.min_temp,
+                max_temp = excluded.max_temp,
                 frost_risk_enabled = excluded.frost_risk_enabled,
+                quiet_hours_enabled = excluded.quiet_hours_enabled,
+                quiet_start_hour = excluded.quiet_start_hour,
+                quiet_end_hour = excluded.quiet_end_hour,
+                severity = excluded.severity,
                 home_lat = excluded.home_lat,
                 home_lon = excluded.home_lon,
                 city = excluded.city,
@@ -509,7 +565,14 @@ async def update_prefs(payload: AlertPrefsPayload, user: SessionUser = Depends(g
                 payload.min_score,
                 payload.max_wind_gust,
                 payload.max_precip,
+                payload.max_rain_probability,
+                payload.min_temp,
+                payload.max_temp,
                 int(payload.frost_risk_enabled),
+                int(payload.quiet_hours_enabled),
+                payload.quiet_start_hour,
+                payload.quiet_end_hour,
+                payload.severity,
                 payload.home_lat,
                 payload.home_lon,
                 payload.city,
@@ -582,8 +645,8 @@ async def unsubscribe_email_alerts(user: SessionUser = Depends(get_current_user)
         now = _utc_now().isoformat()
         conn.execute(
             """
-            INSERT INTO alert_prefs(user_id, enabled, email_alerts_enabled, min_score, max_wind_gust, max_precip, frost_risk_enabled, updated_at)
-            VALUES (?, 1, 0, 45, 50, 2, 1, ?)
+            INSERT INTO alert_prefs(user_id, enabled, email_alerts_enabled, min_score, max_wind_gust, max_precip, max_rain_probability, min_temp, max_temp, frost_risk_enabled, quiet_hours_enabled, quiet_start_hour, quiet_end_hour, severity, updated_at)
+            VALUES (?, 1, 0, 45, 50, 2, 70, NULL, NULL, 1, 0, 22, 7, 'medium', ?)
             ON CONFLICT(user_id) DO UPDATE SET email_alerts_enabled = 0, updated_at = excluded.updated_at
             """,
             (user.user_id, now),
@@ -613,36 +676,82 @@ def _build_risk_events(hourly: list[dict[str, Any]], prefs: sqlite3.Row) -> list
     events: list[dict[str, Any]] = []
     max_wind = float(prefs["max_wind_gust"])
     max_precip = float(prefs["max_precip"])
+    max_rain_prob = int(prefs["max_rain_probability"]) if prefs["max_rain_probability"] is not None else 70
     min_score = int(prefs["min_score"])
+    min_temp = prefs["min_temp"]
+    max_temp = prefs["max_temp"]
     frost_enabled = bool(prefs["frost_risk_enabled"])
+    quiet_enabled = bool(prefs["quiet_hours_enabled"]) if "quiet_hours_enabled" in prefs.keys() else False
+    quiet_start = int(prefs["quiet_start_hour"]) if "quiet_start_hour" in prefs.keys() else 22
+    quiet_end = int(prefs["quiet_end_hour"]) if "quiet_end_hour" in prefs.keys() else 7
 
-    for h in hourly[:24]:
+    def _in_quiet_hours(ts: str) -> bool:
+        if not quiet_enabled:
+            return False
+        try:
+            hour = datetime.fromisoformat(ts).hour
+        except Exception:
+            return False
+        if quiet_start == quiet_end:
+            return True
+        if quiet_start < quiet_end:
+            return quiet_start <= hour < quiet_end
+        return hour >= quiet_start or hour < quiet_end
+
+    def _iter_active_hours() -> list[dict[str, Any]]:
+        return [h for h in hourly[:24] if not _in_quiet_hours(str(h.get("time", "")))]
+
+    active_hours = _iter_active_hours()
+    if not active_hours:
+        active_hours = hourly[:24]
+
+    for h in active_hours:
         time = h.get("time", "")
-        temp = h.get("temperature")
         gust = h.get("wind_gusts_kmh") or 0
-        precip = h.get("precipitation_mm") or 0
-        score = h.get("moto_score") if h.get("moto_score") is not None else 100
 
         if gust >= max_wind:
             events.append({"type": "wind", "when": time, "value": gust, "title": "Rafale puternice", "body": f"Rafale estimate {round(gust)} km/h"})
             break
 
-    for h in hourly[:24]:
+    for h in active_hours:
         time = h.get("time", "")
         precip = h.get("precipitation_mm") or 0
         if precip >= max_precip:
             events.append({"type": "rain", "when": time, "value": precip, "title": "Ploaie puternică", "body": f"Precipitații estimate {round(precip, 1)} mm/h"})
             break
 
-    for h in hourly[:24]:
+    for h in active_hours:
+        time = h.get("time", "")
+        rain_prob = h.get("precipitation_probability") or 0
+        if rain_prob >= max_rain_prob:
+            events.append({"type": "rain_prob", "when": time, "value": rain_prob, "title": "Probabilitate ploaie ridicată", "body": f"Probabilitate estimată {round(rain_prob)}%"})
+            break
+
+    for h in active_hours:
         time = h.get("time", "")
         score = h.get("moto_score") if h.get("moto_score") is not None else 100
         if score <= min_score:
             events.append({"type": "score", "when": time, "value": score, "title": "Scor moto scăzut", "body": f"Scor estimat {score}/100"})
             break
 
+    if min_temp is not None:
+        for h in active_hours:
+            time = h.get("time", "")
+            temp = h.get("temperature")
+            if temp is not None and temp <= float(min_temp):
+                events.append({"type": "temp_low", "when": time, "value": temp, "title": "Temperatură foarte scăzută", "body": f"Temperatură estimată {round(temp, 1)}°C"})
+                break
+
+    if max_temp is not None:
+        for h in active_hours:
+            time = h.get("time", "")
+            temp = h.get("temperature")
+            if temp is not None and temp >= float(max_temp):
+                events.append({"type": "temp_high", "when": time, "value": temp, "title": "Temperatură foarte ridicată", "body": f"Temperatură estimată {round(temp, 1)}°C"})
+                break
+
     if frost_enabled:
-        for h in hourly[:24]:
+        for h in active_hours:
             time = h.get("time", "")
             temp = h.get("temperature")
             precip = h.get("precipitation_mm") or 0
@@ -683,7 +792,7 @@ def _send_push(subscription: sqlite3.Row, title: str, body: str, data: dict[str,
 
 async def _dispatch_for_user(conn: sqlite3.Connection, user_id: int, email: str, owm_api_key: str) -> dict[str, Any]:
     prefs = conn.execute(
-        "SELECT enabled, email_alerts_enabled, min_score, max_wind_gust, max_precip, frost_risk_enabled, home_lat, home_lon, city FROM alert_prefs WHERE user_id = ?",
+        "SELECT enabled, email_alerts_enabled, min_score, max_wind_gust, max_precip, max_rain_probability, min_temp, max_temp, frost_risk_enabled, quiet_hours_enabled, quiet_start_hour, quiet_end_hour, severity, home_lat, home_lon, city FROM alert_prefs WHERE user_id = ?",
         (user_id,),
     ).fetchone()
     if not prefs or not prefs["enabled"]:
