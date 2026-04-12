@@ -12,13 +12,16 @@ workflows:
       # APP_STORE_CONNECT_KEY_IDENTIFIER   (ex: A1B2C3D4E5)
       # APP_STORE_CONNECT_ISSUER_ID        (ex: 12345678-1234-...)
       # APP_STORE_CONNECT_PRIVATE_KEY      (conținutul .p8, cu \n)
-      # CM_CERTIFICATE                     (base64 pentru ios_distribution.p12)
-      # CM_CERTIFICATE_PASSWORD            (parola fișierului .p12)
-      # CM_PROVISIONING_PROFILE           (base64 pentru .mobileprovision)
       vars:
         BUNDLE_ID: ro.motometeo.app
         XCODE_WORKSPACE: ios/App/App.xcworkspace
         XCODE_SCHEME: App
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: ro.motometeo.app
+
+    integrations:
+      app_store_connect: Codemagic_ASC_Integration
 
     triggering:
       events:
@@ -50,20 +53,6 @@ workflows:
         script: |
           cd ios/App
           pod install
-
-      - name: Import signing assets
-        script: |
-          echo "$CM_CERTIFICATE" | base64 --decode > /tmp/ios_distribution.p12
-          echo "$CM_PROVISIONING_PROFILE" | base64 --decode > /tmp/MotoMeteo_App_Store.mobileprovision
-          keychain initialize
-          keychain add-certificates \
-            --certificate /tmp/ios_distribution.p12 \
-            --certificate-password "$CM_CERTIFICATE_PASSWORD"
-          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
-          cp /tmp/MotoMeteo_App_Store.mobileprovision "$HOME/Library/MobileDevice/Provisioning Profiles/"
-
-      - name: Apply provisioning profile to Xcode project
-        script: xcode-project use-profiles
 
       - name: Set build number from Codemagic build index
         script: |
