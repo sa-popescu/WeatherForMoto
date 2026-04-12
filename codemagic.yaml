@@ -49,6 +49,15 @@ workflows:
           fi
           npx cap sync ios
 
+      - name: Declare no custom encryption (bypass Missing Compliance)
+        script: |
+          /usr/libexec/PlistBuddy -c \
+            'Add :ITSAppUsesNonExemptEncryption bool false' \
+            ios/App/App/Info.plist 2>/dev/null || \
+          /usr/libexec/PlistBuddy -c \
+            'Set :ITSAppUsesNonExemptEncryption false' \
+            ios/App/App/Info.plist
+
       - name: Install CocoaPods
         script: |
           cd ios/App
@@ -157,4 +166,4 @@ workflows:
         submit_to_testflight: true
         beta_groups:
           - Testeri interni
-        submit_to_app_store: false # schimbă în true pentru release direct
+        submit_to_app_store: true
