@@ -5,6 +5,7 @@ import os
 import secrets
 import smtplib
 import sqlite3
+import base64
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
@@ -30,6 +31,7 @@ SMTP_USER = os.getenv("SMTP_USER")
 SMTP_PASS = os.getenv("SMTP_PASS")
 SMTP_FROM = os.getenv("SMTP_FROM", SMTP_USER or "no-reply@motometeo.local")
 BREVO_API_KEY = os.getenv("BREVO_API_KEY", "")
+PBKDF2_ITERATIONS = int(os.getenv("PBKDF2_ITERATIONS", "210000"))
 
 VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY", "")
 VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY", "")
@@ -51,8 +53,24 @@ class VerifyCodePayload(BaseModel):
     code: str = Field(min_length=4, max_length=12)
 
 
+class SignupPayload(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=128)
+    display_name: str | None = Field(default=None, max_length=80)
+
+
+class LoginPayload(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=128)
+
+
+class ProfilePayload(BaseModel):
+    display_name: str = Field(min_length=1, max_length=80)
+
+
 class AlertPrefsPayload(BaseModel):
     enabled: bool = True
+    email_alerts_enabled: bool = True
     min_score: int = Field(default=45, ge=0, le=100)
     max_wind_gust: float = Field(default=50, ge=10, le=200)
     max_precip: float = Field(default=2, ge=0, le=50)
@@ -78,6 +96,13 @@ def _connect() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
+
+
+def _ensure_column(conn: sqlite3.Connection, table: str, column: str, ddl: str) -> None:
+    cols = conn.execute(f"PRAGMA table_info({table})").fetchall()
+    names = {c[1] for c in cols}
+    if column not in names:
+        conn.execute(ddl)
 
 
 def init_db() -> None:
@@ -111,6 +136,7 @@ def init_db() -> None:
             CREATE TABLE IF NOT EXISTS alert_prefs (
                 user_id INTEGER PRIMARY KEY,
                 enabled INTEGER NOT NULL DEFAULT 1,
+                email_alerts_enabled INTEGER NOT NULL DEFAULT 1,
                 min_score INTEGER NOT NULL DEFAULT 45,
                 max_wind_gust REAL NOT NULL DEFAULT 50,
                 max_precip REAL NOT NULL DEFAULT 2,
@@ -142,6 +168,14 @@ def init_db() -> None:
             );
             """
         )
+        _ensure_column(conn, "users", "display_name", "ALTER TABLE users ADD COLUMN display_name TEXT")
+        _ensure_column(conn, "users", "password_hash", "ALTER TABLE users ADD COLUMN password_hash TEXT")
+        _ensure_column(
+            conn,
+            "alert_prefs",
+            "email_alerts_enabled",
+            "ALTER TABLE alert_prefs ADD COLUMN email_alerts_enabled INTEGER NOT NULL DEFAULT 1",
+        )
         conn.commit()
     finally:
         conn.close()
@@ -149,6 +183,27 @@ def init_db() -> None:
 
 def _hash_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _hash_password(password: str) -> str:
+    salt = os.urandom(16)
+    dk = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, PBKDF2_ITERATIONS)
+    return f"pbkdf2_sha256${PBKDF2_ITERATIONS}${base64.b64encode(salt).decode()}${base64.b64encode(dk).decode()}"
+
+
+def _verify_password(password: str, stored: str | None) -> bool:
+    if not stored:
+        return False
+    try:
+        algo, iters, salt_b64, hash_b64 = stored.split("$", 3)
+        if algo != "pbkdf2_sha256":
+            return False
+        salt = base64.b64decode(salt_b64.encode())
+        expected = base64.b64decode(hash_b64.encode())
+        derived = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, int(iters))
+        return hmac.compare_digest(derived, expected)
+    except Exception:
+        return False
 
 
 def _issue_session(conn: sqlite3.Connection, user_id: int) -> str:
@@ -164,18 +219,14 @@ def _issue_session(conn: sqlite3.Connection, user_id: int) -> str:
     return token
 
 
-async def _send_auth_email(email: str, code: str) -> None:
-    text = (
-        "Codul tău de autentificare MotoMeteo este: "
-        f"{code}\n\nValabil {AUTH_CODE_TTL_MIN} minute."
-    )
+async def _send_email(email: str, subject: str, text: str) -> None:
 
     # Prefer Brevo Email API when configured (more reliable in cloud runtimes).
     if BREVO_API_KEY:
         payload = {
             "sender": {"email": SMTP_FROM},
             "to": [{"email": email}],
-            "subject": "MotoMeteo login code",
+            "subject": subject,
             "textContent": text,
         }
         headers = {
@@ -193,7 +244,7 @@ async def _send_auth_email(email: str, code: str) -> None:
         return
 
     msg = EmailMessage()
-    msg["Subject"] = "MotoMeteo login code"
+    msg["Subject"] = subject
     msg["From"] = SMTP_FROM
     msg["To"] = email
     msg.set_content(text)
@@ -203,6 +254,14 @@ async def _send_auth_email(email: str, code: str) -> None:
         if SMTP_USER and SMTP_PASS:
             server.login(SMTP_USER, SMTP_PASS)
         server.send_message(msg)
+
+
+async def _send_auth_email(email: str, code: str) -> None:
+    text = (
+        "Codul tău de autentificare MotoMeteo este: "
+        f"{code}\n\nValabil {AUTH_CODE_TTL_MIN} minute."
+    )
+    await _send_email(email, "MotoMeteo login code", text)
 
 
 async def get_current_user(authorization: str | None = Header(default=None)) -> SessionUser:
@@ -237,8 +296,8 @@ def _get_or_create_user(conn: sqlite3.Connection, email: str) -> int:
         return int(row["id"])
     now = _utc_now().isoformat()
     cur = conn.execute(
-        "INSERT INTO users(email, created_at) VALUES (?, ?)",
-        (email.lower(), now),
+        "INSERT INTO users(email, created_at, display_name) VALUES (?, ?, ?)",
+        (email.lower(), now, None),
     )
     conn.commit()
     return int(cur.lastrowid)
@@ -248,8 +307,8 @@ def _upsert_default_prefs(conn: sqlite3.Connection, user_id: int) -> None:
     now = _utc_now().isoformat()
     conn.execute(
         """
-        INSERT INTO alert_prefs(user_id, enabled, min_score, max_wind_gust, max_precip, frost_risk_enabled, updated_at)
-        VALUES (?, 1, 45, 50, 2, 1, ?)
+        INSERT INTO alert_prefs(user_id, enabled, email_alerts_enabled, min_score, max_wind_gust, max_precip, frost_risk_enabled, updated_at)
+        VALUES (?, 1, 1, 45, 50, 2, 1, ?)
         ON CONFLICT(user_id) DO NOTHING
         """,
         (user_id, now),
@@ -329,12 +388,82 @@ async def auth_verify_code(payload: VerifyCodePayload) -> dict[str, Any]:
         conn.close()
 
 
+@router.post("/auth/signup")
+async def auth_signup(payload: SignupPayload) -> dict[str, Any]:
+    conn = _connect()
+    try:
+        email = payload.email.lower()
+        exists = conn.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
+        if exists:
+            raise HTTPException(status_code=409, detail="Account already exists")
+
+        now = _utc_now().isoformat()
+        pwd_hash = _hash_password(payload.password)
+        cur = conn.execute(
+            "INSERT INTO users(email, created_at, display_name, password_hash) VALUES (?, ?, ?, ?)",
+            (email, now, payload.display_name or None, pwd_hash),
+        )
+        user_id = int(cur.lastrowid)
+        _upsert_default_prefs(conn, user_id)
+        token = _issue_session(conn, user_id)
+        return {
+            "token": token,
+            "user": {"email": email, "display_name": payload.display_name or ""},
+            "expiresInDays": SESSION_TTL_DAYS,
+        }
+    finally:
+        conn.close()
+
+
+@router.post("/auth/login")
+async def auth_login(payload: LoginPayload) -> dict[str, Any]:
+    conn = _connect()
+    try:
+        email = payload.email.lower()
+        row = conn.execute(
+            "SELECT id, email, display_name, password_hash FROM users WHERE email = ?",
+            (email,),
+        ).fetchone()
+        if not row or not _verify_password(payload.password, row["password_hash"]):
+            raise HTTPException(status_code=401, detail="Email sau parolă invalidă")
+
+        user_id = int(row["id"])
+        _upsert_default_prefs(conn, user_id)
+        token = _issue_session(conn, user_id)
+        return {
+            "token": token,
+            "user": {"email": row["email"], "display_name": row["display_name"] or ""},
+            "expiresInDays": SESSION_TTL_DAYS,
+        }
+    finally:
+        conn.close()
+
+
+@router.post("/auth/logout")
+async def auth_logout(authorization: str | None = Header(default=None), user: SessionUser = Depends(get_current_user)) -> dict[str, bool]:
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    token = authorization.split(" ", 1)[1].strip()
+    token_hash = _hash_token(token)
+    conn = _connect()
+    try:
+        conn.execute("DELETE FROM sessions WHERE token_hash = ? AND user_id = ?", (token_hash, user.user_id))
+        conn.commit()
+        return {"ok": True}
+    finally:
+        conn.close()
+
+
 @router.get("/me")
 async def me(user: SessionUser = Depends(get_current_user)) -> dict[str, Any]:
     conn = _connect()
     try:
+        profile = conn.execute(
+            "SELECT email, created_at, display_name FROM users WHERE id = ?",
+            (user.user_id,),
+        ).fetchone()
         prefs = conn.execute(
-            "SELECT enabled, min_score, max_wind_gust, max_precip, frost_risk_enabled, home_lat, home_lon, city FROM alert_prefs WHERE user_id = ?",
+            "SELECT enabled, email_alerts_enabled, min_score, max_wind_gust, max_precip, frost_risk_enabled, home_lat, home_lon, city FROM alert_prefs WHERE user_id = ?",
             (user.user_id,),
         ).fetchone()
         sub_count = conn.execute(
@@ -342,7 +471,9 @@ async def me(user: SessionUser = Depends(get_current_user)) -> dict[str, Any]:
             (user.user_id,),
         ).fetchone()["c"]
         return {
-            "email": user.email,
+            "email": profile["email"] if profile else user.email,
+            "created_at": profile["created_at"] if profile else None,
+            "display_name": (profile["display_name"] if profile else None) or "",
             "prefs": dict(prefs) if prefs else None,
             "pushSubscriptions": int(sub_count),
         }
@@ -357,10 +488,11 @@ async def update_prefs(payload: AlertPrefsPayload, user: SessionUser = Depends(g
         now = _utc_now().isoformat()
         conn.execute(
             """
-            INSERT INTO alert_prefs(user_id, enabled, min_score, max_wind_gust, max_precip, frost_risk_enabled, home_lat, home_lon, city, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO alert_prefs(user_id, enabled, email_alerts_enabled, min_score, max_wind_gust, max_precip, frost_risk_enabled, home_lat, home_lon, city, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(user_id) DO UPDATE SET
                 enabled = excluded.enabled,
+                email_alerts_enabled = excluded.email_alerts_enabled,
                 min_score = excluded.min_score,
                 max_wind_gust = excluded.max_wind_gust,
                 max_precip = excluded.max_precip,
@@ -373,6 +505,7 @@ async def update_prefs(payload: AlertPrefsPayload, user: SessionUser = Depends(g
             (
                 user.user_id,
                 int(payload.enabled),
+                int(payload.email_alerts_enabled),
                 payload.min_score,
                 payload.max_wind_gust,
                 payload.max_precip,
@@ -425,6 +558,51 @@ async def delete_subscription(endpoint: str, user: SessionUser = Depends(get_cur
             "DELETE FROM push_subscriptions WHERE user_id = ? AND endpoint = ?",
             (user.user_id, endpoint),
         )
+        conn.commit()
+        return {"ok": True}
+    finally:
+        conn.close()
+
+
+@router.put("/me/profile")
+async def update_profile(payload: ProfilePayload, user: SessionUser = Depends(get_current_user)) -> dict[str, Any]:
+    conn = _connect()
+    try:
+        conn.execute("UPDATE users SET display_name = ? WHERE id = ?", (payload.display_name.strip(), user.user_id))
+        conn.commit()
+        return {"ok": True}
+    finally:
+        conn.close()
+
+
+@router.post("/me/unsubscribe-email-alerts")
+async def unsubscribe_email_alerts(user: SessionUser = Depends(get_current_user)) -> dict[str, bool]:
+    conn = _connect()
+    try:
+        now = _utc_now().isoformat()
+        conn.execute(
+            """
+            INSERT INTO alert_prefs(user_id, enabled, email_alerts_enabled, min_score, max_wind_gust, max_precip, frost_risk_enabled, updated_at)
+            VALUES (?, 1, 0, 45, 50, 2, 1, ?)
+            ON CONFLICT(user_id) DO UPDATE SET email_alerts_enabled = 0, updated_at = excluded.updated_at
+            """,
+            (user.user_id, now),
+        )
+        conn.commit()
+        return {"ok": True}
+    finally:
+        conn.close()
+
+
+@router.delete("/me")
+async def delete_account(user: SessionUser = Depends(get_current_user)) -> dict[str, bool]:
+    conn = _connect()
+    try:
+        conn.execute("DELETE FROM sessions WHERE user_id = ?", (user.user_id,))
+        conn.execute("DELETE FROM push_subscriptions WHERE user_id = ?", (user.user_id,))
+        conn.execute("DELETE FROM alert_events WHERE user_id = ?", (user.user_id,))
+        conn.execute("DELETE FROM alert_prefs WHERE user_id = ?", (user.user_id,))
+        conn.execute("DELETE FROM users WHERE id = ?", (user.user_id,))
         conn.commit()
         return {"ok": True}
     finally:
@@ -505,7 +683,7 @@ def _send_push(subscription: sqlite3.Row, title: str, body: str, data: dict[str,
 
 async def _dispatch_for_user(conn: sqlite3.Connection, user_id: int, email: str, owm_api_key: str) -> dict[str, Any]:
     prefs = conn.execute(
-        "SELECT enabled, min_score, max_wind_gust, max_precip, frost_risk_enabled, home_lat, home_lon, city FROM alert_prefs WHERE user_id = ?",
+        "SELECT enabled, email_alerts_enabled, min_score, max_wind_gust, max_precip, frost_risk_enabled, home_lat, home_lon, city FROM alert_prefs WHERE user_id = ?",
         (user_id,),
     ).fetchone()
     if not prefs or not prefs["enabled"]:
@@ -527,6 +705,8 @@ async def _dispatch_for_user(conn: sqlite3.Connection, user_id: int, email: str,
     ).fetchall()
 
     sent = 0
+    email_sent = 0
+    email_enabled = bool(prefs["email_alerts_enabled"]) if "email_alerts_enabled" in prefs.keys() else True
     for ev in events:
         event_key = f"{ev['type']}:{ev['when'][:13]}"
         exists = conn.execute(
@@ -545,13 +725,27 @@ async def _dispatch_for_user(conn: sqlite3.Connection, user_id: int, email: str,
             except Exception as exc:
                 logger.warning("Push dispatch error for %s: %s", email, exc)
 
+        if email_enabled:
+            try:
+                subject = f"MotoMeteo alertă: {ev['title']}"
+                body = (
+                    f"{ev['body']}\n"
+                    f"Locație: {city}\n"
+                    f"Interval: {ev['when']}\n\n"
+                    "Poți dezactiva alertele email din contul tău MotoMeteo."
+                )
+                await _send_email(email, subject, body)
+                email_sent += 1
+            except Exception as exc:
+                logger.warning("Email alert dispatch error for %s: %s", email, exc)
+
         conn.execute(
             "INSERT OR IGNORE INTO alert_events(user_id, event_key, created_at) VALUES (?, ?, ?)",
             (user_id, event_key, _utc_now().isoformat()),
         )
 
     conn.commit()
-    return {"sent": sent, "events": events}
+    return {"sent": sent, "email_sent": email_sent, "events": events}
 
 
 @router.post("/alerts/check-now")
