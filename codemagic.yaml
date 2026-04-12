@@ -32,7 +32,11 @@ workflows:
         script: npm install
 
       - name: Capacitor sync iOS
-        script: npx cap sync ios
+        script: |
+          if [ ! -d ios/App ]; then
+            npx cap add ios
+          fi
+          npx cap sync ios
 
       - name: Install CocoaPods
         script: |
