@@ -54,30 +54,36 @@ workflows:
       - name: Import signing assets
         script: |
           set -e
-          if [ -z "$IOS_CERTIFICATE_B64" ] || [ -z "$IOS_PROVISIONING_PROFILE_B64" ] || [ -z "$IOS_CERTIFICATE_PASSWORD" ]; then
-            echo "Missing one of: IOS_CERTIFICATE_B64, IOS_PROVISIONING_PROFILE_B64, IOS_CERTIFICATE_PASSWORD"
+          CERT_INPUT="${IOS_CERTIFICATE_B64:-${IOS_CERTIFICATE:-${CM_CERTIFICATE:-}}}"
+          PROFILE_INPUT="${IOS_PROVISIONING_PROFILE_B64:-${IOS_PROVISIONING_PROFILE:-${CM_PROVISIONING_PROFILE:-}}}"
+          CERT_PASSWORD="${IOS_CERTIFICATE_PASSWORD:-${CM_CERTIFICATE_PASSWORD:-}}"
+
+          if [ -z "$CERT_INPUT" ] || [ -z "$PROFILE_INPUT" ] || [ -z "$CERT_PASSWORD" ]; then
+            echo "Missing signing vars. Provide one of: IOS_CERTIFICATE_B64/IOS_CERTIFICATE/CM_CERTIFICATE"
+            echo "and one of: IOS_PROVISIONING_PROFILE_B64/IOS_PROVISIONING_PROFILE/CM_PROVISIONING_PROFILE"
+            echo "and one of: IOS_CERTIFICATE_PASSWORD/CM_CERTIFICATE_PASSWORD"
             exit 1
           fi
 
-          if [ -f "$IOS_CERTIFICATE_B64" ]; then
-            cp "$IOS_CERTIFICATE_B64" /tmp/ios_distribution.p12
+          if [ -f "$CERT_INPUT" ]; then
+            cp "$CERT_INPUT" /tmp/ios_distribution.p12
           else
-            printf '%s' "$IOS_CERTIFICATE_B64" | tr -d '\r\n\t ' | base64 --decode > /tmp/ios_distribution.p12
+            printf '%s' "$CERT_INPUT" | tr -d '\r\n\t ' | base64 --decode > /tmp/ios_distribution.p12
           fi
 
-          if [ -f "$IOS_PROVISIONING_PROFILE_B64" ]; then
-            cp "$IOS_PROVISIONING_PROFILE_B64" /tmp/MotoMeteo_App_Store.mobileprovision
+          if [ -f "$PROFILE_INPUT" ]; then
+            cp "$PROFILE_INPUT" /tmp/MotoMeteo_App_Store.mobileprovision
           else
-            printf '%s' "$IOS_PROVISIONING_PROFILE_B64" | tr -d '\r\n\t ' | base64 --decode > /tmp/MotoMeteo_App_Store.mobileprovision
+            printf '%s' "$PROFILE_INPUT" | tr -d '\r\n\t ' | base64 --decode > /tmp/MotoMeteo_App_Store.mobileprovision
           fi
 
           test -s /tmp/ios_distribution.p12
           test -s /tmp/MotoMeteo_App_Store.mobileprovision
-          openssl pkcs12 -in /tmp/ios_distribution.p12 -nokeys -passin pass:"$IOS_CERTIFICATE_PASSWORD" >/dev/null
+          openssl pkcs12 -in /tmp/ios_distribution.p12 -nokeys -passin pass:"$CERT_PASSWORD" >/dev/null
           keychain initialize
           keychain add-certificates \
             --certificate /tmp/ios_distribution.p12 \
-            --certificate-password "$IOS_CERTIFICATE_PASSWORD"
+            --certificate-password "$CERT_PASSWORD"
           mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
           cp /tmp/MotoMeteo_App_Store.mobileprovision "$HOME/Library/MobileDevice/Provisioning Profiles/"
           security cms -D -i "$HOME/Library/MobileDevice/Provisioning Profiles/MotoMeteo_App_Store.mobileprovision" >/tmp/profile.plist
