@@ -11,6 +11,7 @@ from email.message import EmailMessage
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException
+import httpx
 from pydantic import BaseModel, EmailStr, Field
 from pywebpush import WebPushException, webpush
 
@@ -28,6 +29,7 @@ SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER = os.getenv("SMTP_USER")
 SMTP_PASS = os.getenv("SMTP_PASS")
 SMTP_FROM = os.getenv("SMTP_FROM", SMTP_USER or "no-reply@motometeo.local")
+BREVO_API_KEY = os.getenv("BREVO_API_KEY", "")
 
 VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY", "")
 VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY", "")
@@ -162,17 +164,39 @@ def _issue_session(conn: sqlite3.Connection, user_id: int) -> str:
     return token
 
 
-def _send_auth_email(email: str, code: str) -> None:
+async def _send_auth_email(email: str, code: str) -> None:
+    text = (
+        "Codul tău de autentificare MotoMeteo este: "
+        f"{code}\n\nValabil {AUTH_CODE_TTL_MIN} minute."
+    )
+
+    # Prefer Brevo Email API when configured (more reliable in cloud runtimes).
+    if BREVO_API_KEY:
+        payload = {
+            "sender": {"email": SMTP_FROM},
+            "to": [{"email": email}],
+            "subject": "MotoMeteo login code",
+            "textContent": text,
+        }
+        headers = {
+            "accept": "application/json",
+            "content-type": "application/json",
+            "api-key": BREVO_API_KEY,
+        }
+        async with httpx.AsyncClient(timeout=8) as client:
+            resp = await client.post("https://api.brevo.com/v3/smtp/email", json=payload, headers=headers)
+            if resp.status_code >= 400:
+                raise RuntimeError(f"Brevo API error: HTTP {resp.status_code} - {resp.text[:180]}")
+        return
+
     if not SMTP_HOST:
         return
+
     msg = EmailMessage()
     msg["Subject"] = "MotoMeteo login code"
     msg["From"] = SMTP_FROM
     msg["To"] = email
-    msg.set_content(
-        "Codul tău de autentificare MotoMeteo este: "
-        f"{code}\n\nValabil {AUTH_CODE_TTL_MIN} minute."
-    )
+    msg.set_content(text)
 
     with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=8) as server:
         server.starttls()
@@ -259,7 +283,7 @@ async def auth_request_code(payload: RequestCodePayload) -> dict[str, Any]:
 
     email_sent = False
     try:
-        _send_auth_email(payload.email.lower(), code)
+        await _send_auth_email(payload.email.lower(), code)
         email_sent = True
     except Exception as exc:
         logger.warning("Could not send auth email: %s", exc)
