@@ -1,7 +1,7 @@
 {
     "appId": "ro.motometeo.app",
     "appName": "MotoMeteo",
-    "webDir": ".",
+    "webDir": "www",
     "server": {
         "androidScheme": "https",
         "allowNavigation": [
