@@ -31,6 +31,14 @@ workflows:
       - name: Install npm dependencies
         script: npm install
 
+      - name: Prepare web assets for Capacitor
+        script: |
+          rm -rf www
+          mkdir -p www
+          cp index.html manifest.json sw.js privacy-policy.html www/
+          cp icon-192.png icon-512.png icon-apple.png www/
+          cp -R icons www/
+
       - name: Capacitor sync iOS
         script: |
           if [ ! -d ios/App ]; then
