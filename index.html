@@ -367,33 +367,39 @@
 
   <!-- HEADER -->
   <header class="bg-surface border-b border-border sticky top-0 z-50 safe-top">
-    <div class="max-w-5xl mx-auto px-3 sm:px-4 py-2 sm:py-3 flex items-center justify-between gap-2 sm:gap-4 flex-wrap">
-      <div class="flex items-center gap-2 sm:gap-3">
-        <span class="text-3xl sm:text-4xl leading-none">🏍️</span>
-        <div>
-          <div class="font-display text-2xl sm:text-3xl font-bold tracking-widest text-accent leading-none">MOTO<span
-              class="text-gray-600 text-xl sm:text-2xl"> /// </span>METEO</div>
-          <div id="upd" class="text-xs text-muted tracking-widest mt-0.5">—</div>
+    <div class="max-w-5xl mx-auto px-3 sm:px-4 py-2 sm:py-3">
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+          <span class="text-3xl sm:text-4xl leading-none">🏍️</span>
+          <div class="min-w-0">
+            <div class="font-display text-xl sm:text-3xl font-bold tracking-widest text-accent leading-none truncate">
+              MOTO<span class="text-gray-600 text-lg sm:text-2xl"> /// </span>METEO</div>
+            <div id="upd" class="text-[10px] sm:text-xs text-muted tracking-widest mt-0.5 truncate">—</div>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <button onclick="isPremium() ? showPremiumStatus() : openPaywall('Activează MotoMeteo Plus')"
+            title="MotoMeteo Plus" id="premium-hdr-btn"
+            class="border font-display font-bold tracking-wider text-xs px-2.5 py-2 rounded-lg transition-colors prem-glow bg-accent/10 border-accent/30 text-accent">⚡
+            PLUS</button>
+          <button id="mobile-menu-btn" onclick="toggleMobileMenu()" title="Meniu"
+            class="md:hidden bg-card border border-border text-gray-300 hover:text-accent hover:border-accent text-base px-3 py-2 rounded-lg transition-colors">☰</button>
         </div>
       </div>
-      <div class="flex gap-1.5 sm:gap-2 items-center">
-        <input id="city-in" type="text" placeholder="Caută oraș..." value="Bucharest" class="bg-bg border border-border text-gray-100 font-body text-sm px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg w-32 sm:w-44
+
+      <div id="header-controls" class="hidden md:flex items-center gap-2 mt-3 flex-wrap">
+        <input id="city-in" type="text" placeholder="Caută oraș..." value="Bucharest" class="bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg w-full md:w-52
                       focus:outline-none focus:border-accent placeholder-muted transition-colors" />
-        <button onclick="searchCity()" class="bg-accent hover:bg-orange-400 text-black font-display font-bold text-sm sm:text-base tracking-wider
-                       px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg transition-colors">CAUTĂ</button>
-        <button onclick="geolocate()" title="Locația mea" class="bg-card border border-border text-muted hover:text-accent hover:border-accent
-                       text-base px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors">📍</button>
-        <button onclick="loadWeather()" title="Reîncarcă" class="bg-card border border-border text-muted hover:text-gray-200 hover:border-gray-500
-                       text-base px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors">↻</button>
-        <button onclick="toggleProfile()" title="Profil moto" class="bg-card border border-border text-muted hover:text-accent hover:border-accent
-                       text-base px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors">⚙</button>
-        <button onclick="toggleAlerts()" title="Alerte personalizate" class="bg-card border border-border text-muted hover:text-warn hover:border-warn
-                       text-base px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors"
-          id="alerts-hdr-btn">🔔</button>
-        <button onclick="isPremium() ? showPremiumStatus() : openPaywall('Activează MotoMeteo Plus')"
-          title="MotoMeteo Plus" id="premium-hdr-btn"
-          class="border font-display font-bold tracking-wider text-xs px-2 py-1.5 rounded-lg transition-colors prem-glow bg-accent/10 border-accent/30 text-accent">⚡
-          PLUS</button>
+        <button onclick="searchCity();closeMobileMenu()" class="bg-accent hover:bg-orange-400 text-black font-display font-bold text-sm tracking-wider
+                       px-4 py-2 rounded-lg transition-colors">CAUTĂ</button>
+        <button onclick="geolocate();closeMobileMenu()" title="Locația mea" class="bg-card border border-border text-muted hover:text-accent hover:border-accent
+                       text-base px-3 py-2 rounded-lg transition-colors">📍</button>
+        <button onclick="loadWeather();closeMobileMenu()" title="Reîncarcă" class="bg-card border border-border text-muted hover:text-gray-200 hover:border-gray-500
+                       text-base px-3 py-2 rounded-lg transition-colors">↻</button>
+        <button onclick="toggleProfile();closeMobileMenu()" title="Profil moto" class="bg-card border border-border text-muted hover:text-accent hover:border-accent
+                       text-base px-3 py-2 rounded-lg transition-colors">⚙</button>
+        <button onclick="toggleAlerts();closeMobileMenu()" title="Alerte personalizate" class="bg-card border border-border text-muted hover:text-warn hover:border-warn
+                       text-base px-3 py-2 rounded-lg transition-colors" id="alerts-hdr-btn">🔔</button>
       </div>
     </div>
     <div id="favs-bar" class="max-w-5xl mx-auto px-3 sm:px-4 pb-2"></div>
@@ -634,11 +640,24 @@
     // -----------------------------------------------------------------------
     // Premium subscription management
     // -----------------------------------------------------------------------
-    function isPremium() {
-      try { return localStorage.getItem('mmPremium') === '1'; } catch (_) { return false; }
+    var _premiumState = { active: false, verified: false, provider: null };
+    var APPSTORE_URL = 'https://apps.apple.com/app/motometeo/id000000000'; // înlocuiește cu ID-ul real după publicare
+    var RC_API_KEY_IOS = 'appl_REPLACE_WITH_REVENUECAT_IOS_KEY'; // înlocuiește după configurare RevenueCat
+
+    function _isNativePlatform() {
+      try {
+        return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+      } catch (_) { return false; }
     }
-    function _setPremium(val) {
-      try { localStorage.setItem('mmPremium', val ? '1' : '0'); } catch (_) { }
+
+    function isPremium() {
+      return _premiumState.active === true;
+    }
+    function _setPremium(val, meta) {
+      _premiumState.active = !!val;
+      _premiumState.verified = !!(meta && meta.verified && val);
+      _premiumState.provider = (meta && meta.provider) || _premiumState.provider;
+      try { localStorage.removeItem('mmPremium'); } catch (_) { }
       _updatePremiumUI();
     }
     function _updatePremiumUI() {
@@ -647,18 +666,15 @@
       if (isPremium()) {
         btn.textContent = '⚡ PLUS ✓';
         btn.classList.remove('prem-glow');
-        btn.title = 'MotoMeteo Plus ativo';
+        btn.title = 'MotoMeteo Plus activ';
       } else {
         btn.textContent = '⚡ PLUS';
         btn.classList.add('prem-glow');
       }
     }
     function showPremiumStatus() {
-      if (confirm('MotoMeteo Plus este activ ✓\n\nDesactivezi abonamentul?')) {
-        _setPremium(false);
-        alert('Abonament dezactivat.');
-        loadWeather();
-      }
+      if (!isPremium()) { openPaywall('Activează MotoMeteo Plus'); return; }
+      alert('MotoMeteo Plus este activ ✓\n\nGestionarea/renunțarea la abonament se face din Setări iOS > Apple ID > Subscriptions.');
     }
     function openPaywall(featureName) {
       var modal = document.getElementById('paywall-modal');
@@ -675,10 +691,34 @@
       var modal = document.getElementById('paywall-modal');
       if (modal) modal.classList.add('hidden');
     }
-    var APPSTORE_URL = 'https://apps.apple.com/app/motometeo/id000000000'; // înlocuiește cu ID-ul real după publicare
+
+    function toggleMobileMenu() {
+      var controls = document.getElementById('header-controls');
+      var btn = document.getElementById('mobile-menu-btn');
+      if (!controls) return;
+      var isHidden = controls.classList.contains('hidden');
+      if (isHidden) {
+        controls.classList.remove('hidden');
+        controls.classList.add('flex', 'flex-col', 'items-stretch');
+        if (btn) btn.textContent = '✕';
+      } else {
+        closeMobileMenu();
+      }
+    }
+
+    function closeMobileMenu() {
+      var controls = document.getElementById('header-controls');
+      var btn = document.getElementById('mobile-menu-btn');
+      if (!controls) return;
+      if (window.innerWidth < 768) {
+        controls.classList.add('hidden');
+        controls.classList.remove('flex', 'flex-col', 'items-stretch');
+      }
+      if (btn) btn.textContent = '☰';
+    }
 
     function activatePremium() {
-      if (typeof window.Purchases !== 'undefined') {
+      if (_isNativePlatform() && typeof window.Purchases !== 'undefined' && RC_API_KEY_IOS.indexOf('REPLACE') < 0) {
         // Native iOS / Android — RevenueCat purchase flow
         window.Purchases.getOfferings()
           .then(function (offerings) {
@@ -693,9 +733,11 @@
               && purchaseResult.customerInfo.entitlements.active
               && purchaseResult.customerInfo.entitlements.active['premium'];
             if (active) {
-              _setPremium(true);
+              _setPremium(true, { verified: true, provider: 'revenuecat' });
               closePaywall();
               loadWeather();
+            } else {
+              _showPremiumError('Tranzacția nu a activat entitlement-ul premium.');
             }
           })
           .catch(function (err) {
@@ -710,14 +752,14 @@
     }
 
     function restorePremium() {
-      if (typeof window.Purchases !== 'undefined') {
+      if (_isNativePlatform() && typeof window.Purchases !== 'undefined' && RC_API_KEY_IOS.indexOf('REPLACE') < 0) {
         window.Purchases.restorePurchases()
           .then(function (info) {
             var active = info
               && info.entitlements
               && info.entitlements.active
               && info.entitlements.active['premium'];
-            _setPremium(!!active);
+            _setPremium(!!active, { verified: !!active, provider: 'revenuecat' });
             closePaywall();
             if (active) { loadWeather(); }
             else { alert('Nu s-a găsit nicio achiziție anterioară asociată contului Apple.'); }
@@ -1493,10 +1535,13 @@
           + "precipitation_probability_max,sunrise,sunset",
         timezone: "auto", forecast_days: isPremium() ? 14 : 7, wind_speed_unit: "kmh",
       });
-      var [omResp, owm, metData] = await Promise.all([
+      var [omResp, owm, metData, omEcmwf, omGfs, omIcon] = await Promise.all([
         fetch("https://api.open-meteo.com/v1/forecast?" + params),
         OWM_API_KEY ? fetchOWMDirect(lat, lon, OWM_API_KEY) : Promise.resolve({ current: null, forecast: null, air: null }),
         fetchMET(lat, lon),
+        fetchOpenMeteoModel(lat, lon, 'ecmwf_ifs025'),
+        fetchOpenMeteoModel(lat, lon, 'gfs_seamless'),
+        fetchOpenMeteoModel(lat, lon, 'icon_global'),
       ]);
       if (!omResp.ok) throw new Error("Open-Meteo HTTP " + omResp.status);
       var om = await omResp.json();
@@ -1514,16 +1559,28 @@
       var metPrecCur = met1h.details ? (met1h.details.precipitation_amount || 0) : 0;
       var metCode = met1h.summary ? metSymToWmo(met1h.summary.symbol_code) : null;
 
+      var mTemp = [omEcmwf && omEcmwf.temperature_2m, omGfs && omGfs.temperature_2m, omIcon && omIcon.temperature_2m];
+      var mHum = [omEcmwf && omEcmwf.relative_humidity_2m, omGfs && omGfs.relative_humidity_2m, omIcon && omIcon.relative_humidity_2m];
+      var mWind = [omEcmwf && omEcmwf.wind_speed_10m, omGfs && omGfs.wind_speed_10m, omIcon && omIcon.wind_speed_10m];
+      var mGust = [omEcmwf && omEcmwf.wind_gusts_10m, omGfs && omGfs.wind_gusts_10m, omIcon && omIcon.wind_gusts_10m];
+      var mPrec = [omEcmwf && omEcmwf.precipitation, omGfs && omGfs.precipitation, omIcon && omIcon.precipitation];
+      var mCode = [omEcmwf && omEcmwf.weather_code, omGfs && omGfs.weather_code, omIcon && omIcon.weather_code];
+
       var temp = _wavg([c.temperature_2m, owmCur ? owmCur.main.temp : null, metInst.air_temperature], [1, 1, 1.2]);
+      temp = _wavg([temp, mTemp[0], mTemp[1], mTemp[2]], [1.3, 0.8, 0.8, 0.8]);
       var feels = _wavg([c.apparent_temperature, owmCur ? owmCur.main.feels_like : null], [1, 1]);
       var humidity = _wavg([c.relative_humidity_2m, owmCur ? owmCur.main.humidity : null, metInst.relative_humidity], [1, 1, 1]);
+      humidity = _wavg([humidity, mHum[0], mHum[1], mHum[2]], [1.2, 0.7, 0.7, 0.7]);
       var windSpeed = _wavg([c.wind_speed_10m, owmCur ? owmCur.wind.speed * 3.6 : null, metWind], [1, 1, 1.2]);
+      windSpeed = _wavg([windSpeed, mWind[0], mWind[1], mWind[2]], [1.2, 0.8, 0.8, 0.8]);
       var windGusts = _wavg([c.wind_gusts_10m, owmCur ? (owmCur.wind.gust || owmCur.wind.speed) * 3.6 : null, metGust], [1.2, 0.8, 1.2]);
+      windGusts = _wavg([windGusts, mGust[0], mGust[1], mGust[2]], [1.2, 0.8, 0.8, 0.8]);
       var prec = _wavg([c.precipitation || 0, owmCur ? ((owmCur.rain && owmCur.rain["1h"]) || 0) : null, metPrecCur], [1, 1, 1.2]) || 0;
+      prec = _wavg([prec, mPrec[0], mPrec[1], mPrec[2]], [1.2, 0.8, 0.8, 0.8]) || 0;
       var omCode = c.weather_code;
       var owmCode = owmCur ? owmIdToWmo(owmCur.weather[0].id) : null;
       // Use most severe code across all sources (safety-first for motorcyclists)
-      var allCodes = [omCode, owmCode, metCode].filter(function (x) { return x != null; });
+      var allCodes = [omCode, owmCode, metCode].concat(mCode).filter(function (x) { return x != null; });
       var finalCode = allCodes.length ? allCodes.reduce(function (a, b) { return b > a ? b : a; }) : 0;
       var description = owmCur
         ? owmCur.weather[0].description.charAt(0).toUpperCase() + owmCur.weather[0].description.slice(1)
@@ -1537,6 +1594,9 @@
       var sources = ["open-meteo"];
       if (owmCur) sources.push("openweathermap");
       if (met0) sources.push("met-norway");
+      if (omEcmwf) sources.push('open-meteo-ecmwf');
+      if (omGfs) sources.push('open-meteo-gfs');
+      if (omIcon) sources.push('open-meteo-icon');
       var current = {
         temperature: temp, feels_like: feels, humidity: humidity,
         wind_speed_kmh: windSpeed, wind_gusts_kmh: windGusts,
@@ -1659,6 +1719,47 @@
         city: cityName, latitude: lat, longitude: lon,
         timezone: om.timezone || "UTC", current: current, daily: daily, hourly: hourly
       };
+    }
+
+    async function enrichCurrentWithExtraSources(data) {
+      if (!data || !data.current) return data;
+      var c = data.current;
+      var [metData, omEcmwf, omGfs, omIcon] = await Promise.all([
+        fetchMET(LAT, LON),
+        fetchOpenMeteoModel(LAT, LON, 'ecmwf_ifs025'),
+        fetchOpenMeteoModel(LAT, LON, 'gfs_seamless'),
+        fetchOpenMeteoModel(LAT, LON, 'icon_global'),
+      ]);
+      var metSeries = metData && metData.properties ? metData.properties.timeseries || [] : [];
+      var met0 = metSeries[0] || null;
+      var metInst = met0 ? (met0.data.instant.details || {}) : {};
+      var met1h = met0 ? (met0.data.next_1_hours || met0.data.next_6_hours || {}) : {};
+      var metCode = met1h.summary ? metSymToWmo(met1h.summary.symbol_code) : null;
+
+      c.temperature = _wavg([c.temperature, omEcmwf && omEcmwf.temperature_2m, omGfs && omGfs.temperature_2m, omIcon && omIcon.temperature_2m], [1.3, 0.8, 0.8, 0.8]);
+      c.humidity = _wavg([c.humidity, metInst.relative_humidity, omEcmwf && omEcmwf.relative_humidity_2m, omGfs && omGfs.relative_humidity_2m, omIcon && omIcon.relative_humidity_2m], [1, 1, 0.7, 0.7, 0.7]);
+      c.wind_speed_kmh = _wavg([c.wind_speed_kmh, metInst.wind_speed != null ? metInst.wind_speed * 3.6 : null, omEcmwf && omEcmwf.wind_speed_10m, omGfs && omGfs.wind_speed_10m, omIcon && omIcon.wind_speed_10m], [1.2, 1.0, 0.8, 0.8, 0.8]);
+      c.wind_gusts_kmh = _wavg([c.wind_gusts_kmh, metInst.wind_speed_of_gust != null ? metInst.wind_speed_of_gust * 3.6 : null, omEcmwf && omEcmwf.wind_gusts_10m, omGfs && omGfs.wind_gusts_10m, omIcon && omIcon.wind_gusts_10m], [1.2, 1.0, 0.8, 0.8, 0.8]);
+      c.precipitation_mm = _wavg([c.precipitation_mm, met1h.details ? (met1h.details.precipitation_amount || 0) : null, omEcmwf && omEcmwf.precipitation, omGfs && omGfs.precipitation, omIcon && omIcon.precipitation], [1.2, 1.0, 0.8, 0.8, 0.8]) || 0;
+
+      var allCodes = [c.weather_code, metCode, omEcmwf && omEcmwf.weather_code, omGfs && omGfs.weather_code, omIcon && omIcon.weather_code].filter(function (x) { return x != null; });
+      if (allCodes.length) {
+        c.weather_code = allCodes.reduce(function (a, b) { return b > a ? b : a; });
+        c.icon = wmoIcon(c.weather_code);
+        c.description = wmoDesc(c.weather_code);
+      }
+      c.moto_score = scoreHourly(c.feels_like, c.wind_gusts_kmh, c.precipitation_mm, c.weather_code);
+      c.moto_label = motoLabel(c.moto_score);
+
+      var src = (c.sources || []).slice();
+      function addSrc(v) { if (v && src.indexOf(v) < 0) src.push(v); }
+      if (met0) addSrc('met-norway');
+      if (omEcmwf) addSrc('open-meteo-ecmwf');
+      if (omGfs) addSrc('open-meteo-gfs');
+      if (omIcon) addSrc('open-meteo-icon');
+      c.sources = src;
+      data.current = c;
+      return data;
     }
 
     // -----------------------------------------------------------------------
@@ -1823,6 +1924,7 @@
           }
           d = await res.json();
         }
+        d = await enrichCurrentWithExtraSources(d);
         render(d);
         saveCity(); renderFavsBar();
         _updatePremiumUI();
@@ -1843,6 +1945,36 @@
           + '<button onclick="loadWeather()" class="mt-4 bg-accent hover:bg-orange-400 text-black font-display font-bold'
           + ' tracking-wider px-6 py-2 rounded-lg transition-colors">RETRY</button>';
       }
+    }
+
+    async function fetchOpenMeteoModel(lat, lon, modelName) {
+      try {
+        var params = new URLSearchParams({
+          latitude: lat,
+          longitude: lon,
+          current: 'temperature_2m,relative_humidity_2m,wind_speed_10m,wind_gusts_10m,precipitation,weather_code',
+          timezone: 'auto',
+          forecast_days: 1,
+          wind_speed_unit: 'kmh',
+          models: modelName,
+        });
+        var resp = await fetch('https://api.open-meteo.com/v1/forecast?' + params.toString());
+        if (!resp.ok) return null;
+        var data = await resp.json();
+        return data && data.current ? data.current : null;
+      } catch (_) { return null; }
+    }
+
+    function sourceLabel(src) {
+      var m = {
+        'open-meteo': 'Open-Meteo (best match)',
+        'openweathermap': 'OpenWeatherMap',
+        'met-norway': 'MET Norway (ECMWF)',
+        'open-meteo-ecmwf': 'Open-Meteo ECMWF IFS',
+        'open-meteo-gfs': 'Open-Meteo GFS Seamless',
+        'open-meteo-icon': 'Open-Meteo ICON Global',
+      };
+      return m[src] || src;
     }
 
     function setBackendUrl() {
@@ -2240,9 +2372,12 @@
         html += '</div>';
       }
 
+      var sourceNames = (c.sources || ['open-meteo']).map(sourceLabel);
+      var sourceUnique = [];
+      sourceNames.forEach(function (s) { if (sourceUnique.indexOf(s) < 0) sourceUnique.push(s); });
       html += '<div class="border-t border-border pt-4 pb-8 text-xs text-muted tracking-widest text-center">'
-        + '<div>DATE: OPEN-METEO.COM &middot; OPENWEATHERMAP &middot; MET NORWAY (ECMWF)</div>'
-        + '<div class="mt-1 text-muted/60">Datele sunt media ponderată a ' + (c.sources ? c.sources.length : 1) + ' surse &middot; Actualizat la fiecare 30 min automat</div>'
+        + '<div>DATE: ' + sourceUnique.join(' &middot; ') + '</div>'
+        + '<div class="mt-1 text-muted/60">Fuziune multi-sursă asistată AI pentru scorul moto &middot; ' + sourceUnique.length + ' surse active &middot; Actualizat la fiecare 30 min automat</div>'
         + '</div>';
 
       document.getElementById("app").innerHTML = html;
@@ -2263,11 +2398,12 @@
         if (!container || !window.L) return;
         if (window._radarMap) { window._radarMap.remove(); window._radarMap = null; }
         var map = window.L.map('radar-map', {
-          zoomControl: true, attributionControl: true, scrollWheelZoom: false
-        }).setView([lat, lon], 8);
+          zoomControl: true, attributionControl: true, scrollWheelZoom: false,
+          minZoom: 4, maxZoom: 10
+        }).setView([lat, lon], 7);
         window._radarMap = map;
         window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          maxZoom: 13, attribution: '&copy; <a href="https://osm.org/copyright">OSM</a>'
+          minZoom: 4, maxZoom: 10, attribution: '&copy; <a href="https://osm.org/copyright">OSM</a>'
         }).addTo(map);
         window.L.circleMarker([lat, lon], {
           radius: 7, color: '#f97316', fillColor: '#f97316', fillOpacity: 0.9
@@ -2279,7 +2415,14 @@
             var frame = rv.radar.past[rv.radar.past.length - 1];
             window.L.tileLayer(
               'https://tilecache.rainviewer.com' + frame.path + '/256/{z}/{x}/{y}/4/1_1.png',
-              { opacity: 0.6, attribution: '<a href="https://www.rainviewer.com">RainViewer</a>' }
+              {
+                opacity: 0.6,
+                minZoom: 4,
+                maxZoom: 10,
+                maxNativeZoom: 10,
+                noWrap: true,
+                attribution: '<a href="https://www.rainviewer.com">RainViewer</a>'
+              }
             ).addTo(map);
           }).catch(function () { });
       }
@@ -2309,6 +2452,9 @@
     document.addEventListener('click', function (e) {
       if (e.target.closest('button')) haptic(10);
     }, { capture: true });
+    window.addEventListener('resize', function () {
+      if (window.innerWidth >= 768) closeMobileMenu();
+    });
 
     // iOS "Add to Home Screen" banner – only show on iOS Safari outside standalone mode
     function _isIos() {
@@ -2356,8 +2502,10 @@
     // Pre-fill route origin with current city when it changes
     // Initialize RevenueCat if running in Capacitor native build
     (function () {
-      if (typeof window.Purchases === 'undefined') return;
-      var RC_API_KEY_IOS = 'appl_REPLACE_WITH_REVENUECAT_IOS_KEY'; // <-- înlocuiește după configurare RevenueCat
+      if (!_isNativePlatform() || typeof window.Purchases === 'undefined' || RC_API_KEY_IOS.indexOf('REPLACE') >= 0) {
+        _setPremium(false, { verified: false, provider: null });
+        return;
+      }
       try {
         window.Purchases.configure({ apiKey: RC_API_KEY_IOS });
         window.Purchases.getCustomerInfo().then(function (info) {
@@ -2365,7 +2513,7 @@
             && info.entitlements
             && info.entitlements.active
             && info.entitlements.active['premium'];
-          _setPremium(!!active);
+          _setPremium(!!active, { verified: !!active, provider: 'revenuecat' });
         }).catch(function () { });
       } catch (_) { }
     }());
