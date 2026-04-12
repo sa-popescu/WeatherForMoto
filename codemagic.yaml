@@ -9,7 +9,7 @@ workflows:
         - ios_signing
         - app_store_credentials
       node: 20
-      xcode: latest
+      xcode: 16.4
       cocoapods: default
       # ── Variabile setate în Codemagic Dashboard → Environment variables ──
       # APP_STORE_CONNECT_KEY_IDENTIFIER   (ex: A1B2C3D4E5)
