@@ -248,6 +248,31 @@
       transition: width 0.5s cubic-bezier(.4, 0, .2, 1);
     }
 
+    @media (max-width: 380px) {
+      .planner-card {
+        padding: 0.7rem;
+      }
+
+      .planner-add-btn {
+        width: 100%;
+        justify-content: center;
+      }
+
+      .hourly-main-card {
+        width: 5rem;
+        padding: 0.55rem;
+      }
+
+      .hourly-main-card .hour-temp {
+        font-size: 1.45rem;
+      }
+
+      .daily-mini-card {
+        width: 3.5rem;
+        padding: 0.4rem;
+      }
+    }
+
     /* ── iOS / PWA enhancements ────────────────────────────────────────── */
 
     /* Suppress the blue tap flash on all elements */
@@ -460,7 +485,7 @@
       <div class="flex-1 h-px bg-border"></div>
       <span class="text-xs text-muted italic hidden sm:inline">opriri multiple → ⚡ Premium</span>
     </div>
-    <div class="bg-card border border-border rounded-xl p-4 mb-4">
+    <div class="planner-card bg-card border border-border rounded-xl p-4 mb-4">
       <!-- Dynamic stops list -->
       <div id="route-stops-list" class="mb-3">
         <div class="stop-row flex items-center gap-2 mb-2">
@@ -477,10 +502,10 @@
         </div>
       </div>
       <button onclick="addRouteStop()" id="add-stop-btn"
-        class="mb-4 text-xs text-accent border border-accent/30 hover:bg-accent/10 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
+        class="planner-add-btn mb-4 text-xs text-accent border border-accent/30 hover:bg-accent/10 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 flex-wrap">
         <span class="text-base leading-none font-bold">+</span>
         <span>Adaugă oprire intermediară</span>
-        <span class="ml-1 text-muted/70">(⚡ Premium · max 5 total)</span>
+        <span class="ml-1 text-muted/70 hidden sm:inline">(⚡ Premium · max 5 total)</span>
       </button>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
         <div>
@@ -2201,10 +2226,10 @@
         var scoreColor = hs >= 80 ? '#22c55e' : hs >= 60 ? '#f97316' : hs >= 40 ? '#eab308' : '#ef4444';
         var borderCol = hs < 40 ? "border-danger" : rp > 40 ? "border-warn" : idx === 0 ? "border-accent" : "border-border";
         var nowClass = idx === 0 ? "hourly-now border-accent" : "";
-        html += '<div class="flex-shrink-0 bg-card border ' + borderCol + ' ' + nowClass + ' rounded-xl p-3 w-24 text-center flex flex-col items-center gap-1">';
+        html += '<div class="hourly-main-card flex-shrink-0 bg-card border ' + borderCol + ' ' + nowClass + ' rounded-xl p-3 w-24 text-center flex flex-col items-center gap-1">';
         html += '<div class="text-xs font-semibold tracking-widest ' + (idx === 0 ? 'text-accent' : 'text-muted') + '">' + (idx === 0 ? "ACUM" : hh) + '</div>';
         html += '<div style="font-size:2.5rem;line-height:1">' + h.icon + '</div>';
-        html += '<div class="font-display text-3xl font-bold leading-none text-gray-100">' + Math.round(h.temperature) + '°</div>';
+        html += '<div class="hour-temp font-display text-3xl font-bold leading-none text-gray-100">' + Math.round(h.temperature) + '°</div>';
         html += '<div class="text-xs ' + rainCls(rp) + '">' + rp + '% 💧</div>';
         html += '<div class="text-xs text-muted">' + Math.round(h.wind_speed_kmh) + ' km/h</div>';
         if (h.uv_index != null && h.uv_index > 0)
@@ -2301,7 +2326,7 @@
             var hrp = h.precipitation_probability || 0;
             var hsc = scoreHourly(h.feels_like, h.wind_gusts_kmh, h.precipitation_mm, h.weather_code);
             var hCol = hsc >= 80 ? '#22c55e' : hsc >= 60 ? '#f97316' : hsc >= 40 ? '#eab308' : '#ef4444';
-            html += '<div class="flex-shrink-0 bg-card border border-border rounded-xl p-2 w-16 text-center flex flex-col items-center gap-0.5">';
+            html += '<div class="daily-mini-card flex-shrink-0 bg-card border border-border rounded-xl p-2 w-16 text-center flex flex-col items-center gap-0.5">';
             html += '<div class="text-xs text-muted font-semibold">' + ht + '</div>';
             html += '<div style="font-size:1.5rem;line-height:1.2">' + h.icon + '</div>';
             html += '<div class="font-display text-lg font-bold leading-none text-gray-100">' + Math.round(h.temperature) + '°</div>';
