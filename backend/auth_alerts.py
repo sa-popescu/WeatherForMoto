@@ -1,6 +1,8 @@
 import hashlib
 import hmac
+import json
 import logging
+import math
 import os
 import secrets
 import smtplib
@@ -92,6 +94,32 @@ class PushSubscriptionPayload(BaseModel):
     keys: dict[str, str]
 
 
+class SavedRoutePayload(BaseModel):
+    name: str = Field(min_length=2, max_length=80)
+    stops: list[str]
+    total_distance_km: float | None = Field(default=None, ge=0, le=5000)
+
+
+class RideLogPayload(BaseModel):
+    route_name: str | None = Field(default=None, max_length=80)
+    start_city: str = Field(min_length=1, max_length=120)
+    end_city: str = Field(min_length=1, max_length=120)
+    distance_km: float = Field(gt=0, le=5000)
+    duration_min: int = Field(gt=0, le=24 * 60)
+    avg_moto_score: int | None = Field(default=None, ge=0, le=100)
+    max_wind_gust: float | None = Field(default=None, ge=0, le=250)
+    max_precip: float | None = Field(default=None, ge=0, le=200)
+
+
+class HazardPayload(BaseModel):
+    lat: float = Field(ge=-90, le=90)
+    lon: float = Field(ge=-180, le=180)
+    hazard_type: str = Field(min_length=2, max_length=40)
+    severity: int = Field(ge=1, le=5)
+    description: str = Field(min_length=3, max_length=220)
+    ttl_hours: int = Field(default=6, ge=1, le=72)
+
+
 router = APIRouter(tags=["account", "alerts"])
 
 
@@ -173,6 +201,44 @@ def init_db() -> None:
                 created_at TEXT NOT NULL,
                 UNIQUE(user_id, event_key)
             );
+
+            CREATE TABLE IF NOT EXISTS saved_routes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                stops_json TEXT NOT NULL,
+                total_distance_km REAL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(user_id) REFERENCES users(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS ride_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                route_name TEXT,
+                start_city TEXT NOT NULL,
+                end_city TEXT NOT NULL,
+                distance_km REAL NOT NULL,
+                duration_min INTEGER NOT NULL,
+                avg_moto_score INTEGER,
+                max_wind_gust REAL,
+                max_precip REAL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(user_id) REFERENCES users(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS hazard_reports (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                lat REAL NOT NULL,
+                lon REAL NOT NULL,
+                hazard_type TEXT NOT NULL,
+                severity INTEGER NOT NULL,
+                description TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(user_id) REFERENCES users(id)
+            );
             """
         )
         _ensure_column(conn, "users", "display_name", "ALTER TABLE users ADD COLUMN display_name TEXT")
@@ -228,6 +294,17 @@ def init_db() -> None:
         conn.commit()
     finally:
         conn.close()
+
+
+def _distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    r = 6371.0
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = (
+        math.sin(dlat / 2) ** 2
+        + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2
+    )
+    return r * 2 * math.asin(math.sqrt(a))
 
 
 def _hash_token(token: str) -> str:
@@ -664,10 +741,204 @@ async def delete_account(user: SessionUser = Depends(get_current_user)) -> dict[
         conn.execute("DELETE FROM sessions WHERE user_id = ?", (user.user_id,))
         conn.execute("DELETE FROM push_subscriptions WHERE user_id = ?", (user.user_id,))
         conn.execute("DELETE FROM alert_events WHERE user_id = ?", (user.user_id,))
+        conn.execute("DELETE FROM saved_routes WHERE user_id = ?", (user.user_id,))
+        conn.execute("DELETE FROM ride_logs WHERE user_id = ?", (user.user_id,))
+        conn.execute("DELETE FROM hazard_reports WHERE user_id = ?", (user.user_id,))
         conn.execute("DELETE FROM alert_prefs WHERE user_id = ?", (user.user_id,))
         conn.execute("DELETE FROM users WHERE id = ?", (user.user_id,))
         conn.commit()
         return {"ok": True}
+    finally:
+        conn.close()
+
+
+@router.get("/me/routes")
+async def list_saved_routes(user: SessionUser = Depends(get_current_user)) -> dict[str, Any]:
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            "SELECT id, name, stops_json, total_distance_km, created_at FROM saved_routes WHERE user_id = ? ORDER BY id DESC",
+            (user.user_id,),
+        ).fetchall()
+        routes = []
+        for r in rows:
+            try:
+                stops = json.loads(r["stops_json"])
+            except Exception:
+                stops = []
+            routes.append({
+                "id": int(r["id"]),
+                "name": r["name"],
+                "stops": stops,
+                "total_distance_km": r["total_distance_km"],
+                "created_at": r["created_at"],
+            })
+        return {"routes": routes}
+    finally:
+        conn.close()
+
+
+@router.post("/me/routes")
+async def create_saved_route(payload: SavedRoutePayload, user: SessionUser = Depends(get_current_user)) -> dict[str, Any]:
+    cleaned_stops = [s.strip() for s in payload.stops if s and s.strip()]
+    if len(cleaned_stops) < 2:
+        raise HTTPException(status_code=422, detail="Ruta trebuie să conțină minim 2 opriri")
+
+    conn = _connect()
+    try:
+        now = _utc_now().isoformat()
+        cur = conn.execute(
+            "INSERT INTO saved_routes(user_id, name, stops_json, total_distance_km, created_at) VALUES (?, ?, ?, ?, ?)",
+            (user.user_id, payload.name.strip(), json.dumps(cleaned_stops, ensure_ascii=False), payload.total_distance_km, now),
+        )
+        conn.commit()
+        return {"ok": True, "route_id": int(cur.lastrowid)}
+    finally:
+        conn.close()
+
+
+@router.delete("/me/routes/{route_id}")
+async def delete_saved_route(route_id: int, user: SessionUser = Depends(get_current_user)) -> dict[str, bool]:
+    conn = _connect()
+    try:
+        conn.execute("DELETE FROM saved_routes WHERE id = ? AND user_id = ?", (route_id, user.user_id))
+        conn.commit()
+        return {"ok": True}
+    finally:
+        conn.close()
+
+
+@router.post("/me/rides/log")
+async def log_ride(payload: RideLogPayload, user: SessionUser = Depends(get_current_user)) -> dict[str, Any]:
+    conn = _connect()
+    try:
+        now = _utc_now().isoformat()
+        cur = conn.execute(
+            """
+            INSERT INTO ride_logs(user_id, route_name, start_city, end_city, distance_km, duration_min, avg_moto_score, max_wind_gust, max_precip, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                user.user_id,
+                payload.route_name,
+                payload.start_city.strip(),
+                payload.end_city.strip(),
+                payload.distance_km,
+                payload.duration_min,
+                payload.avg_moto_score,
+                payload.max_wind_gust,
+                payload.max_precip,
+                now,
+            ),
+        )
+        conn.commit()
+        return {"ok": True, "ride_id": int(cur.lastrowid)}
+    finally:
+        conn.close()
+
+
+@router.get("/me/rides/stats")
+async def ride_stats(user: SessionUser = Depends(get_current_user)) -> dict[str, Any]:
+    conn = _connect()
+    try:
+        agg = conn.execute(
+            """
+            SELECT
+              COUNT(*) AS rides,
+              COALESCE(SUM(distance_km), 0) AS total_distance_km,
+              COALESCE(SUM(duration_min), 0) AS total_duration_min,
+              AVG(avg_moto_score) AS avg_score,
+              MAX(max_wind_gust) AS peak_wind,
+              MAX(max_precip) AS peak_precip
+            FROM ride_logs
+            WHERE user_id = ?
+            """,
+            (user.user_id,),
+        ).fetchone()
+        recent = conn.execute(
+            """
+            SELECT id, route_name, start_city, end_city, distance_km, duration_min, avg_moto_score, created_at
+            FROM ride_logs
+            WHERE user_id = ?
+            ORDER BY id DESC
+            LIMIT 12
+            """,
+            (user.user_id,),
+        ).fetchall()
+        return {
+            "rides": int(agg["rides"] or 0),
+            "total_distance_km": round(float(agg["total_distance_km"] or 0), 1),
+            "total_duration_min": int(agg["total_duration_min"] or 0),
+            "avg_score": round(float(agg["avg_score"]), 1) if agg["avg_score"] is not None else None,
+            "peak_wind": round(float(agg["peak_wind"]), 1) if agg["peak_wind"] is not None else None,
+            "peak_precip": round(float(agg["peak_precip"]), 1) if agg["peak_precip"] is not None else None,
+            "recent": [dict(r) for r in recent],
+        }
+    finally:
+        conn.close()
+
+
+@router.post("/hazards")
+async def report_hazard(payload: HazardPayload, user: SessionUser = Depends(get_current_user)) -> dict[str, Any]:
+    conn = _connect()
+    try:
+        now = _utc_now()
+        expires = now + timedelta(hours=payload.ttl_hours)
+        cur = conn.execute(
+            """
+            INSERT INTO hazard_reports(user_id, lat, lon, hazard_type, severity, description, expires_at, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                user.user_id,
+                payload.lat,
+                payload.lon,
+                payload.hazard_type.strip().lower(),
+                payload.severity,
+                payload.description.strip(),
+                expires.isoformat(),
+                now.isoformat(),
+            ),
+        )
+        conn.commit()
+        return {"ok": True, "hazard_id": int(cur.lastrowid)}
+    finally:
+        conn.close()
+
+
+@router.get("/hazards")
+async def list_hazards(lat: float, lon: float, radius_km: float = 80.0) -> dict[str, Any]:
+    radius_km = max(1.0, min(radius_km, 400.0))
+    conn = _connect()
+    try:
+        now = _utc_now().isoformat()
+        rows = conn.execute(
+            """
+            SELECT id, lat, lon, hazard_type, severity, description, created_at, expires_at
+            FROM hazard_reports
+            WHERE expires_at > ?
+            ORDER BY id DESC
+            LIMIT 300
+            """,
+            (now,),
+        ).fetchall()
+
+        hazards = []
+        for r in rows:
+            d = _distance_km(lat, lon, float(r["lat"]), float(r["lon"]))
+            if d <= radius_km:
+                hazards.append({
+                    "id": int(r["id"]),
+                    "lat": float(r["lat"]),
+                    "lon": float(r["lon"]),
+                    "hazard_type": r["hazard_type"],
+                    "severity": int(r["severity"]),
+                    "description": r["description"],
+                    "distance_km": round(d, 1),
+                    "created_at": r["created_at"],
+                    "expires_at": r["expires_at"],
+                })
+        return {"hazards": hazards}
     finally:
         conn.close()
 
