@@ -97,11 +97,29 @@ workflows:
       - name: Apply provisioning profiles to Xcode project
         script: xcode-project use-profiles
 
-      - name: Set build number from Codemagic build index
+      - name: Set unique build number
         script: |
-          LATEST=$(app-store-connect get-latest-build-number \
-            "$BUNDLE_ID" --platform IOS 2>/dev/null || echo "0")
-          agvtool new-version -all $(($LATEST + 1))
+          set -e
+          LATEST_RAW=$(app-store-connect get-latest-build-number "$BUNDLE_ID" --platform IOS || echo "0")
+          LATEST=$(echo "$LATEST_RAW" | tr -cd '0-9')
+          if [ -z "$LATEST" ]; then LATEST=0; fi
+
+          NEXT=$((LATEST + 1))
+
+          if [ -n "${BUILD_NUMBER:-}" ] && [ "$BUILD_NUMBER" -gt "$NEXT" ]; then
+            NEXT="$BUILD_NUMBER"
+          fi
+          if [ -n "${CM_BUILD_ID:-}" ] && [ "$CM_BUILD_ID" -gt "$NEXT" ]; then
+            NEXT="$CM_BUILD_ID"
+          fi
+
+          if [ "$NEXT" -le "$LATEST" ]; then
+            NEXT=$((LATEST + 1))
+          fi
+
+          echo "Latest ASC build: $LATEST"
+          echo "Using CFBundleVersion: $NEXT"
+          agvtool new-version -all "$NEXT"
         working_directory: ios/App
 
       - name: Build & archive
