@@ -172,7 +172,7 @@
       }
     }
 
-    #alerts-modal>div {
+    #account-modal>div {
       animation: fadeIn 0.2s ease;
     }
 
@@ -382,74 +382,15 @@
                        text-base px-3 py-2 rounded-lg transition-colors flex items-center gap-2 justify-center md:justify-start">
           <span>↻</span><span class="text-sm md:hidden">Reîncarcă</span>
         </button>
-        <button onclick="toggleProfile();closeMobileMenu()" title="Profil moto"
-          class="bg-card border border-border text-muted hover:text-accent hover:border-accent
-                       text-base px-3 py-2 rounded-lg transition-colors flex items-center gap-2 justify-center md:justify-start">
-          <span>⚙</span><span class="text-sm md:hidden">Profil</span>
-        </button>
-        <button onclick="toggleAlerts();closeMobileMenu()" title="Alerte personalizate"
-          class="bg-card border border-border text-muted hover:text-warn hover:border-warn
-                       text-base px-3 py-2 rounded-lg transition-colors flex items-center gap-2 justify-center md:justify-start" id="alerts-hdr-btn">
-          <span>🔔</span><span class="text-sm md:hidden">Alerte</span>
-        </button>
-        <button onclick="accountLoginFlow();closeMobileMenu()" title="Cont"
+        <button onclick="openAccountModal();closeMobileMenu()" title="Cont și setări"
           class="bg-card border border-border text-muted hover:text-accent hover:border-accent
                        text-base px-3 py-2 rounded-lg transition-colors flex items-center gap-2 justify-center md:justify-start" id="account-hdr-btn">
-          <span>👤</span><span class="text-sm md:hidden">Cont</span>
-        </button>
-        <button onclick="togglePushAlerts();closeMobileMenu()" title="Notificari push"
-          class="bg-card border border-border text-muted hover:text-ok hover:border-ok
-                       text-base px-3 py-2 rounded-lg transition-colors flex items-center gap-2 justify-center md:justify-start" id="push-hdr-btn">
-          <span>📲</span><span class="text-sm md:hidden">Push OFF</span>
+          <span>👤</span><span class="text-sm md:hidden">Cont & Setări</span>
         </button>
       </div>
     </div>
     <div id="favs-bar" class="max-w-5xl mx-auto px-3 sm:px-4 pb-2"></div>
   </header>
-
-  <!-- PROFIL MOTO -->
-  <div id="profile-panel" class="bg-surface border-b border-border" style="display:none">
-    <div class="max-w-5xl mx-auto px-3 sm:px-4 py-4">
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div>
-          <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Tipul motocicletei</label>
-          <select id="profile-moto-type" onchange="saveProfile()"
-            class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent">
-            <option value="naked">Naked / Roadster</option>
-            <option value="touring">Touring</option>
-            <option value="enduro">Enduro / Adventure</option>
-            <option value="sport">Supersport</option>
-            <option value="scooter">Scooter</option>
-          </select>
-        </div>
-        <div>
-          <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Temperatura de confort: <span
-              id="profile-temp-val">20</span>°C</label>
-          <input id="profile-comfort-temp" type="range" min="5" max="35" value="20"
-            oninput="document.getElementById('profile-temp-val').textContent=this.value; saveProfile()"
-            class="w-full accent-accent mt-2">
-        </div>
-        <div>
-          <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Toleranță vânt</label>
-          <select id="profile-wind-tol" onchange="saveProfile()"
-            class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent">
-            <option value="low">Scăzută</option>
-            <option value="medium">Medie</option>
-            <option value="high">Ridicată</option>
-          </select>
-        </div>
-        <div>
-          <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Toleranță ploaie</label>
-          <select id="profile-rain-tol" onchange="saveProfile()"
-            class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent">
-            <option value="low">Scăzută</option>
-            <option value="medium">Medie</option>
-            <option value="high">Ridicată</option>
-          </select>
-        </div>
-      </div>
-    </div>
-  </div>
 
   <!-- MAIN -->
   <main class="max-w-5xl mx-auto px-3 sm:px-4 py-6 min-w-0" id="app">
@@ -520,25 +461,114 @@
     </div>
   </div>
 
-  <!-- ══ ALERTS MODAL ═══════════════════════════════════════════════════ -->
-  <div id="alerts-modal" class="hidden fixed inset-0 z-[200] flex items-center justify-center p-4"
-    style="background:rgba(0,0,0,0.8);backdrop-filter:blur(10px)" onclick="event.target===this&&toggleAlerts()">
-    <div class="bg-card border border-border rounded-2xl p-6 max-w-sm w-full shadow-2xl max-h-[85vh] overflow-y-auto">
-      <div class="flex items-center justify-between mb-5">
-        <div>
-          <div class="font-display text-xl font-bold tracking-widest text-gray-100">🔔 ALERTE VREME</div>
-          <div class="text-xs text-muted mt-0.5">Notificare la fiecare verificare</div>
+  <!-- ══ ACCOUNT MODAL ══════════════════════════════════════════════════ -->
+  <div id="account-modal" class="hidden fixed inset-0 z-[220] flex items-center justify-center p-4"
+    style="background:rgba(0,0,0,0.8);backdrop-filter:blur(10px)" onclick="event.target===this&&closeAccountModal()">
+    <div class="bg-card border border-border rounded-2xl p-6 max-w-md w-full shadow-2xl max-h-[88vh] overflow-y-auto">
+      <div class="flex items-center justify-between mb-4">
+        <div class="font-display text-lg font-bold tracking-widest text-gray-100">👤 CONTUL MEU</div>
+        <button onclick="closeAccountModal()"
+          class="text-muted hover:text-gray-200 text-xl transition-colors">✕</button>
+      </div>
+
+      <div id="account-auth-view">
+        <div class="text-xs text-muted mb-4">Creează cont sau autentifică-te ca să primești alerte email.</div>
+        <div class="space-y-3">
+          <input id="acc-name" type="text" placeholder="Nume (opțional)"
+            class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent" />
+          <input id="acc-email" type="email" placeholder="Email"
+            class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent" />
+          <input id="acc-pass" type="password" placeholder="Parolă (minim 8 caractere)"
+            class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent" />
         </div>
-        <button onclick="toggleAlerts()" class="text-muted hover:text-gray-200 text-xl transition-colors">✕</button>
+        <div class="grid grid-cols-2 gap-2 mt-4">
+          <button onclick="signupAccount()"
+            class="bg-accent hover:bg-orange-400 text-black font-display font-bold tracking-wider py-2.5 rounded-xl transition-colors">Creare
+            cont</button>
+          <button onclick="loginAccount()"
+            class="border border-border text-gray-200 hover:border-accent hover:text-accent font-display font-bold tracking-wider py-2.5 rounded-xl transition-colors">Autentificare</button>
+        </div>
       </div>
-      <!-- Alert toggles -->
-      <div id="alerts-list" class="space-y-3">
-        <!-- generated by renderAlertsForm() -->
+
+      <div id="account-logged-view" class="hidden">
+        <div class="space-y-2 mb-4 text-sm">
+          <div>📧 <strong id="me-email" class="text-gray-100">—</strong></div>
+          <div>🆔 <span id="me-name" class="text-gray-200">—</span></div>
+          <div>📅 Creat la: <span id="me-created" class="text-muted">—</span></div>
+        </div>
+        <div class="space-y-2 mb-4">
+          <input id="me-name-input" type="text" placeholder="Nume afișat"
+            class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent" />
+          <button onclick="saveAccountProfile()"
+            class="w-full border border-border text-gray-200 hover:border-accent hover:text-accent text-sm py-2 rounded-xl transition-colors">Salvează
+            profil</button>
+        </div>
+        <div class="grid grid-cols-1 gap-2">
+          <button id="push-account-btn" onclick="togglePushAlerts()"
+            class="w-full border border-border text-gray-200 hover:border-ok hover:text-ok py-2 rounded-xl text-sm transition-colors">Alerte
+            push/email: OFF</button>
+          <button onclick="unsubscribeEmailAlerts()"
+            class="w-full border border-warn/40 text-warn hover:border-warn py-2 rounded-xl text-sm transition-colors">Dezabonare
+            alerte email</button>
+          <button onclick="logoutAccount()"
+            class="w-full border border-border text-gray-200 hover:border-accent hover:text-accent py-2 rounded-xl text-sm transition-colors">Logout</button>
+          <button onclick="deleteMyAccount()"
+            class="w-full border border-danger/40 text-danger hover:border-danger py-2 rounded-xl text-sm transition-colors">Șterge
+            contul</button>
+        </div>
+
+        <div class="mt-5 border-t border-border pt-4">
+          <div class="font-display text-sm font-bold tracking-widest text-gray-100 mb-3">⚙ PROFIL MOTO</div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Tipul motocicletei</label>
+              <select id="profile-moto-type" onchange="saveProfile()"
+                class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent">
+                <option value="naked">Naked / Roadster</option>
+                <option value="touring">Touring</option>
+                <option value="enduro">Enduro / Adventure</option>
+                <option value="sport">Supersport</option>
+                <option value="scooter">Scooter</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Toleranță vânt</label>
+              <select id="profile-wind-tol" onchange="saveProfile()"
+                class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent">
+                <option value="low">Scăzută</option>
+                <option value="medium">Medie</option>
+                <option value="high">Ridicată</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Toleranță ploaie</label>
+              <select id="profile-rain-tol" onchange="saveProfile()"
+                class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent">
+                <option value="low">Scăzută</option>
+                <option value="medium">Medie</option>
+                <option value="high">Ridicată</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Confort: <span
+                  id="profile-temp-val">20</span>°C</label>
+              <input id="profile-comfort-temp" type="range" min="5" max="35" value="20"
+                oninput="document.getElementById('profile-temp-val').textContent=this.value; saveProfile()"
+                class="w-full accent-accent mt-2">
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-5 border-t border-border pt-4">
+          <div class="font-display text-sm font-bold tracking-widest text-gray-100 mb-1">🔔 ALERTE PERSONALIZATE</div>
+          <div class="text-xs text-muted mb-3">Alertele locale se folosesc la evaluarea vremii în aplicație.</div>
+          <div id="account-alerts-list" class="space-y-2"></div>
+          <button onclick="saveAlerts()"
+            class="mt-3 w-full bg-accent hover:bg-orange-400 text-black font-display font-bold tracking-wider py-2.5 rounded-xl transition-colors">
+            Salvează alertele
+          </button>
+        </div>
       </div>
-      <button onclick="saveAlerts()"
-        class="mt-4 w-full bg-accent hover:bg-orange-400 text-black font-display font-bold tracking-wider py-2.5 rounded-xl transition-colors">
-        💾 SALVEAZĂ ALERTELE
-      </button>
     </div>
   </div>
 
@@ -586,6 +616,7 @@
     // -----------------------------------------------------------------------
     var AUTH_TOKEN_KEY = 'mmAuthTokenV1';
     var USER_EMAIL_KEY = 'mmUserEmailV1';
+    var USER_NAME_KEY = 'mmUserNameV1';
 
     function _api(path) {
       return (API_URL === null || API_URL === '') ? path : (API_URL + path);
@@ -600,6 +631,19 @@
       } catch (_) { }
       _updateAccountButton();
     }
+
+    function _setUserName(name) {
+      try {
+        if (name) localStorage.setItem(USER_NAME_KEY, name);
+        else localStorage.removeItem(USER_NAME_KEY);
+      } catch (_) { }
+    }
+
+    function _resetAuth() {
+      _setAuth('', '');
+      _setUserName('');
+    }
+
     function _updateAccountButton() {
       var btn = document.getElementById('account-hdr-btn');
       if (!btn) return;
@@ -610,37 +654,194 @@
       if (txt) txt.textContent = email ? 'Cont ON' : 'Cont';
     }
 
-    async function accountLoginFlow() {
-      var email = prompt('Introdu emailul contului MotoMeteo:');
-      if (!email) return;
-      email = email.trim().toLowerCase();
-      if (!email) return;
+    function openAccountModal() {
+      var modal = document.getElementById('account-modal');
+      if (!modal) return;
+      modal.classList.remove('hidden');
+      refreshAccountState();
+      loadProfileUI();
+      renderAlertsForm();
+      _refreshPushStatus();
+    }
+
+    function closeAccountModal() {
+      var modal = document.getElementById('account-modal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    function _showAuthView() {
+      var authView = document.getElementById('account-auth-view');
+      var loggedView = document.getElementById('account-logged-view');
+      if (authView) authView.classList.remove('hidden');
+      if (loggedView) loggedView.classList.add('hidden');
+    }
+
+    function _showLoggedView() {
+      var authView = document.getElementById('account-auth-view');
+      var loggedView = document.getElementById('account-logged-view');
+      if (authView) authView.classList.add('hidden');
+      if (loggedView) loggedView.classList.remove('hidden');
+      loadProfileUI();
+      renderAlertsForm();
+      _refreshPushStatus();
+    }
+
+    async function refreshAccountState() {
+      var token = _authToken();
+      if (!token) {
+        _showAuthView();
+        return;
+      }
+      try {
+        var resp = await fetch(_api('/me'), {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        var data = await resp.json();
+        if (!resp.ok) throw new Error(data.detail || 'Sesiune invalidă.');
+
+        _setAuth(token, data.email || '');
+        _setUserName(data.display_name || '');
+        _showLoggedView();
+
+        var meEmail = document.getElementById('me-email');
+        var meName = document.getElementById('me-name');
+        var meCreated = document.getElementById('me-created');
+        var meNameInput = document.getElementById('me-name-input');
+        if (meEmail) meEmail.textContent = data.email || '—';
+        if (meName) meName.textContent = data.display_name || 'Fără nume';
+        if (meCreated) meCreated.textContent = data.created_at ? new Date(data.created_at).toLocaleString('ro-RO') : '—';
+        if (meNameInput) meNameInput.value = data.display_name || '';
+      } catch (_) {
+        _resetAuth();
+        _showAuthView();
+      }
+    }
+
+    async function signupAccount() {
+      var nameEl = document.getElementById('acc-name');
+      var emailEl = document.getElementById('acc-email');
+      var passEl = document.getElementById('acc-pass');
+      var displayName = (nameEl && nameEl.value || '').trim();
+      var email = (emailEl && emailEl.value || '').trim().toLowerCase();
+      var password = (passEl && passEl.value || '').trim();
+
+      if (!email || !password) { alert('Completează email și parolă.'); return; }
+      if (password.length < 8) { alert('Parola trebuie să aibă minim 8 caractere.'); return; }
 
       try {
-        var req = await fetch(_api('/auth/request-code'), {
+        var resp = await fetch(_api('/auth/signup'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: email })
+          body: JSON.stringify({ email: email, password: password, display_name: displayName || null })
         });
-        var reqData = await req.json();
-        if (!req.ok) throw new Error(reqData.detail || 'Nu am putut trimite codul.');
+        var data = await resp.json();
+        if (!resp.ok) throw new Error(data.detail || 'Nu am putut crea contul.');
+        _setAuth(data.token, data.user && data.user.email ? data.user.email : email);
+        _setUserName(data.user && data.user.display_name ? data.user.display_name : '');
+        await _setDefaultPrefs();
+        await refreshAccountState();
+        alert('Cont creat și autentificat.');
+      } catch (e) {
+        alert('Eroare creare cont: ' + (e && e.message || e));
+      }
+    }
 
-        var hint = reqData.dev_code ? ('Cod (dev): ' + reqData.dev_code + '\n') : '';
-        var code = prompt(hint + 'Introdu codul primit pe email:');
-        if (!code) return;
+    async function loginAccount() {
+      var emailEl = document.getElementById('acc-email');
+      var passEl = document.getElementById('acc-pass');
+      var email = (emailEl && emailEl.value || '').trim().toLowerCase();
+      var password = (passEl && passEl.value || '').trim();
 
-        var verify = await fetch(_api('/auth/verify-code'), {
+      if (!email || !password) { alert('Completează email și parolă.'); return; }
+      try {
+        var resp = await fetch(_api('/auth/login'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: email, code: code.trim() })
+          body: JSON.stringify({ email: email, password: password })
         });
-        var verifyData = await verify.json();
-        if (!verify.ok) throw new Error(verifyData.detail || 'Cod invalid.');
-
-        _setAuth(verifyData.token, verifyData.user && verifyData.user.email ? verifyData.user.email : email);
-        alert('Autentificat cu succes. Acum poți activa notificările push.');
+        var data = await resp.json();
+        if (!resp.ok) throw new Error(data.detail || 'Autentificare eșuată.');
+        _setAuth(data.token, data.user && data.user.email ? data.user.email : email);
+        _setUserName(data.user && data.user.display_name ? data.user.display_name : '');
+        await _setDefaultPrefs();
+        await refreshAccountState();
       } catch (e) {
         alert('Eroare autentificare: ' + (e && e.message || e));
+      }
+    }
+
+    async function saveAccountProfile() {
+      var token = _authToken();
+      if (!token) return;
+      var nameEl = document.getElementById('me-name-input');
+      var displayName = (nameEl && nameEl.value || '').trim();
+      if (!displayName) { alert('Introdu un nume.'); return; }
+
+      try {
+        var resp = await fetch(_api('/me/profile'), {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify({ display_name: displayName })
+        });
+        var data = await resp.json();
+        if (!resp.ok) throw new Error(data.detail || 'Nu am putut salva profilul.');
+        _setUserName(displayName);
+        await refreshAccountState();
+      } catch (e) {
+        alert('Eroare profil: ' + (e && e.message || e));
+      }
+    }
+
+    async function logoutAccount() {
+      var token = _authToken();
+      try {
+        if (token) {
+          await fetch(_api('/auth/logout'), {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + token }
+          });
+        }
+      } catch (_) { }
+      _resetAuth();
+      _showAuthView();
+      _updatePushButton(false, true);
+    }
+
+    async function unsubscribeEmailAlerts() {
+      var token = _authToken();
+      if (!token) return;
+      try {
+        var resp = await fetch(_api('/me/unsubscribe-email-alerts'), {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        var data = await resp.json();
+        if (!resp.ok) throw new Error(data.detail || 'Nu am putut dezabona alertele email.');
+        alert('Alertele email au fost dezactivate pentru contul tău.');
+      } catch (e) {
+        alert('Eroare dezabonare: ' + (e && e.message || e));
+      }
+    }
+
+    async function deleteMyAccount() {
+      var token = _authToken();
+      if (!token) return;
+      if (!confirm('Sigur vrei să ștergi contul? Acțiunea este permanentă.')) return;
+      try {
+        var resp = await fetch(_api('/me'), {
+          method: 'DELETE',
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        var data = await resp.json();
+        if (!resp.ok) throw new Error(data.detail || 'Nu am putut șterge contul.');
+        _resetAuth();
+        closeAccountModal();
+        alert('Cont șters cu succes.');
+      } catch (e) {
+        alert('Eroare ștergere cont: ' + (e && e.message || e));
       }
     }
 
@@ -665,6 +866,7 @@
           },
           body: JSON.stringify({
             enabled: true,
+            email_alerts_enabled: true,
             min_score: 45,
             max_wind_gust: 50,
             max_precip: 2,
@@ -684,7 +886,17 @@
         return;
       }
       if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-        alert('Push notifications nu sunt suportate în acest browser.');
+        try {
+          await _setDefaultPrefs();
+          await fetch(_api('/alerts/check-now'), {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + token }
+          });
+          _updatePushButton(false, true);
+          alert('Browserul nu suportă push. Am activat alertele pe email pentru contul tău.');
+        } catch (e) {
+          alert('Push indisponibil și nu am putut activa fallback email: ' + (e && e.message || e));
+        }
         return;
       }
 
@@ -699,7 +911,7 @@
             headers: { 'Authorization': 'Bearer ' + token }
           });
           await existing.unsubscribe();
-          _updatePushButton(false);
+          _updatePushButton(false, true);
           alert('Notificările push au fost dezactivate.');
           return;
         }
@@ -725,7 +937,7 @@
         var saveData = await saveResp.json();
         if (!saveResp.ok) throw new Error(saveData.detail || 'Nu am putut salva abonarea push.');
 
-        _updatePushButton(true);
+        _updatePushButton(true, true);
         alert('Notificările push sunt active. Testez acum alertele pe 24h...');
         await fetch(_api('/alerts/check-now'), {
           method: 'POST',
@@ -737,19 +949,21 @@
     }
 
     async function _refreshPushStatus() {
-      if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        _updatePushButton(false, true);
+        return;
+      }
       try {
         var reg = await navigator.serviceWorker.ready;
         var sub = await reg.pushManager.getSubscription();
-        _updatePushButton(!!sub);
+        _updatePushButton(!!sub, true);
       } catch (_) { }
     }
 
-    function _updatePushButton(enabled) {
-      var btn = document.getElementById('push-hdr-btn');
+    function _updatePushButton(enabled, updateLabel) {
+      var btn = document.getElementById('push-account-btn');
       if (!btn) return;
-      var txt = btn.querySelector('span:last-child');
-      if (txt) txt.textContent = enabled ? 'Push ON' : 'Push OFF';
+      if (updateLabel) btn.textContent = enabled ? 'Alerte push/email: ON' : 'Alerte push/email: OFF';
       btn.classList.toggle('border-ok', !!enabled);
       btn.classList.toggle('text-ok', !!enabled);
     }
@@ -836,7 +1050,7 @@
         html += '<div class="text-xs text-muted">' + a.desc + '</div>';
         html += '</div></label>';
       });
-      var el = document.getElementById('alerts-list');
+      var el = document.getElementById('account-alerts-list');
       if (el) el.innerHTML = html;
     }
     function saveAlerts() {
@@ -846,22 +1060,11 @@
         state[a.id] = chk ? chk.checked : true;
       });
       try { localStorage.setItem('motoAlerts', JSON.stringify(state)); } catch (_) { }
-      closeAlerts();
+      alert('Alertele personalizate au fost salvate.');
     }
-    function closeAlerts() {
-      var m = document.getElementById('alerts-modal');
-      if (m) m.classList.add('hidden');
-    }
+
     function toggleAlerts() {
-      var m = document.getElementById('alerts-modal');
-      if (!m) return;
-      var isHidden = m.classList.contains('hidden');
-      if (isHidden) {
-        renderAlertsForm();
-        m.classList.remove('hidden');
-      } else {
-        m.classList.add('hidden');
-      }
+      openAccountModal();
     }
     function checkAlerts(current) {
       var state = _getAlertState();
@@ -957,11 +1160,7 @@
     }
 
     function toggleProfile() {
-      var panel = document.getElementById('profile-panel');
-      if (!panel) return;
-      var isHidden = panel.style.display === 'none';
-      panel.style.display = isHidden ? '' : 'none';
-      if (isHidden) loadProfileUI();
+      openAccountModal();
     }
 
     function profileAdjustedScore(score, feels, gusts, prec) {
@@ -1023,7 +1222,7 @@
       html += '<div class="bg-card border border-border rounded-xl p-4 mb-4">';
       html += '<div class="flex items-center gap-2 mb-3">'
         + '<span class="text-xs text-muted tracking-widest">🏍️ ' + motoTypeLabel + ' &middot; Confort <strong class="text-gray-300">' + p.comfortTemp + '°C</strong></span>'
-        + '<button onclick="toggleProfile()" class="ml-auto text-xs text-muted hover:text-accent transition-colors">⚙ profil</button>'
+        + '<button onclick="openAccountModal()" class="ml-auto text-xs text-muted hover:text-accent transition-colors">⚙ setări cont</button>'
         + '</div>';
       html += '<div class="flex flex-col gap-2">';
       recs.forEach(function (rec) {
