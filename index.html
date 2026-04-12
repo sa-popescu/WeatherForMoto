@@ -159,7 +159,7 @@
       box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.35), 0 4px 16px rgba(249, 115, 22, 0.15);
     }
 
-    /* ── Premium features ─────────────────────────────────────────────── */
+    /* ── Modal animations ─────────────────────────────────────────────── */
     @keyframes fadeIn {
       from {
         opacity: 0;
@@ -172,49 +172,8 @@
       }
     }
 
-    #paywall-modal>div,
     #alerts-modal>div {
       animation: fadeIn 0.2s ease;
-    }
-
-    @keyframes premGlow {
-
-      0%,
-      100% {
-        box-shadow: 0 0 6px rgba(249, 115, 22, 0.25);
-      }
-
-      50% {
-        box-shadow: 0 0 18px rgba(249, 115, 22, 0.6);
-      }
-    }
-
-    .prem-glow {
-      animation: premGlow 2.5s ease-in-out infinite;
-    }
-
-    /* Premium day lock row */
-    .day-locked {
-      opacity: 0.45;
-      position: relative;
-      pointer-events: none;
-    }
-
-    .day-lock-overlay {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: rgba(11, 12, 15, 0.5);
-      font-family: 'Rajdhani', sans-serif;
-      font-weight: 700;
-      font-size: 0.72rem;
-      letter-spacing: 0.18em;
-      color: #f97316;
-      border-radius: inherit;
-      pointer-events: auto;
-      cursor: pointer;
     }
 
     .alert-banner {
@@ -403,10 +362,6 @@
           </div>
         </div>
         <div class="flex items-center gap-2 flex-shrink-0">
-          <button onclick="isPremium() ? showPremiumStatus() : openPaywall('Activează MotoMeteo Plus')"
-            title="MotoMeteo Plus" id="premium-hdr-btn"
-            class="border font-display font-bold tracking-wider text-xs px-2.5 py-2 rounded-lg transition-colors prem-glow bg-accent/10 border-accent/30 text-accent">⚡
-            PLUS</button>
           <button id="mobile-menu-btn" onclick="toggleMobileMenu()" title="Meniu"
             class="md:hidden bg-card border border-border text-gray-300 hover:text-accent hover:border-accent text-base px-3 py-2 rounded-lg transition-colors">☰</button>
         </div>
@@ -495,7 +450,7 @@
     <div class="flex items-center gap-3 mt-2 mb-4">
       <span class="font-display text-sm font-bold tracking-[0.25em] text-muted uppercase">🗺️ Planificator traseu</span>
       <div class="flex-1 h-px bg-border"></div>
-      <span class="text-xs text-muted italic hidden sm:inline">opriri multiple → ⚡ Premium</span>
+      <span class="text-xs text-muted italic hidden sm:inline">până la 5 opriri pe traseu</span>
     </div>
     <div class="planner-card bg-card border border-border rounded-xl p-4 mb-4">
       <!-- Dynamic stops list -->
@@ -517,7 +472,7 @@
         class="planner-add-btn mb-4 text-xs text-accent border border-accent/30 hover:bg-accent/10 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 flex-wrap">
         <span class="text-base leading-none font-bold">+</span>
         <span>Adaugă oprire intermediară</span>
-        <span class="ml-1 text-muted/70 hidden sm:inline">(⚡ Premium · max 5 total)</span>
+        <span class="ml-1 text-muted/70 hidden sm:inline">(maxim 5 total)</span>
       </button>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
         <div>
@@ -555,54 +510,6 @@
     </div>
   </div>
 
-  <!-- ══ PAYWALL MODAL ══════════════════════════════════════════════════ -->
-  <div id="paywall-modal" class="hidden fixed inset-0 z-[200] flex items-center justify-center p-4"
-    style="background:rgba(0,0,0,0.8);backdrop-filter:blur(10px)" onclick="event.target===this&&closePaywall()">
-    <div class="bg-card border border-accent/30 rounded-2xl p-6 max-w-sm w-full shadow-2xl">
-      <div class="text-center mb-5">
-        <div class="text-5xl mb-2">🏍️⚡</div>
-        <div class="font-display text-3xl font-bold tracking-widest text-accent">MOTO<span class="text-gray-500"> ///
-          </span>PLUS</div>
-        <div id="paywall-subtitle" class="text-sm text-muted mt-1">Deblochează toate funcțiile premium</div>
-      </div>
-      <div id="paywall-feature-name"
-        class="mb-4 text-center text-sm text-warn font-semibold py-2 px-3 bg-warn/10 rounded-lg border border-warn/20 hidden">
-      </div>
-      <ul class="mb-5 space-y-2.5 text-sm">
-        <li class="flex items-center gap-3"><span class="text-ok text-lg flex-shrink-0">✓</span><span>Prognoză extinsă
-            <strong class="text-gray-200">14 zile</strong></span></li>
-        <li class="flex items-center gap-3"><span class="text-ok text-lg flex-shrink-0">✓</span><span>Traseu cu <strong
-              class="text-gray-200">până la 5 opriri</strong></span></li>
-        <li class="flex items-center gap-3"><span class="text-ok text-lg flex-shrink-0">✓</span><span><strong
-              class="text-gray-200">Alerte personalizate</strong> de vreme (vânt, ploaie, temperatură)</span></li>
-        <li class="flex items-center gap-3"><span class="text-ok text-lg flex-shrink-0">✓</span><span>Hartă <strong
-              class="text-gray-200">radar precipitații</strong> interactiv</span></li>
-        <li class="flex items-center gap-3"><span class="text-ok text-lg flex-shrink-0">✓</span><span>Notificări <strong
-              class="text-gray-200">Mergi / Nu merge</strong> zilnice</span></li>
-      </ul>
-      <div class="mb-4 bg-bg rounded-xl p-4 text-center border border-border">
-        <div class="font-display text-4xl font-bold text-accent">2,99€<span
-            class="text-base text-muted font-normal">/lună</span></div>
-        <div id="paywall-price-note" class="text-xs text-muted mt-1">sau <strong
-            class="text-gray-300">19,99€/an</strong> — economisești 44%
-        </div>
-      </div>
-      <button id="paywall-cta-btn" onclick="activatePremium()"
-        class="w-full bg-accent hover:bg-orange-400 text-black font-display font-bold tracking-wider py-3 rounded-xl transition-colors mb-2 text-lg">
-        ⚡ ABONEAZĂ-TE ACUM
-      </button>
-      <div id="paywall-trust-copy" class="text-[11px] text-muted/80 text-center mb-2">Plată securizată prin Apple ·
-        anulare din Subscriptions</div>
-      <button onclick="restorePremium()"
-        class="w-full border border-border text-muted hover:text-gray-200 hover:border-gray-500 font-body text-sm py-2 rounded-xl transition-colors mb-1">
-        Restaurează achiziția
-      </button>
-      <button onclick="closePaywall()" class="w-full text-xs text-muted/50 hover:text-muted py-1.5 transition-colors">
-        Nu acum
-      </button>
-    </div>
-  </div>
-
   <!-- ══ ALERTS MODAL ═══════════════════════════════════════════════════ -->
   <div id="alerts-modal" class="hidden fixed inset-0 z-[200] flex items-center justify-center p-4"
     style="background:rgba(0,0,0,0.8);backdrop-filter:blur(10px)" onclick="event.target===this&&toggleAlerts()">
@@ -613,12 +520,6 @@
           <div class="text-xs text-muted mt-0.5">Notificare la fiecare verificare</div>
         </div>
         <button onclick="toggleAlerts()" class="text-muted hover:text-gray-200 text-xl transition-colors">✕</button>
-      </div>
-      <div id="alerts-prem-gate"
-        class="hidden mb-4 p-3 rounded-xl border border-warn/30 bg-warn/10 text-xs text-warn text-center">
-        ⚡ Alertele personalizate sunt o funcție Premium.
-        <button onclick="closeAlerts();openPaywall('Alerte personalizate')"
-          class="ml-1 underline hover:text-amber-300 transition-colors">Activează Plus →</button>
       </div>
       <!-- Alert toggles -->
       <div id="alerts-list" class="space-y-3">
@@ -678,99 +579,20 @@
     var AUTO_REFRESH_SEC = 1800; // 30 minutes
 
     // -----------------------------------------------------------------------
-    // Premium subscription management
+    // Feature availability
     // -----------------------------------------------------------------------
-    var _premiumState = { active: false, verified: false, provider: null };
-    var APPSTORE_URL = 'https://apps.apple.com/app/motometeo/id000000000'; // înlocuiește cu ID-ul real după publicare
-    var RC_API_KEY_IOS = 'appl_REPLACE_WITH_REVENUECAT_IOS_KEY'; // înlocuiește după configurare RevenueCat
-    var PAYWALL_COPY_VARIANTS = [
-      {
-        subtitle: 'Deblocheaza toate functiile premium',
-        cta: '⚡ ABONEAZA-TE ACUM',
-        price: 'sau <strong class="text-gray-300">19,99€/an</strong> — economisesti 44%',
-        trust: 'Plata securizata prin Apple · anulare din Subscriptions'
-      },
-      {
-        subtitle: 'Mergi cu mai putine surprize pe traseu',
-        cta: '⚡ ACTIVEAZA PLUS',
-        price: 'testeaza lunar la 2,99€ sau anual <strong class="text-gray-300">19,99€</strong>',
-        trust: 'Fara card in aplicatie · facturare si protectie Apple'
-      }
-    ];
-
-    function _paywallVariantIndex() {
-      try {
-        var key = 'mmPaywallVariantV1';
-        var saved = localStorage.getItem(key);
-        if (saved !== null) return parseInt(saved, 10) || 0;
-        var idx = Math.random() < 0.5 ? 0 : 1;
-        localStorage.setItem(key, String(idx));
-        return idx;
-      } catch (_) {
-        return 0;
-      }
-    }
-
-    function _applyPaywallCopy() {
-      var v = PAYWALL_COPY_VARIANTS[_paywallVariantIndex()] || PAYWALL_COPY_VARIANTS[0];
-      var subtitle = document.getElementById('paywall-subtitle');
-      var cta = document.getElementById('paywall-cta-btn');
-      var price = document.getElementById('paywall-price-note');
-      var trust = document.getElementById('paywall-trust-copy');
-      if (subtitle) subtitle.textContent = v.subtitle;
-      if (cta) cta.textContent = v.cta;
-      if (price) price.innerHTML = v.price;
-      if (trust) trust.textContent = v.trust;
-    }
-
-    function _isNativePlatform() {
-      try {
-        return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
-      } catch (_) { return false; }
-    }
-
     function isPremium() {
-      return _premiumState.active === true;
+      return true;
     }
-    function _setPremium(val, meta) {
-      _premiumState.active = !!val;
-      _premiumState.verified = !!(meta && meta.verified && val);
-      _premiumState.provider = (meta && meta.provider) || _premiumState.provider;
-      try { localStorage.removeItem('mmPremium'); } catch (_) { }
-      _updatePremiumUI();
-    }
-    function _updatePremiumUI() {
-      var btn = document.getElementById('premium-hdr-btn');
-      if (!btn) return;
-      if (isPremium()) {
-        btn.textContent = '⚡ PLUS ✓';
-        btn.classList.remove('prem-glow');
-        btn.title = 'MotoMeteo Plus activ';
-      } else {
-        btn.textContent = '⚡ PLUS';
-        btn.classList.add('prem-glow');
-      }
-    }
+    function _setPremium() { }
+    function _updatePremiumUI() { }
     function showPremiumStatus() {
-      if (!isPremium()) { openPaywall('Activează MotoMeteo Plus'); return; }
-      alert('MotoMeteo Plus este activ ✓\n\nGestionarea/renunțarea la abonament se face din Setări iOS > Apple ID > Subscriptions.');
+      alert('Toate funcțiile MotoMeteo sunt disponibile în această versiune.');
     }
-    function openPaywall(featureName) {
-      var modal = document.getElementById('paywall-modal');
-      if (!modal) return;
-      _applyPaywallCopy();
-      var nameEl = document.getElementById('paywall-feature-name');
-      if (nameEl) {
-        if (featureName) { nameEl.textContent = '🔒 ' + featureName; nameEl.classList.remove('hidden'); }
-        else nameEl.classList.add('hidden');
-      }
-      modal.classList.remove('hidden');
-      haptic([10, 40, 10]);
+    function openPaywall() {
+      showPremiumStatus();
     }
-    function closePaywall() {
-      var modal = document.getElementById('paywall-modal');
-      if (modal) modal.classList.add('hidden');
-    }
+    function closePaywall() { }
 
     function toggleMobileMenu() {
       var controls = document.getElementById('header-controls');
@@ -798,82 +620,11 @@
     }
 
     function activatePremium() {
-      if (_isNativePlatform() && typeof window.Purchases !== 'undefined' && RC_API_KEY_IOS.indexOf('REPLACE') < 0) {
-        // Native iOS / Android — RevenueCat purchase flow
-        window.Purchases.getOfferings()
-          .then(function (offerings) {
-            var pkg = offerings.current && offerings.current.availablePackages[0];
-            if (!pkg) { _showPremiumError('Nicio ofertă disponibilă. Încearcă mai târziu.'); return; }
-            return window.Purchases.purchasePackage(pkg);
-          })
-          .then(function (purchaseResult) {
-            if (!purchaseResult) return;
-            var active = purchaseResult.customerInfo
-              && purchaseResult.customerInfo.entitlements
-              && purchaseResult.customerInfo.entitlements.active
-              && purchaseResult.customerInfo.entitlements.active['premium'];
-            if (active) {
-              _setPremium(true, { verified: true, provider: 'revenuecat' });
-              closePaywall();
-              loadWeather();
-            } else {
-              _showPremiumError('Tranzacția nu a activat entitlement-ul premium.');
-            }
-          })
-          .catch(function (err) {
-            // User cancelled purchase — not an error
-            if (err && err.userCancelled) return;
-            _showPremiumError('Eroare la procesarea plății: ' + (err && err.message || err));
-          });
-      } else {
-        // Web browser — redirect to App Store
-        _showWebPremiumMessage();
-      }
+      showPremiumStatus();
     }
 
     function restorePremium() {
-      if (_isNativePlatform() && typeof window.Purchases !== 'undefined' && RC_API_KEY_IOS.indexOf('REPLACE') < 0) {
-        window.Purchases.restorePurchases()
-          .then(function (info) {
-            var active = info
-              && info.entitlements
-              && info.entitlements.active
-              && info.entitlements.active['premium'];
-            _setPremium(!!active, { verified: !!active, provider: 'revenuecat' });
-            closePaywall();
-            if (active) { loadWeather(); }
-            else { alert('Nu s-a găsit nicio achiziție anterioară asociată contului Apple.'); }
-          })
-          .catch(function (err) {
-            _showPremiumError('Eroare la restaurare: ' + (err && err.message || err));
-          });
-      } else {
-        _showWebPremiumMessage();
-      }
-    }
-
-    function _showPremiumError(msg) {
-      var el = document.getElementById('paywall-feature-name');
-      if (el) { el.textContent = '⚠️ ' + msg; el.classList.remove('hidden'); el.style.color = '#ef4444'; }
-    }
-
-    function _showWebPremiumMessage() {
-      // Close paywall and show a non-dismissible info banner
-      closePaywall();
-      var app = document.getElementById('app');
-      if (!app) return;
-      var existing = document.getElementById('mm-web-plus-banner');
-      if (existing) existing.remove();
-      var v = PAYWALL_COPY_VARIANTS[_paywallVariantIndex()] || PAYWALL_COPY_VARIANTS[0];
-      var banner = document.createElement('div');
-      banner.id = 'mm-web-plus-banner';
-      banner.className = 'fixed inset-x-4 top-20 z-[300] bg-card border border-accent rounded-xl p-5 shadow-2xl max-w-sm mx-auto';
-      banner.innerHTML = '<div class="font-display text-lg font-bold text-accent tracking-wider mb-2">⚡ MotoMeteo Plus</div>'
-        + '<div class="text-sm text-gray-300 mb-4 leading-relaxed">Abonamentul se activeaza exclusiv prin <strong>aplicatia iOS</strong> — plata este procesata securizat de Apple.</div>'
-        + '<div class="text-xs text-muted/80 mb-3">' + v.trust + '</div>'
-        + '<a href="' + APPSTORE_URL + '" target="_blank" class="block w-full bg-accent hover:bg-orange-400 text-black font-display font-bold tracking-wider py-3 rounded-xl text-center mb-2 transition-colors">📱 ' + (v.cta.indexOf('ACTIVEAZA') > -1 ? 'Activeaza in App Store' : 'Descarca din App Store') + '</a>'
-        + '<button onclick="this.parentNode.remove()" class="w-full text-xs text-muted hover:text-gray-300 py-2 transition-colors">Închide</button>';
-      document.body.appendChild(banner);
+      showPremiumStatus();
     }
 
     // -----------------------------------------------------------------------
@@ -906,7 +657,6 @@
       if (el) el.innerHTML = html;
     }
     function saveAlerts() {
-      if (!isPremium()) { closeAlerts(); openPaywall('Alerte personalizate'); return; }
       var state = {};
       ALERT_DEFS.forEach(function (a) {
         var chk = document.getElementById('alert-chk-' + a.id);
@@ -925,20 +675,12 @@
       var isHidden = m.classList.contains('hidden');
       if (isHidden) {
         renderAlertsForm();
-        var gate = document.getElementById('alerts-prem-gate');
-        if (gate) gate.classList.toggle('hidden', isPremium());
-        var list = document.getElementById('alerts-list');
-        if (list) {
-          list.style.opacity = isPremium() ? '1' : '0.45';
-          list.style.pointerEvents = isPremium() ? '' : 'none';
-        }
         m.classList.remove('hidden');
       } else {
         m.classList.add('hidden');
       }
     }
     function checkAlerts(current) {
-      if (!isPremium()) return '';
       var state = _getAlertState();
       var banners = '';
       ALERT_DEFS.forEach(function (a) {
@@ -966,10 +708,6 @@
     function addRouteStop() {
       var rows = document.querySelectorAll('#route-stops-list .stop-row');
       if (rows.length >= 5) { alert('Maxim 5 opriri permise.'); return; }
-      if (rows.length >= 3 && !isPremium()) {
-        openPaywall('Traseu cu opriri multiple');
-        return;
-      }
       var list = document.getElementById('route-stops-list');
       var lastRow = list.lastElementChild; // destination row – keep it last
       var newRow = document.createElement('div');
@@ -1196,7 +934,6 @@
     async function calcRoute() {
       var stops = getRouteStops();
       if (stops.length < 2) { alert('Completează cel puțin 2 opriri (plecare și destinație)'); return; }
-      if (stops.length > 2 && !isPremium()) { openPaywall('Traseu cu opriri multiple'); return; }
 
       var routeDepEl = document.getElementById('route-departure');
       var routeSpeedEl = document.getElementById('route-speed');
@@ -1229,7 +966,7 @@
           var weatherResults = await Promise.all(waypoints.map(function (wp) { return fetchWaypointWeather(wp.lat, wp.lon, wp.eta); }));
           renderRoute(waypoints, weatherResults, totalDistKm, totalHours, originGeo.name, destGeo.name, depDt);
         } else {
-          // Multi-stop route (premium, backend or client-side fallback)
+          // Multi-stop route (backend or client-side fallback)
           if (API_URL) {
             var stopNames = geoResults.map(function (g) { return g.name; }).join(';');
             var depIso = depDt.toISOString().slice(0, 16);
@@ -1618,7 +1355,7 @@
         daily: "weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,"
           + "apparent_temperature_min,precipitation_sum,wind_speed_10m_max,wind_gusts_10m_max,"
           + "precipitation_probability_max,sunrise,sunset",
-        timezone: "auto", forecast_days: isPremium() ? 14 : 7, wind_speed_unit: "kmh",
+        timezone: "auto", forecast_days: 14, wind_speed_unit: "kmh",
       });
       var [omResp, owm, metData, omEcmwf, omGfs, omIcon] = await Promise.all([
         fetch("https://api.open-meteo.com/v1/forecast?" + params),
@@ -1997,7 +1734,7 @@
           // No backend configured — call Open-Meteo directly from the browser
           d = await fetchDirect(LAT, LON, CITY);
         } else {
-          var days = isPremium() ? 14 : 7;
+          var days = 14;
           var url = API_URL + "/weather?lat=" + LAT + "&lon=" + LON + "&city=" + encodeURIComponent(CITY) + "&days=" + days;
           var res;
           try { res = await fetch(url); }
@@ -2012,7 +1749,6 @@
         d = await enrichCurrentWithExtraSources(d);
         render(d);
         saveCity(); renderFavsBar();
-        _updatePremiumUI();
         // Sync route planner origin with current city
         var routeStop0 = document.getElementById('route-stop-0');
         if (routeStop0 && !routeStop0.value) routeStop0.value = CITY;
@@ -2359,7 +2095,7 @@
       var allMax = Math.max.apply(null, daily.map(function (x) { return x.temp_max; }));
       var html = '';
 
-      // Custom alert banners (premium)
+      // Custom alert banners
       html += checkAlerts(c);
 
       // Frost / ice risk alert banner
@@ -2506,10 +2242,9 @@
       html += '</div>';
 
       // Daily forecast — responsive + expandable
-      html += secTitle('Prognoză ' + (isPremium() ? daily.length : Math.min(daily.length, 7)) + ' zile'
-        + (daily.length > 7 && isPremium() ? '' : (daily.length > 7 ? ' <span class="text-xs text-accent/60 font-normal normal-case ml-2">+7 zile → ⚡ Premium</span>' : '')));
+      html += secTitle('Prognoză ' + daily.length + ' zile');
       html += '<div class="flex flex-col gap-2 mb-8">';
-      var maxDay = isPremium() ? daily.length : Math.min(daily.length, 7);
+      var maxDay = daily.length;
       daily.slice(0, maxDay).forEach(function (day, i) {
         var date = new Date(day.date + "T12:00:00");
         var dname = i === 0 ? "AZI" : (i === 1 ? "MÂINE" : DAYS[date.getDay()]);
@@ -2617,47 +2352,15 @@
         html += '</div>'; // end wrapper
       });
 
-      // Locked premium days preview (show 3 blurred rows if not premium and >7 days available)
-      if (!isPremium() && daily.length > 7) {
-        html += '<div class="relative mt-2">';
-        for (var li = 7; li < Math.min(daily.length, 10); li++) {
-          var lday = daily[li];
-          var ldate = new Date(lday.date + 'T12:00:00');
-          var ldname = DAYS[ldate.getDay()];
-          html += '<div class="bg-card border border-border border-l-4 border-l-border rounded-xl overflow-hidden mb-2 opacity-40 blur-[1.5px] pointer-events-none">';
-          html += '<div class="px-3 py-3 flex items-center gap-1.5 sm:gap-3">';
-          html += '<div class="flex-shrink-0 w-8 text-center" style="font-size:1.75rem">' + lday.icon + '</div>';
-          html += '<div class="flex-shrink-0 w-14 sm:w-20"><div class="font-display text-sm font-bold text-gray-100">' + ldname + '</div></div>';
-          html += '<div class="flex-1 h-1.5 bg-border rounded-full"></div>';
-          html += '<div class="text-danger text-xs font-bold">?</div>';
-          html += '</div></div>';
-        }
-        html += '<div class="absolute inset-0 flex flex-col items-center justify-center rounded-xl">';
-        html += '<button onclick="openPaywall(\'Prognoză 14 zile\')" class="bg-card border border-accent/40 rounded-xl px-6 py-4 flex flex-col items-center gap-2 shadow-xl hover:border-accent transition-colors">';
-        html += '<span class="text-3xl">🔒</span>';
-        html += '<span class="font-display font-bold text-accent tracking-wider">DEBLOCHEAZĂ 14 ZILE</span>';
-        html += '<span class="text-xs text-muted">⚡ MotoMeteo Plus</span>';
-        html += '</button></div></div>';
-      }
-
       html += '</div>';
 
-      // ── Precipitation radar card (premium) ──────────────────────────────
-      if (isPremium()) {
-        html += secTitle('🗺️ Radar precipitații');
-        html += '<div class="bg-card border border-border rounded-xl overflow-hidden mb-6">';
-        html += '<div id="radar-map" style="height:260px;background:#13151a"></div>';
-        html += '<div class="px-3 py-2 text-xs text-muted/60 flex justify-between">'
-          + '<span>Sursa: RainViewer &amp; OpenStreetMap</span>'
-          + '<span>Live · actualizare automată 10min</span>'
-          + '</div></div>';
-      } else {
-        html += '<div class="mb-6 border border-dashed border-accent/25 rounded-xl p-5 flex items-center gap-4 cursor-pointer hover:border-accent/50 transition-colors" onclick="openPaywall(\'Radar precipitații\')">';
-        html += '<span class="text-4xl flex-shrink-0">🔒</span>';
-        html += '<div><div class="font-display font-bold text-accent tracking-wider">RADAR PRECIPITAȚII</div>';
-        html += '<div class="text-sm text-muted mt-0.5">Hartă interactivă cu precipitații în timp real — ⚡ Premium</div></div>';
-        html += '</div>';
-      }
+      html += secTitle('🗺️ Radar precipitații');
+      html += '<div class="bg-card border border-border rounded-xl overflow-hidden mb-6">';
+      html += '<div id="radar-map" style="height:260px;background:#13151a"></div>';
+      html += '<div class="px-3 py-2 text-xs text-muted/60 flex justify-between">'
+        + '<span>Sursa: RainViewer &amp; OpenStreetMap</span>'
+        + '<span>Live · actualizare automată 10min</span>'
+        + '</div></div>';
 
       var sourceNames = (c.sources || ['open-meteo']).map(sourceLabel);
       var sourceUnique = [];
@@ -2670,7 +2373,7 @@
       window._lastWeatherData = d;
       document.getElementById("app").innerHTML = html;
       renderChart(hourly);
-      if (isPremium()) initRadarMap(d.latitude, d.longitude);
+      initRadarMap(d.latitude, d.longitude);
     }
 
     if ('serviceWorker' in navigator) {
@@ -2678,7 +2381,7 @@
     }
 
     // -----------------------------------------------------------------------
-    // Precipitation radar (Leaflet + RainViewer) — premium
+    // Precipitation radar (Leaflet + RainViewer)
     // -----------------------------------------------------------------------
     function initRadarMap(lat, lon) {
       function _doInit() {
@@ -2788,23 +2491,6 @@
       if (stop0 && CITY !== 'București') stop0.value = CITY;
     })();
     // Pre-fill route origin with current city when it changes
-    // Initialize RevenueCat if running in Capacitor native build
-    (function () {
-      if (!_isNativePlatform() || typeof window.Purchases === 'undefined' || RC_API_KEY_IOS.indexOf('REPLACE') >= 0) {
-        _setPremium(false, { verified: false, provider: null });
-        return;
-      }
-      try {
-        window.Purchases.configure({ apiKey: RC_API_KEY_IOS });
-        window.Purchases.getCustomerInfo().then(function (info) {
-          var active = info
-            && info.entitlements
-            && info.entitlements.active
-            && info.entitlements.active['premium'];
-          _setPremium(!!active, { verified: !!active, provider: 'revenuecat' });
-        }).catch(function () { });
-      } catch (_) { }
-    }());
 
     loadProfileUI();
     renderFavsBar();
