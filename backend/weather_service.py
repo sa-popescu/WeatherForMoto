@@ -1085,6 +1085,7 @@ def _merge_daily(om_data: dict, owm_forecast: dict | None, met_daily: dict | Non
     for i, date in enumerate(dates):
         om_code = _safe(daily.get("weather_code"), i)
         owm_items = owm_by_date.get(date, [])
+        met_day = met_daily.get(date, {}) if met_daily else {}
 
         # temperatures
         t_max_om = _safe(daily.get("temperature_2m_max"), i)
@@ -1102,8 +1103,11 @@ def _merge_daily(om_data: dict, owm_forecast: dict | None, met_daily: dict | Non
         else:
             t_max_owm = t_min_owm = fa_max_owm = fa_min_owm = None
 
-        t_max = _weighted_avg([t_max_om, t_max_owm], [1.0, 1.0])
-        t_min = _weighted_avg([t_min_om, t_min_owm], [1.0, 1.0])
+        t_max_met = met_day.get("t_max")
+        t_min_met = met_day.get("t_min")
+
+        t_max = _weighted_avg([t_max_om, t_max_owm, t_max_met], [1.2, 1.0, 1.1])
+        t_min = _weighted_avg([t_min_om, t_min_owm, t_min_met], [1.2, 1.0, 1.1])
         fa_max = _weighted_avg([fa_max_om, fa_max_owm], [1.0, 1.0])
         fa_min = _weighted_avg([fa_min_om, fa_min_owm], [1.0, 1.0])
 
@@ -1116,7 +1120,11 @@ def _merge_daily(om_data: dict, owm_forecast: dict | None, met_daily: dict | Non
             )
         else:
             prec_owm = None
-        precipitation = _weighted_avg([prec_om, prec_owm], [1.0, 1.0]) if prec_owm is not None else prec_om
+        prec_met = met_day.get("precipitation_sum")
+        if prec_owm is not None or prec_met is not None:
+            precipitation = _weighted_avg([prec_om, prec_owm, prec_met], [1.0, 1.0, 1.1])
+        else:
+            precipitation = prec_om
 
         # wind gusts
         gusts_om = _safe(daily.get("wind_gusts_10m_max"), i)
@@ -1127,7 +1135,8 @@ def _merge_daily(om_data: dict, owm_forecast: dict | None, met_daily: dict | Non
             )
         else:
             gusts_owm = None
-        wind_gusts = _weighted_avg([gusts_om, gusts_owm], [1.2, 0.8])
+        gusts_met = met_day.get("wind_max_kmh")
+        wind_gusts = _weighted_avg([gusts_om, gusts_owm, gusts_met], [1.2, 0.8, 1.0])
 
         wind_max = _safe(daily.get("wind_speed_10m_max"), i)
 
