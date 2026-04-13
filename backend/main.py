@@ -53,6 +53,11 @@ load_dotenv()
 _DEMO_OWM_KEY = "3e17019022d624b5b3d26b54f7c6b8a5"
 OWM_API_KEY: str = os.getenv("OPENWEATHERMAP_API_KEY", _DEMO_OWM_KEY)
 DEFAULT_CITY: str = os.getenv("DEFAULT_CITY", "Bucharest")
+PIRATE_WEATHER_API_KEY: str = os.getenv("PIRATE_WEATHER_API_KEY", "")
+MET_NORWAY_USER_AGENT: str = os.getenv(
+    "MET_NORWAY_USER_AGENT",
+    "WeatherForMoto/1.0 github.com/user/WeatherForMoto",
+)
 
 # Path to the frontend index.html (one level above the backend/ directory)
 _REPO_ROOT = pathlib.Path(__file__).parent.parent
