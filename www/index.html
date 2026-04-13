@@ -2514,9 +2514,9 @@
     }
 
     function verdictBadge(s) {
-      if (s >= 80) return '<span class="inline-block px-2 sm:px-3 py-0.5 sm:py-1 rounded-md text-xs font-semibold sm:tracking-widest bg-ok/15 text-ok whitespace-nowrap">✓ IDEAL</span>';
-      if (s >= 60) return '<span class="inline-block px-2 sm:px-3 py-0.5 sm:py-1 rounded-md text-xs font-semibold sm:tracking-widest bg-accent/15 text-accent whitespace-nowrap">~ OK</span>';
-      if (s >= 40) return '<span class="inline-block px-2 sm:px-3 py-0.5 sm:py-1 rounded-md text-xs font-semibold sm:tracking-widest bg-warn/15 text-warn whitespace-nowrap"><span class="hidden sm:inline">⚠ PRECAUȚIE</span><span class="sm:hidden">⚠</span></span>';
+      if (s >= 85) return '<span class="inline-block px-2 sm:px-3 py-0.5 sm:py-1 rounded-md text-xs font-semibold sm:tracking-widest bg-ok/15 text-ok whitespace-nowrap">✓ IDEAL</span>';
+      if (s >= 60) return '<span class="inline-block px-2 sm:px-3 py-0.5 sm:py-1 rounded-md text-xs font-semibold sm:tracking-widest bg-warn/15 text-warn whitespace-nowrap">~ OK</span>';
+      if (s >= 40) return '<span class="inline-block px-2 sm:px-3 py-0.5 sm:py-1 rounded-md text-xs font-semibold sm:tracking-widest bg-accent/15 text-accent whitespace-nowrap"><span class="hidden sm:inline">⚠ PRECAUȚIE</span><span class="sm:hidden">⚠</span></span>';
       return '<span class="inline-block px-2 sm:px-3 py-0.5 sm:py-1 rounded-md text-xs font-semibold sm:tracking-widest bg-danger/15 text-danger whitespace-nowrap"><span class="hidden sm:inline">✗ EVITĂ</span><span class="sm:hidden">✗</span></span>';
     }
 
