@@ -2821,33 +2821,27 @@
       var scores = slice.map(function (h) {
         return scoreHourly(h.feels_like, h.wind_gusts_kmh, h.precipitation_mm, h.weather_code, h.precipitation_probability);
       });
-      var bestAvg = -1, bestStart = -1, bestLen = 0, bestPeak = -1;
-      var minLen = scores.length >= 3 ? 2 : 1;
-      var maxLen = Math.min(4, scores.length);
-      for (var len = minLen; len <= maxLen; len++) {
-        for (var i = 0; i <= scores.length - len; i++) {
-          var sum = 0;
-          var peak = 0;
-          var minScore = 101;
-          for (var k = i; k < i + len; k++) {
-            sum += scores[k];
-            if (scores[k] > peak) peak = scores[k];
-            if (scores[k] < minScore) minScore = scores[k];
-          }
-          var avg = sum / len;
-          var qualityBoost = minScore >= 80 ? 2 : minScore >= 70 ? 1 : 0;
-          var effectiveAvg = avg + qualityBoost;
-          if (
-            effectiveAvg > bestAvg
-            || (effectiveAvg === bestAvg && peak > bestPeak)
-            || (effectiveAvg === bestAvg && peak === bestPeak && len < bestLen)
-          ) {
-            bestAvg = effectiveAvg;
-            bestStart = i;
-            bestLen = len;
-            bestPeak = peak;
-          }
+      var bestAvg = -1, bestStart = -1, bestLen = 0;
+      for (var i = 0; i < scores.length; i++) {
+        if (scores[i] < 80) continue;
+        var j = i;
+        var sum = 0;
+        while (j < scores.length && scores[j] >= 80) {
+          sum += scores[j];
+          j++;
         }
+        var len = j - i;
+        var avg = sum / len;
+        if (
+          len > bestLen
+          || (len === bestLen && avg > bestAvg)
+          || (len === bestLen && avg === bestAvg && (bestStart === -1 || i < bestStart))
+        ) {
+          bestAvg = avg;
+          bestStart = i;
+          bestLen = len;
+        }
+        i = j - 1;
       }
       if (bestStart === -1) return null;
       var from = slice[bestStart];
@@ -2855,7 +2849,7 @@
       var toDt = new Date(to.time);
       toDt.setHours(toDt.getHours() + 1);
       return {
-        avg: Math.round(scores.slice(bestStart, bestStart + bestLen).reduce(function (s, v) { return s + v; }, 0) / bestLen), len: bestLen,
+        avg: Math.round(bestAvg), len: bestLen,
         fromH: new Date(from.time).getHours().toString().padStart(2, "0") + ":00",
         toH: toDt.getHours().toString().padStart(2, "0") + ":00",
       };
