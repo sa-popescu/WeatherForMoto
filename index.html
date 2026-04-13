@@ -3604,7 +3604,7 @@
             var ht = new Date(h.time).getHours().toString().padStart(2, "0") + ":00";
             var hrp = h.precipitation_probability || 0;
             var hsc = scoreHourly(h.feels_like, h.wind_gusts_kmh, h.precipitation_mm, h.weather_code, h.precipitation_probability);
-            var hCol = hsc >= 80 ? '#22c55e' : hsc >= 60 ? '#f97316' : hsc >= 40 ? '#eab308' : '#ef4444';
+            var hCol = hsc >= 85 ? '#22c55e' : hsc >= 60 ? '#eab308' : hsc >= 40 ? '#f97316' : '#ef4444';
             html += '<div class="daily-mini-card flex-shrink-0 bg-card border border-border rounded-xl p-2 w-16 text-center flex flex-col items-center gap-0.5">';
             html += '<div class="text-xs text-muted font-semibold">' + ht + '</div>';
             html += '<div style="font-size:1.5rem;line-height:1.2">' + h.icon + '</div>';
