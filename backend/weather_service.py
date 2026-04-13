@@ -62,6 +62,147 @@ def _beaufort(speed_kmh: float | None) -> str:
     return "12"
 
 
+_LIGHT_RAIN_CODES = {51, 53, 55, 61, 80}
+_HEAVY_RAIN_CODES = {63, 65, 81, 82}
+_STORM_CODES = {95, 96, 99}
+
+
+def _precip_probability_penalty(probability: int | None, *, daily: bool) -> int:
+    prob = probability or 0
+    if daily:
+        if prob >= 80:
+            return 55
+        if prob >= 60:
+            return 40
+        if prob >= 40:
+            return 28
+        if prob >= 20:
+            return 18
+        if prob > 0:
+            return 8
+        return 0
+
+    if prob >= 80:
+        return 60
+    if prob >= 60:
+        return 45
+    if prob >= 40:
+        return 35
+    if prob >= 20:
+        return 25
+    if prob > 0:
+        return 12
+    return 0
+
+
+def _precip_amount_penalty(amount_mm: float | None, *, daily: bool) -> int:
+    amount = amount_mm or 0
+    if daily:
+        if amount > 20:
+            return 55
+        if amount > 10:
+            return 35
+        if amount > 5:
+            return 20
+        if amount > 1:
+            return 10
+        if amount > 0:
+            return 6
+        return 0
+
+    if amount > 5:
+        return 60
+    if amount > 1:
+        return 38
+    if amount > 0.2:
+        return 22
+    if amount > 0:
+        return 10
+    return 0
+
+
+def _weather_code_penalty(code: int | None) -> int:
+    weather_code = code or 0
+    if weather_code in _STORM_CODES:
+        return 40
+    if weather_code in _HEAVY_RAIN_CODES:
+        return 20
+    if weather_code in _LIGHT_RAIN_CODES:
+        return 10
+    if weather_code in (45, 48):
+        return 18
+    return 0
+
+
+def _wind_penalty(wind_gusts_kmh: float | None) -> int:
+    gusts = wind_gusts_kmh or 0
+    if gusts > 70:
+        return 30
+    if gusts > 50:
+        return 15
+    if gusts > 35:
+        return 8
+    return 0
+
+
+def _hourly_temperature_penalty(feels_like: float | None) -> int:
+    feels = feels_like if feels_like is not None else 20
+    if feels < 5:
+        return 25
+    if feels < 10:
+        return 12
+    if feels > 36:
+        return 10
+    return 0
+
+
+def _daily_temperature_penalty(feels_min: float | None, feels_max: float | None) -> int:
+    penalty = 0
+    min_feels = feels_min if feels_min is not None else 12
+    max_feels = feels_max if feels_max is not None else 24
+    if min_feels < 5:
+        penalty += 20
+    elif min_feels < 10:
+        penalty += 10
+    if max_feels > 36:
+        penalty += 10
+    return penalty
+
+
+def _precipitation_cap(
+    precipitation_mm: float | None,
+    precipitation_probability: int | None,
+    weather_code: int | None,
+    *,
+    daily: bool,
+) -> int:
+    amount = precipitation_mm or 0
+    prob = precipitation_probability or 0
+    code = weather_code or 0
+    cap = 100
+
+    has_rain_risk = prob > 0 or amount > 0 or code in (_LIGHT_RAIN_CODES | _HEAVY_RAIN_CODES | _STORM_CODES)
+    if has_rain_risk:
+        cap = 79
+
+    if daily:
+        if prob >= 40 or amount > 5 or code in _HEAVY_RAIN_CODES:
+            cap = min(cap, 69)
+        if prob >= 60 or amount > 10:
+            cap = min(cap, 59)
+        if prob >= 80 or amount > 20 or code in _STORM_CODES:
+            cap = min(cap, 39)
+    else:
+        if prob >= 40 or amount > 0.2 or code in _HEAVY_RAIN_CODES:
+            cap = min(cap, 69)
+        if prob >= 60 or amount > 1:
+            cap = min(cap, 59)
+        if prob >= 80 or amount > 5 or code in _STORM_CODES:
+            cap = min(cap, 39)
+
+    return cap
+
+
 def _moto_score(
     feels_like: float | None,
     wind_gusts_kmh: float | None,
@@ -74,42 +215,19 @@ def _moto_score(
     Higher = better riding conditions.
     """
     score = 100
-    p = precipitation_mm or 0
-    g = wind_gusts_kmh or 0
-    f = feels_like if feels_like is not None else 20
-    code = weather_code or 0
-    prob = precipitation_probability or 0
-
-    # Rain penalty: take the worse of actual mm amount or probability forecast.
-    # Using max() avoids double-stacking when both are high.
-    mm_penalty = 50 if p > 5 else 30 if p > 1 else 15 if p > 0.2 else 0
-    prob_penalty = 35 if prob >= 80 else 20 if prob >= 60 else 12 if prob >= 40 else 6 if prob >= 20 else 3 if prob >= 5 else 0
-    score -= max(mm_penalty, prob_penalty)
-
-    if code in (95, 96, 99):  # thunderstorm
-        score -= 40
-
-    if g > 70:
-        score -= 30
-    elif g > 50:
-        score -= 15
-    elif g > 35:
-        score -= 8
-
-    if f < 5:
-        score -= 25
-    elif f < 10:
-        score -= 12
-    elif f > 36:
-        score -= 10
-
-    if code in (45, 48):  # fog
-        score -= 20
-
-    # 20%+ rain probability should not still appear as 'ideal/green'.
-    if prob >= 20 and score > 79:
-        score = 79
-
+    score -= max(
+        _precip_amount_penalty(precipitation_mm, daily=False),
+        _precip_probability_penalty(precipitation_probability, daily=False),
+        _weather_code_penalty(weather_code),
+    )
+    score -= _wind_penalty(wind_gusts_kmh)
+    score -= _hourly_temperature_penalty(feels_like)
+    score = min(score, _precipitation_cap(
+        precipitation_mm,
+        precipitation_probability,
+        weather_code,
+        daily=False,
+    ))
     return max(0, min(100, round(score)))
 
 
@@ -128,42 +246,19 @@ def _moto_score_daily(
     avoiding over-penalization from hourly thresholds.
     """
     score = 100
-    p_day = precipitation_mm_day or 0
-    g = wind_gusts_kmh or 0
-    f_min = feels_min if feels_min is not None else 12
-    f_max = feels_max if feels_max is not None else 24
-    code = weather_code or 0
-    prob = precipitation_probability or 0
-
-    # Daily rain amount thresholds (mm/day), less aggressive than mm/h.
-    day_penalty = 35 if p_day > 20 else 25 if p_day > 10 else 15 if p_day > 5 else 8 if p_day > 1 else 0
-    prob_penalty = 35 if prob >= 80 else 20 if prob >= 60 else 12 if prob >= 40 else 6 if prob >= 20 else 3 if prob >= 5 else 0
-    score -= max(day_penalty, prob_penalty)
-
-    if code in (95, 96, 99):
-        score -= 35
-
-    if g > 70:
-        score -= 30
-    elif g > 50:
-        score -= 15
-    elif g > 35:
-        score -= 8
-
-    # Account for both morning cold and daytime heat extremes.
-    if f_min < 5:
-        score -= 20
-    elif f_min < 10:
-        score -= 10
-    if f_max > 36:
-        score -= 10
-
-    if code in (45, 48):
-        score -= 20
-
-    if prob >= 20 and score > 79:
-        score = 79
-
+    score -= max(
+        _precip_amount_penalty(precipitation_mm_day, daily=True),
+        _precip_probability_penalty(precipitation_probability, daily=True),
+        _weather_code_penalty(weather_code),
+    )
+    score -= _wind_penalty(wind_gusts_kmh)
+    score -= _daily_temperature_penalty(feels_min, feels_max)
+    score = min(score, _precipitation_cap(
+        precipitation_mm_day,
+        precipitation_probability,
+        weather_code,
+        daily=True,
+    ))
     return max(0, min(100, round(score)))
 
 

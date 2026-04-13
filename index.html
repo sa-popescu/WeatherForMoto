@@ -2216,33 +2216,116 @@
     function aqiCls(a) { return a >= 4 ? "text-danger" : a >= 3 ? "text-warn" : "text-ok"; }
     function aqiLabel(a) { return ["—", "Bun", "Acceptabil", "Moderat", "Rău", "Foarte rău"][a] || "—"; }
 
+    var LIGHT_RAIN_CODES = [51, 53, 55, 61, 80];
+    var HEAVY_RAIN_CODES = [63, 65, 81, 82];
+    var STORM_CODES = [95, 96, 99];
+
+    function precipProbabilityPenalty(prob, isDaily) {
+      prob = prob || 0;
+      if (isDaily) {
+        if (prob >= 80) return 55;
+        if (prob >= 60) return 40;
+        if (prob >= 40) return 28;
+        if (prob >= 20) return 18;
+        if (prob > 0) return 8;
+        return 0;
+      }
+      if (prob >= 80) return 60;
+      if (prob >= 60) return 45;
+      if (prob >= 40) return 35;
+      if (prob >= 20) return 25;
+      if (prob > 0) return 12;
+      return 0;
+    }
+
+    function precipAmountPenalty(amount, isDaily) {
+      amount = amount || 0;
+      if (isDaily) {
+        if (amount > 20) return 55;
+        if (amount > 10) return 35;
+        if (amount > 5) return 20;
+        if (amount > 1) return 10;
+        if (amount > 0) return 6;
+        return 0;
+      }
+      if (amount > 5) return 60;
+      if (amount > 1) return 38;
+      if (amount > 0.2) return 22;
+      if (amount > 0) return 10;
+      return 0;
+    }
+
+    function weatherCodePenalty(code) {
+      if (STORM_CODES.indexOf(code) > -1) return 40;
+      if (HEAVY_RAIN_CODES.indexOf(code) > -1) return 20;
+      if (LIGHT_RAIN_CODES.indexOf(code) > -1) return 10;
+      if ([45, 48].indexOf(code) > -1) return 18;
+      return 0;
+    }
+
+    function windPenalty(gusts) {
+      if (gusts > 70) return 30;
+      if (gusts > 50) return 15;
+      if (gusts > 35) return 8;
+      return 0;
+    }
+
+    function hourlyTempPenalty(feels) {
+      if (feels < 5) return 25;
+      if (feels < 10) return 12;
+      if (feels > 36) return 10;
+      return 0;
+    }
+
+    function dailyTempPenalty(feelsMin, feelsMax) {
+      var p = 0;
+      if (feelsMin < 5) p += 20;
+      else if (feelsMin < 10) p += 10;
+      if (feelsMax > 36) p += 10;
+      return p;
+    }
+
+    function precipitationCap(amount, prob, code, isDaily) {
+      amount = amount || 0;
+      prob = prob || 0;
+      var cap = 100;
+      var hasRainRisk = prob > 0 || amount > 0 || LIGHT_RAIN_CODES.indexOf(code) > -1 || HEAVY_RAIN_CODES.indexOf(code) > -1 || STORM_CODES.indexOf(code) > -1;
+      if (hasRainRisk) cap = 79;
+      if (isDaily) {
+        if (prob >= 40 || amount > 5 || HEAVY_RAIN_CODES.indexOf(code) > -1) cap = Math.min(cap, 69);
+        if (prob >= 60 || amount > 10) cap = Math.min(cap, 59);
+        if (prob >= 80 || amount > 20 || STORM_CODES.indexOf(code) > -1) cap = Math.min(cap, 39);
+      } else {
+        if (prob >= 40 || amount > 0.2 || HEAVY_RAIN_CODES.indexOf(code) > -1) cap = Math.min(cap, 69);
+        if (prob >= 60 || amount > 1) cap = Math.min(cap, 59);
+        if (prob >= 80 || amount > 5 || STORM_CODES.indexOf(code) > -1) cap = Math.min(cap, 39);
+      }
+      return cap;
+    }
+
     function scoreHourly(feels, gusts, prec, code, precipProb) {
       var s = 100;
-      var prob = precipProb || 0;
-      var mmPenalty = prec > 5 ? 50 : prec > 1 ? 30 : prec > 0.2 ? 15 : 0;
-      var probPenalty = prob >= 80 ? 35 : prob >= 60 ? 20 : prob >= 40 ? 12 : prob >= 20 ? 6 : prob >= 5 ? 3 : 0;
-      s -= Math.max(mmPenalty, probPenalty);
-      if ([95, 96, 99].indexOf(code) > -1) s -= 40;
-      if (gusts > 70) s -= 30; else if (gusts > 50) s -= 15; else if (gusts > 35) s -= 8;
-      if (feels < 5) s -= 25; else if (feels < 10) s -= 12; else if (feels > 36) s -= 10;
-      if ([45, 48].indexOf(code) > -1) s -= 20;
-      if (prob >= 20 && s > 79) s = 79;
+      s -= Math.max(
+        precipAmountPenalty(prec, false),
+        precipProbabilityPenalty(precipProb, false),
+        weatherCodePenalty(code)
+      );
+      s -= windPenalty(gusts || 0);
+      s -= hourlyTempPenalty(feels != null ? feels : 20);
+      s = Math.min(s, precipitationCap(prec, precipProb, code, false));
       return Math.max(0, Math.min(100, Math.round(s)));
     }
 
     function scoreDaily(feelsMin, feelsMax, gustMax, precDay, code, precipProb) {
       var s = 100;
-      var pDay = precDay || 0;
-      var prob = precipProb || 0;
-      var dayPenalty = pDay > 20 ? 35 : pDay > 10 ? 25 : pDay > 5 ? 15 : pDay > 1 ? 8 : 0;
-      var probPenalty = prob >= 80 ? 35 : prob >= 60 ? 20 : prob >= 40 ? 12 : prob >= 20 ? 6 : prob >= 5 ? 3 : 0;
-      s -= Math.max(dayPenalty, probPenalty);
-      if ([95, 96, 99].indexOf(code) > -1) s -= 35;
-      if (gustMax > 70) s -= 30; else if (gustMax > 50) s -= 15; else if (gustMax > 35) s -= 8;
-      if (feelsMin < 5) s -= 20; else if (feelsMin < 10) s -= 10;
-      if (feelsMax > 36) s -= 10;
-      if ([45, 48].indexOf(code) > -1) s -= 20;
-      if (prob >= 20 && s > 79) s = 79;
+      s -= Math.max(
+        precipAmountPenalty(precDay, true),
+        precipProbabilityPenalty(precipProb, true),
+        weatherCodePenalty(code)
+      );
+      s -= windPenalty(gustMax || 0);
+      s -= dailyTempPenalty(feelsMin != null ? feelsMin : 12, feelsMax != null ? feelsMax : 24);
+      s = Math.min(s, precipitationCap(precDay, precipProb, code, true));
       return Math.max(0, Math.min(100, Math.round(s)));
     }
 
@@ -2267,8 +2350,9 @@
     }
 
     function verdictBadge(s) {
-      if (s >= 75) return '<span class="inline-block px-2 sm:px-3 py-0.5 sm:py-1 rounded-md text-xs font-semibold sm:tracking-widest bg-ok/15 text-ok whitespace-nowrap">✓ OK</span>';
-      if (s >= 45) return '<span class="inline-block px-2 sm:px-3 py-0.5 sm:py-1 rounded-md text-xs font-semibold sm:tracking-widest bg-warn/15 text-warn whitespace-nowrap"><span class="hidden sm:inline">⚠ PRECAUȚIE</span><span class="sm:hidden">⚠</span></span>';
+      if (s >= 80) return '<span class="inline-block px-2 sm:px-3 py-0.5 sm:py-1 rounded-md text-xs font-semibold sm:tracking-widest bg-ok/15 text-ok whitespace-nowrap">✓ IDEAL</span>';
+      if (s >= 60) return '<span class="inline-block px-2 sm:px-3 py-0.5 sm:py-1 rounded-md text-xs font-semibold sm:tracking-widest bg-accent/15 text-accent whitespace-nowrap">~ OK</span>';
+      if (s >= 40) return '<span class="inline-block px-2 sm:px-3 py-0.5 sm:py-1 rounded-md text-xs font-semibold sm:tracking-widest bg-warn/15 text-warn whitespace-nowrap"><span class="hidden sm:inline">⚠ PRECAUȚIE</span><span class="sm:hidden">⚠</span></span>';
       return '<span class="inline-block px-2 sm:px-3 py-0.5 sm:py-1 rounded-md text-xs font-semibold sm:tracking-widest bg-danger/15 text-danger whitespace-nowrap"><span class="hidden sm:inline">✗ EVITĂ</span><span class="sm:hidden">✗</span></span>';
     }
 
