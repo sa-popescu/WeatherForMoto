@@ -990,10 +990,12 @@ def _merge_current(
 
     # --- pressure, visibility
     pressure = (
-        owm_current["main"].get("pressure") if owm_current else c.get("surface_pressure")
+        owm_current["main"].get("pressure") if owm_current
+        else (met_norm.get("pressure") if met_norm else c.get("surface_pressure"))
     )
     visibility_m = owm_current.get("visibility") if owm_current else c.get("visibility")
-    visibility_km = round(visibility_m / 1000, 1) if visibility_m is not None else None
+    pw_vis = pw_norm.get("visibility_km") if pw_norm else None
+    visibility_km = round(visibility_m / 1000, 1) if visibility_m is not None else pw_vis
 
     # --- air quality
     aqi = None
