@@ -788,6 +788,131 @@ async def _fetch_openmeteo_air_quality(
         return None
 
 
+async def _fetch_met_norway(
+    lat: float, lon: float, client: httpx.AsyncClient, user_agent: str
+) -> dict | None:
+    """Fetch MET Norway LocationForecast 2.0 (free, no key, Europe-optimised)."""
+    try:
+        resp = await client.get(
+            MET_NO_BASE,
+            params={"lat": round(lat, 4), "lon": round(lon, 4)},
+            headers={"User-Agent": user_agent},
+            timeout=12,
+        )
+        if not resp.is_success:
+            return None
+        return resp.json()
+    except Exception:
+        return None
+
+
+async def _fetch_pirate_weather(
+    lat: float, lon: float, api_key: str, client: httpx.AsyncClient
+) -> dict | None:
+    """Fetch Pirate Weather forecast (Dark Sky-compatible, requires API key)."""
+    if not api_key:
+        return None
+    try:
+        resp = await client.get(
+            f"{PIRATE_WEATHER_BASE}/{api_key}/{lat:.4f},{lon:.4f}",
+            params={"units": "si", "exclude": "minutely,alerts,flags"},
+            timeout=12,
+        )
+        if not resp.is_success:
+            return None
+        return resp.json()
+    except Exception:
+        return None
+
+
+def _normalize_met_current(met_data: dict | None) -> dict | None:
+    """Extract current conditions from MET Norway timeseries."""
+    if not met_data:
+        return None
+    try:
+        ts = met_data["properties"]["timeseries"]
+        if not ts:
+            return None
+        first = ts[0]
+        inst = first["data"]["instant"]["details"]
+        prec_block = first["data"].get("next_1_hours") or first["data"].get("next_6_hours") or {}
+        symbol = prec_block.get("summary", {}).get("symbol_code")
+        prec = prec_block.get("details", {}).get("precipitation_amount", 0.0)
+        ws = inst.get("wind_speed")
+        return {
+            "temp": inst.get("air_temperature"),
+            "humidity": inst.get("relative_humidity"),
+            "wind_speed_kmh": (ws or 0) * 3.6,
+            "wind_dir": inst.get("wind_from_direction"),
+            "pressure": inst.get("air_pressure_at_sea_level"),
+            "precipitation": prec,
+            "wmo_code": _met_symbol_to_wmo(symbol) if symbol else None,
+        }
+    except (KeyError, IndexError, TypeError):
+        return None
+
+
+def _normalize_pw_current(pw_data: dict | None) -> dict | None:
+    """Extract current conditions from Pirate Weather response (units=si)."""
+    if not pw_data:
+        return None
+    cur = pw_data.get("currently", {})
+    if not cur:
+        return None
+    ws = cur.get("windSpeed")   # m/s with units=si
+    wg = cur.get("windGust")
+    hum = cur.get("humidity")   # 0–1 fraction
+    return {
+        "temp": cur.get("temperature"),
+        "feels_like": cur.get("apparentTemperature"),
+        "humidity": (hum * 100) if hum is not None else None,
+        "wind_speed_kmh": (ws or 0) * 3.6,
+        "wind_gusts_kmh": (wg or 0) * 3.6,
+        "wind_dir": cur.get("windBearing"),
+        "pressure": cur.get("pressure"),
+        "precipitation": cur.get("precipIntensity", 0.0),
+        "wmo_code": _pw_icon_to_wmo(cur.get("icon")),
+        "visibility_km": cur.get("visibility"),
+    }
+
+
+def _aggregate_met_daily(met_data: dict | None) -> dict[str, dict] | None:
+    """Aggregate MET Norway timeseries into per-date summaries."""
+    if not met_data:
+        return None
+    try:
+        ts = met_data["properties"]["timeseries"]
+    except (KeyError, TypeError):
+        return None
+    by_date: dict[str, list] = {}
+    for entry in ts:
+        by_date.setdefault(entry["time"][:10], []).append(entry)
+    result: dict[str, dict] = {}
+    for date, entries in by_date.items():
+        temps, winds, precs, codes = [], [], [], []
+        for entry in entries:
+            inst = entry["data"]["instant"]["details"]
+            if (t := inst.get("air_temperature")) is not None:
+                temps.append(t)
+            if (w := inst.get("wind_speed")) is not None:
+                winds.append(w * 3.6)
+            for blk_key in ("next_1_hours", "next_6_hours"):
+                if blk := entry["data"].get(blk_key):
+                    p = blk.get("details", {}).get("precipitation_amount", 0.0)
+                    precs.append(p)
+                    if sym := blk.get("summary", {}).get("symbol_code"):
+                        codes.append(_met_symbol_to_wmo(sym))
+                    break
+        result[date] = {
+            "t_max": max(temps) if temps else None,
+            "t_min": min(temps) if temps else None,
+            "wind_max_kmh": max(winds) if winds else None,
+            "precipitation_sum": sum(precs) if precs else None,
+            "wmo_code": max(set(codes), key=codes.count) if codes else None,
+        }
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Normalise & merge
 # ---------------------------------------------------------------------------
