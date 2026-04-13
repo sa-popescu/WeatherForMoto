@@ -2730,9 +2730,9 @@
       html += '<span class="text-xs text-muted tracking-widest mr-1">★</span>';
       favs.forEach(function (f) {
         html += '<span class="flex items-center gap-0.5 bg-card border border-border rounded-lg text-xs">';
-        html += '<button onclick="loadFav(' + JSON.stringify(f.name) + ',' + f.lat + ',' + f.lon + ')"'
+        html += '<button onclick=\'loadFav(' + JSON.stringify(f.name) + ',' + f.lat + ',' + f.lon + ')\''
           + ' class="px-2 py-1 text-gray-300 hover:text-accent transition-colors">' + f.name + '</button>';
-        html += '<button onclick="removeFav(' + JSON.stringify(f.name) + ')"'
+        html += '<button onclick=\'event.preventDefault();event.stopPropagation();removeFav(' + JSON.stringify(f.name) + ');return false;\''
           + ' class="pr-2 text-muted hover:text-danger transition-colors text-sm leading-none">&times;</button>';
         html += '</span>';
       });

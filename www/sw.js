@@ -1,5 +1,5 @@
 // MotoMeteo Service Worker — cache-first strategy for offline support
-var CACHE = 'motometeo-v2';
+var CACHE = 'motometeo-v3';
 var ASSETS = [
     '/',
     '/index.html',
@@ -65,6 +65,24 @@ self.addEventListener('activate', function (e) {
 
 self.addEventListener('fetch', function (e) {
     var url = new URL(e.request.url);
+
+    // Always try network first for HTML navigation so users get latest JS/logic.
+    if (e.request.mode === 'navigate') {
+        e.respondWith(
+            fetch(e.request).then(function (resp) {
+                if (resp && resp.status === 200) {
+                    var clone = resp.clone();
+                    caches.open(CACHE).then(function (c) { c.put(e.request, clone); });
+                }
+                return resp;
+            }).catch(function () {
+                return caches.match(e.request).then(function (cached) {
+                    return cached || new Response(OFFLINE_HTML, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+                });
+            })
+        );
+        return;
+    }
 
     // Network-first for weather API calls (always fresh data)
     var isApi = url.pathname.startsWith('/weather')
