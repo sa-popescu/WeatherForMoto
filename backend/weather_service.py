@@ -4,8 +4,10 @@ Weather data aggregation service.
 Fetches data from:
   1. OpenWeatherMap (paid key, detailed forecast & air quality)
   2. Open-Meteo (free, no key, high-resolution European model)
+  3. MET Norway / Yr (free, no key, AROME/MetCoOp model, best for Europe)
+  4. Pirate Weather (free key, Dark Sky-compatible, NOAA GFS/HRRR)
 
-Both sources are normalised to the same schema and then merged so that
+All sources are normalised to the same schema and then merged so that
 each numeric field is the weighted average of the available values,
 giving more accurate results than any single source alone.
 """
