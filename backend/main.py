@@ -319,19 +319,22 @@ async def route_multi(
     departure_str = departure or _dt.now().isoformat()[:16]
 
     async with httpx.AsyncClient() as _client:
-        geo_tasks = [geocode_city(name, OWM_API_KEY, _client) for name in stop_names]
-        geo_results = await asyncio.gather(*geo_tasks)
+        try:
+            geo_results = await asyncio.gather(
+                *[geocode_city(name, _client) for name in stop_names]
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except Exception as exc:
+            logger.exception("Multi-route geocoding error: %s", exc)
+            raise HTTPException(status_code=502, detail=f"Geocoding error: {exc}") from exc
 
     geocoded: list[dict] = []
-    for i, (name, results) in enumerate(zip(stop_names, geo_results)):
-        if not results:
-            raise HTTPException(
-                status_code=404, detail=f"City not found: {name!r}"
-            )
+    for name, result in zip(stop_names, geo_results):
         geocoded.append({
-            "name": results[0]["name"],
-            "lat": results[0]["lat"],
-            "lon": results[0]["lon"],
+            "name": result["name"],
+            "lat": result["lat"],
+            "lon": result["lon"],
         })
 
     try:
