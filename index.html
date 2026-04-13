@@ -3534,7 +3534,7 @@
         var gustMax = Math.round(day.wind_gusts_kmh || 0);
         var ds = day.moto_score;
         var scoreColor = ds >= 80 ? '#22c55e' : ds >= 60 ? '#f97316' : ds >= 40 ? '#eab308' : '#ef4444';
-        var borderCol = ds < 40 ? "border-l-danger" : ds < 65 ? "border-l-warn" : "border-l-ok";
+        var borderCol = ds < 40 ? "border-l-danger" : ds < 60 ? "border-l-warn" : ds < 80 ? "border-l-accent" : "border-l-ok";
         var range = allMax - allMin || 1;
         var bL = Math.round(((tMin - allMin) / range) * 100);
         var bW = Math.max(4, Math.round(((tMax - allMin) / range) * 100) - bL);
