@@ -2770,26 +2770,44 @@
       var scores = slice.map(function (h) {
         return scoreHourly(h.feels_like, h.wind_gusts_kmh, h.precipitation_mm, h.weather_code, h.precipitation_probability);
       });
-      var bestAvg = -1, bestStart = -1, bestLen = 0;
-      for (var i = 0; i < scores.length; i++) {
-        if (scores[i] < 45) continue;
-        var j = i;
-        while (j < scores.length && scores[j] >= 45) j++;
-        var len = j - i;
-        var sum = 0; for (var k = i; k < j; k++) sum += scores[k];
-        var avg = sum / len;
-        if (avg > bestAvg || (avg === bestAvg && len > bestLen)) {
-          bestAvg = avg; bestStart = i; bestLen = len;
+      var bestAvg = -1, bestStart = -1, bestLen = 0, bestPeak = -1;
+      var minLen = scores.length >= 3 ? 2 : 1;
+      var maxLen = Math.min(4, scores.length);
+      for (var len = minLen; len <= maxLen; len++) {
+        for (var i = 0; i <= scores.length - len; i++) {
+          var sum = 0;
+          var peak = 0;
+          var minScore = 101;
+          for (var k = i; k < i + len; k++) {
+            sum += scores[k];
+            if (scores[k] > peak) peak = scores[k];
+            if (scores[k] < minScore) minScore = scores[k];
+          }
+          var avg = sum / len;
+          // Prefer short high-quality windows, not all-day broad ranges.
+          var qualityBoost = minScore >= 80 ? 2 : minScore >= 70 ? 1 : 0;
+          var effectiveAvg = avg + qualityBoost;
+          if (
+            effectiveAvg > bestAvg
+            || (effectiveAvg === bestAvg && peak > bestPeak)
+            || (effectiveAvg === bestAvg && peak === bestPeak && len < bestLen)
+          ) {
+            bestAvg = effectiveAvg;
+            bestStart = i;
+            bestLen = len;
+            bestPeak = peak;
+          }
         }
-        i = j - 1;
       }
       if (bestStart === -1) return null;
       var from = slice[bestStart];
       var to = slice[Math.min(bestStart + bestLen - 1, slice.length - 1)];
+      var toDt = new Date(to.time);
+      toDt.setHours(toDt.getHours() + 1);
       return {
-        avg: Math.round(bestAvg), len: bestLen,
+        avg: Math.round(scores.slice(bestStart, bestStart + bestLen).reduce(function (s, v) { return s + v; }, 0) / bestLen), len: bestLen,
         fromH: new Date(from.time).getHours().toString().padStart(2, "0") + ":00",
-        toH: new Date(to.time).getHours().toString().padStart(2, "0") + ":00",
+        toH: toDt.getHours().toString().padStart(2, "0") + ":00",
       };
     }
     function findBestWindow(hourly) {
