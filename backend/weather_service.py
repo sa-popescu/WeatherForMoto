@@ -164,9 +164,11 @@ def _daily_temperature_penalty(feels_min: float | None, feels_max: float | None)
     penalty = 0
     min_feels = feels_min if feels_min is not None else 12
     max_feels = feels_max if feels_max is not None else 24
-    if min_feels < 5:
+    # Use average to avoid over-penalizing days with cold nights but warm afternoons
+    avg_feels = (min_feels + max_feels) / 2
+    if avg_feels < 5:
         penalty += 20
-    elif min_feels < 10:
+    elif avg_feels < 10:
         penalty += 10
     if max_feels > 36:
         penalty += 10
