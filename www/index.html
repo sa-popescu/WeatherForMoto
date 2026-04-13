@@ -2494,9 +2494,9 @@
     }
 
     function scoreInfo(s) {
-      if (s >= 80) return { label: "IDEAL PENTRU MERS", color: "#22c55e", cls: "text-ok", msg: "Condiții excelente. Drum liber! 🏍️" };
-      if (s >= 60) return { label: "ACCEPTABIL", color: "#f97316", cls: "text-accent", msg: "Condiții bune, atenție la schimbări." };
-      if (s >= 40) return { label: "CU PRECAUȚIE", color: "#eab308", cls: "text-warn", msg: "Mergi cu atenție sporită." };
+      if (s >= 85) return { label: "IDEAL PENTRU MERS", color: "#22c55e", cls: "text-ok", msg: "Condiții excelente. Drum liber! 🏍️" };
+      if (s >= 60) return { label: "ACCEPTABIL", color: "#eab308", cls: "text-warn", msg: "Condiții bune, atenție la schimbări." };
+      if (s >= 40) return { label: "CU PRECAUȚIE", color: "#f97316", cls: "text-accent", msg: "Mergi cu atenție sporită." };
       return { label: "NU RECOMAND", color: "#ef4444", cls: "text-danger", msg: "Condiții periculoase pentru două roți." };
     }
 
