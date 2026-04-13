@@ -147,6 +147,30 @@
       color: #7b879d !important;
     }
 
+    html.theme-light .text-ok {
+      color: #15803d !important;
+    }
+
+    html.theme-light .text-accent {
+      color: #c46010 !important;
+    }
+
+    html.theme-light .text-warn {
+      color: #a16207 !important;
+    }
+
+    html.theme-light .text-danger {
+      color: #b91c1c !important;
+    }
+
+    html.theme-light [class*="bg-ok/10"] {
+      background-color: rgba(34, 197, 94, 0.12) !important;
+    }
+
+    html.theme-light [class*="bg-danger/10"] {
+      background-color: rgba(239, 68, 68, 0.12) !important;
+    }
+
     #route-map {
       position: relative;
       z-index: 0;
@@ -513,8 +537,8 @@
     <div id="route-tools" class="mt-3 hidden"></div>
     <div id="route-map" class="mt-3 h-64 rounded-xl border border-border overflow-hidden bg-card hidden"></div>
     <div id="hazard-list" class="mt-3 hidden"></div>
-    <div id="saved-routes" class="mt-4"></div>
-    <div id="ride-stats" class="mt-4"></div>
+    <div id="saved-routes" class="mt-4 hidden"></div>
+    <div id="ride-stats" class="mt-4 hidden"></div>
   </section>
 
   <!-- iOS "Add to Home Screen" install banner -->
@@ -1643,7 +1667,7 @@
 
     async function calcRoute() {
       var stops = getRouteStops();
-      if (stops.length < 2) { alert('Completează cel puțin 2 opriri (plecare și destinație)'); return; }
+      if (stops.length < 2) { clearRoutePanels(); alert('Completează cel puțin 2 opriri (plecare și destinație)'); return; }
 
       var routeDepEl = document.getElementById('route-departure');
       var routeSpeedEl = document.getElementById('route-speed');
@@ -1694,7 +1718,22 @@
           }
         }
       } catch (e) {
+        clearRoutePanels();
         if (resultEl) resultEl.innerHTML = '<div class="text-danger text-sm py-2 p-4 rounded-xl border border-danger bg-danger/10">⚠️ Eroare: ' + e.message + '</div>';
+      }
+    }
+
+    function clearRoutePanels() {
+      LAST_ROUTE_CTX = null;
+      ['route-tools', 'route-map', 'hazard-list', 'saved-routes', 'ride-stats'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        el.innerHTML = '';
+        el.classList.add('hidden');
+      });
+      if (ROUTE_MAP) {
+        try { ROUTE_MAP.remove(); } catch (_) { }
+        ROUTE_MAP = null;
       }
     }
 
@@ -1959,8 +1998,8 @@
         if (!resp.ok) throw new Error(data.detail || 'Nu am putut încărca rutele.');
         var routes = data.routes || [];
         if (!routes.length) {
-          el.classList.remove('hidden');
-          el.innerHTML = '<div class="text-xs text-muted">Nu ai rute salvate încă.</div>';
+          el.innerHTML = '';
+          el.classList.add('hidden');
           return;
         }
         el.classList.remove('hidden');
@@ -2053,6 +2092,11 @@
         var resp = await fetch(_api('/me/rides/stats'), { headers: { 'Authorization': 'Bearer ' + token } });
         var d = await resp.json();
         if (!resp.ok) throw new Error(d.detail || 'Nu am putut încărca statisticile.');
+        if (!(d.rides > 0)) {
+          el.innerHTML = '';
+          el.classList.add('hidden');
+          return;
+        }
         var totalH = Math.floor((d.total_duration_min || 0) / 60);
         var totalM = (d.total_duration_min || 0) % 60;
         el.classList.remove('hidden');
@@ -2114,8 +2158,8 @@
         if (!resp.ok) throw new Error();
         var hazards = data.hazards || [];
         if (!hazards.length) {
-          listEl.classList.remove('hidden');
-          listEl.innerHTML = '<div class="text-xs text-muted">Nu sunt hazarduri raportate pe zona rutei.</div>';
+          listEl.innerHTML = '';
+          listEl.classList.add('hidden');
           return;
         }
         listEl.classList.remove('hidden');
