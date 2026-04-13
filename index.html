@@ -2629,10 +2629,11 @@
     }
 
     function dailyTempPenalty(feelsMin, feelsMax) {
+      var avg = ((feelsMin != null ? feelsMin : 12) + (feelsMax != null ? feelsMax : 24)) / 2;
       var p = 0;
-      if (feelsMin < 5) p += 20;
-      else if (feelsMin < 10) p += 10;
-      if (feelsMax > 36) p += 10;
+      if (avg < 5) p += 20;
+      else if (avg < 10) p += 10;
+      if ((feelsMax != null ? feelsMax : 24) > 36) p += 10;
       return p;
     }
 
