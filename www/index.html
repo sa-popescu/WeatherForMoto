@@ -1043,6 +1043,19 @@
       if (modal) modal.classList.add('hidden');
     }
 
+    function openGuideModal() {
+      var modal = document.getElementById('guide-modal');
+      if (!modal) return;
+      modal.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeGuideModal() {
+      var modal = document.getElementById('guide-modal');
+      if (modal) modal.classList.add('hidden');
+      document.body.style.overflow = '';
+    }
+
     function _showAuthView() {
       var authView = document.getElementById('account-auth-view');
       var loggedView = document.getElementById('account-logged-view');
