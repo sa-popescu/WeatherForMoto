@@ -1070,7 +1070,7 @@ def _merge_current(
     }
 
 
-def _merge_daily(om_data: dict, owm_forecast: dict | None) -> list[dict]:
+def _merge_daily(om_data: dict, owm_forecast: dict | None, met_daily: dict | None = None) -> list[dict]:
     daily = om_data.get("daily", {})
     dates = daily.get("time", [])
     result = []
