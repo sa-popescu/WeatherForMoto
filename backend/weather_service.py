@@ -949,7 +949,9 @@ def _merge_current(
     # --- wind speed (km/h) and gusts
     om_wind = c.get("wind_speed_10m")
     owm_wind = (owm_current["wind"]["speed"] * 3.6) if owm_current else None
-    wind_speed = _weighted_avg([om_wind, owm_wind], [1.0, 1.0])
+    met_wind = met_norm.get("wind_speed_kmh") if met_norm else None
+    pw_wind = pw_norm.get("wind_speed_kmh") if pw_norm else None
+    wind_speed = _weighted_avg([om_wind, owm_wind, met_wind, pw_wind], [1.2, 1.0, 1.1, 0.8])
 
     om_gusts = c.get("wind_gusts_10m")
     owm_gusts = (
@@ -957,7 +959,8 @@ def _merge_current(
         if owm_current
         else None
     )
-    wind_gusts = _weighted_avg([om_gusts, owm_gusts], [1.2, 0.8])
+    pw_gusts = pw_norm.get("wind_gusts_kmh") if pw_norm else None
+    wind_gusts = _weighted_avg([om_gusts, owm_gusts, pw_gusts], [1.2, 0.8, 1.0])
 
     wind_dir = c.get("wind_direction_10m")
 
