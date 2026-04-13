@@ -1036,20 +1036,28 @@
             Surse de Date
           </h3>
           <p class="text-sm text-muted leading-relaxed mb-3">
-            MotoMeteo agregă date din două surse independente și calculează o medie ponderată pentru a crește acuratețea.
+            MotoMeteo agregă date din <strong class="text-gray-300">patru surse independente</strong> și calculează o medie ponderată pentru a crește acuratețea.
           </p>
           <div class="grid sm:grid-cols-2 gap-3">
             <div class="bg-bg border border-border rounded-xl p-4">
               <div class="text-sm font-bold text-gray-200 mb-1">🌐 Open-Meteo</div>
-              <div class="text-xs text-muted leading-relaxed">Sursă primară. Date gratuite, model WMO. Prognoză până la 16 zile (7 în varianta gratuită). Calitate aer și geocodare inclusă.</div>
+              <div class="text-xs text-muted leading-relaxed">Sursă primară (pondere 1.2). Date gratuite, modele WMO/ECMWF/GFS/ICON. Prognoză până la 16 zile. Calitate aer și geocodare inclusă.</div>
             </div>
             <div class="bg-bg border border-border rounded-xl p-4">
               <div class="text-sm font-bold text-gray-200 mb-1">🌤 OpenWeatherMap</div>
-              <div class="text-xs text-muted leading-relaxed">Sursă secundară. Date actuale și prognoză pe 5 zile. Ponderate ușor mai mic decât Open-Meteo în agregare.</div>
+              <div class="text-xs text-muted leading-relaxed">Sursă secundară (pondere 1.0). Date actuale și prognoză pe 5 zile. Descrieri meteo în română.</div>
+            </div>
+            <div class="bg-bg border border-border rounded-xl p-4">
+              <div class="text-sm font-bold text-gray-200 mb-1">🇳🇴 MET Norway / Yr</div>
+              <div class="text-xs text-muted leading-relaxed">Sursă terțiară (pondere 1.1). Model AROME/MetCoOp, foarte precis pentru Europa. Gratuit, fără cheie API.</div>
+            </div>
+            <div class="bg-bg border border-border rounded-xl p-4">
+              <div class="text-sm font-bold text-gray-200 mb-1">🏴‍☠️ Pirate Weather</div>
+              <div class="text-xs text-muted leading-relaxed">Sursă suplimentară (pondere 0.8). Compatible Dark Sky, modele NOAA GFS/HRRR. Rafale de vânt incluse.</div>
             </div>
           </div>
           <div class="mt-3 text-xs text-muted bg-bg border border-border rounded-lg px-4 py-2.5 leading-relaxed">
-            <strong class="text-gray-300">Medie ponderată:</strong> Valorile celor două surse sunt combinate inteligent — dacă una lipsește, cealaltă preia controlul. Rafalele de vânt au ponderea Open-Meteo ușor mai mare (1.2 vs 0.8).
+            <strong class="text-gray-300">Medie ponderată:</strong> Valorile celor patru surse sunt combinate inteligent — dacă o sursă lipsește, celelalte preiau controlul. Temperatura și umiditatea au ponderea Open-Meteo/MET Norway mai mare (1.2/1.1 vs 1.0/0.8).
           </div>
         </section>
 
