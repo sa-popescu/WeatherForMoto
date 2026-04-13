@@ -1061,7 +1061,12 @@ def _merge_current(
         "moto_label": _moto_label(score),
         "gear_recommendation": _gear_recommendation(feels, wind_gusts, precipitation, om_code),
         "road_surface_temp": _road_surface_temp(temp, humidity, om_code, precipitation),
-        "sources": ["open-meteo"] + (["openweathermap"] if owm_current else []),
+        "sources": (
+            ["open-meteo"]
+            + (["openweathermap"] if owm_current else [])
+            + (["met-norway"] if met_norm else [])
+            + (["pirate-weather"] if pw_norm else [])
+        ),
     }
 
 
