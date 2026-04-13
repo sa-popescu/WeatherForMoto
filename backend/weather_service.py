@@ -922,6 +922,8 @@ def _merge_current(
     owm_current: dict | None,
     owm_air: dict | None,
     om_air: dict | None = None,
+    met_norm: dict | None = None,
+    pw_norm: dict | None = None,
 ) -> dict:
     c = om_data.get("current", {})
 
