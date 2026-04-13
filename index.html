@@ -2209,7 +2209,7 @@
       var s = 100;
       var prob = precipProb || 0;
       var mmPenalty = prec > 5 ? 50 : prec > 1 ? 30 : prec > 0.2 ? 15 : 0;
-      var probPenalty = prob >= 80 ? 35 : prob >= 60 ? 20 : prob >= 40 ? 12 : prob >= 20 ? 6 : 0;
+      var probPenalty = prob >= 80 ? 35 : prob >= 60 ? 20 : prob >= 40 ? 12 : prob >= 20 ? 6 : prob >= 5 ? 3 : 0;
       s -= Math.max(mmPenalty, probPenalty);
       if ([95, 96, 99].indexOf(code) > -1) s -= 40;
       if (gusts > 70) s -= 30; else if (gusts > 50) s -= 15; else if (gusts > 35) s -= 8;
@@ -2223,7 +2223,7 @@
       var pDay = precDay || 0;
       var prob = precipProb || 0;
       var dayPenalty = pDay > 20 ? 35 : pDay > 10 ? 25 : pDay > 5 ? 15 : pDay > 1 ? 8 : 0;
-      var probPenalty = prob >= 80 ? 35 : prob >= 60 ? 20 : prob >= 40 ? 12 : prob >= 20 ? 6 : 0;
+      var probPenalty = prob >= 80 ? 35 : prob >= 60 ? 20 : prob >= 40 ? 12 : prob >= 20 ? 6 : prob >= 5 ? 3 : 0;
       s -= Math.max(dayPenalty, probPenalty);
       if ([95, 96, 99].indexOf(code) > -1) s -= 35;
       if (gustMax > 70) s -= 30; else if (gustMax > 50) s -= 15; else if (gustMax > 35) s -= 8;

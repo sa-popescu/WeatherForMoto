@@ -81,6 +81,17 @@ def test_moto_score_probability_penalty():
     assert score == 80
 
 
+def test_moto_score_probability_penalty_from_five_percent():
+    score = _moto_score(
+        feels_like=20,
+        wind_gusts_kmh=10,
+        precipitation_mm=0,
+        weather_code=0,
+        precipitation_probability=5,
+    )
+    assert score == 97
+
+
 def test_moto_score_daily_uses_day_thresholds():
     score = _moto_score_daily(
         feels_min=9,
@@ -92,6 +103,18 @@ def test_moto_score_daily_uses_day_thresholds():
     )
     # 1.9 mm/day should not be treated as heavy hourly rain.
     assert score >= 80
+
+
+def test_moto_score_daily_probability_penalty_from_five_percent():
+    score = _moto_score_daily(
+        feels_min=12,
+        feels_max=20,
+        wind_gusts_kmh=20,
+        precipitation_mm_day=0,
+        weather_code=1,
+        precipitation_probability=5,
+    )
+    assert score == 97
 
 
 def test_moto_label():

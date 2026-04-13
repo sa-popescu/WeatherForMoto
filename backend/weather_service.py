@@ -83,7 +83,7 @@ def _moto_score(
     # Rain penalty: take the worse of actual mm amount or probability forecast.
     # Using max() avoids double-stacking when both are high.
     mm_penalty = 50 if p > 5 else 30 if p > 1 else 15 if p > 0.2 else 0
-    prob_penalty = 35 if prob >= 80 else 20 if prob >= 60 else 12 if prob >= 40 else 6 if prob >= 20 else 0
+    prob_penalty = 35 if prob >= 80 else 20 if prob >= 60 else 12 if prob >= 40 else 6 if prob >= 20 else 3 if prob >= 5 else 0
     score -= max(mm_penalty, prob_penalty)
 
     if code in (95, 96, 99):  # thunderstorm
@@ -133,7 +133,7 @@ def _moto_score_daily(
 
     # Daily rain amount thresholds (mm/day), less aggressive than mm/h.
     day_penalty = 35 if p_day > 20 else 25 if p_day > 10 else 15 if p_day > 5 else 8 if p_day > 1 else 0
-    prob_penalty = 35 if prob >= 80 else 20 if prob >= 60 else 12 if prob >= 40 else 6 if prob >= 20 else 0
+    prob_penalty = 35 if prob >= 80 else 20 if prob >= 60 else 12 if prob >= 40 else 6 if prob >= 20 else 3 if prob >= 5 else 0
     score -= max(day_penalty, prob_penalty)
 
     if code in (95, 96, 99):
