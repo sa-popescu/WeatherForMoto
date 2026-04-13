@@ -3499,7 +3499,7 @@
         var hh = t.getHours().toString().padStart(2, "0") + ":00";
         var rp = h.precipitation_probability || 0;
         var hs = scoreHourly(h.feels_like, h.wind_gusts_kmh, h.precipitation_mm, h.weather_code, h.precipitation_probability);
-        var scoreColor = hs >= 80 ? '#22c55e' : hs >= 60 ? '#f97316' : hs >= 40 ? '#eab308' : '#ef4444';
+        var scoreColor = hs >= 85 ? '#22c55e' : hs >= 60 ? '#eab308' : hs >= 40 ? '#f97316' : '#ef4444';
         var borderCol = hs < 40 ? "border-danger" : rp > 40 ? "border-warn" : idx === 0 ? "border-accent" : "border-border";
         var nowClass = idx === 0 ? "hourly-now border-accent" : "";
         html += '<div class="hourly-main-card flex-shrink-0 bg-card border ' + borderCol + ' ' + nowClass + ' rounded-xl p-3 w-24 text-center flex flex-col items-center gap-1">';
