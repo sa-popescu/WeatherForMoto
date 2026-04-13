@@ -60,6 +60,7 @@ INDEX_HTML = _REPO_ROOT / "index.html"
 SW_JS = _REPO_ROOT / "sw.js"
 MANIFEST_JSON = _REPO_ROOT / "manifest.json"
 ICONS_DIR = _REPO_ROOT / "icons"
+APPLE_TOUCH_ICON = ICONS_DIR / "motometeo-touch-180.png"
 
 # ---------------------------------------------------------------------------
 # Lifespan (startup / shutdown)
@@ -136,6 +137,15 @@ async def serve_manifest():
     if not MANIFEST_JSON.is_file():
         raise HTTPException(status_code=404, detail="manifest.json not found.")
     return FileResponse(MANIFEST_JSON, media_type="application/manifest+json")
+
+
+@app.get("/apple-touch-icon.png", include_in_schema=False)
+@app.get("/apple-touch-icon-precomposed.png", include_in_schema=False)
+async def serve_apple_touch_icon():
+    """Serve iOS homescreen icon from a stable default path."""
+    if not APPLE_TOUCH_ICON.is_file():
+        raise HTTPException(status_code=404, detail="apple-touch-icon not found.")
+    return FileResponse(APPLE_TOUCH_ICON, media_type="image/png")
 
 
 @app.get("/privacy-policy", include_in_schema=False)
