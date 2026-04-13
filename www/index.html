@@ -829,6 +829,116 @@
     </div>
   </div>
 
+  <!-- GHID DE INTERPRETARE -->
+  <div id="guide-modal"
+    class="hidden fixed inset-0 z-[620] flex items-start justify-center p-4 pt-8"
+    style="background:rgba(0,0,0,0.85);backdrop-filter:blur(12px)"
+    onclick="event.target===this&&closeGuideModal()">
+    <div class="bg-card border border-border rounded-2xl w-full max-w-2xl shadow-2xl max-h-[88vh] overflow-y-auto">
+      <div class="sticky top-0 bg-card border-b border-border rounded-t-2xl px-6 py-4 flex items-center justify-between z-10">
+        <div>
+          <h2 class="font-display text-lg font-bold text-gray-100 tracking-wide">📖 Ghid de Interpretare</h2>
+          <p class="text-xs text-muted mt-0.5">Cum funcționează MotoMeteo</p>
+        </div>
+        <button onclick="closeGuideModal()" class="text-muted hover:text-gray-100 text-3xl leading-none transition-colors w-9 h-9 flex items-center justify-center rounded-lg hover:bg-border">×</button>
+      </div>
+      <div class="px-6 py-5 space-y-8">
+        <section>
+          <h3 class="font-display font-bold text-base text-gray-100 mb-3 flex items-center gap-2">
+            <span class="w-7 h-7 rounded-lg bg-accent/20 text-accent flex items-center justify-center text-sm">🏍</span>
+            Scorul Moto (0 – 100)
+          </h3>
+          <p class="text-sm text-muted leading-relaxed mb-3">Scorul reflectă cât de potrivite sunt condițiile atmosferice pentru o deplasare cu motocicleta. Este calculat pe baza mai multor factori, fiecăruia aplicându-i-se o penalizare proporțională cu severitatea sa.</p>
+          <div class="bg-bg rounded-xl border border-border overflow-hidden">
+            <table class="w-full text-sm">
+              <thead><tr class="border-b border-border"><th class="text-left px-4 py-2.5 text-muted font-medium">Factor</th><th class="text-left px-4 py-2.5 text-muted font-medium">Impact</th><th class="text-left px-4 py-2.5 text-muted font-medium">Detalii</th></tr></thead>
+              <tbody class="divide-y divide-border">
+                <tr><td class="px-4 py-2.5 text-gray-200 font-medium">🌧 Probabilitate ploaie</td><td class="px-4 py-2.5"><span class="text-danger font-bold">Mare</span></td><td class="px-4 py-2.5 text-muted">Cel mai important factor — penalizare progresivă</td></tr>
+                <tr><td class="px-4 py-2.5 text-gray-200 font-medium">💧 Cantitate precipitații</td><td class="px-4 py-2.5"><span class="text-danger font-bold">Mare</span></td><td class="px-4 py-2.5 text-muted">mm/h sau mm/zi; adaugă penalizare suplimentară</td></tr>
+                <tr><td class="px-4 py-2.5 text-gray-200 font-medium">🌨 Cod meteo (WMO)</td><td class="px-4 py-2.5"><span class="text-danger font-bold">Mare</span></td><td class="px-4 py-2.5 text-muted">Zăpadă, gheață, furtună → penalizare severă</td></tr>
+                <tr><td class="px-4 py-2.5 text-gray-200 font-medium">💨 Rafale de vânt</td><td class="px-4 py-2.5"><span class="text-accent font-bold">Mediu</span></td><td class="px-4 py-2.5 text-muted">Penalizare la &gt;40 km/h, severă &gt;70 km/h</td></tr>
+                <tr><td class="px-4 py-2.5 text-gray-200 font-medium">🌡 Temperatură resimțită</td><td class="px-4 py-2.5"><span class="text-warn font-bold">Moderat</span></td><td class="px-4 py-2.5 text-muted">Penalizare sub 5°C și peste 38°C</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="mt-3 bg-danger/10 border border-danger/30 rounded-lg px-4 py-3 text-xs text-muted leading-relaxed"><span class="text-danger font-semibold">Sistem de plafon:</span> Orice risc de ploaie limitează scorul maxim la 79. Ploaie abundentă → max 39. Cod de furtună/ninsoare → max 19.</div>
+        </section>
+        <hr class="border-border" />
+        <section>
+          <h3 class="font-display font-bold text-base text-gray-100 mb-3 flex items-center gap-2">
+            <span class="w-7 h-7 rounded-lg bg-ok/20 text-ok flex items-center justify-center text-sm">🎨</span>
+            Codul Culorilor
+          </h3>
+          <p class="text-sm text-muted leading-relaxed mb-4">Culoarea borderii și a scorului reflectă aceeași scală — sunt întotdeauna sincronizate.</p>
+          <div class="space-y-2">
+            <div class="flex items-stretch gap-3 bg-ok/10 border border-ok/30 rounded-xl overflow-hidden"><div class="w-2 bg-ok flex-shrink-0"></div><div class="py-3 pr-4"><div class="flex items-center gap-2 mb-1"><span class="font-display font-bold text-ok text-sm tracking-wider">✓ IDEAL</span><span class="text-xs bg-ok/20 text-ok px-2 py-0.5 rounded-full font-mono">≥ 85</span></div><p class="text-xs text-muted">Condiții excelente. Drum liber, vizibilitate bună, fără precipitații, vânt moderat și temperaturi confortabile.</p></div></div>
+            <div class="flex items-stretch gap-3 bg-warn/10 border border-warn/30 rounded-xl overflow-hidden"><div class="w-2 bg-warn flex-shrink-0"></div><div class="py-3 pr-4"><div class="flex items-center gap-2 mb-1"><span class="font-display font-bold text-warn text-sm tracking-wider">~ OK</span><span class="text-xs bg-warn/20 text-warn px-2 py-0.5 rounded-full font-mono">60 – 84</span></div><p class="text-xs text-muted">Condiții acceptabile. Pot exista probabilități mici de ploaie, vânt mai susținut sau temperaturi la limita confortului.</p></div></div>
+            <div class="flex items-stretch gap-3 bg-accent/10 border border-accent/30 rounded-xl overflow-hidden"><div class="w-2 bg-accent flex-shrink-0"></div><div class="py-3 pr-4"><div class="flex items-center gap-2 mb-1"><span class="font-display font-bold text-accent text-sm tracking-wider">⚠ PRECAUȚIE</span><span class="text-xs bg-accent/20 text-accent px-2 py-0.5 rounded-full font-mono">40 – 59</span></div><p class="text-xs text-muted">Condiții dificile. Ploaie probabilă, vânt puternic sau frig accentuat. Recomandat echipament complet.</p></div></div>
+            <div class="flex items-stretch gap-3 bg-danger/10 border border-danger/30 rounded-xl overflow-hidden"><div class="w-2 bg-danger flex-shrink-0"></div><div class="py-3 pr-4"><div class="flex items-center gap-2 mb-1"><span class="font-display font-bold text-danger text-sm tracking-wider">✗ EVITĂ</span><span class="text-xs bg-danger/20 text-danger px-2 py-0.5 rounded-full font-mono">&lt; 40</span></div><p class="text-xs text-muted">Condiții periculoase. Furtună, ninsoare, gheață sau precipitații abundente. Nu este recomandat mersul cu motocicleta.</p></div></div>
+          </div>
+        </section>
+        <hr class="border-border" />
+        <section>
+          <h3 class="font-display font-bold text-base text-gray-100 mb-3 flex items-center gap-2">
+            <span class="w-7 h-7 rounded-lg bg-warn/20 text-warn flex items-center justify-center text-sm">🛣</span>
+            Temperatura Drumului
+          </h3>
+          <p class="text-sm text-muted leading-relaxed mb-3">Temperatura suprafeței drumului este estimată pe baza unui model empiric:</p>
+          <ul class="text-sm text-muted space-y-1.5 list-none">
+            <li class="flex items-start gap-2"><span class="text-ok mt-0.5">+</span><span>Zi senină + temperaturi &gt;15°C → drum poate fi cu până la <strong class="text-gray-300">+9°C</strong> față de aerul ambiant</span></li>
+            <li class="flex items-start gap-2"><span class="text-accent mt-0.5">−</span><span>Drum umed → <strong class="text-gray-300">−1°C</strong> față de estimare</span></li>
+            <li class="flex items-start gap-2"><span class="text-danger mt-0.5">⚠</span><span>Temperatură drum apropiată de <strong class="text-danger">0°C</strong> → risc de brumă sau gheață activat</span></li>
+          </ul>
+        </section>
+        <hr class="border-border" />
+        <section>
+          <h3 class="font-display font-bold text-base text-gray-100 mb-3 flex items-center gap-2">
+            <span class="w-7 h-7 rounded-lg bg-accent/20 text-accent flex items-center justify-center text-sm">🧥</span>
+            Recomandări Echipament
+          </h3>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
+            <div class="bg-bg border border-border rounded-lg px-3 py-2.5 text-center"><div class="text-xs font-bold text-ok mb-1">RECOMANDAT</div><div class="text-xs text-muted">Util, dar mersul e posibil fără</div></div>
+            <div class="bg-bg border border-border rounded-lg px-3 py-2.5 text-center"><div class="text-xs font-bold text-warn mb-1">ATENȚIE</div><div class="text-xs text-muted">Recomandat puternic pentru confort și siguranță</div></div>
+            <div class="bg-bg border border-border rounded-lg px-3 py-2.5 text-center"><div class="text-xs font-bold text-danger mb-1">OBLIGATORIU</div><div class="text-xs text-muted">Esențial pentru siguranță în aceste condiții</div></div>
+          </div>
+          <div class="grid grid-cols-2 gap-2 text-xs text-muted">
+            <div class="flex items-center gap-2"><span>🌧</span> Echipament de ploaie dacă prob. &gt;30%</div>
+            <div class="flex items-center gap-2"><span>🧤</span> Mănuși termoizolante sub 10°C</div>
+            <div class="flex items-center gap-2"><span>🧥</span> Geacă termică sub 15°C</div>
+            <div class="flex items-center gap-2"><span>💨</span> Vizor închis la rafale &gt;50 km/h</div>
+            <div class="flex items-center gap-2"><span>🌫</span> Vestă reflectorizantă la ceață</div>
+            <div class="flex items-center gap-2"><span>❄️</span> Verificare anvelope la brumă/gheață</div>
+          </div>
+        </section>
+        <hr class="border-border" />
+        <section>
+          <h3 class="font-display font-bold text-base text-gray-100 mb-3 flex items-center gap-2">
+            <span class="w-7 h-7 rounded-lg bg-ok/20 text-ok flex items-center justify-center text-sm">🕐</span>
+            Prognoză Orară vs. Zilnică
+          </h3>
+          <div class="grid sm:grid-cols-2 gap-3">
+            <div class="bg-bg border border-border rounded-xl p-3"><div class="text-xs font-bold text-gray-200 mb-1.5">📅 Prognoza Zilnică</div><p class="text-xs text-muted leading-relaxed">Scorul zilnic folosește valorile maxime acumulate pe zi pentru a evita suprapenalizarea. Reflectă tendința generală a zilei.</p></div>
+            <div class="bg-bg border border-border rounded-xl p-3"><div class="text-xs font-bold text-gray-200 mb-1.5">⏱ Prognoza Orară</div><p class="text-xs text-muted leading-relaxed">Calculul orar folosește intensitatea precipitațiilor pe oră și este mai precis pentru planificarea unui interval specific.</p></div>
+          </div>
+          <div class="mt-3 bg-ok/10 border border-ok/30 rounded-lg px-4 py-2.5 text-xs text-muted"><span class="text-ok font-semibold">💡 Interval ideal:</span> Sistemul identifică automat fereastra orară cu cel mai mare scor consecutiv din zi, dacă există un interval ≥90 puncte.</div>
+        </section>
+        <hr class="border-border" />
+        <section>
+          <h3 class="font-display font-bold text-base text-gray-100 mb-3 flex items-center gap-2">
+            <span class="w-7 h-7 rounded-lg bg-border flex items-center justify-center text-sm">📡</span>
+            Surse de Date
+          </h3>
+          <div class="grid sm:grid-cols-2 gap-3">
+            <div class="bg-bg border border-border rounded-xl p-4"><div class="text-sm font-bold text-gray-200 mb-1">🌐 Open-Meteo</div><div class="text-xs text-muted leading-relaxed">Sursă primară. Date gratuite, model WMO. Prognoză până la 16 zile. Calitate aer și geocodare inclusă.</div></div>
+            <div class="bg-bg border border-border rounded-xl p-4"><div class="text-sm font-bold text-gray-200 mb-1">🌤 OpenWeatherMap</div><div class="text-xs text-muted leading-relaxed">Sursă secundară. Date actuale și prognoză pe 5 zile. Ponderate ușor mai mic în agregare.</div></div>
+          </div>
+          <div class="mt-3 text-xs text-muted bg-bg border border-border rounded-lg px-4 py-2.5"><strong class="text-gray-300">Medie ponderată:</strong> Valorile celor două surse sunt combinate — dacă una lipsește, cealaltă preia. Rafalele de vânt au ponderea Open-Meteo ușor mai mare (1.2 vs 0.8).</div>
+        </section>
+        <div class="pt-2 text-center text-xs text-muted">MotoMeteo · Date meteo în timp real pentru motocicliști</div>
+      </div>
+    </div>
+  </div>
+
   <script>
     // ---------------------------------------------------------------------------
     // Backend URL configuration
