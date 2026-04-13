@@ -630,7 +630,7 @@
         <div class="grid grid-cols-1 gap-2">
           <button id="push-account-btn" onclick="togglePushAlerts()"
             class="w-full border border-border text-gray-200 hover:border-ok hover:text-ok py-2 rounded-xl text-sm transition-colors">Alerte
-            push/email: OFF</button>
+            push: OFF</button>
           <button onclick="unsubscribeEmailAlerts()"
             class="w-full border border-warn/40 text-warn hover:border-warn py-2 rounded-xl text-sm transition-colors">Dezabonare
             alerte email</button>
@@ -688,6 +688,25 @@
           <div class="text-xs text-muted mb-3">Pragurile de mai jos se sincronizează și cu alertele push/email ale
             contului.</div>
           <div id="account-alerts-list" class="space-y-2"></div>
+          <div class="mt-3">
+            <div class="text-xs text-muted tracking-widest uppercase mb-2">Email: notificări individuale</div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <label class="flex items-center gap-2 text-sm text-gray-200"><input id="email-alert-wind" type="checkbox"
+                  class="accent-accent" checked> Rafale puternice</label>
+              <label class="flex items-center gap-2 text-sm text-gray-200"><input id="email-alert-rain" type="checkbox"
+                  class="accent-accent" checked> Ploaie puternică</label>
+              <label class="flex items-center gap-2 text-sm text-gray-200"><input id="email-alert-rain-prob"
+                  type="checkbox" class="accent-accent" checked> Probabilitate mare de ploaie</label>
+              <label class="flex items-center gap-2 text-sm text-gray-200"><input id="email-alert-score" type="checkbox"
+                  class="accent-accent" checked> Scor moto scăzut</label>
+              <label class="flex items-center gap-2 text-sm text-gray-200"><input id="email-alert-temp-low"
+                  type="checkbox" class="accent-accent" checked> Temperatură joasă</label>
+              <label class="flex items-center gap-2 text-sm text-gray-200"><input id="email-alert-temp-high"
+                  type="checkbox" class="accent-accent" checked> Temperatură ridicată</label>
+              <label class="flex items-center gap-2 text-sm text-gray-200 sm:col-span-2"><input id="email-alert-frost"
+                  type="checkbox" class="accent-accent" checked> Risc carosabil alunecos</label>
+            </div>
+          </div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
             <div>
               <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Scor minim</label>
@@ -1061,6 +1080,13 @@
           body: JSON.stringify({
             enabled: true,
             email_alerts_enabled: true,
+            email_alert_wind: true,
+            email_alert_rain: true,
+            email_alert_rain_probability: true,
+            email_alert_score: true,
+            email_alert_temp_low: true,
+            email_alert_temp_high: true,
+            email_alert_frost: true,
             min_score: 45,
             max_wind_gust: 50,
             max_precip: 2,
@@ -1164,7 +1190,7 @@
     function _updatePushButton(enabled, updateLabel) {
       var btn = document.getElementById('push-account-btn');
       if (!btn) return;
-      if (updateLabel) btn.textContent = enabled ? 'Alerte push/email: ON' : 'Alerte push/email: OFF';
+      if (updateLabel) btn.textContent = enabled ? 'Alerte push: ON' : 'Alerte push: OFF';
       btn.classList.toggle('border-ok', !!enabled);
       btn.classList.toggle('text-ok', !!enabled);
     }
@@ -1247,6 +1273,13 @@
         max_wind_gust: 50,
         max_precip: 2,
         max_rain_probability: 70,
+        email_alert_wind: true,
+        email_alert_rain: true,
+        email_alert_rain_probability: true,
+        email_alert_score: true,
+        email_alert_temp_low: true,
+        email_alert_temp_high: true,
+        email_alert_frost: true,
         min_temp: null,
         max_temp: null,
         frost_risk_enabled: true,
@@ -1271,6 +1304,13 @@
       if (byId('alert-max-rain-prob')) byId('alert-max-rain-prob').value = s.max_rain_probability;
       if (byId('alert-min-temp')) byId('alert-min-temp').value = s.min_temp == null ? '' : s.min_temp;
       if (byId('alert-max-temp')) byId('alert-max-temp').value = s.max_temp == null ? '' : s.max_temp;
+      if (byId('email-alert-wind')) byId('email-alert-wind').checked = !!s.email_alert_wind;
+      if (byId('email-alert-rain')) byId('email-alert-rain').checked = !!s.email_alert_rain;
+      if (byId('email-alert-rain-prob')) byId('email-alert-rain-prob').checked = !!s.email_alert_rain_probability;
+      if (byId('email-alert-score')) byId('email-alert-score').checked = !!s.email_alert_score;
+      if (byId('email-alert-temp-low')) byId('email-alert-temp-low').checked = !!s.email_alert_temp_low;
+      if (byId('email-alert-temp-high')) byId('email-alert-temp-high').checked = !!s.email_alert_temp_high;
+      if (byId('email-alert-frost')) byId('email-alert-frost').checked = !!s.email_alert_frost;
       if (byId('alert-quiet-enabled')) byId('alert-quiet-enabled').checked = !!s.quiet_hours_enabled;
       if (byId('alert-quiet-start')) byId('alert-quiet-start').value = s.quiet_start_hour;
       if (byId('alert-quiet-end')) byId('alert-quiet-end').value = s.quiet_end_hour;
@@ -1325,6 +1365,13 @@
         max_wind_gust: Math.max(10, Math.min(200, parseFloat((document.getElementById('alert-max-wind') || {}).value || 50))),
         max_precip: Math.max(0, Math.min(50, parseFloat((document.getElementById('alert-max-precip') || {}).value || 2))),
         max_rain_probability: Math.max(0, Math.min(100, parseInt((document.getElementById('alert-max-rain-prob') || {}).value || 70, 10))),
+        email_alert_wind: !!((document.getElementById('email-alert-wind') || {}).checked),
+        email_alert_rain: !!((document.getElementById('email-alert-rain') || {}).checked),
+        email_alert_rain_probability: !!((document.getElementById('email-alert-rain-prob') || {}).checked),
+        email_alert_score: !!((document.getElementById('email-alert-score') || {}).checked),
+        email_alert_temp_low: !!((document.getElementById('email-alert-temp-low') || {}).checked),
+        email_alert_temp_high: !!((document.getElementById('email-alert-temp-high') || {}).checked),
+        email_alert_frost: !!((document.getElementById('email-alert-frost') || {}).checked),
         min_temp: ((document.getElementById('alert-min-temp') || {}).value || '').trim(),
         max_temp: ((document.getElementById('alert-max-temp') || {}).value || '').trim(),
         frost_risk_enabled: !!((document.getElementById('alert-frost-enabled') || {}).checked),
@@ -1348,6 +1395,13 @@
             body: JSON.stringify({
               enabled: true,
               email_alerts_enabled: true,
+              email_alert_wind: settings.email_alert_wind,
+              email_alert_rain: settings.email_alert_rain,
+              email_alert_rain_probability: settings.email_alert_rain_probability,
+              email_alert_score: settings.email_alert_score,
+              email_alert_temp_low: settings.email_alert_temp_low,
+              email_alert_temp_high: settings.email_alert_temp_high,
+              email_alert_frost: settings.email_alert_frost,
               min_score: settings.min_score,
               max_wind_gust: settings.max_wind_gust,
               max_precip: settings.max_precip,
