@@ -171,15 +171,23 @@
       background-color: rgba(239, 68, 68, 0.12) !important;
     }
 
-    #route-map {
+    #route-map,
+    #radar-map {
       position: relative;
       z-index: 0;
+      isolation: isolate;
+      overflow: hidden;
+      transform: translateZ(0);
     }
 
     #route-map .leaflet-pane,
     #route-map .leaflet-top,
     #route-map .leaflet-bottom,
-    #route-map .leaflet-control {
+    #route-map .leaflet-control,
+    #radar-map .leaflet-pane,
+    #radar-map .leaflet-top,
+    #radar-map .leaflet-bottom,
+    #radar-map .leaflet-control {
       z-index: 1 !important;
     }
 
@@ -362,6 +370,8 @@
     /* Safe-area padding for the sticky header (notch / Dynamic Island) */
     header.safe-top {
       padding-top: env(safe-area-inset-top);
+      isolation: isolate;
+      z-index: 300 !important;
     }
 
     /* Extra bottom padding so content isn't hidden behind the home indicator */
