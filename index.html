@@ -3264,7 +3264,7 @@
       html += '<span class="ml-auto text-xs px-2 py-1 rounded-md font-semibold" style="background:' + dna.color + '22;color:' + dna.color + '">' + dna.label + '</span>';
       html += '</div>';
       bars.forEach(function (b) {
-        var c = b.val >= 75 ? '#22c55e' : b.val >= 55 ? '#f97316' : b.val >= 35 ? '#eab308' : '#ef4444';
+        var c = b.val >= 75 ? '#22c55e' : b.val >= 55 ? '#eab308' : b.val >= 35 ? '#f97316' : '#ef4444';
         html += '<div class="mb-3 last:mb-0">';
         html += '<div class="flex items-center text-xs text-muted mb-1"><span>' + b.icon + ' ' + b.key + '</span><span class="ml-auto font-bold" style="color:' + c + '">' + b.val + '</span></div>';
         html += '<div class="w-full h-2 bg-bg border border-border rounded-full overflow-hidden"><div class="h-full" style="width:' + b.val + '%;background:' + c + '"></div></div>';
