@@ -229,7 +229,9 @@ async def weather(
         resolved_city = geo["name"] + (f", {geo['country']}" if geo.get("country") else "")
 
     try:
-        data = await get_weather(lat, lon, resolved_city, OWM_API_KEY, forecast_days=days)
+        data = await get_weather(lat, lon, resolved_city, OWM_API_KEY, forecast_days=days,
+                                 pirate_weather_key=PIRATE_WEATHER_API_KEY,
+                                 met_user_agent=MET_NORWAY_USER_AGENT)
     except Exception as exc:
         logger.exception("Weather fetch error: %s", exc)
         raise HTTPException(
