@@ -67,6 +67,7 @@ def _moto_score(
     wind_gusts_kmh: float | None,
     precipitation_mm: float | None,
     weather_code: int | None,
+    precipitation_probability: int | None = 0,
 ) -> int:
     """
     Compute a 0-100 'moto suitability' score.
@@ -77,13 +78,13 @@ def _moto_score(
     g = wind_gusts_kmh or 0
     f = feels_like if feels_like is not None else 20
     code = weather_code or 0
+    prob = precipitation_probability or 0
 
-    if p > 5:
-        score -= 50
-    elif p > 1:
-        score -= 30
-    elif p > 0.2:
-        score -= 15
+    # Rain penalty: take the worse of actual mm amount or probability forecast.
+    # Using max() avoids double-stacking when both are high.
+    mm_penalty = 50 if p > 5 else 30 if p > 1 else 15 if p > 0.2 else 0
+    prob_penalty = 35 if prob >= 80 else 20 if prob >= 60 else 12 if prob >= 40 else 6 if prob >= 20 else 0
+    score -= max(mm_penalty, prob_penalty)
 
     if code in (95, 96, 99):  # thunderstorm
         score -= 40
@@ -806,7 +807,7 @@ def _merge_daily(om_data: dict, owm_forecast: dict | None) -> list[dict]:
 
         final_code = owm_day_code if owm_day_code is not None else om_code
 
-        score = _moto_score(fa_max, wind_gusts, precipitation, final_code)
+        score = _moto_score(fa_max, wind_gusts, precipitation, final_code, prec_prob)
 
         result.append({
             "date": date,
@@ -903,7 +904,8 @@ async def _fetch_waypoint_weather(
         feels = _safe(hourly.get("apparent_temperature"), best_idx)
         gusts = _safe(hourly.get("wind_gusts_10m"), best_idx)
         prec = _safe(hourly.get("precipitation"), best_idx)
-        score = _moto_score(feels, gusts, prec, code)
+        prec_prob = _safe(hourly.get("precipitation_probability"), best_idx)
+        score = _moto_score(feels, gusts, prec, code, prec_prob)
 
         return {
             "time": times[best_idx] if best_idx < len(times) else eta_iso,
