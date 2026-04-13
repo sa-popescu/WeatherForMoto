@@ -942,7 +942,9 @@ def _merge_current(
     # --- humidity
     om_hum = c.get("relative_humidity_2m")
     owm_hum = owm_current["main"]["humidity"] if owm_current else None
-    humidity = _weighted_avg([om_hum, owm_hum], [1.0, 1.0])
+    met_hum = met_norm.get("humidity") if met_norm else None
+    pw_hum = pw_norm.get("humidity") if pw_norm else None
+    humidity = _weighted_avg([om_hum, owm_hum, met_hum, pw_hum], [1.2, 1.0, 1.1, 0.8])
 
     # --- wind speed (km/h) and gusts
     om_wind = c.get("wind_speed_10m")
