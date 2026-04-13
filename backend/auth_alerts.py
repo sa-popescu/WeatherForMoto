@@ -25,7 +25,7 @@ logger = logging.getLogger("weatherformoto.auth_alerts")
 DB_PATH = os.getenv("APP_DB_PATH", os.path.join(os.path.dirname(__file__), "app.db"))
 AUTH_CODE_TTL_MIN = int(os.getenv("AUTH_CODE_TTL_MIN", "10"))
 SESSION_TTL_DAYS = int(os.getenv("SESSION_TTL_DAYS", "30"))
-ALLOW_INSECURE_AUTH_CODE = os.getenv("ALLOW_INSECURE_AUTH_CODE", "true").lower() == "true"
+ALLOW_INSECURE_AUTH_CODE = os.getenv("ALLOW_INSECURE_AUTH_CODE", "false").lower() == "true"
 
 SMTP_HOST = os.getenv("SMTP_HOST")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
@@ -33,6 +33,7 @@ SMTP_USER = os.getenv("SMTP_USER")
 SMTP_PASS = os.getenv("SMTP_PASS")
 SMTP_FROM = os.getenv("SMTP_FROM", SMTP_USER or "no-reply@motometeo.local")
 BREVO_API_KEY = os.getenv("BREVO_API_KEY", "")
+OWM_API_KEY = os.getenv("OPENWEATHERMAP_API_KEY", "")
 PBKDF2_ITERATIONS = int(os.getenv("PBKDF2_ITERATIONS", "210000"))
 
 VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY", "")
@@ -1237,10 +1238,9 @@ async def _dispatch_for_user(conn: sqlite3.Connection, user_id: int, email: str,
 
 @router.post("/alerts/check-now")
 async def alerts_check_now(user: SessionUser = Depends(get_current_user)) -> dict[str, Any]:
-    owm_api_key = os.getenv("OPENWEATHERMAP_API_KEY", "3e17019022d624b5b3d26b54f7c6b8a5")
     conn = _connect()
     try:
-        result = await _dispatch_for_user(conn, user.user_id, user.email, owm_api_key)
+        result = await _dispatch_for_user(conn, user.user_id, user.email, OWM_API_KEY)
         return {"ok": True, **result}
     finally:
         conn.close()
@@ -1252,14 +1252,13 @@ async def alerts_dispatch_all(secret: str) -> dict[str, Any]:
     if not expected or not hmac.compare_digest(secret, expected):
         raise HTTPException(status_code=401, detail="Invalid secret")
 
-    owm_api_key = os.getenv("OPENWEATHERMAP_API_KEY", "3e17019022d624b5b3d26b54f7c6b8a5")
     conn = _connect()
     try:
         users = conn.execute("SELECT id, email FROM users").fetchall()
         total_sent = 0
         total_events = 0
         for u in users:
-            result = await _dispatch_for_user(conn, u["id"], u["email"], owm_api_key)
+            result = await _dispatch_for_user(conn, u["id"], u["email"], OWM_API_KEY)
             total_sent += int(result.get("sent", 0))
             total_events += len(result.get("events", []))
         return {"ok": True, "users": len(users), "sent": total_sent, "events": total_events}
