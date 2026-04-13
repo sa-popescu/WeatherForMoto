@@ -10,6 +10,7 @@ from weather_service import (
     _wind_direction_label,
     _beaufort,
     _moto_score,
+    _moto_score_daily,
     _moto_label,
     _wmo_desc,
     _wmo_icon,
@@ -67,6 +68,30 @@ def test_moto_score_rain():
 def test_moto_score_thunderstorm():
     score = _moto_score(feels_like=20, wind_gusts_kmh=10, precipitation_mm=2, weather_code=95)
     assert score <= 30
+
+
+def test_moto_score_probability_penalty():
+    score = _moto_score(
+        feels_like=20,
+        wind_gusts_kmh=10,
+        precipitation_mm=0,
+        weather_code=0,
+        precipitation_probability=60,
+    )
+    assert score == 80
+
+
+def test_moto_score_daily_uses_day_thresholds():
+    score = _moto_score_daily(
+        feels_min=9,
+        feels_max=14,
+        wind_gusts_kmh=30,
+        precipitation_mm_day=1.9,
+        weather_code=3,
+        precipitation_probability=15,
+    )
+    # 1.9 mm/day should not be treated as heavy hourly rain.
+    assert score >= 80
 
 
 def test_moto_label():

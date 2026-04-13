@@ -109,6 +109,57 @@ def _moto_score(
     return max(0, min(100, round(score)))
 
 
+def _moto_score_daily(
+    feels_min: float | None,
+    feels_max: float | None,
+    wind_gusts_kmh: float | None,
+    precipitation_mm_day: float | None,
+    weather_code: int | None,
+    precipitation_probability: int | None = 0,
+) -> int:
+    """
+    Daily 0-100 moto score.
+
+    Uses daily precipitation totals with dedicated thresholds (mm/day),
+    avoiding over-penalization from hourly thresholds.
+    """
+    score = 100
+    p_day = precipitation_mm_day or 0
+    g = wind_gusts_kmh or 0
+    f_min = feels_min if feels_min is not None else 12
+    f_max = feels_max if feels_max is not None else 24
+    code = weather_code or 0
+    prob = precipitation_probability or 0
+
+    # Daily rain amount thresholds (mm/day), less aggressive than mm/h.
+    day_penalty = 35 if p_day > 20 else 25 if p_day > 10 else 15 if p_day > 5 else 8 if p_day > 1 else 0
+    prob_penalty = 35 if prob >= 80 else 20 if prob >= 60 else 12 if prob >= 40 else 6 if prob >= 20 else 0
+    score -= max(day_penalty, prob_penalty)
+
+    if code in (95, 96, 99):
+        score -= 35
+
+    if g > 70:
+        score -= 30
+    elif g > 50:
+        score -= 15
+    elif g > 35:
+        score -= 8
+
+    # Account for both morning cold and daytime heat extremes.
+    if f_min < 5:
+        score -= 20
+    elif f_min < 10:
+        score -= 10
+    if f_max > 36:
+        score -= 10
+
+    if code in (45, 48):
+        score -= 20
+
+    return max(0, min(100, round(score)))
+
+
 def _moto_label(score: int) -> str:
     if score >= 80:
         return "IDEAL"
@@ -807,7 +858,7 @@ def _merge_daily(om_data: dict, owm_forecast: dict | None) -> list[dict]:
 
         final_code = owm_day_code if owm_day_code is not None else om_code
 
-        score = _moto_score(fa_max, wind_gusts, precipitation, final_code, prec_prob)
+        score = _moto_score_daily(fa_min, fa_max, wind_gusts, precipitation, final_code, prec_prob)
 
         result.append({
             "date": date,

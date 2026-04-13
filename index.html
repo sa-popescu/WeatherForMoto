@@ -1652,7 +1652,7 @@
         var feels = omSafe(h.apparent_temperature, bestIdx);
         var gusts = omSafe(h.wind_gusts_10m, bestIdx);
         var prec = omSafe(h.precipitation, bestIdx);
-        var hs = scoreHourly(feels, gusts, prec, code);
+        var hs = scoreHourly(feels, gusts, prec, code, omSafe(h.precipitation_probability, bestIdx));
         return {
           time: times[bestIdx] || etaPrefix,
           temperature: omSafe(h.temperature_2m, bestIdx),
@@ -2205,12 +2205,30 @@
     function aqiCls(a) { return a >= 4 ? "text-danger" : a >= 3 ? "text-warn" : "text-ok"; }
     function aqiLabel(a) { return ["—", "Bun", "Acceptabil", "Moderat", "Rău", "Foarte rău"][a] || "—"; }
 
-    function scoreHourly(feels, gusts, prec, code) {
+    function scoreHourly(feels, gusts, prec, code, precipProb) {
       var s = 100;
-      if (prec > 5) s -= 50; else if (prec > 1) s -= 30; else if (prec > 0.2) s -= 15;
+      var prob = precipProb || 0;
+      var mmPenalty = prec > 5 ? 50 : prec > 1 ? 30 : prec > 0.2 ? 15 : 0;
+      var probPenalty = prob >= 80 ? 35 : prob >= 60 ? 20 : prob >= 40 ? 12 : prob >= 20 ? 6 : 0;
+      s -= Math.max(mmPenalty, probPenalty);
       if ([95, 96, 99].indexOf(code) > -1) s -= 40;
       if (gusts > 70) s -= 30; else if (gusts > 50) s -= 15; else if (gusts > 35) s -= 8;
       if (feels < 5) s -= 25; else if (feels < 10) s -= 12; else if (feels > 36) s -= 10;
+      if ([45, 48].indexOf(code) > -1) s -= 20;
+      return Math.max(0, Math.min(100, Math.round(s)));
+    }
+
+    function scoreDaily(feelsMin, feelsMax, gustMax, precDay, code, precipProb) {
+      var s = 100;
+      var pDay = precDay || 0;
+      var prob = precipProb || 0;
+      var dayPenalty = pDay > 20 ? 35 : pDay > 10 ? 25 : pDay > 5 ? 15 : pDay > 1 ? 8 : 0;
+      var probPenalty = prob >= 80 ? 35 : prob >= 60 ? 20 : prob >= 40 ? 12 : prob >= 20 ? 6 : 0;
+      s -= Math.max(dayPenalty, probPenalty);
+      if ([95, 96, 99].indexOf(code) > -1) s -= 35;
+      if (gustMax > 70) s -= 30; else if (gustMax > 50) s -= 15; else if (gustMax > 35) s -= 8;
+      if (feelsMin < 5) s -= 20; else if (feelsMin < 10) s -= 10;
+      if (feelsMax > 36) s -= 10;
       if ([45, 48].indexOf(code) > -1) s -= 20;
       return Math.max(0, Math.min(100, Math.round(s)));
     }
@@ -2477,7 +2495,10 @@
         ? Math.round(owmCur.visibility / 100) / 10
         : (c.visibility != null ? Math.round(c.visibility / 100) / 10 : null);
       var aqi = owmAir && owmAir.list && owmAir.list.length ? owmAir.list[0].main.aqi : null;
-      var motoScore = scoreHourly(feels, windGusts, prec, finalCode);
+      var nextHourlyProb = om.hourly && om.hourly.precipitation_probability && om.hourly.precipitation_probability.length
+        ? om.hourly.precipitation_probability[0]
+        : 0;
+      var motoScore = scoreHourly(feels, windGusts, prec, finalCode, nextHourlyProb);
       var sources = ["open-meteo"];
       if (owmCur) sources.push("openweathermap");
       if (met0) sources.push("met-norway");
@@ -2557,12 +2578,13 @@
           var metDayCodes = metItems.map(function (ts) { var p = ts.data.next_1_hours || ts.data.next_6_hours; return p && p.summary ? metSymToWmo(p.summary.symbol_code) : null; }).filter(function (x) { return x != null; });
           if (metDayCodes.length) { var metMax = metDayCodes.reduce(function (a, b) { return b > a ? b : a; }); if (metMax > dcode) dcode = metMax; }
         }
-        var ds = scoreHourly(famax, gustMax, precSum, dcode);
+        var dayProb = omSafe(dd.precipitation_probability_max, i) || 0;
+        var ds = scoreDaily(famin, famax, gustMax, precSum, dcode, dayProb);
         daily.push({
           date: dates[i], weather_code: dcode, icon: wmoIcon(dcode), description: wmoDesc(dcode),
           temp_max: tMax, temp_min: tMin, feels_max: famax, feels_min: famin,
           precipitation_mm: Math.round(precSum * 10) / 10,
-          precipitation_probability: omSafe(dd.precipitation_probability_max, i) || 0,
+          precipitation_probability: dayProb,
           wind_max_kmh: omSafe(dd.wind_speed_10m_max, i), wind_gusts_kmh: gustMax,
           moto_score: ds, moto_label: motoLabel(ds),
           sunrise: omSafe(dd.sunrise, i), sunset: omSafe(dd.sunset, i),
@@ -2635,7 +2657,7 @@
         c.icon = wmoIcon(c.weather_code);
         c.description = wmoDesc(c.weather_code);
       }
-      c.moto_score = scoreHourly(c.feels_like, c.wind_gusts_kmh, c.precipitation_mm, c.weather_code);
+      c.moto_score = scoreHourly(c.feels_like, c.wind_gusts_kmh, c.precipitation_mm, c.weather_code, 0);
       c.moto_label = motoLabel(c.moto_score);
 
       var src = (c.sources || []).slice();
@@ -2725,7 +2747,7 @@
     function _findWindowForSlice(slice) {
       if (!slice || slice.length < 1) return null;
       var scores = slice.map(function (h) {
-        return scoreHourly(h.feels_like, h.wind_gusts_kmh, h.precipitation_mm, h.weather_code);
+        return scoreHourly(h.feels_like, h.wind_gusts_kmh, h.precipitation_mm, h.weather_code, h.precipitation_probability);
       });
       var bestAvg = -1, bestStart = -1, bestLen = 0;
       for (var i = 0; i < scores.length; i++) {
@@ -3074,7 +3096,7 @@
     function getDepartureAdvisor(hourly) {
       if (!hourly || !hourly.length) return [];
       var next = hourly.slice(0, 6).map(function (h) {
-        var score = scoreHourly(h.feels_like, h.wind_gusts_kmh, h.precipitation_mm, h.weather_code);
+        var score = scoreHourly(h.feels_like, h.wind_gusts_kmh, h.precipitation_mm, h.weather_code, h.precipitation_probability);
         return {
           time: new Date(h.time).getHours().toString().padStart(2, '0') + ':00',
           score: score,
@@ -3294,7 +3316,7 @@
         var t = new Date(h.time);
         var hh = t.getHours().toString().padStart(2, "0") + ":00";
         var rp = h.precipitation_probability || 0;
-        var hs = scoreHourly(h.feels_like, h.wind_gusts_kmh, h.precipitation_mm, h.weather_code);
+        var hs = scoreHourly(h.feels_like, h.wind_gusts_kmh, h.precipitation_mm, h.weather_code, h.precipitation_probability);
         var scoreColor = hs >= 80 ? '#22c55e' : hs >= 60 ? '#f97316' : hs >= 40 ? '#eab308' : '#ef4444';
         var borderCol = hs < 40 ? "border-danger" : rp > 40 ? "border-warn" : idx === 0 ? "border-accent" : "border-border";
         var nowClass = idx === 0 ? "hourly-now border-accent" : "";
@@ -3395,7 +3417,7 @@
           dayHourly.forEach(function (h) {
             var ht = new Date(h.time).getHours().toString().padStart(2, "0") + ":00";
             var hrp = h.precipitation_probability || 0;
-            var hsc = scoreHourly(h.feels_like, h.wind_gusts_kmh, h.precipitation_mm, h.weather_code);
+            var hsc = scoreHourly(h.feels_like, h.wind_gusts_kmh, h.precipitation_mm, h.weather_code, h.precipitation_probability);
             var hCol = hsc >= 80 ? '#22c55e' : hsc >= 60 ? '#f97316' : hsc >= 40 ? '#eab308' : '#ef4444';
             html += '<div class="daily-mini-card flex-shrink-0 bg-card border border-border rounded-xl p-2 w-16 text-center flex flex-col items-center gap-0.5">';
             html += '<div class="text-xs text-muted font-semibold">' + ht + '</div>';
