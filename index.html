@@ -1850,7 +1850,7 @@
           var w = wp.weather;
           if (!w) { html += '<div class="flex-shrink-0 w-36 bg-bg border border-border rounded-xl p-3 text-center"><div class="text-muted text-xs py-4">—</div></div>'; return; }
           var ds = w.moto_score || 0;
-          var scoreColor = ds >= 80 ? '#22c55e' : ds >= 60 ? '#f97316' : ds >= 40 ? '#eab308' : '#ef4444';
+          var scoreColor = ds >= 85 ? '#22c55e' : ds >= 60 ? '#eab308' : ds >= 40 ? '#f97316' : '#ef4444';
           var borderCls = ds < 40 ? 'border-danger' : ds < 60 ? 'border-warn' : 'border-ok';
           var etaStr = wp.eta_iso ? wp.eta_iso.slice(11, 16) : '—';
           html += '<div class="flex-shrink-0 bg-card border ' + borderCls + ' rounded-xl p-3 w-36 flex flex-col items-center gap-1">';
@@ -1905,7 +1905,7 @@
           var w = seg.weather[wIdx];
           if (!w) { html += '<div class="flex-shrink-0 w-36 bg-bg border border-border rounded-xl p-3 text-center"><div class="text-muted text-xs py-4">—</div></div>'; return; }
           var ds = w.moto_score || 0;
-          var scoreColor = ds >= 80 ? '#22c55e' : ds >= 60 ? '#f97316' : ds >= 40 ? '#eab308' : '#ef4444';
+          var scoreColor = ds >= 85 ? '#22c55e' : ds >= 60 ? '#eab308' : ds >= 40 ? '#f97316' : '#ef4444';
           var borderCls = ds < 40 ? 'border-danger' : ds < 60 ? 'border-warn' : 'border-ok';
           var etaStr = wp.eta.getHours().toString().padStart(2, '0') + ':' + wp.eta.getMinutes().toString().padStart(2, '0');
           html += '<div class="flex-shrink-0 bg-card border ' + borderCls + ' rounded-xl p-3 w-36 flex flex-col items-center gap-1">';
@@ -1954,7 +1954,7 @@
         var w = weatherResults[idx];
         if (!w) { html += '<div class="flex-shrink-0 w-36 bg-bg border border-border rounded-xl p-3 text-center"><div class="text-muted text-xs py-4">—</div></div>'; return; }
         var ds = w.moto_score || 0;
-        var scoreColor = ds >= 80 ? '#22c55e' : ds >= 60 ? '#f97316' : ds >= 40 ? '#eab308' : '#ef4444';
+        var scoreColor = ds >= 85 ? '#22c55e' : ds >= 60 ? '#eab308' : ds >= 40 ? '#f97316' : '#ef4444';
         var borderCls = ds < 40 ? 'border-danger' : ds < 60 ? 'border-warn' : 'border-ok';
         var etaStr = wp.eta.getHours().toString().padStart(2, '0') + ':' + wp.eta.getMinutes().toString().padStart(2, '0');
         var prec = w.precipitation_mm || 0;
@@ -3533,7 +3533,7 @@
         var rp = day.precipitation_probability || 0;
         var gustMax = Math.round(day.wind_gusts_kmh || 0);
         var ds = day.moto_score;
-        var scoreColor = ds >= 80 ? '#22c55e' : ds >= 60 ? '#f97316' : ds >= 40 ? '#eab308' : '#ef4444';
+        var scoreColor = ds >= 85 ? '#22c55e' : ds >= 60 ? '#eab308' : ds >= 40 ? '#f97316' : '#ef4444';
         var borderCol = ds < 40 ? "border-l-danger" : ds < 60 ? "border-l-warn" : ds < 80 ? "border-l-accent" : "border-l-ok";
         var range = allMax - allMin || 1;
         var bL = Math.round(((tMin - allMin) / range) * 100);
