@@ -932,9 +932,12 @@ def _merge_current(
     om_feel = c.get("apparent_temperature")
     owm_temp = owm_current["main"]["temp"] if owm_current else None
     owm_feel = owm_current["main"]["feels_like"] if owm_current else None
+    met_temp = met_norm.get("temp") if met_norm else None
+    pw_temp = pw_norm.get("temp") if pw_norm else None
+    pw_feel = pw_norm.get("feels_like") if pw_norm else None
 
-    temp = _weighted_avg([om_temp, owm_temp], [1.0, 1.0])
-    feels = _weighted_avg([om_feel, owm_feel], [1.0, 1.0])
+    temp = _weighted_avg([om_temp, owm_temp, met_temp, pw_temp], [1.2, 1.0, 1.1, 0.8])
+    feels = _weighted_avg([om_feel, owm_feel, pw_feel], [1.0, 1.0, 0.8])
 
     # --- humidity
     om_hum = c.get("relative_humidity_2m")
