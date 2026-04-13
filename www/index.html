@@ -2336,6 +2336,7 @@
       if (gusts > 70) s -= 30; else if (gusts > 50) s -= 15; else if (gusts > 35) s -= 8;
       if (feels < 5) s -= 25; else if (feels < 10) s -= 12; else if (feels > 36) s -= 10;
       if ([45, 48].indexOf(code) > -1) s -= 20;
+      if (prob >= 20 && s > 79) s = 79;
       return Math.max(0, Math.min(100, Math.round(s)));
     }
 
@@ -2351,6 +2352,7 @@
       if (feelsMin < 5) s -= 20; else if (feelsMin < 10) s -= 10;
       if (feelsMax > 36) s -= 10;
       if ([45, 48].indexOf(code) > -1) s -= 20;
+      if (prob >= 20 && s > 79) s = 79;
       return Math.max(0, Math.min(100, Math.round(s)));
     }
 
