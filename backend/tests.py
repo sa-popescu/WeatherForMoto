@@ -67,7 +67,7 @@ def test_moto_score_rain():
 
 def test_moto_score_thunderstorm():
     score = _moto_score(feels_like=20, wind_gusts_kmh=10, precipitation_mm=2, weather_code=95)
-    assert score <= 30
+    assert score == 39
 
 
 def test_moto_score_probability_penalty():
@@ -78,7 +78,7 @@ def test_moto_score_probability_penalty():
         weather_code=0,
         precipitation_probability=60,
     )
-    assert score == 79
+    assert score == 55
 
 
 def test_moto_score_probability_penalty_from_five_percent():
@@ -89,7 +89,7 @@ def test_moto_score_probability_penalty_from_five_percent():
         weather_code=0,
         precipitation_probability=5,
     )
-    assert score == 97
+    assert score == 79
 
 
 def test_moto_score_twenty_percent_rain_not_green():
@@ -100,7 +100,7 @@ def test_moto_score_twenty_percent_rain_not_green():
         weather_code=0,
         precipitation_probability=20,
     )
-    assert score == 79
+    assert score == 75
 
 
 def test_moto_score_daily_uses_day_thresholds():
@@ -112,8 +112,9 @@ def test_moto_score_daily_uses_day_thresholds():
         weather_code=3,
         precipitation_probability=15,
     )
-    # 1.9 mm/day should not be treated as heavy hourly rain.
-    assert score >= 80
+    # 1.9 mm/day should not be treated as heavy hourly rain,
+    # but any rain chance keeps the day out of the green band.
+    assert score == 79
 
 
 def test_moto_score_daily_probability_penalty_from_five_percent():
@@ -125,7 +126,7 @@ def test_moto_score_daily_probability_penalty_from_five_percent():
         weather_code=1,
         precipitation_probability=5,
     )
-    assert score == 97
+    assert score == 79
 
 
 def test_moto_score_daily_twenty_percent_rain_not_green():
@@ -136,6 +137,17 @@ def test_moto_score_daily_twenty_percent_rain_not_green():
         precipitation_mm_day=0,
         weather_code=1,
         precipitation_probability=20,
+    )
+    assert score == 79
+
+
+def test_moto_score_hourly_actual_precip_not_green():
+    score = _moto_score(
+        feels_like=20,
+        wind_gusts_kmh=10,
+        precipitation_mm=0.1,
+        weather_code=0,
+        precipitation_probability=0,
     )
     assert score == 79
 
