@@ -73,6 +73,13 @@ class ProfilePayload(BaseModel):
 class AlertPrefsPayload(BaseModel):
     enabled: bool = True
     email_alerts_enabled: bool = True
+    email_alert_wind: bool = True
+    email_alert_rain: bool = True
+    email_alert_rain_probability: bool = True
+    email_alert_score: bool = True
+    email_alert_temp_low: bool = True
+    email_alert_temp_high: bool = True
+    email_alert_frost: bool = True
     min_score: int = Field(default=45, ge=0, le=100)
     max_wind_gust: float = Field(default=50, ge=10, le=200)
     max_precip: float = Field(default=2, ge=0, le=50)
@@ -172,6 +179,13 @@ def init_db() -> None:
                 user_id INTEGER PRIMARY KEY,
                 enabled INTEGER NOT NULL DEFAULT 1,
                 email_alerts_enabled INTEGER NOT NULL DEFAULT 1,
+                email_alert_wind INTEGER NOT NULL DEFAULT 1,
+                email_alert_rain INTEGER NOT NULL DEFAULT 1,
+                email_alert_rain_probability INTEGER NOT NULL DEFAULT 1,
+                email_alert_score INTEGER NOT NULL DEFAULT 1,
+                email_alert_temp_low INTEGER NOT NULL DEFAULT 1,
+                email_alert_temp_high INTEGER NOT NULL DEFAULT 1,
+                email_alert_frost INTEGER NOT NULL DEFAULT 1,
                 min_score INTEGER NOT NULL DEFAULT 45,
                 max_wind_gust REAL NOT NULL DEFAULT 50,
                 max_precip REAL NOT NULL DEFAULT 2,
@@ -248,6 +262,48 @@ def init_db() -> None:
             "alert_prefs",
             "email_alerts_enabled",
             "ALTER TABLE alert_prefs ADD COLUMN email_alerts_enabled INTEGER NOT NULL DEFAULT 1",
+        )
+        _ensure_column(
+            conn,
+            "alert_prefs",
+            "email_alert_wind",
+            "ALTER TABLE alert_prefs ADD COLUMN email_alert_wind INTEGER NOT NULL DEFAULT 1",
+        )
+        _ensure_column(
+            conn,
+            "alert_prefs",
+            "email_alert_rain",
+            "ALTER TABLE alert_prefs ADD COLUMN email_alert_rain INTEGER NOT NULL DEFAULT 1",
+        )
+        _ensure_column(
+            conn,
+            "alert_prefs",
+            "email_alert_rain_probability",
+            "ALTER TABLE alert_prefs ADD COLUMN email_alert_rain_probability INTEGER NOT NULL DEFAULT 1",
+        )
+        _ensure_column(
+            conn,
+            "alert_prefs",
+            "email_alert_score",
+            "ALTER TABLE alert_prefs ADD COLUMN email_alert_score INTEGER NOT NULL DEFAULT 1",
+        )
+        _ensure_column(
+            conn,
+            "alert_prefs",
+            "email_alert_temp_low",
+            "ALTER TABLE alert_prefs ADD COLUMN email_alert_temp_low INTEGER NOT NULL DEFAULT 1",
+        )
+        _ensure_column(
+            conn,
+            "alert_prefs",
+            "email_alert_temp_high",
+            "ALTER TABLE alert_prefs ADD COLUMN email_alert_temp_high INTEGER NOT NULL DEFAULT 1",
+        )
+        _ensure_column(
+            conn,
+            "alert_prefs",
+            "email_alert_frost",
+            "ALTER TABLE alert_prefs ADD COLUMN email_alert_frost INTEGER NOT NULL DEFAULT 1",
         )
         _ensure_column(
             conn,
@@ -433,8 +489,14 @@ def _upsert_default_prefs(conn: sqlite3.Connection, user_id: int) -> None:
     now = _utc_now().isoformat()
     conn.execute(
         """
-        INSERT INTO alert_prefs(user_id, enabled, email_alerts_enabled, min_score, max_wind_gust, max_precip, max_rain_probability, min_temp, max_temp, frost_risk_enabled, quiet_hours_enabled, quiet_start_hour, quiet_end_hour, severity, updated_at)
-        VALUES (?, 1, 1, 45, 50, 2, 70, NULL, NULL, 1, 0, 22, 7, 'medium', ?)
+        INSERT INTO alert_prefs(
+            user_id, enabled, email_alerts_enabled,
+            email_alert_wind, email_alert_rain, email_alert_rain_probability,
+            email_alert_score, email_alert_temp_low, email_alert_temp_high, email_alert_frost,
+            min_score, max_wind_gust, max_precip, max_rain_probability, min_temp, max_temp,
+            frost_risk_enabled, quiet_hours_enabled, quiet_start_hour, quiet_end_hour, severity, updated_at
+        )
+        VALUES (?, 1, 1, 1, 1, 1, 1, 1, 1, 1, 45, 50, 2, 70, NULL, NULL, 1, 0, 22, 7, 'medium', ?)
         ON CONFLICT(user_id) DO NOTHING
         """,
         (user_id, now),
@@ -589,7 +651,7 @@ async def me(user: SessionUser = Depends(get_current_user)) -> dict[str, Any]:
             (user.user_id,),
         ).fetchone()
         prefs = conn.execute(
-            "SELECT enabled, email_alerts_enabled, min_score, max_wind_gust, max_precip, max_rain_probability, min_temp, max_temp, frost_risk_enabled, quiet_hours_enabled, quiet_start_hour, quiet_end_hour, severity, home_lat, home_lon, city FROM alert_prefs WHERE user_id = ?",
+            "SELECT enabled, email_alerts_enabled, email_alert_wind, email_alert_rain, email_alert_rain_probability, email_alert_score, email_alert_temp_low, email_alert_temp_high, email_alert_frost, min_score, max_wind_gust, max_precip, max_rain_probability, min_temp, max_temp, frost_risk_enabled, quiet_hours_enabled, quiet_start_hour, quiet_end_hour, severity, home_lat, home_lon, city FROM alert_prefs WHERE user_id = ?",
             (user.user_id,),
         ).fetchone()
         sub_count = conn.execute(
@@ -614,11 +676,25 @@ async def update_prefs(payload: AlertPrefsPayload, user: SessionUser = Depends(g
         now = _utc_now().isoformat()
         conn.execute(
             """
-            INSERT INTO alert_prefs(user_id, enabled, email_alerts_enabled, min_score, max_wind_gust, max_precip, max_rain_probability, min_temp, max_temp, frost_risk_enabled, quiet_hours_enabled, quiet_start_hour, quiet_end_hour, severity, home_lat, home_lon, city, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO alert_prefs(
+                user_id, enabled, email_alerts_enabled,
+                email_alert_wind, email_alert_rain, email_alert_rain_probability,
+                email_alert_score, email_alert_temp_low, email_alert_temp_high, email_alert_frost,
+                min_score, max_wind_gust, max_precip, max_rain_probability, min_temp, max_temp,
+                frost_risk_enabled, quiet_hours_enabled, quiet_start_hour, quiet_end_hour,
+                severity, home_lat, home_lon, city, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(user_id) DO UPDATE SET
                 enabled = excluded.enabled,
                 email_alerts_enabled = excluded.email_alerts_enabled,
+                email_alert_wind = excluded.email_alert_wind,
+                email_alert_rain = excluded.email_alert_rain,
+                email_alert_rain_probability = excluded.email_alert_rain_probability,
+                email_alert_score = excluded.email_alert_score,
+                email_alert_temp_low = excluded.email_alert_temp_low,
+                email_alert_temp_high = excluded.email_alert_temp_high,
+                email_alert_frost = excluded.email_alert_frost,
                 min_score = excluded.min_score,
                 max_wind_gust = excluded.max_wind_gust,
                 max_precip = excluded.max_precip,
@@ -639,6 +715,13 @@ async def update_prefs(payload: AlertPrefsPayload, user: SessionUser = Depends(g
                 user.user_id,
                 int(payload.enabled),
                 int(payload.email_alerts_enabled),
+                int(payload.email_alert_wind),
+                int(payload.email_alert_rain),
+                int(payload.email_alert_rain_probability),
+                int(payload.email_alert_score),
+                int(payload.email_alert_temp_low),
+                int(payload.email_alert_temp_high),
+                int(payload.email_alert_frost),
                 payload.min_score,
                 payload.max_wind_gust,
                 payload.max_precip,
@@ -722,8 +805,14 @@ async def unsubscribe_email_alerts(user: SessionUser = Depends(get_current_user)
         now = _utc_now().isoformat()
         conn.execute(
             """
-            INSERT INTO alert_prefs(user_id, enabled, email_alerts_enabled, min_score, max_wind_gust, max_precip, max_rain_probability, min_temp, max_temp, frost_risk_enabled, quiet_hours_enabled, quiet_start_hour, quiet_end_hour, severity, updated_at)
-            VALUES (?, 1, 0, 45, 50, 2, 70, NULL, NULL, 1, 0, 22, 7, 'medium', ?)
+            INSERT INTO alert_prefs(
+                user_id, enabled, email_alerts_enabled,
+                email_alert_wind, email_alert_rain, email_alert_rain_probability,
+                email_alert_score, email_alert_temp_low, email_alert_temp_high, email_alert_frost,
+                min_score, max_wind_gust, max_precip, max_rain_probability, min_temp, max_temp,
+                frost_risk_enabled, quiet_hours_enabled, quiet_start_hour, quiet_end_hour, severity, updated_at
+            )
+            VALUES (?, 1, 0, 0, 0, 0, 0, 0, 0, 0, 45, 50, 2, 70, NULL, NULL, 1, 0, 22, 7, 'medium', ?)
             ON CONFLICT(user_id) DO UPDATE SET email_alerts_enabled = 0, updated_at = excluded.updated_at
             """,
             (user.user_id, now),
@@ -1061,9 +1150,27 @@ def _send_push(subscription: sqlite3.Row, title: str, body: str, data: dict[str,
     )
 
 
+def _is_email_event_enabled(prefs: sqlite3.Row, event_type: str) -> bool:
+    column_by_event = {
+        "wind": "email_alert_wind",
+        "rain": "email_alert_rain",
+        "rain_prob": "email_alert_rain_probability",
+        "score": "email_alert_score",
+        "temp_low": "email_alert_temp_low",
+        "temp_high": "email_alert_temp_high",
+        "frost": "email_alert_frost",
+    }
+    col = column_by_event.get(event_type)
+    if not col:
+        return True
+    if col not in prefs.keys():
+        return True
+    return bool(prefs[col])
+
+
 async def _dispatch_for_user(conn: sqlite3.Connection, user_id: int, email: str, owm_api_key: str) -> dict[str, Any]:
     prefs = conn.execute(
-        "SELECT enabled, email_alerts_enabled, min_score, max_wind_gust, max_precip, max_rain_probability, min_temp, max_temp, frost_risk_enabled, quiet_hours_enabled, quiet_start_hour, quiet_end_hour, severity, home_lat, home_lon, city FROM alert_prefs WHERE user_id = ?",
+        "SELECT enabled, email_alerts_enabled, email_alert_wind, email_alert_rain, email_alert_rain_probability, email_alert_score, email_alert_temp_low, email_alert_temp_high, email_alert_frost, min_score, max_wind_gust, max_precip, max_rain_probability, min_temp, max_temp, frost_risk_enabled, quiet_hours_enabled, quiet_start_hour, quiet_end_hour, severity, home_lat, home_lon, city FROM alert_prefs WHERE user_id = ?",
         (user_id,),
     ).fetchone()
     if not prefs or not prefs["enabled"]:
@@ -1105,7 +1212,7 @@ async def _dispatch_for_user(conn: sqlite3.Connection, user_id: int, email: str,
             except Exception as exc:
                 logger.warning("Push dispatch error for %s: %s", email, exc)
 
-        if email_enabled:
+        if email_enabled and _is_email_event_enabled(prefs, ev.get("type", "")):
             try:
                 subject = f"MotoMeteo alertă: {ev['title']}"
                 body = (
