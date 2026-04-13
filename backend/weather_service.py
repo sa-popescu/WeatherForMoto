@@ -25,6 +25,8 @@ OPENMETEO_BASE = "https://api.open-meteo.com/v1/forecast"
 GEOCODING_OPENMETEO = "https://geocoding-api.open-meteo.com/v1/search"
 OPENMETEO_AIR_BASE = "https://air-quality-api.open-meteo.com/v1/air-quality"
 OWM_GEO_URL = f"{OWM_BASE}/geo/1.0/direct"
+MET_NO_BASE = "https://api.met.no/weatherapi/locationforecast/2.0/complete"
+PIRATE_WEATHER_BASE = "https://api.pirateweather.net/forecast"
 
 
 # ---------------------------------------------------------------------------
