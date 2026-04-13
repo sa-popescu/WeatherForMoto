@@ -106,6 +106,10 @@ def _moto_score(
     if code in (45, 48):  # fog
         score -= 20
 
+    # 20%+ rain probability should not still appear as 'ideal/green'.
+    if prob >= 20 and score > 79:
+        score = 79
+
     return max(0, min(100, round(score)))
 
 
@@ -156,6 +160,9 @@ def _moto_score_daily(
 
     if code in (45, 48):
         score -= 20
+
+    if prob >= 20 and score > 79:
+        score = 79
 
     return max(0, min(100, round(score)))
 

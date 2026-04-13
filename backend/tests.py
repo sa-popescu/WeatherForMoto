@@ -78,7 +78,7 @@ def test_moto_score_probability_penalty():
         weather_code=0,
         precipitation_probability=60,
     )
-    assert score == 80
+    assert score == 79
 
 
 def test_moto_score_probability_penalty_from_five_percent():
@@ -90,6 +90,17 @@ def test_moto_score_probability_penalty_from_five_percent():
         precipitation_probability=5,
     )
     assert score == 97
+
+
+def test_moto_score_twenty_percent_rain_not_green():
+    score = _moto_score(
+        feels_like=20,
+        wind_gusts_kmh=10,
+        precipitation_mm=0,
+        weather_code=0,
+        precipitation_probability=20,
+    )
+    assert score == 79
 
 
 def test_moto_score_daily_uses_day_thresholds():
@@ -115,6 +126,18 @@ def test_moto_score_daily_probability_penalty_from_five_percent():
         precipitation_probability=5,
     )
     assert score == 97
+
+
+def test_moto_score_daily_twenty_percent_rain_not_green():
+    score = _moto_score_daily(
+        feels_min=12,
+        feels_max=20,
+        wind_gusts_kmh=20,
+        precipitation_mm_day=0,
+        weather_code=1,
+        precipitation_probability=20,
+    )
+    assert score == 79
 
 
 def test_moto_label():
