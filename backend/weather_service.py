@@ -604,6 +604,42 @@ def _owm_id_to_wmo(owm_id: int) -> int:
     return 0
 
 
+def _met_symbol_to_wmo(symbol: str) -> int:
+    """Map MET Norway symbol_code strings to WMO weather codes."""
+    if not symbol:
+        return 0
+    s = symbol
+    for suffix in ("_day", "_night", "_polartwilight"):
+        if symbol.endswith(suffix):
+            s = symbol[: -len(suffix)]
+            break
+    table = {
+        "clearsky": 0, "fair": 1, "partlycloudy": 2, "cloudy": 3,
+        "fog": 45,
+        "lightrain": 61, "rain": 63, "heavyrain": 65,
+        "lightrainshowers": 80, "rainshowers": 81, "heavyrainshowers": 82,
+        "lightsleet": 68, "sleet": 68, "heavysleet": 67,
+        "lightsleetshowers": 68, "sleetshowers": 68, "heavysleetshowers": 67,
+        "lightsnow": 71, "snow": 73, "heavysnow": 75,
+        "lightsnowshowers": 85, "snowshowers": 85, "heavysnowshowers": 86,
+        "lightrainandthunder": 95, "rainandthunder": 95, "heavyrainandthunder": 99,
+        "lightsleetandthunder": 95, "sleetandthunder": 95, "heavysleetandthunder": 99,
+        "lightsnowandthunder": 95, "snowandthunder": 95, "heavysnowandthunder": 99,
+    }
+    return table.get(s, 0)
+
+
+def _pw_icon_to_wmo(icon: str) -> int:
+    """Map Pirate Weather (Dark Sky) icon strings to WMO weather codes."""
+    table = {
+        "clear-day": 0, "clear-night": 0,
+        "partly-cloudy-day": 2, "partly-cloudy-night": 2,
+        "cloudy": 3, "wind": 3, "fog": 45,
+        "rain": 63, "sleet": 68, "snow": 73,
+    }
+    return table.get(icon or "", 0)
+
+
 # ---------------------------------------------------------------------------
 # Geocoding
 # ---------------------------------------------------------------------------
