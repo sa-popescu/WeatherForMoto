@@ -1142,14 +1142,15 @@ def _merge_daily(om_data: dict, owm_forecast: dict | None, met_daily: dict | Non
 
         prec_prob = _safe(daily.get("precipitation_probability_max"), i) or 0
 
-        # weather code: prefer majority OWM code mapped to WMO
+        # weather code: prefer majority OWM code, then MET, then OM
         if owm_items:
             owm_codes = [_owm_id_to_wmo(x["weather"][0]["id"]) for x in owm_items]
             owm_day_code = max(set(owm_codes), key=owm_codes.count)
         else:
             owm_day_code = None
 
-        final_code = owm_day_code if owm_day_code is not None else om_code
+        met_day_code = met_day.get("wmo_code")
+        final_code = owm_day_code if owm_day_code is not None else (met_day_code if met_day_code is not None else om_code)
 
         score = _moto_score_daily(fa_min, fa_max, wind_gusts, precipitation, final_code, prec_prob)
 
