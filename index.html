@@ -2729,15 +2729,35 @@
       var html = '<div class="flex gap-2 flex-wrap items-center">';
       html += '<span class="text-xs text-muted tracking-widest mr-1">★</span>';
       favs.forEach(function (f) {
+        var encName = encodeURIComponent(f.name);
         html += '<span class="flex items-center gap-0.5 bg-card border border-border rounded-lg text-xs">';
-        html += '<button onclick=\'loadFav(' + JSON.stringify(f.name) + ',' + f.lat + ',' + f.lon + ')\''
+        html += '<button type="button" data-fav-load="1" data-fav-name="' + encName + '" data-fav-lat="' + f.lat + '" data-fav-lon="' + f.lon + '"'
           + ' class="px-2 py-1 text-gray-300 hover:text-accent transition-colors">' + f.name + '</button>';
-        html += '<button onclick=\'event.preventDefault();event.stopPropagation();removeFav(' + JSON.stringify(f.name) + ');return false;\''
+        html += '<button type="button" data-fav-remove="1" data-fav-name="' + encName + '"'
           + ' class="pr-2 text-muted hover:text-danger transition-colors text-sm leading-none">&times;</button>';
         html += '</span>';
       });
       html += '</div>';
       el.innerHTML = html;
+
+      el.querySelectorAll('[data-fav-load="1"]').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.preventDefault();
+          var name = decodeURIComponent(btn.getAttribute('data-fav-name') || '');
+          var lat = parseFloat(btn.getAttribute('data-fav-lat') || '0');
+          var lon = parseFloat(btn.getAttribute('data-fav-lon') || '0');
+          loadFav(name, lat, lon);
+        });
+      });
+
+      el.querySelectorAll('[data-fav-remove="1"]').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          var name = decodeURIComponent(btn.getAttribute('data-fav-name') || '');
+          removeFav(name);
+        });
+      });
       renderCompareOptions();
     }
 
@@ -3473,7 +3493,7 @@
     }
 
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js').catch(function () { });
+      navigator.serviceWorker.register('sw.js?v=5').catch(function () { });
     }
 
     function applyTheme() {
