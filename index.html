@@ -3246,7 +3246,7 @@
 
       var overall = Math.round(grip * modeCfg.weights[0] + wind * modeCfg.weights[1] + visibility * modeCfg.weights[2]);
       var label = overall >= 80 ? 'STABIL' : overall >= 60 ? 'ATENTIE MODERATA' : overall >= 40 ? 'RISC CRESCUT' : 'CRITIC';
-      var color = overall >= 80 ? '#22c55e' : overall >= 60 ? '#f97316' : overall >= 40 ? '#eab308' : '#ef4444';
+      var color = overall >= 85 ? '#22c55e' : overall >= 60 ? '#eab308' : overall >= 40 ? '#f97316' : '#ef4444';
 
       return { grip: grip, wind: wind, visibility: visibility, overall: overall, label: label, color: color, modeLabel: modeCfg.name };
     }
