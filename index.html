@@ -3741,9 +3741,122 @@
       }
       html += '</div></div></div>';
 
+      // Hourly scroll (moved before stats)
+      html += secTitle('Orar — 24h');
+      html += '<div class="flex gap-3 overflow-x-auto scroll-x pb-2 mb-2">';
+      hourly.forEach(function (h, idx) {
+        var t = new Date(h.time);
+        var hh = t.getHours().toString().padStart(2, "0") + ":00";
+        var rp = h.precipitation_probability || 0;
+        var hs = scoreHourly(h.feels_like, h.wind_gusts_kmh, h.precipitation_mm, h.weather_code, h.precipitation_probability);
+        var scoreColor = hs >= 85 ? '#22c55e' : hs >= 60 ? '#eab308' : hs >= 40 ? '#f97316' : '#ef4444';
+        var borderCol = hs < 40 ? "border-danger" : rp > 40 ? "border-warn" : idx === 0 ? "border-accent" : "border-border";
+        var nowClass = idx === 0 ? "hourly-now border-accent" : "";
+        html += '<div class="hourly-main-card flex-shrink-0 bg-card border ' + borderCol + ' ' + nowClass + ' rounded-xl p-3 w-24 text-center flex flex-col items-center gap-1">';
+        html += '<div class="text-xs font-semibold tracking-widest ' + (idx === 0 ? 'text-accent' : 'text-muted') + '">' + (idx === 0 ? "ACUM" : hh) + '</div>';
+        html += '<div style="font-size:2.5rem;line-height:1">' + h.icon + '</div>';
+        html += '<div class="hour-temp font-display text-3xl font-bold leading-none text-gray-100">' + Math.round(h.temperature) + '°</div>';
+        html += '<div class="text-xs ' + rainCls(rp) + '">' + rp + '% 💧</div>';
+        html += '<div class="text-xs text-muted">' + Math.round(h.wind_speed_kmh) + ' km/h</div>';
+        if (h.uv_index != null && h.uv_index > 0)
+          html += '<div class="text-xs ' + uvCls(h.uv_index) + '">UV ' + h.uv_index.toFixed(0) + '</div>';
+        html += '<div class="mt-2 w-full score-bar-track">'
+          + '<div class="score-bar-fill" style="width:' + hs + '%;background:' + scoreColor + '"></div>'
+          + '</div>';
+        html += '<div class="text-xs font-bold" style="color:' + scoreColor + '">' + hs + '</div>';
+        html += '</div>';
+      });
+      html += '</div>';
+
+      // Daily forecast (moved before stats)
+      html += secTitle('Prognoză ' + daily.length + ' zile');
+      html += '<div class="flex flex-col gap-2 mb-6">';
+      var maxDay = daily.length;
+      daily.slice(0, maxDay).forEach(function (day, i) {
+        var date = new Date(day.date + "T12:00:00");
+        var dname = i === 0 ? "AZI" : (i === 1 ? "MÂINE" : DAYS[date.getDay()]);
+        var tMin = Math.round(day.temp_min);
+        var tMax = Math.round(day.temp_max);
+        var fMin = day.feels_min != null ? Math.round(day.feels_min) : null;
+        var fMax = day.feels_max != null ? Math.round(day.feels_max) : null;
+        var rp = day.precipitation_probability || 0;
+        var gustMax = Math.round(day.wind_gusts_kmh || 0);
+        var ds = day.moto_score;
+        var scoreColor = ds >= 85 ? '#22c55e' : ds >= 60 ? '#eab308' : ds >= 40 ? '#f97316' : '#ef4444';
+        var borderCol = ds < 40 ? "border-l-danger" : ds < 60 ? "border-l-accent" : ds < 85 ? "border-l-warn" : "border-l-ok";
+        var range = allMax - allMin || 1;
+        var bL = Math.round(((tMin - allMin) / range) * 100);
+        var bW = Math.max(4, Math.round(((tMax - allMin) / range) * 100) - bL);
+        var dayHourly = d.hourly.filter(function (h) { return h.time.startsWith(day.date); });
+        var idealWindow = _findWindowForSlice(dayHourly);
+
+        html += '<div class="bg-card border border-border border-l-4 ' + borderCol + ' rounded-xl overflow-hidden">';
+        html += '<div onclick="toggleDay(' + i + ')" class="px-3 sm:px-4 py-3 flex items-center gap-1.5 sm:gap-3 cursor-pointer select-none">';
+        html += '<div class="flex-shrink-0 w-8 sm:w-10 text-center" style="font-size:1.75rem;line-height:1" title="' + day.description + '">' + day.icon + '</div>';
+        html += '<div class="flex-shrink-0 w-14 sm:w-16">';
+        html += '<div class="font-display text-sm sm:text-base font-bold tracking-widest ' + (i === 0 ? 'text-accent' : i === 1 ? 'text-gray-100' : 'text-muted') + '">' + dname + '</div>';
+        html += '<div class="text-[10px] text-muted/60">' + day.date.slice(5) + '</div>';
+        html += '</div>';
+        html += '<div class="flex-1 min-w-0 hidden sm:block">';
+        html += '<div class="relative h-2 rounded-full bg-bg/60 overflow-hidden">';
+        html += '<div class="absolute h-full rounded-full bg-gradient-to-r from-accent/60 to-warn/60" style="left:' + bL + '%;width:' + bW + '%"></div>';
+        html += '</div>';
+        html += '<div class="flex justify-between text-[10px] text-muted mt-0.5"><span>' + tMin + '°</span><span>' + tMax + '°</span></div>';
+        html += '</div>';
+        html += '<div class="flex items-center gap-2 sm:gap-3 ml-auto">';
+        html += '<div class="text-center hidden xs:block">';
+        html += '<div class="font-display text-base sm:text-lg font-bold text-gray-100">' + tMin + '° – ' + tMax + '°</div>';
+        html += '</div>';
+        if (rp > 0) html += '<div class="text-xs ' + rainCls(rp) + ' flex-shrink-0 hidden sm:block">' + rp + '%💧</div>';
+        html += '<div class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center border-2" style="border-color:' + scoreColor + ';color:' + scoreColor + '">';
+        html += '<span class="font-display text-sm font-bold">' + ds + '</span>';
+        html += '</div>';
+        html += '<div class="flex-shrink-0 text-muted text-xs" id="arr-' + i + '">▼</div>';
+        html += '</div>';
+        html += '</div>';
+
+        html += '<div id="det-' + i + '" class="hidden border-t border-border">';
+        if (idealWindow) {
+          var wTextCls = idealWindow.avg >= 80 ? 'text-ok' : idealWindow.avg >= 60 ? 'text-accent' : 'text-warn';
+          html += '<div class="px-3 py-2 text-xs ' + wTextCls + ' border-b border-border/50 flex items-center gap-2">'
+            + '<span>🎯</span><span>Fereastră optimă: <strong>' + idealWindow.fromH + ' – ' + idealWindow.toH + '</strong> · scor mediu ' + idealWindow.avg + '</span></div>';
+        }
+        if (dayHourly.length) {
+          html += '<div class="flex gap-2 overflow-x-auto scroll-x p-3">';
+          dayHourly.forEach(function (h) {
+            var ht = new Date(h.time);
+            var hhLabel = ht.getHours().toString().padStart(2, "0") + ":00";
+            var hsc = scoreHourly(h.feels_like, h.wind_gusts_kmh, h.precipitation_mm, h.weather_code, h.precipitation_probability);
+            var hCol = hsc >= 85 ? '#22c55e' : hsc >= 60 ? '#eab308' : hsc >= 40 ? '#f97316' : '#ef4444';
+            html += '<div class="flex-shrink-0 text-center w-14 bg-bg/40 rounded-lg p-1.5">';
+            html += '<div class="text-[10px] text-muted">' + hhLabel + '</div>';
+            html += '<div style="font-size:1.4rem;line-height:1.2">' + h.icon + '</div>';
+            html += '<div class="font-display text-sm font-bold text-gray-100">' + Math.round(h.temperature) + '°</div>';
+            html += '<div class="text-[10px] ' + rainCls(h.precipitation_probability || 0) + '">' + (h.precipitation_probability || 0) + '%</div>';
+            html += '<div class="text-[10px] text-muted">' + Math.round(h.wind_speed_kmh) + 'km/h</div>';
+            if (h.wind_gusts_kmh != null && h.wind_gusts_kmh > h.wind_speed_kmh + 5)
+              html += '<div class="text-[10px] ' + windCls(h.wind_gusts_kmh) + '">↑' + Math.round(h.wind_gusts_kmh) + '</div>';
+            html += '<div class="mt-1 w-full score-bar-track"><div class="score-bar-fill" style="width:' + hsc + '%;background:' + hCol + '"></div></div>';
+            html += '<div class="text-[10px] font-bold" style="color:' + hCol + '">' + hsc + '</div>';
+            html += '</div>';
+          });
+          html += '</div>';
+        }
+        html += '<div class="flex flex-wrap gap-x-4 gap-y-1 px-3 pb-3 text-xs text-muted">';
+        if (fMin != null) html += '<span>🌡️ resimțit <strong class="text-gray-300">' + fMin + '° – ' + fMax + '°</strong></span>';
+        if (gustMax) html += '<span>💨 rafale max <strong class="' + windCls(gustMax) + '">' + gustMax + ' km/h</strong></span>';
+        if (day.precipitation_mm > 0) html += '<span>🌧️ precipitații <strong class="text-gray-300">' + day.precipitation_mm + ' mm</strong></span>';
+        if (day.sunrise) html += '<span>🌅 răsărit <strong class="text-gray-300">' + fmtTime(day.sunrise) + '</strong></span>';
+        if (day.sunset) html += '<span>🌇 apus <strong class="text-gray-300">' + fmtTime(day.sunset) + '</strong></span>';
+        html += '</div>';
+        html += '</div>';
+        html += '</div>';
+      });
+      html += '</div>';
+
       // Stats grid
       html += secTitle('Condiții actuale');
-      html += '<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-2">';
+      html += '<div class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2 mb-2">';
       html += statCard('🌡️', 'Temperatură', Math.round(c.temperature) + '°', tempCls(c.temperature), 'resimțit ' + Math.round(c.feels_like) + '°C');
       html += statCard('💨', 'Vânt', Math.round(c.wind_speed_kmh) + '<span class="text-lg"> km/h</span>', windCls(c.wind_gusts_kmh),
         windCompassSvg(c.wind_direction_deg) + ' <span class="font-semibold text-gray-300">' + c.wind_direction + '</span>'
