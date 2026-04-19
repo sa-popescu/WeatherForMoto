@@ -3667,19 +3667,19 @@
           labels: labels,
           datasets: [
             {
-              label: "Temperatură (°C)", data: hourly.map(function (h) { return h.temperature != null ? Math.round(h.temperature * 10) / 10 : null; }),
+              label: t('chart_temp'), data: hourly.map(function (h) { return h.temperature != null ? Math.round(h.temperature * 10) / 10 : null; }),
               borderColor: "#f97316", backgroundColor: "rgba(249,115,22,0.10)", tension: 0.4, pointRadius: 3, yAxisID: "y"
             },
             {
-              label: "Resimțit (°C)", data: hourly.map(function (h) { return h.feels_like != null ? Math.round(h.feels_like * 10) / 10 : null; }),
+              label: t('chart_feels'), data: hourly.map(function (h) { return h.feels_like != null ? Math.round(h.feels_like * 10) / 10 : null; }),
               borderColor: "#60a5fa", backgroundColor: "transparent", tension: 0.4, pointRadius: 2, borderDash: [5, 4], yAxisID: "y"
             },
             {
-              label: "Rafale vânt (km/h)", data: hourly.map(function (h) { return h.wind_gusts_kmh != null ? Math.round(h.wind_gusts_kmh) : null; }),
+              label: t('chart_gusts'), data: hourly.map(function (h) { return h.wind_gusts_kmh != null ? Math.round(h.wind_gusts_kmh) : null; }),
               borderColor: "#a78bfa", backgroundColor: "rgba(167,139,250,0.08)", tension: 0.4, pointRadius: 0, borderWidth: 1.5, borderDash: [3, 3], yAxisID: "y3"
             },
             {
-              label: "Prob. ploaie (%)", data: hourly.map(function (h) { return h.precipitation_probability || 0; }),
+              label: t('chart_rain_prob'), data: hourly.map(function (h) { return h.precipitation_probability || 0; }),
               borderColor: "#3b82f6", backgroundColor: "rgba(59,130,246,0.12)", tension: 0.4, pointRadius: 0, yAxisID: "y2", fill: true
             }
           ]
