@@ -651,25 +651,25 @@
               </select>
             </div>
             <div>
-              <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Toleranță vânt</label>
+              <label class="text-xs text-muted tracking-widest uppercase mb-1 block" data-i18n="acc_wind_tol">Toleranță vânt</label>
               <select id="profile-wind-tol" onchange="saveProfile()"
                 class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent">
-                <option value="low">Scăzută</option>
-                <option value="medium">Medie</option>
-                <option value="high">Ridicată</option>
+                <option value="low" data-i18n="acc_tol_low">Scăzută</option>
+                <option value="medium" data-i18n="acc_tol_med">Medie</option>
+                <option value="high" data-i18n="acc_tol_high">Ridicată</option>
               </select>
             </div>
             <div>
-              <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Toleranță ploaie</label>
+              <label class="text-xs text-muted tracking-widest uppercase mb-1 block" data-i18n="acc_rain_tol">Toleranță ploaie</label>
               <select id="profile-rain-tol" onchange="saveProfile()"
                 class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent">
-                <option value="low">Scăzută</option>
-                <option value="medium">Medie</option>
-                <option value="high">Ridicată</option>
+                <option value="low" data-i18n="acc_tol_low">Scăzută</option>
+                <option value="medium" data-i18n="acc_tol_med">Medie</option>
+                <option value="high" data-i18n="acc_tol_high">Ridicată</option>
               </select>
             </div>
             <div>
-              <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Confort: <span
+              <label class="text-xs text-muted tracking-widest uppercase mb-1 block"><span data-i18n="acc_comfort">Confort</span>: <span
                   id="profile-temp-val">20</span>°C</label>
               <input id="profile-comfort-temp" type="range" min="5" max="35" value="20"
                 oninput="document.getElementById('profile-temp-val').textContent=this.value; saveProfile()"
