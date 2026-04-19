@@ -3564,9 +3564,9 @@
 
     function rideDnaHtml(dna) {
       var bars = [
-        { key: 'Aderenta', icon: '🛣️', val: dna.grip },
-        { key: 'Stabilitate vant', icon: '💨', val: dna.wind },
-        { key: 'Vizibilitate', icon: '👁️', val: dna.visibility },
+        { key: 'Aderenta', icon: licon('route', 14), val: dna.grip },
+        { key: 'Stabilitate vant', icon: licon('wind', 14), val: dna.wind },
+        { key: 'Vizibilitate', icon: licon('eye', 14), val: dna.visibility },
       ];
       var html = '<div class="bg-card border border-border rounded-xl p-4">';
       html += '<div class="flex items-center gap-2 mb-3">';
