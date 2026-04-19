@@ -3667,7 +3667,7 @@
     function departureAdvisorHtml(hourly) {
       var best = getDepartureAdvisor(hourly);
       var html = '<div class="bg-card border border-border rounded-xl p-4">';
-      html += '<div class="font-display text-sm tracking-[0.2em] text-muted mb-3">START ADVISOR 6H</div>';
+      html += '<div class="font-display text-sm tracking-[0.2em] text-muted mb-3">' + t('adv_title') + '</div>';
       if (!best.length) {
         html += '<div class="text-sm text-muted">Nu exista suficiente date orare pentru recomandare.</div>';
       } else {
