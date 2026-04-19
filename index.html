@@ -2217,39 +2217,44 @@
     // -----------------------------------------------------------------------
     // Gear recommendation (client-side mirror of weather_service.py)
     // -----------------------------------------------------------------------
+    function _gt(key, vars) {
+      var s = t(key);
+      if (vars) Object.keys(vars).forEach(function(k) { s = s.replace('{' + k + '}', vars[k]); });
+      return s;
+    }
     function gearRecommendationClient(feels, gusts, prec, code) {
       var f = feels != null ? feels : 20, g = gusts || 0, p = prec || 0, c = code || 0;
       var recs = [];
       var raining = p > 0.2 || [51, 53, 55, 61, 63, 65, 80, 81, 82, 95, 96, 99].indexOf(c) > -1;
       if (raining) {
         var u = (p > 1 || [63, 65, 81, 82, 95, 96, 99].indexOf(c) > -1) ? 'required' : 'warn';
-        recs.push({ category: 'ploaie', item: 'Costum impermeabil / oversuit', reason: 'Precipitații active (' + p.toFixed(1) + ' mm/h) — rămâi uscat și cald', urgency: u, icon: '🌧️' });
-        recs.push({ category: 'mănuși_ploaie', item: 'Mănuși impermeabile', reason: 'Mâinile ude reduc controlul și răspunsul la frână', urgency: u, icon: '🧤' });
+        recs.push({ category: 'rain', item: t('gi_rain_suit'), reason: _gt('gr_rain', {p: p.toFixed(1)}), urgency: u, icon: '🌧️' });
+        recs.push({ category: 'rain_gloves', item: t('gi_rain_gloves'), reason: t('gr_rain_gloves'), urgency: u, icon: '🧤' });
       }
       if (f < 0) {
-        recs.push({ category: 'geacă', item: 'Geacă de iarnă cu protecții CE + liner termic', reason: 'Temperatură resimțită ' + Math.round(f) + '°C — condiții extreme de frig', urgency: 'required', icon: '🧥' });
-        recs.push({ category: 'strat_baza', item: 'Strat termic de bază (top + pantaloni)', reason: 'Protecție împotriva hipotermiei sub 0°C', urgency: 'required', icon: '🎿' });
+        recs.push({ category: 'jacket', item: t('gi_jacket_winter'), reason: _gt('gr_extreme_cold', {f: Math.round(f)}), urgency: 'required', icon: '🧥' });
+        recs.push({ category: 'base', item: t('gi_base_full'), reason: t('gr_hypothermia'), urgency: 'required', icon: '🎿' });
       } else if (f < 10) {
-        recs.push({ category: 'geacă', item: 'Geacă de moto 3 sezoane cu liner termic activ', reason: 'Temperatură resimțită ' + Math.round(f) + '°C — vreme rece', urgency: 'required', icon: '🧥' });
-        recs.push({ category: 'strat_baza', item: 'Strat termic de bază', reason: 'Confort termic la temperaturi scăzute', urgency: 'warn', icon: '🎿' });
+        recs.push({ category: 'jacket', item: t('gi_jacket_3s_liner'), reason: _gt('gr_cold', {f: Math.round(f)}), urgency: 'required', icon: '🧥' });
+        recs.push({ category: 'base', item: t('gi_base'), reason: t('gr_thermal_comfort'), urgency: 'warn', icon: '🎿' });
       } else if (f < 18) {
-        recs.push({ category: 'geacă', item: 'Geacă de moto 3 sezoane (fără liner sau cu liner subțire)', reason: 'Temperatură resimțită ' + Math.round(f) + '°C — vreme răcoroasă', urgency: 'warn', icon: '🧥' });
+        recs.push({ category: 'jacket', item: t('gi_jacket_3s'), reason: _gt('gr_cool', {f: Math.round(f)}), urgency: 'warn', icon: '🧥' });
       } else if (f < 28) {
-        recs.push({ category: 'geacă', item: 'Geacă de moto din textil / piele cu protecții', reason: 'Temperatură resimțită ' + Math.round(f) + '°C — condiții ideale', urgency: 'info', icon: '🧥' });
+        recs.push({ category: 'jacket', item: t('gi_jacket_std'), reason: _gt('gr_ideal', {f: Math.round(f)}), urgency: 'info', icon: '🧥' });
       } else {
-        recs.push({ category: 'geacă', item: 'Geacă mesh cu ventilație maximă + protecții', reason: 'Temperatură resimțită ' + Math.round(f) + '°C — căldură puternică', urgency: 'warn', icon: '🧥' });
-        recs.push({ category: 'hidratare', item: 'Hidratare frecventă (min 500 ml/h)', reason: 'Risc de deshidratare și colaps termic', urgency: 'warn', icon: '💧' });
+        recs.push({ category: 'jacket', item: t('gi_jacket_mesh'), reason: _gt('gr_heat', {f: Math.round(f)}), urgency: 'warn', icon: '🧥' });
+        recs.push({ category: 'hydration', item: t('gi_hydration'), reason: t('gr_dehydration'), urgency: 'warn', icon: '💧' });
       }
-      if (f < 5) recs.push({ category: 'mănuși', item: 'Mănuși de iarnă / cu încălzire electrică', reason: 'Sub ' + Math.round(f) + '°C degetele amorțesc și pierzi controlul frenei', urgency: 'required', icon: '🧤' });
-      else if (f < 12) recs.push({ category: 'mănuși', item: 'Mănuși de moto cu dublură termică', reason: 'Temperatura mâinilor scade rapid la ' + Math.round(f) + '°C în mers', urgency: 'warn', icon: '🧤' });
-      else if (!raining) recs.push({ category: 'mănuși', item: 'Mănuși de moto standard cu protecții', reason: 'Protecție esențială la orice temperatură', urgency: 'info', icon: '🧤' });
-      if (f < 5) recs.push({ category: 'pantaloni', item: 'Pantaloni de moto cu liner termic + protecții CE', reason: 'Protecție termică și impact la temperaturi sub 5°C', urgency: 'required', icon: '👖' });
-      else if (f < 15) recs.push({ category: 'pantaloni', item: 'Pantaloni de moto cu protecții (opțional liner)', reason: 'Vreme răcoroasă — protejează genunchii și coapsele', urgency: 'warn', icon: '👖' });
-      else recs.push({ category: 'pantaloni', item: 'Pantaloni de moto textil / piele cu protecții', reason: 'Protecție la impact — obligatorie', urgency: 'info', icon: '👖' });
-      if (g > 50) recs.push({ category: 'vizor', item: 'Vizor complet închis + colier gât aerodinamic', reason: 'Rafale de ' + Math.round(g) + ' km/h — turbulențe puternice', urgency: 'required', icon: '⛑️' });
-      else if (g > 35) recs.push({ category: 'vizor', item: 'Vizor intermediar sau complet', reason: 'Rafale de ' + Math.round(g) + ' km/h — confort redus la viteze mari', urgency: 'warn', icon: '⛑️' });
-      if (c === 45 || c === 48) recs.push({ category: 'vizibilitate', item: 'Vestă reflectorizantă fluorescent-galbenă', reason: 'Ceață densă — fii văzut de ceilalți participanți la trafic', urgency: 'required', icon: '🦺' });
-      if (f < 3) recs.push({ category: 'anvelope', item: 'Verifică aderența anvelopelor + presiunea', reason: 'Risc de gheață / brumă la ' + Math.round(f) + '°C — aderență redusă drastic', urgency: 'required', icon: '⚠️' });
+      if (f < 5) recs.push({ category: 'gloves', item: t('gi_gloves_winter'), reason: _gt('gr_numb', {f: Math.round(f)}), urgency: 'required', icon: '🧤' });
+      else if (f < 12) recs.push({ category: 'gloves', item: t('gi_gloves_thermal'), reason: _gt('gr_cold_hands', {f: Math.round(f)}), urgency: 'warn', icon: '🧤' });
+      else if (!raining) recs.push({ category: 'gloves', item: t('gi_gloves_std'), reason: t('gr_gloves_always'), urgency: 'info', icon: '🧤' });
+      if (f < 5) recs.push({ category: 'pants', item: t('gi_pants_winter'), reason: t('gr_pants_winter'), urgency: 'required', icon: '👖' });
+      else if (f < 15) recs.push({ category: 'pants', item: t('gi_pants_cool'), reason: t('gr_pants_cool'), urgency: 'warn', icon: '👖' });
+      else recs.push({ category: 'pants', item: t('gi_pants_std'), reason: t('gr_pants_always'), urgency: 'info', icon: '👖' });
+      if (g > 50) recs.push({ category: 'visor', item: t('gi_visor_full'), reason: _gt('gr_gusts_strong', {g: Math.round(g)}), urgency: 'required', icon: '⛑️' });
+      else if (g > 35) recs.push({ category: 'visor', item: t('gi_visor_half'), reason: _gt('gr_gusts_mod', {g: Math.round(g)}), urgency: 'warn', icon: '⛑️' });
+      if (c === 45 || c === 48) recs.push({ category: 'vest', item: t('gi_vest'), reason: t('gr_fog'), urgency: 'required', icon: '🦺' });
+      if (f < 3) recs.push({ category: 'tyres', item: t('gi_tyres'), reason: _gt('gr_ice', {f: Math.round(f)}), urgency: 'required', icon: '⚠️' });
       return recs;
     }
 
