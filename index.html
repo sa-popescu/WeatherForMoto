@@ -3998,7 +3998,7 @@
           + '</div>'
           + '<span class="text-xs text-gray-200 flex-shrink-0 w-6">' + tMax + '°</span>'
           + '</div>'
-          + (fMin != null ? '<div class="text-xs text-muted mt-0.5 pl-7 hidden sm:block">resimțit ' + fMin + '° – ' + fMax + '°</div>' : '')
+          + (fMin != null ? '<div class="text-xs text-muted mt-0.5 pl-7 hidden sm:block">' + t('feels_like').toLowerCase() + ' ' + fMin + '° – ' + fMax + '°</div>' : '')
           + ((ds < 80 && idealWindow)
             ? '<div class="text-xs text-accent mt-0.5 pl-7 hidden sm:block">🎯 interval ideal: ' + idealWindow.fromH + ' – ' + idealWindow.toH + ' · ' + idealWindow.avg + '/100</div>'
             : '')
