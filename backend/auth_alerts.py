@@ -1170,70 +1170,80 @@ def _is_email_event_enabled(prefs: sqlite3.Row, event_type: str) -> bool:
     return bool(prefs[col])
 
 
-async def _dispatch_for_user(conn: sqlite3.Connection, user_id: int, email: str, owm_api_key: str) -> dict[str, Any]:
-    prefs = conn.execute(
-        "SELECT enabled, email_alerts_enabled, email_alert_wind, email_alert_rain, email_alert_rain_probability, email_alert_score, email_alert_temp_low, email_alert_temp_high, email_alert_frost, min_score, max_wind_gust, max_precip, max_rain_probability, min_temp, max_temp, frost_risk_enabled, quiet_hours_enabled, quiet_start_hour, quiet_end_hour, severity, home_lat, home_lon, city FROM alert_prefs WHERE user_id = ?",
-        (user_id,),
-    ).fetchone()
-    if not prefs or not prefs["enabled"]:
-        return {"sent": 0, "events": []}
+async def _dispatch_for_user(user_id: int, email: str, owm_api_key: str) -> dict[str, Any]:
+    conn = _connect()
+    try:
+        prefs = conn.execute(
+            "SELECT enabled, email_alerts_enabled, email_alert_wind, email_alert_rain, email_alert_rain_probability, email_alert_score, email_alert_temp_low, email_alert_temp_high, email_alert_frost, min_score, max_wind_gust, max_precip, max_rain_probability, min_temp, max_temp, frost_risk_enabled, quiet_hours_enabled, quiet_start_hour, quiet_end_hour, severity, home_lat, home_lon, city FROM alert_prefs WHERE user_id = ?",
+            (user_id,),
+        ).fetchone()
+        if not prefs or not prefs["enabled"]:
+            return {"sent": 0, "events": []}
 
-    lat = prefs["home_lat"]
-    lon = prefs["home_lon"]
-    city = prefs["city"] or "Locația mea"
-    if lat is None or lon is None:
-        return {"sent": 0, "events": [], "reason": "missing_home_location"}
+        lat = prefs["home_lat"]
+        lon = prefs["home_lon"]
+        city = prefs["city"] or "Locația mea"
+        if lat is None or lon is None:
+            return {"sent": 0, "events": [], "reason": "missing_home_location"}
+
+        subscriptions = conn.execute(
+            "SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ?",
+            (user_id,),
+        ).fetchall()
+    finally:
+        conn.close()
 
     weather = await get_weather(float(lat), float(lon), city, owm_api_key, forecast_days=2)
     hourly = weather.get("hourly", [])
     events = _build_risk_events(hourly, prefs)
-
-    subscriptions = conn.execute(
-        "SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ?",
-        (user_id,),
-    ).fetchall()
 
     sent = 0
     email_sent = 0
     email_enabled = bool(prefs["email_alerts_enabled"]) if "email_alerts_enabled" in prefs.keys() else True
     for ev in events:
         event_key = f"{ev['type']}:{ev['when'][:13]}"
-        exists = conn.execute(
-            "SELECT 1 FROM alert_events WHERE user_id = ? AND event_key = ?",
-            (user_id, event_key),
-        ).fetchone()
-        if exists:
-            continue
 
-        for sub in subscriptions:
-            try:
-                _send_push(sub, ev["title"], ev["body"], {"event": ev, "city": city})
-                sent += 1
-            except WebPushException as exc:
-                logger.warning("Web push failed for %s: %s", email, exc)
-            except Exception as exc:
-                logger.warning("Push dispatch error for %s: %s", email, exc)
+        conn = _connect()
+        try:
+            exists = conn.execute(
+                "SELECT 1 FROM alert_events WHERE user_id = ? AND event_key = ?",
+                (user_id, event_key),
+            ).fetchone()
+            if exists:
+                conn.close()
+                continue
 
-        if email_enabled and _is_email_event_enabled(prefs, ev.get("type", "")):
-            try:
-                subject = f"MotoMeteo alertă: {ev['title']}"
-                body = (
-                    f"{ev['body']}\n"
-                    f"Locație: {city}\n"
-                    f"Interval: {ev['when']}\n\n"
-                    "Poți dezactiva alertele email din contul tău MotoMeteo."
-                )
-                await _send_email(email, subject, body)
-                email_sent += 1
-            except Exception as exc:
-                logger.warning("Email alert dispatch error for %s: %s", email, exc)
+            for sub in subscriptions:
+                try:
+                    _send_push(sub, ev["title"], ev["body"], {"event": ev, "city": city})
+                    sent += 1
+                except WebPushException as exc:
+                    logger.warning("Web push failed for %s: %s", email, exc)
+                except Exception as exc:
+                    logger.warning("Push dispatch error for %s: %s", email, exc)
 
-        conn.execute(
-            "INSERT OR IGNORE INTO alert_events(user_id, event_key, created_at) VALUES (?, ?, ?)",
-            (user_id, event_key, _utc_now().isoformat()),
-        )
+            if email_enabled and _is_email_event_enabled(prefs, ev.get("type", "")):
+                try:
+                    subject = f"MotoMeteo alertă: {ev['title']}"
+                    body = (
+                        f"{ev['body']}\n"
+                        f"Locație: {city}\n"
+                        f"Interval: {ev['when']}\n\n"
+                        "Poți dezactiva alertele email din contul tău MotoMeteo."
+                    )
+                    await _send_email(email, subject, body)
+                    email_sent += 1
+                except Exception as exc:
+                    logger.warning("Email alert dispatch error for %s: %s", email, exc)
 
-    conn.commit()
+            conn.execute(
+                "INSERT OR IGNORE INTO alert_events(user_id, event_key, created_at) VALUES (?, ?, ?)",
+                (user_id, event_key, _utc_now().isoformat()),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
     return {"sent": sent, "email_sent": email_sent, "events": events}
 
 
