@@ -3776,7 +3776,7 @@
 
         html += '<div class="bg-card border border-border border-l-4 ' + borderCol + ' rounded-xl overflow-hidden">';
         html += '<div onclick="toggleDay(' + i + ')" class="px-3 sm:px-4 py-3 flex items-center gap-1.5 sm:gap-3 cursor-pointer select-none">';
-        html += '<div class="flex-shrink-0 w-8 sm:w-10 text-center" style="font-size:1.75rem;line-height:1" title="' + day.description + '">' + day.icon + '</div>';
+        html += '<div class="flex-shrink-0 text-gray-100" title="' + day.description + '">' + wmoLucideIcon(day.weather_code, 28) + '</div>';
         html += '<div class="flex-shrink-0 w-14 sm:w-20">'
           + '<div class="font-display text-sm sm:text-lg font-bold tracking-wide text-gray-100">' + dname + '</div>'
           + '<div class="text-xs text-muted">' + date.toLocaleDateString("ro-RO", { day: "numeric", month: "short" }) + '</div>'
