@@ -128,6 +128,15 @@ class HazardPayload(BaseModel):
     ttl_hours: int = Field(default=6, ge=1, le=72)
 
 
+class RequestResetPayload(BaseModel):
+    email: EmailStr
+
+
+class ChangePasswordPayload(BaseModel):
+    current_password: str = Field(min_length=1)
+    new_password: str = Field(min_length=8)
+
+
 router = APIRouter(tags=["account", "alerts"])
 
 
