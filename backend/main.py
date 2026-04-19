@@ -77,7 +77,7 @@ async def lifespan(fastapi_app: FastAPI):
     logger.info("DEFAULT_CITY: %s", DEFAULT_CITY)
     logger.info(
         "OWM API key configured: %s",
-        "yes (custom)" if OWM_API_KEY != _DEMO_OWM_KEY else "no (using demo key)",
+        "yes" if OWM_API_KEY else "no (set OPENWEATHERMAP_API_KEY for better data quality)",
     )
     logger.info("Expected port: %d", int(os.getenv("PORT", 8000)))
     yield
