@@ -698,6 +698,31 @@ async def auth_request_reset(payload: RequestResetPayload, request: Request) -> 
         conn.close()
 
 
+@router.post("/auth/reset-password")
+async def auth_reset_password(payload: ResetPasswordPayload) -> dict[str, bool]:
+    conn = _connect()
+    try:
+        token_hash = _hash_token(payload.token)
+        now = _utc_now().isoformat()
+        row = conn.execute(
+            "SELECT user_id, expires_at FROM password_reset_tokens WHERE token_hash = ?",
+            (token_hash,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=400, detail="Link de resetare invalid sau expirat.")
+        if row["expires_at"] < now:
+            conn.execute("DELETE FROM password_reset_tokens WHERE token_hash = ?", (token_hash,))
+            conn.commit()
+            raise HTTPException(status_code=400, detail="Linkul de resetare a expirat. Solicită unul nou.")
+        new_hash = _hash_password(payload.new_password)
+        conn.execute("UPDATE users SET password_hash = ? WHERE id = ?", (new_hash, row["user_id"]))
+        conn.execute("DELETE FROM password_reset_tokens WHERE token_hash = ?", (token_hash,))
+        conn.commit()
+        return {"ok": True}
+    finally:
+        conn.close()
+
+
 @router.post("/auth/change-password")
 async def auth_change_password(payload: ChangePasswordPayload, user: SessionUser = Depends(get_current_user)) -> dict[str, bool]:
     conn = _connect()
