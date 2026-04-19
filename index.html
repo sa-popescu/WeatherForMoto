@@ -558,6 +558,18 @@
     <div id="ride-stats" class="mt-4 hidden"></div>
   </section>
 
+  <!-- Stat detail modal -->
+  <div id="stat-modal" class="hidden fixed inset-0 z-[300] flex items-center justify-center p-4" onclick="closeStatModal()">
+    <div class="absolute inset-0 bg-black/75 backdrop-blur-sm"></div>
+    <div class="relative bg-card border border-border rounded-2xl p-6 w-full max-w-xs shadow-2xl" onclick="event.stopPropagation()">
+      <button onclick="closeStatModal()" class="absolute top-3 right-3 text-muted hover:text-gray-200 transition-colors"><i data-lucide="x" style="width:18px;height:18px"></i></button>
+      <div id="stat-modal-icon" class="text-accent/80 mb-3"></div>
+      <div id="stat-modal-label" class="text-xs text-muted font-semibold tracking-widest uppercase mb-1"></div>
+      <div id="stat-modal-value" class="font-display text-5xl font-bold leading-none mb-3"></div>
+      <div id="stat-modal-sub" class="text-sm text-gray-300 leading-relaxed"></div>
+    </div>
+  </div>
+
   <!-- iOS "Add to Home Screen" install banner -->
   <div id="ios-install-banner" role="alert" aria-live="polite">
     <div class="flex items-start gap-3">
