@@ -3809,7 +3809,7 @@
       var maxDay = daily.length;
       daily.slice(0, maxDay).forEach(function (day, i) {
         var date = new Date(day.date + "T12:00:00");
-        var dname = i === 0 ? "AZI" : (i === 1 ? "MÂINE" : DAYS[date.getDay()]);
+        var dname = i === 0 ? t('today_lbl') : (i === 1 ? t('tomorrow_lbl') : DAYS[date.getDay()]);
         var tMin = Math.round(day.temp_min);
         var tMax = Math.round(day.temp_max);
         var fMin = day.feels_min != null ? Math.round(day.feels_min) : null;
