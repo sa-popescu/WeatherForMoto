@@ -3864,8 +3864,8 @@
       html += secTitle(t('sec_hourly'));
       html += '<div class="flex gap-3 overflow-x-auto scroll-x pb-2 mb-2">';
       hourly.forEach(function (h, idx) {
-        var t = new Date(h.time);
-        var hh = t.getHours().toString().padStart(2, "0") + ":00";
+        var hDate = new Date(h.time);
+        var hh = hDate.getHours().toString().padStart(2, "0") + ":00";
         var rp = h.precipitation_probability || 0;
         var hs = scoreHourly(h.feels_like, h.wind_gusts_kmh, h.precipitation_mm, h.weather_code, h.precipitation_probability);
         var scoreColor = hs >= 85 ? '#22c55e' : hs >= 60 ? '#eab308' : hs >= 40 ? '#f97316' : '#ef4444';
