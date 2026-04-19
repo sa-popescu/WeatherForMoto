@@ -1573,7 +1573,7 @@
     function _updatePushButton(enabled, updateLabel) {
       var btn = document.getElementById('push-account-btn');
       if (!btn) return;
-      if (updateLabel) btn.textContent = enabled ? 'Alerte push: ON' : 'Alerte push: OFF';
+      if (updateLabel) btn.textContent = (t('acc_push_alerts') || 'Push alerts') + ': ' + (enabled ? 'ON' : 'OFF');
       btn.classList.toggle('border-ok', !!enabled);
       btn.classList.toggle('text-ok', !!enabled);
     }
