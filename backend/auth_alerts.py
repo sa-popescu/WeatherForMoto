@@ -1126,7 +1126,7 @@ def _build_risk_events(hourly: list[dict[str, Any]], prefs: sqlite3.Row) -> list
 
 def _send_push(subscription: sqlite3.Row, title: str, body: str, data: dict[str, Any]) -> None:
     if not (VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY):
-        raise HTTPException(status_code=503, detail="VAPID keys not configured")
+        raise RuntimeError("VAPID keys not configured")
 
     payload = {
         "title": title,
@@ -1146,7 +1146,7 @@ def _send_push(subscription: sqlite3.Row, title: str, body: str, data: dict[str,
 
     webpush(
         subscription_info=sub,
-        data=str(payload).replace("'", '"'),
+        data=json.dumps(payload),
         vapid_private_key=VAPID_PRIVATE_KEY,
         vapid_claims={"sub": VAPID_SUBJECT},
     )
