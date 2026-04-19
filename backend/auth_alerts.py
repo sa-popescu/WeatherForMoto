@@ -256,6 +256,18 @@ def init_db() -> None:
             );
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                token_hash TEXT UNIQUE NOT NULL,
+                expires_at TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(user_id) REFERENCES users(id)
+            )
+            """
+        )
         _ensure_column(conn, "users", "display_name", "ALTER TABLE users ADD COLUMN display_name TEXT")
         _ensure_column(conn, "users", "password_hash", "ALTER TABLE users ADD COLUMN password_hash TEXT")
         _ensure_column(
