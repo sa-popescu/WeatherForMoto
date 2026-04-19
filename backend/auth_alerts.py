@@ -656,6 +656,63 @@ async def auth_logout(authorization: str | None = Header(default=None), user: Se
         conn.close()
 
 
+RESET_TOKEN_TTL_MINUTES = 30
+
+
+@router.post("/auth/request-reset")
+async def auth_request_reset(payload: RequestResetPayload) -> dict[str, bool]:
+    conn = _connect()
+    try:
+        email = payload.email.lower()
+        row = conn.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
+        if not row:
+            return {"ok": True}
+        user_id = int(row["id"])
+        raw_token = secrets.token_urlsafe(32)
+        token_hash = _hash_token(raw_token)
+        now = _utc_now()
+        expires = (now + timedelta(minutes=RESET_TOKEN_TTL_MINUTES)).isoformat()
+        conn.execute(
+            "DELETE FROM password_reset_tokens WHERE user_id = ?",
+            (user_id,),
+        )
+        conn.execute(
+            "INSERT INTO password_reset_tokens(user_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?)",
+            (user_id, token_hash, expires, now.isoformat()),
+        )
+        conn.commit()
+        reset_link = f"{os.getenv('APP_BASE_URL', 'https://weatherformoto.up.railway.app')}/?reset_token={raw_token}"
+        await _send_email(
+            email,
+            "MotoMeteo — resetare parolă",
+            f"Salut,\n\nAi solicitat resetarea parolei.\n\nAccesează linkul de mai jos (valabil 30 de minute):\n{reset_link}\n\nDacă nu ai solicitat resetarea, ignoră acest email.\n\nEchipa MotoMeteo",
+        )
+        return {"ok": True}
+    finally:
+        conn.close()
+
+
+@router.post("/auth/change-password")
+async def auth_change_password(payload: ChangePasswordPayload, user: SessionUser = Depends(get_current_user)) -> dict[str, bool]:
+    conn = _connect()
+    try:
+        row = conn.execute(
+            "SELECT password_hash FROM users WHERE id = ?",
+            (user.user_id,),
+        ).fetchone()
+        if not row or not _verify_password(payload.current_password, row["password_hash"]):
+            raise HTTPException(status_code=401, detail="Parola curentă este incorectă")
+        new_hash = _hash_password(payload.new_password)
+        conn.execute(
+            "UPDATE users SET password_hash = ? WHERE id = ?",
+            (new_hash, user.user_id),
+        )
+        conn.commit()
+        return {"ok": True}
+    finally:
+        conn.close()
+
+
 @router.get("/me")
 async def me(user: SessionUser = Depends(get_current_user)) -> dict[str, Any]:
     conn = _connect()
