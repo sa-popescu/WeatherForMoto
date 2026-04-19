@@ -3872,16 +3872,16 @@
 
     function briefingText(current, dna) {
       var parts = [];
-      if (dna.modeLabel) parts.push('Profil activ: ' + dna.modeLabel + '.');
-      if (dna.overall >= 80) parts.push('Conditii foarte bune pentru o iesire mai lunga.');
-      else if (dna.overall >= 60) parts.push('Conditii decente, dar mentine ritm defensiv.');
-      else if (dna.overall >= 40) parts.push('Conditii mixte, evita depasirile agresive.');
-      else parts.push('Conditii dificile: recomanda amanare sau traseu scurt.');
+      if (dna.modeLabel) parts.push(t('briefing_active_profile') + ': ' + dna.modeLabel + '.');
+      if (dna.overall >= 80) parts.push(t('briefing_great'));
+      else if (dna.overall >= 60) parts.push(t('briefing_decent'));
+      else if (dna.overall >= 40) parts.push(t('briefing_mixed'));
+      else parts.push(t('briefing_hard'));
 
-      if ((current.precipitation_mm || 0) > 1) parts.push('Prioritizeaza echipament impermeabil complet.');
-      if ((current.wind_gusts_kmh || 0) > 50) parts.push('Vant lateral puternic, tine marja pe banda.');
-      if (current.uv_index != null && current.uv_index >= 6) parts.push('UV ridicat, foloseste protectie solara.');
-      if (current.frost_risk) parts.push('Posibil carosabil rece/alunecos in zone umbrite.');
+      if ((current.precipitation_mm || 0) > 1) parts.push(t('briefing_rain'));
+      if ((current.wind_gusts_kmh || 0) > 50) parts.push(t('briefing_wind'));
+      if (current.uv_index != null && current.uv_index >= 6) parts.push(t('briefing_uv'));
+      if (current.frost_risk) parts.push(t('briefing_frost'));
 
       return parts.join(' ');
     }
