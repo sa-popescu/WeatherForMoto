@@ -4214,7 +4214,25 @@
     _refreshPushStatus();
     loadSavedRoutes();
     loadRideStats();
-    loadWeather();
+
+    // Handle password reset link (?reset_token=...)
+    (function() {
+      var params = new URLSearchParams(window.location.search);
+      var resetToken = params.get('reset_token');
+      if (resetToken) {
+        history.replaceState({}, '', window.location.pathname);
+        document.getElementById('app').innerHTML =
+          '<div class="mt-8 max-w-sm mx-auto bg-card border border-border rounded-2xl p-6">'
+          + '<div class="font-display text-xl font-bold tracking-wide text-gray-100 mb-4">Resetare parolă</div>'
+          + '<input id="reset-new-pw" type="password" placeholder="Parola nouă (minim 8 caractere)" class="w-full bg-bg border border-border rounded-xl px-4 py-2 text-sm text-gray-200 mb-3"/>'
+          + '<button onclick="submitResetPassword(\'' + resetToken + '\')" class="w-full bg-accent hover:bg-orange-400 text-black font-display font-bold tracking-wider py-2 rounded-xl text-sm transition-colors">Salvează parola</button>'
+          + '<div id="reset-pw-msg" class="text-xs mt-3 hidden"></div>'
+          + '</div>';
+        return;
+      }
+      loadWeather();
+    })();
+
     if (window.lucide) lucide.createIcons();
   </script>
 
