@@ -4152,8 +4152,8 @@
       html += '<div class="bg-card border border-border rounded-xl overflow-hidden mb-6">';
       html += '<div id="radar-map" style="height:260px;background:#13151a"></div>';
       html += '<div class="px-3 py-2 text-xs text-muted/60 flex justify-between">'
-        + '<span>Sursa: RainViewer &amp; OpenStreetMap</span>'
-        + '<span>Live · actualizare automată 10min</span>'
+        + '<span>' + t('radar_source') + '</span>'
+        + '<span>' + t('radar_live') + '</span>'
         + '</div></div>';
 
       var sourceNames = (c.sources || ['open-meteo']).map(sourceLabel);
