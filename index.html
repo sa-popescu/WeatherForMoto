@@ -2755,6 +2755,22 @@
     };
     function wmoDesc(c) { return ((WMO_MAP[c] || [])[0]) || "—"; }
     function wmoIcon(c) { return ((WMO_MAP[c] || [])[1]) || "🌡️"; }
+
+    var WMO_LUCIDE_MAP = {
+      0: 'sun', 1: 'cloud-sun', 2: 'cloud-sun', 3: 'cloud',
+      45: 'cloud-fog', 48: 'cloud-fog',
+      51: 'cloud-drizzle', 53: 'cloud-drizzle', 55: 'cloud-drizzle',
+      61: 'cloud-rain', 63: 'cloud-rain', 65: 'cloud-rain',
+      66: 'cloud-snow', 67: 'cloud-snow',
+      71: 'cloud-snow', 73: 'cloud-snow', 75: 'cloud-snow', 77: 'snowflake',
+      80: 'cloud-rain', 81: 'cloud-rain', 82: 'cloud-rain',
+      85: 'cloud-snow', 86: 'cloud-snow',
+      95: 'cloud-lightning', 96: 'cloud-lightning', 99: 'cloud-lightning',
+    };
+    function wmoLucideIcon(code, size) {
+      var name = WMO_LUCIDE_MAP[code] || 'cloud';
+      return licon(name, size || 32);
+    }
     function windDirLabel(deg) {
       if (deg == null) return "—";
       return ["N", "NE", "E", "SE", "S", "SV", "V", "NV"][Math.round(deg / 45) % 8];
