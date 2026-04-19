@@ -380,32 +380,6 @@
     }
 
     /* iOS "Add to Home Screen" install banner */
-    #ios-install-banner {
-      display: none;
-      position: fixed;
-      bottom: calc(env(safe-area-inset-bottom) + 0.75rem);
-      left: 1rem;
-      right: 1rem;
-      z-index: 100;
-      background: #181b22;
-      border: 1px solid #f97316;
-      border-radius: 1rem;
-      padding: 0.85rem 1rem;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-      animation: slide-up 0.35s cubic-bezier(.4, 0, .2, 1);
-    }
-
-    @keyframes slide-up {
-      from {
-        transform: translateY(100%);
-        opacity: 0;
-      }
-
-      to {
-        transform: translateY(0);
-        opacity: 1;
-      }
-    }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <script src="https://unpkg.com/lucide@0.344.0/dist/umd/lucide.min.js"></script>
