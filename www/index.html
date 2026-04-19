@@ -3574,6 +3574,152 @@
 
       html += '</div>';
 
+      // ── Stats grid — compact, all items clickable for details ────────────
+      var rst = c.road_surface_temp != null ? c.road_surface_temp
+        : roadSurfaceTempClient(c.temperature, c.humidity, c.weather_code, c.precipitation_mm);
+      var rstCls = rst != null ? (rst < 0 ? 'text-danger' : rst < 5 ? 'text-warn' : rst > 50 ? 'text-warn' : 'text-gray-100') : 'text-gray-100';
+      var rstDesc = rst != null ? (rst < 0 ? '⚠️ gheață posibilă' : rst < 5 ? 'risc îngheț' : rst < 15 ? 'carosabil rece' : rst > 55 ? 'carosabil fierbinte' : 'carosabil normal') : '';
+
+      html += secTitle('Condiții actuale');
+      html += '<div class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2 mb-2">';
+
+      html += statCard('🌡️', 'Temp.', Math.round(c.temperature) + '°', tempCls(c.temperature),
+        'res. ' + Math.round(c.feels_like) + '°',
+        '<div class="space-y-1.5">'
+        + '<div>🌡️ Temperatura aerului: <strong>' + Math.round(c.temperature) + '°C</strong></div>'
+        + '<div>🤔 Resimțit: <strong>' + Math.round(c.feels_like) + '°C</strong></div>'
+        + (rst != null ? '<div>🛣️ Carosabil estimat: <strong class="' + rstCls + '">' + Math.round(rst) + '°C</strong> — ' + rstDesc + '</div>' : '')
+        + '<div class="text-xs text-muted mt-1">Temperatura resimțită include efectul vântului și umidității asupra percepției termice.</div>'
+        + '</div>');
+
+      html += statCard('💨', 'Vânt', Math.round(c.wind_speed_kmh) + '<span class="text-sm"> km/h</span>',
+        windCls(c.wind_gusts_kmh),
+        windCompassSvg(c.wind_direction_deg) + ' ' + c.wind_direction,
+        '<div class="space-y-1.5">'
+        + '<div>💨 Viteză medie: <strong>' + Math.round(c.wind_speed_kmh) + ' km/h</strong></div>'
+        + '<div>💥 Rafale: <strong class="' + windCls(c.wind_gusts_kmh) + '">' + Math.round(c.wind_gusts_kmh) + ' km/h</strong></div>'
+        + '<div>🧭 Direcție: <strong>' + c.wind_direction + '</strong> (' + Math.round(c.wind_direction_deg || 0) + '°)</div>'
+        + '<div>⚡ Beaufort: <strong>Bf ' + c.beaufort + '</strong></div>'
+        + '<div class="text-xs text-muted mt-1">Rafale >50 km/h afectează stabilitatea. >70 km/h: condiții periculoase.</div>'
+        + '</div>');
+
+      html += statCard('🌧️', 'Prec.', c.precipitation_mm.toFixed(1) + '<span class="text-sm"> mm</span>',
+        (c.precipitation_mm > 1 ? 'text-danger' : c.precipitation_mm > 0.1 ? 'text-warn' : 'text-ok'),
+        'mm / oră',
+        '<div class="space-y-1.5">'
+        + '<div>💧 Intensitate curentă: <strong>' + c.precipitation_mm.toFixed(1) + ' mm/h</strong></div>'
+        + '<div class="text-xs text-muted mt-1">0 mm = fără ploaie · 0.1–1 mm = burniță · 1–5 mm = ploaie moderată · >5 mm = torențial</div>'
+        + '</div>');
+
+      html += statCard('💧', 'Umid.', c.humidity + '<span class="text-sm">%</span>',
+        (c.humidity > 90 ? 'text-warn' : 'text-gray-100'),
+        'umiditate',
+        '<div class="space-y-1.5">'
+        + '<div>💧 Umiditate relativă: <strong>' + c.humidity + '%</strong></div>'
+        + '<div class="text-xs text-muted mt-1">>85%: carosabilul poate fi umed fără precipitații active.<br>>95%: condens pe vizor, drum lunecos posibil.</div>'
+        + '</div>');
+
+      if (c.pressure_hpa != null)
+        html += statCard('🔵', 'Pres.', Math.round(c.pressure_hpa) + '<span class="text-sm"> hPa</span>',
+          'text-gray-100', 'atmosf.',
+          '<div class="space-y-1.5">'
+          + '<div>📊 Presiune: <strong>' + Math.round(c.pressure_hpa) + ' hPa</strong></div>'
+          + '<div class="text-xs text-muted mt-1">Normal: ~1013 hPa<br><990 hPa = vreme instabilă<br>>1025 hPa = vreme stabilă</div>'
+          + '</div>');
+
+      if (c.visibility_km != null) {
+        var visLabel = c.visibility_km < 1 ? '⛔ Critică' : c.visibility_km < 5 ? '⚠️ Redusă' : c.visibility_km < 10 ? '🟡 Medie' : '✅ Bună';
+        html += statCard('👁️', 'Vizib.', c.visibility_km + '<span class="text-sm"> km</span>',
+          (c.visibility_km < 1 ? 'text-danger' : c.visibility_km < 5 ? 'text-warn' : 'text-gray-100'),
+          visLabel,
+          '<div class="space-y-1.5">'
+          + '<div>👁️ Vizibilitate: <strong>' + c.visibility_km + ' km</strong></div>'
+          + '<div>Evaluare: <strong>' + visLabel + '</strong></div>'
+          + '<div class="text-xs text-muted mt-1">>10 km = bună · 5–10 km = medie · 1–5 km = redusă · <1 km = periculos</div>'
+          + '</div>');
+      }
+
+      if (c.aqi != null)
+        html += statCard('🍃', 'AQI', c.aqi, aqiCls(c.aqi), aqiLabel(c.aqi),
+          '<div class="space-y-1.5">'
+          + '<div>🍃 AQI (1–5): <strong class="' + aqiCls(c.aqi) + '">' + c.aqi + ' — ' + aqiLabel(c.aqi) + '</strong></div>'
+          + (c.pm2_5 != null ? '<div>🫁 PM2.5: <strong>' + Math.round(c.pm2_5) + ' µg/m³</strong></div>' : '')
+          + (c.pm10 != null ? '<div>🌫️ PM10: <strong>' + Math.round(c.pm10) + ' µg/m³</strong></div>' : '')
+          + (c.eu_aqi != null ? '<div>🇪🇺 EU AQI: <strong>' + c.eu_aqi + '</strong></div>' : '')
+          + '<div class="text-xs text-muted mt-1">1=Bun · 2=Acceptabil · 3=Moderat · 4=Slab · 5=Foarte slab</div>'
+          + '</div>');
+
+      if (c.pm2_5 != null)
+        html += statCard('🫁', 'PM2.5', Math.round(c.pm2_5) + '<span class="text-sm"> µg</span>',
+          c.pm2_5 > 35 ? 'text-danger' : c.pm2_5 > 20 ? 'text-warn' : 'text-ok',
+          'particule fine',
+          '<div class="space-y-1.5">'
+          + '<div>🫁 PM2.5: <strong>' + Math.round(c.pm2_5) + ' µg/m³</strong></div>'
+          + '<div class="text-xs text-muted mt-1">Particule fine sub 2.5µm — pătrund adânc în plămâni.<br><12 = bun · 12–35 = moderat · >35 = nesănătos</div>'
+          + '</div>');
+
+      if (c.pm10 != null)
+        html += statCard('🌫️', 'PM10', Math.round(c.pm10) + '<span class="text-sm"> µg</span>',
+          c.pm10 > 50 ? 'text-danger' : c.pm10 > 30 ? 'text-warn' : 'text-ok',
+          'suspend.',
+          '<div class="space-y-1.5">'
+          + '<div>🌫️ PM10: <strong>' + Math.round(c.pm10) + ' µg/m³</strong></div>'
+          + '<div class="text-xs text-muted mt-1"><20 = bun · 20–50 = moderat · >50 = nesănătos</div>'
+          + '</div>');
+
+      if (c.ozone != null)
+        html += statCard('🧪', 'Ozon', Math.round(c.ozone) + '<span class="text-sm"> µg</span>',
+          c.ozone > 140 ? 'text-warn' : 'text-gray-100',
+          'O₃',
+          '<div class="space-y-1.5">'
+          + '<div>🧪 Ozon troposferic: <strong>' + Math.round(c.ozone) + ' µg/m³</strong></div>'
+          + '<div class="text-xs text-muted mt-1"><100 µg/m³ = sigur · 100–140 = moderat · >140 = alertă</div>'
+          + '</div>');
+
+      if (c.pollen_index != null)
+        html += statCard('🌾', 'Polen', c.pollen_index.toFixed(0),
+          c.pollen_index > 80 ? 'text-danger' : c.pollen_index > 40 ? 'text-warn' : 'text-ok',
+          'alergeni',
+          '<div class="space-y-1.5">'
+          + '<div>🌾 Index maxim de polen: <strong>' + c.pollen_index.toFixed(0) + '</strong></div>'
+          + '<div class="text-xs text-muted mt-1">Surse: anin, mesteacăn, iarbă, pelin, ambrozie.<br>0–10: scăzut · 10–50: moderat · 50–80: ridicat · >80: extrem</div>'
+          + '</div>');
+
+      if (c.uv_index != null)
+        html += statCard('☀️', 'UV', c.uv_index.toFixed(1), uvCls(c.uv_index), uvDesc(c.uv_index),
+          '<div class="space-y-1.5">'
+          + '<div>☀️ Indice UV: <strong class="' + uvCls(c.uv_index) + '">' + c.uv_index.toFixed(1) + ' — ' + uvDesc(c.uv_index) + '</strong></div>'
+          + '<div class="text-xs text-muted mt-1">'
+          + (c.uv_index < 3 ? 'Protecție minimă necesară.' : c.uv_index < 6 ? 'Recomandată protecție solară.' : c.uv_index < 8 ? 'SPF50+ obligatoriu.' : 'Limitați expunerea directă.')
+          + '<br>0–2: scăzut · 3–5: moderat · 6–7: ridicat · 8–10: foarte ridicat · 11+: extrem</div>'
+          + '</div>');
+
+      if (rst != null)
+        html += statCard('🛣️', 'Carosabil', Math.round(rst) + '°', rstCls, rstDesc,
+          '<div class="space-y-1.5">'
+          + '<div>🛣️ Temp. suprafață drum: <strong class="' + rstCls + '">' + Math.round(rst) + '°C</strong></div>'
+          + '<div>Condiție: <strong>' + rstDesc + '</strong></div>'
+          + '<div class="text-xs text-muted mt-1">Asfalt negru pe soare: +4°C...+9°C față de aer.<br>Drum ud: ≈ temp. aerului −1°C.</div>'
+          + '</div>');
+
+      if (daily.length && daily[0].sunrise)
+        html += statCard('🌅', 'Răsărit', fmtTime(daily[0].sunrise), 'text-gray-100', 'soare', null);
+      if (daily.length && daily[0].sunset)
+        html += statCard('🌇', 'Apus', fmtTime(daily[0].sunset), 'text-gray-100', 'soare', null);
+
+      html += '</div>';
+
+      // Gear recommendation
+      var gearRecs = c.gear_recommendation && c.gear_recommendation.length
+        ? c.gear_recommendation
+        : gearRecommendationClient(c.feels_like, c.wind_gusts_kmh, c.precipitation_mm, c.weather_code);
+      html += gearRecommendationHtml(gearRecs);
+
+      // Chart
+      html += secTitle('Grafic temperatură, vânt &amp; ploaie — 24h');
+      html += '<div class="bg-card border border-border rounded-xl p-4 mb-2" style="height:220px;">';
+      html += '<canvas id="tempChart"></canvas></div>';
+
       // ── Precipitation radar card (premium) ──────────────────────────────
       if (isPremium()) {
         html += secTitle('🗺️ Radar precipitații');
