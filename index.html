@@ -1692,8 +1692,19 @@
       var inp = document.getElementById('city-in');
       if (inp) inp.placeholder = t('search_ph') || 'Caută oraș...';
       DAYS = [t('d0'),t('d1'),t('d2'),t('d3'),t('d4'),t('d5'),t('d6')];
+      _applyStaticI18n();
       if (window._lastWeatherData) render(window._lastWeatherData);
       if (window.lucide) lucide.createIcons();
+    }
+    function _applyStaticI18n() {
+      document.querySelectorAll('[data-i18n]').forEach(function(el) {
+        var k = el.getAttribute('data-i18n');
+        var v = t(k); if (v && v !== k) el.textContent = v;
+      });
+      document.querySelectorAll('[data-i18n-ph]').forEach(function(el) {
+        var k = el.getAttribute('data-i18n-ph');
+        var v = t(k); if (v && v !== k) el.placeholder = v;
+      });
     }
     var DAYS = [t('d0'),t('d1'),t('d2'),t('d3'),t('d4'),t('d5'),t('d6')];
     var _refreshSecondsLeft = 0;
