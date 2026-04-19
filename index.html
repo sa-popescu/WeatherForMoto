@@ -3777,7 +3777,7 @@
       html += '</div></div></div>';
 
       // Hourly scroll — moved here (right after hero)
-      html += secTitle('Orar — 24h');
+      html += secTitle(t('sec_hourly'));
       html += '<div class="flex gap-3 overflow-x-auto scroll-x pb-2 mb-2">';
       hourly.forEach(function (h, idx) {
         var t = new Date(h.time);
