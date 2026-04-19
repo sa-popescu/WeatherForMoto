@@ -3317,12 +3317,34 @@
         + '</div>';
     }
 
-    function statCard(icon, label, value, valueCls, sub) {
-      return '<div class="bg-card border border-border rounded-xl p-4 flex flex-col gap-1 wx-card">'
-        + '<div class="text-3xl mb-1">' + icon + '</div>'
-        + '<div class="text-xs text-muted font-semibold tracking-widest uppercase">' + label + '</div>'
-        + '<div class="font-display text-4xl font-bold leading-none ' + valueCls + '">' + value + '</div>'
-        + '<div class="text-xs text-muted mt-1 leading-snug flex items-center gap-1">' + sub + '</div>'
+    var _modalStore = {};
+    var _modalCounter = 0;
+    function showStatModal(mid) {
+      var d = _modalStore[mid];
+      if (!d) return;
+      document.getElementById('sdm-icon').innerHTML = d.icon;
+      document.getElementById('sdm-label').textContent = d.label;
+      document.getElementById('sdm-value').innerHTML = d.value;
+      document.getElementById('sdm-sub').innerHTML = d.sub;
+      document.getElementById('sdm-details').innerHTML = d.details;
+      document.getElementById('stat-detail-modal').classList.remove('hidden');
+    }
+    function closeStatModal() {
+      document.getElementById('stat-detail-modal').classList.add('hidden');
+    }
+    function statCard(icon, label, value, valueCls, sub, details) {
+      var mid = '';
+      if (details) {
+        mid = 'sc' + (++_modalCounter);
+        _modalStore[mid] = { icon: icon, label: label, value: value, sub: sub, details: details };
+      }
+      var clickAttr = mid ? ' onclick="showStatModal(\'' + mid + '\')" role="button" tabindex="0"' : '';
+      return '<div class="bg-card border border-border rounded-lg p-2 flex flex-col gap-0 wx-card' + (mid ? ' cursor-pointer hover:border-accent/50' : '') + '"' + clickAttr + '>'
+        + '<div class="text-lg leading-none">' + icon + '</div>'
+        + '<div class="text-[0.6rem] text-muted font-semibold tracking-widest uppercase leading-tight mt-1">' + label + '</div>'
+        + '<div class="font-display text-xl font-bold leading-none mt-0.5 ' + valueCls + '">' + value + '</div>'
+        + '<div class="text-[0.6rem] text-muted leading-tight mt-0.5">' + sub + '</div>'
+        + (mid ? '<div class="text-[0.5rem] text-accent/50 mt-1 tracking-widest uppercase">tap ›</div>' : '')
         + '</div>';
     }
 
