@@ -1249,12 +1249,8 @@ async def _dispatch_for_user(user_id: int, email: str, owm_api_key: str) -> dict
 
 @router.post("/alerts/check-now")
 async def alerts_check_now(user: SessionUser = Depends(get_current_user)) -> dict[str, Any]:
-    conn = _connect()
-    try:
-        result = await _dispatch_for_user(conn, user.user_id, user.email, OWM_API_KEY)
-        return {"ok": True, **result}
-    finally:
-        conn.close()
+    result = await _dispatch_for_user(user.user_id, user.email, OWM_API_KEY)
+    return {"ok": True, **result}
 
 
 @router.post("/alerts/dispatch-all")
