@@ -3860,9 +3860,16 @@
     var _smData = {};
     var _smIdx = 0;
 
-    function statCard(icon, label, value, valueCls, sub) {
+    function _dRow(label, value, cls) {
+      return '<div class="flex justify-between items-center py-1 border-b border-border/50 last:border-0">'
+        + '<span class="text-muted text-xs">' + label + '</span>'
+        + '<span class="font-semibold text-xs ' + (cls||'text-gray-200') + '">' + value + '</span>'
+        + '</div>';
+    }
+
+    function statCard(icon, label, value, valueCls, sub, detail) {
       var k = 's' + (_smIdx++);
-      _smData[k] = { icon: icon, label: label, value: value, valueCls: valueCls, sub: sub };
+      _smData[k] = { icon: icon, label: label, value: value, valueCls: valueCls, sub: sub, detail: detail || '' };
       return '<div onclick="openStatModal(\'' + k + '\')" class="bg-card border border-border rounded-lg p-2 flex flex-col items-center gap-0.5 wx-card cursor-pointer hover:border-accent/50 transition-colors text-center min-w-0">'
         + '<div class="text-accent/70 flex items-center justify-center mb-0.5" style="height:20px">' + icon + '</div>'
         + '<div class="font-display text-sm font-bold leading-tight ' + valueCls + '">' + value + '</div>'
@@ -3879,6 +3886,9 @@
       valEl.innerHTML = d.value;
       valEl.className = 'font-display text-5xl font-bold leading-none mb-3 ' + d.valueCls;
       document.getElementById('stat-modal-sub').innerHTML = d.sub;
+      var detEl = document.getElementById('stat-modal-detail');
+      if (d.detail) { detEl.innerHTML = d.detail; detEl.classList.remove('hidden'); }
+      else { detEl.innerHTML = ''; detEl.classList.add('hidden'); }
       document.getElementById('stat-modal').classList.remove('hidden');
       if (window.lucide) lucide.createIcons();
     }
