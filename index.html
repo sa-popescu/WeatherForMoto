@@ -1353,7 +1353,11 @@
         msg.textContent = 'Parola a fost resetată! Te poți autentifica acum.';
         msg.className = 'text-xs text-ok';
         msg.classList.remove('hidden');
-        setTimeout(function() { loadWeather(); }, 2000);
+        setTimeout(function() {
+          var planner = document.getElementById('route-planner-section');
+          if (planner) planner.style.display = '';
+          loadWeather();
+        }, 2000);
       } catch (e) {
         msg.textContent = 'Eroare: ' + (e && e.message || e);
         msg.className = 'text-xs text-danger';
