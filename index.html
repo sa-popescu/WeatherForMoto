@@ -1475,8 +1475,95 @@
     var LAST_ROUTE_CTX = null;
     var ROUTE_MAP = null;
     var _chart = null;
-    var DAYS = ["Duminică", "Luni", "Marți", "Miercuri", "Joi", "Vineri", "Sâmbătă"];
     var _autoRefreshTimer = null;
+
+    // -----------------------------------------------------------------------
+    // i18n
+    // -----------------------------------------------------------------------
+    var _lang = 'ro';
+    try { _lang = localStorage.getItem('moto_lang') || 'ro'; } catch(_e) {}
+    var STRINGS = {
+      ro: {
+        sec_hourly:'Orar — 24h', sec_forecast:'Prognoză {n} zile',
+        sec_conditions:'Condiții actuale', sec_briefing:'Briefing Moto 360',
+        sec_chart:'Grafic temperatură, vânt &amp; ploaie — 24h',
+        sec_radar:'🗺️ Radar precipitații',
+        lbl_temp:'Temperatură', lbl_wind:'Vânt', lbl_rain:'Precipitații',
+        lbl_humidity:'Umiditate', lbl_pressure:'Presiune', lbl_visibility:'Vizibilitate',
+        lbl_aqi:'Calitate aer', lbl_pm25:'PM2.5', lbl_pm10:'PM10',
+        lbl_ozone:'Ozon', lbl_pollen:'Polen', lbl_uv:'Indice UV',
+        lbl_road_temp:'Temp. drum', lbl_sunrise:'Răsărit', lbl_sunset:'Apus',
+        sub_temp:'resimțit {fl}°C', sub_rain:'mm / oră curentă',
+        sub_humidity:'drum potențial umed', sub_pressure:'presiune atmosferică',
+        sub_visibility:'distanța de vizibilitate',
+        sub_sunrise:'ora răsăritului', sub_sunset:'ora apusului',
+        feels_like:'Resimțit', gusts:'Rafale',
+        now_lbl:'ACUM', today_lbl:'AZI', tomorrow_lbl:'MÂINE', rain_lbl:'PLOAIE', kmh:'KM/H',
+        score_ideal:'IDEAL PENTRU MERS', score_ok:'ACCEPTABIL',
+        score_caution:'CU PRECAUȚIE', score_avoid:'NU RECOMAND',
+        msg_ideal:'Condiții excelente. Drum liber! 🏍️',
+        msg_ok:'Condiții bune, atenție la schimbări.',
+        msg_caution:'Mergi cu atenție sporită.',
+        msg_avoid:'Condiții periculoase pentru două roți.',
+        dna_grip:'Aderență', dna_wind_stab:'Stabilitate vânt',
+        dna_vis:'Vizibilitate', dna_title:'PROFILUL MOTO',
+        adv_title:'SFAT PORNIRE 6H', adv_w1:'FEREASTRA #1', adv_w2:'FEREASTRA #2',
+        adv_none:'Nu există suficiente date pentru recomandare.',
+        briefing_title:'REZUMAT PERSONALIZAT',
+        verdict_ideal:'✓ IDEAL', verdict_ok:'~ OK',
+        verdict_caution:'⚠ PRECAUȚIE', verdict_avoid:'✗ EVITĂ',
+        d0:'Duminică',d1:'Luni',d2:'Marți',d3:'Miercuri',d4:'Joi',d5:'Vineri',d6:'Sâmbătă',
+        btn_lang:'EN', forgot_pw:'Ai uitat parola?',
+        reset_sent:'Email trimis! Verifică inbox-ul.',
+        reset_enter:'Introdu noua parolă:', reset_btn:'Resetează parola',
+      },
+      en: {
+        sec_hourly:'Hourly — 24h', sec_forecast:'Forecast {n} days',
+        sec_conditions:'Current Conditions', sec_briefing:'Moto Briefing 360',
+        sec_chart:'Temperature, Wind &amp; Rain Chart — 24h',
+        sec_radar:'🗺️ Precipitation Radar',
+        lbl_temp:'Temperature', lbl_wind:'Wind', lbl_rain:'Precipitation',
+        lbl_humidity:'Humidity', lbl_pressure:'Pressure', lbl_visibility:'Visibility',
+        lbl_aqi:'Air Quality', lbl_pm25:'PM2.5', lbl_pm10:'PM10',
+        lbl_ozone:'Ozone', lbl_pollen:'Pollen', lbl_uv:'UV Index',
+        lbl_road_temp:'Road Temp', lbl_sunrise:'Sunrise', lbl_sunset:'Sunset',
+        sub_temp:'feels like {fl}°C', sub_rain:'mm / current hour',
+        sub_humidity:'potentially wet road', sub_pressure:'atmospheric pressure',
+        sub_visibility:'visibility distance',
+        sub_sunrise:'sunrise time', sub_sunset:'sunset time',
+        feels_like:'Feels like', gusts:'Gusts',
+        now_lbl:'NOW', today_lbl:'TODAY', tomorrow_lbl:'TOMORROW', rain_lbl:'RAIN', kmh:'KM/H',
+        score_ideal:'IDEAL FOR RIDING', score_ok:'ACCEPTABLE',
+        score_caution:'RIDE WITH CARE', score_avoid:'AVOID RIDING',
+        msg_ideal:'Excellent conditions. Open road! 🏍️',
+        msg_ok:'Good conditions, watch for changes.',
+        msg_caution:'Ride with extra caution.',
+        msg_avoid:'Dangerous conditions for two wheels.',
+        dna_grip:'Grip', dna_wind_stab:'Wind Stability',
+        dna_vis:'Visibility', dna_title:'RIDE DNA',
+        adv_title:'START ADVISOR 6H', adv_w1:'WINDOW #1', adv_w2:'WINDOW #2',
+        adv_none:'Not enough hourly data for a recommendation.',
+        briefing_title:'PERSONAL BRIEFING',
+        verdict_ideal:'✓ IDEAL', verdict_ok:'~ OK',
+        verdict_caution:'⚠ CAUTION', verdict_avoid:'✗ AVOID',
+        d0:'Sunday',d1:'Monday',d2:'Tuesday',d3:'Wednesday',d4:'Thursday',d5:'Friday',d6:'Saturday',
+        btn_lang:'RO', forgot_pw:'Forgot your password?',
+        reset_sent:'Reset email sent! Check your inbox.',
+        reset_enter:'Enter your new password:', reset_btn:'Reset password',
+      }
+    };
+    function t(k) { var s=STRINGS[_lang]; return (s&&s[k]!=null)?s[k]:(STRINGS.ro[k]||k); }
+    function setLang(l) {
+      _lang = l;
+      try { localStorage.setItem('moto_lang', l); } catch(_e) {}
+      var btn = document.getElementById('lang-btn');
+      if (btn) btn.textContent = t('btn_lang');
+      var inp = document.getElementById('city-in');
+      if (inp) inp.placeholder = t('search_ph') || 'Caută oraș...';
+      if (window._lastWeatherData) render(window._lastWeatherData);
+      if (window.lucide) lucide.createIcons();
+    }
+    var DAYS = [t('d0'),t('d1'),t('d2'),t('d3'),t('d4'),t('d5'),t('d6')];
     var _refreshSecondsLeft = 0;
     var AUTO_REFRESH_SEC = 1800; // 30 minutes
 
@@ -3673,7 +3760,7 @@
       html += '<span class="text-xs text-muted tracking-wider mt-1">/ 100</span>';
       html += '</div></div>';
       html += '<div class="flex-1 text-center sm:text-left">';
-      html += '<div class="mb-2 text-gray-100">' + wmoLucideIcon(c.weather_code, 88) + '</div>';
+      html += '<div class="mb-2 text-gray-100">' + wmoWeatherIcon(c.weather_code, 88) + '</div>';
       html += '<div class="font-display text-3xl sm:text-4xl font-bold tracking-wide mb-1" style="color:' + si.color + '">' + si.label + '</div>';
       html += '<div class="text-base text-gray-300 mb-3">' + si.msg + '</div>';
       html += '<div class="flex flex-wrap gap-3 text-sm text-muted justify-center sm:justify-start">';
@@ -3698,7 +3785,7 @@
         var nowClass = idx === 0 ? "hourly-now border-accent" : "";
         html += '<div class="hourly-main-card flex-shrink-0 bg-card border ' + borderCol + ' ' + nowClass + ' rounded-xl p-3 w-24 text-center flex flex-col items-center gap-1">';
         html += '<div class="text-xs font-semibold tracking-widest ' + (idx === 0 ? 'text-accent' : 'text-muted') + '">' + (idx === 0 ? "ACUM" : hh) + '</div>';
-        html += '<div class="text-gray-100">' + wmoLucideIcon(h.weather_code, 38) + '</div>';
+        html += '<div class="text-gray-100">' + wmoWeatherIcon(h.weather_code, 38) + '</div>';
         html += '<div class="hour-temp font-display text-3xl font-bold leading-none text-gray-100">' + Math.round(h.temperature) + '°</div>';
         html += '<div class="text-xs ' + rainCls(rp) + '">' + rp + '% 💧</div>';
         html += '<div class="text-xs text-muted">' + Math.round(h.wind_speed_kmh) + ' km/h</div>';
@@ -3736,7 +3823,7 @@
 
         html += '<div class="bg-card border border-border border-l-4 ' + borderCol + ' rounded-xl overflow-hidden">';
         html += '<div onclick="toggleDay(' + i + ')" class="px-3 sm:px-4 py-3 flex items-center gap-1.5 sm:gap-3 cursor-pointer select-none">';
-        html += '<div class="flex-shrink-0 text-gray-100" title="' + day.description + '">' + wmoLucideIcon(day.weather_code, 28) + '</div>';
+        html += '<div class="flex-shrink-0 text-gray-100" title="' + day.description + '">' + wmoWeatherIcon(day.weather_code, 28) + '</div>';
         html += '<div class="flex-shrink-0 w-14 sm:w-20">'
           + '<div class="font-display text-sm sm:text-lg font-bold tracking-wide text-gray-100">' + dname + '</div>'
           + '<div class="text-xs text-muted">' + date.toLocaleDateString("ro-RO", { day: "numeric", month: "short" }) + '</div>'
@@ -3778,7 +3865,7 @@
             var hCol = hsc >= 85 ? '#22c55e' : hsc >= 60 ? '#eab308' : hsc >= 40 ? '#f97316' : '#ef4444';
             html += '<div class="daily-mini-card flex-shrink-0 bg-card border border-border rounded-xl p-2 w-16 text-center flex flex-col items-center gap-0.5">';
             html += '<div class="text-xs text-muted font-semibold">' + ht + '</div>';
-            html += '<div class="text-gray-100">' + wmoLucideIcon(h.weather_code, 22) + '</div>';
+            html += '<div class="text-gray-100">' + wmoWeatherIcon(h.weather_code, 22) + '</div>';
             html += '<div class="font-display text-lg font-bold leading-none text-gray-100">' + Math.round(h.temperature) + '°</div>';
             if (h.feels_like != null) html += '<div class="text-xs text-muted">res ' + Math.round(h.feels_like) + '°</div>';
             html += '<div class="text-xs ' + rainCls(hrp) + '">' + hrp + '%💧</div>';
