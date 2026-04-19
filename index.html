@@ -4008,21 +4008,6 @@
       return (window.navigator.standalone === true)
         || window.matchMedia('(display-mode: standalone)').matches;
     }
-    function dismissIosBanner() {
-      var b = document.getElementById('ios-install-banner');
-      if (b) b.style.display = 'none';
-      try { localStorage.setItem('iosBannerDismissed', '1'); } catch (_) { }
-    }
-    (function () {
-      if (_isIos() && !_isInStandaloneMode()) {
-        try { if (localStorage.getItem('iosBannerDismissed')) return; } catch (_) { }
-        var banner = document.getElementById('ios-install-banner');
-        if (banner) {
-          // Delay to let the page settle before animating in
-          setTimeout(function () { banner.style.display = 'block'; }, 2500);
-        }
-      }
-    }());
 
     // Refresh weather data when the app returns to the foreground (iOS multitasking)
     document.addEventListener('visibilitychange', function () {
