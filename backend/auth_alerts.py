@@ -19,7 +19,7 @@ import httpx
 from pydantic import BaseModel, EmailStr, Field
 from pywebpush import WebPushException, webpush
 
-from weather_service import get_weather
+from weather_service import get_weather, _haversine_km
 
 logger = logging.getLogger("weatherformoto.auth_alerts")
 
