@@ -253,7 +253,7 @@
       box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.35), 0 4px 16px rgba(249, 115, 22, 0.15);
     }
 
-    /* ── Premium features ─────────────────────────────────────────────── */
+    /* ── Modal animations ─────────────────────────────────────────────── */
     @keyframes fadeIn {
       from {
         opacity: 0;
@@ -266,49 +266,8 @@
       }
     }
 
-    #paywall-modal>div,
     #account-modal>div {
       animation: fadeIn 0.2s ease;
-    }
-
-    @keyframes premGlow {
-
-      0%,
-      100% {
-        box-shadow: 0 0 6px rgba(249, 115, 22, 0.25);
-      }
-
-      50% {
-        box-shadow: 0 0 18px rgba(249, 115, 22, 0.6);
-      }
-    }
-
-    .prem-glow {
-      animation: premGlow 2.5s ease-in-out infinite;
-    }
-
-    /* Premium day lock row */
-    .day-locked {
-      opacity: 0.45;
-      position: relative;
-      pointer-events: none;
-    }
-
-    .day-lock-overlay {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: rgba(11, 12, 15, 0.5);
-      font-family: 'Rajdhani', sans-serif;
-      font-weight: 700;
-      font-size: 0.72rem;
-      letter-spacing: 0.18em;
-      color: #f97316;
-      border-radius: inherit;
-      pointer-events: auto;
-      cursor: pointer;
     }
 
     .alert-banner {
@@ -340,6 +299,31 @@
       height: 100%;
       border-radius: 4px;
       transition: width 0.5s cubic-bezier(.4, 0, .2, 1);
+    }
+
+    @media (max-width: 380px) {
+      .planner-card {
+        padding: 0.7rem;
+      }
+
+      .planner-add-btn {
+        width: 100%;
+        justify-content: center;
+      }
+
+      .hourly-main-card {
+        width: 5rem;
+        padding: 0.55rem;
+      }
+
+      .hourly-main-card .hour-temp {
+        font-size: 1.45rem;
+      }
+
+      .daily-mini-card {
+        width: 3.5rem;
+        padding: 0.4rem;
+      }
     }
 
     /* ── iOS / PWA enhancements ────────────────────────────────────────── */
@@ -464,41 +448,159 @@
 
   <!-- HEADER -->
   <header class="bg-surface border-b border-border sticky top-0 z-50 safe-top">
-    <div class="max-w-5xl mx-auto px-3 sm:px-4 py-2 sm:py-3 flex items-center justify-between gap-2 sm:gap-4 flex-wrap">
-      <div class="flex items-center gap-2 sm:gap-3">
-        <span class="text-3xl sm:text-4xl leading-none">🏍️</span>
-        <div>
-          <div class="font-display text-2xl sm:text-3xl font-bold tracking-widest text-accent leading-none">MOTO<span
-              class="text-gray-600 text-xl sm:text-2xl"> /// </span>METEO</div>
-          <div id="upd" class="text-xs text-muted tracking-widest mt-0.5">—</div>
+    <div class="max-w-5xl mx-auto px-3 sm:px-4 py-2 sm:py-3">
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+          <span class="text-3xl sm:text-4xl leading-none">🏍️</span>
+          <div class="min-w-0">
+            <div class="font-display text-xl sm:text-3xl font-bold tracking-widest text-accent leading-none truncate">
+              MOTO<span class="text-gray-600 text-lg sm:text-2xl"> /// </span>METEO</div>
+            <div id="upd" class="text-[10px] sm:text-xs text-muted tracking-widest mt-0.5 truncate">—</div>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <button id="mobile-menu-btn" onclick="toggleMobileMenu()" title="Meniu"
+            class="md:hidden bg-card border border-border text-gray-300 hover:text-accent hover:border-accent text-base px-3 py-2 rounded-lg transition-colors">☰</button>
         </div>
       </div>
-      <div class="flex gap-1.5 sm:gap-2 items-center">
-        <input id="city-in" type="text" placeholder="Caută oraș..." value="Bucharest" class="bg-bg border border-border text-gray-100 font-body text-sm px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg w-32 sm:w-44
+
+      <div id="header-controls" class="hidden md:flex items-center gap-2 mt-3 flex-wrap">
+        <input id="city-in" type="text" placeholder="Caută oraș..." value="Bucharest" class="bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg w-full md:w-52
                       focus:outline-none focus:border-accent placeholder-muted transition-colors" />
-        <button onclick="searchCity()" class="bg-accent hover:bg-orange-400 text-black font-display font-bold text-sm sm:text-base tracking-wider
-                       px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg transition-colors">CAUTĂ</button>
-        <button onclick="geolocate()" title="Locația mea" class="bg-card border border-border text-muted hover:text-accent hover:border-accent
-                       text-base px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors">📍</button>
-        <button onclick="loadWeather()" title="Reîncarcă" class="bg-card border border-border text-muted hover:text-gray-200 hover:border-gray-500
-                       text-base px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors">↻</button>
-        <button onclick="openAccountModal()" title="Cont și setări" class="bg-card border border-border text-muted hover:text-accent hover:border-accent
-                       text-base px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors"
-          id="account-hdr-btn">👤</button>
-        <button id="theme-toggle-btn" onclick="toggleTheme()" title="Schimbă tema" class="bg-card border border-border text-muted hover:text-accent hover:border-accent
-                       text-base px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors"><span
-            id="theme-toggle-icon">🌙</span></button>
-        <button onclick="openGuideModal()" title="Ghid de interpretare"
+        <button onclick="searchCity();closeMobileMenu()" class="bg-accent hover:bg-orange-400 text-black font-display font-bold text-sm tracking-wider
+                       px-4 py-2 rounded-lg transition-colors">CAUTĂ</button>
+        <button onclick="geolocate();closeMobileMenu()" title="Locația mea"
           class="bg-card border border-border text-muted hover:text-accent hover:border-accent
-                       text-base px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors">ℹ</button>
-        <button onclick="isPremium() ? showPremiumStatus() : openPaywall('Activează MotoMeteo Plus')"
-          title="MotoMeteo Plus" id="premium-hdr-btn"
-          class="border font-display font-bold tracking-wider text-xs px-2 py-1.5 rounded-lg transition-colors prem-glow bg-accent/10 border-accent/30 text-accent">⚡
-          PLUS</button>
+                       text-base px-3 py-2 rounded-lg transition-colors flex items-center gap-2 justify-center md:justify-start">
+          <span>📍</span><span class="text-sm md:hidden">Locația mea</span>
+        </button>
+        <button onclick="loadWeather();closeMobileMenu()" title="Reîncarcă"
+          class="bg-card border border-border text-muted hover:text-gray-200 hover:border-gray-500
+                       text-base px-3 py-2 rounded-lg transition-colors flex items-center gap-2 justify-center md:justify-start">
+          <span>↻</span><span class="text-sm md:hidden">Reîncarcă</span>
+        </button>
+        <button onclick="openAccountModal();closeMobileMenu()" title="Cont și setări"
+          class="bg-card border border-border text-muted hover:text-accent hover:border-accent
+                       text-base px-3 py-2 rounded-lg transition-colors flex items-center gap-2 justify-center md:justify-start" id="account-hdr-btn">
+          <span>👤</span><span class="text-sm md:hidden">Cont & Setări</span>
+        </button>
+        <button id="theme-toggle-btn" onclick="toggleTheme();closeMobileMenu()" title="Schimbă tema"
+          class="bg-card border border-border text-muted hover:text-accent hover:border-accent
+                       text-base px-3 py-2 rounded-lg transition-colors flex items-center gap-2 justify-center md:justify-start">
+          <span id="theme-toggle-icon">🌙</span><span class="text-sm md:hidden">Temă</span>
+        </button>
+        <button onclick="openGuideModal();closeMobileMenu()" title="Ghid de interpretare"
+          class="bg-card border border-border text-muted hover:text-accent hover:border-accent
+                       text-base px-3 py-2 rounded-lg transition-colors flex items-center gap-2 justify-center md:justify-start">
+          <span>ℹ</span><span class="text-sm md:hidden">Ghid</span>
+        </button>
       </div>
     </div>
     <div id="favs-bar" class="max-w-5xl mx-auto px-3 sm:px-4 pb-2"></div>
   </header>
+
+  <!-- MAIN -->
+  <main class="max-w-5xl mx-auto px-3 sm:px-4 py-6 min-w-0" id="app">
+  </main>
+
+  <!-- PLANIFICATOR TRASEU -->
+  <section class="max-w-5xl mx-auto px-3 sm:px-4 pb-10">
+    <div class="flex items-center gap-3 mt-2 mb-4">
+      <span class="font-display text-sm font-bold tracking-[0.25em] text-muted uppercase">🗺️ Planificator traseu</span>
+      <div class="flex-1 h-px bg-border"></div>
+      <span class="text-xs text-muted italic hidden sm:inline">până la 5 opriri pe traseu</span>
+    </div>
+    <div class="planner-card bg-card border border-border rounded-xl p-4 mb-4">
+      <!-- Dynamic stops list -->
+      <div id="route-stops-list" class="mb-3">
+        <div class="stop-row flex items-center gap-2 mb-2">
+          <span class="text-xl flex-shrink-0" title="Start">🟢</span>
+          <input id="route-stop-0" type="text" placeholder="Plecare..."
+            class="route-stop-input w-full bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent placeholder-muted transition-colors" />
+          <span class="w-8 flex-shrink-0"></span>
+        </div>
+        <div class="stop-row flex items-center gap-2 mb-2">
+          <span class="text-xl flex-shrink-0" title="Destinație">🔴</span>
+          <input id="route-stop-1" type="text" placeholder="Destinație..."
+            class="route-stop-input w-full bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent placeholder-muted transition-colors" />
+          <span class="w-8 flex-shrink-0"></span>
+        </div>
+      </div>
+      <button onclick="addRouteStop()" id="add-stop-btn"
+        class="planner-add-btn mb-4 text-xs text-accent border border-accent/30 hover:bg-accent/10 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 flex-wrap">
+        <span class="text-base leading-none font-bold">+</span>
+        <span>Adaugă oprire intermediară</span>
+        <span class="ml-1 text-muted/70 hidden sm:inline">(maxim 5 total)</span>
+      </button>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+        <div>
+          <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Ora plecării</label>
+          <input id="route-departure" type="datetime-local"
+            class="w-full bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent transition-colors" />
+        </div>
+        <div>
+          <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Viteză medie (km/h)</label>
+          <input id="route-speed" type="number" value="80" min="20" max="180"
+            class="w-full bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent transition-colors" />
+        </div>
+      </div>
+      <button onclick="calcRoute()"
+        class="bg-accent hover:bg-orange-400 text-black font-display font-bold tracking-wider px-5 py-2 rounded-lg transition-colors text-sm">
+        🗺️ CALCULEAZĂ TRASEU
+      </button>
+    </div>
+    <div id="route-result"></div>
+    <div id="route-tools" class="mt-3 hidden"></div>
+    <div id="route-map" class="mt-3 h-64 rounded-xl border border-border overflow-hidden bg-card hidden"></div>
+    <div id="hazard-list" class="mt-3 hidden"></div>
+    <div id="saved-routes" class="mt-4 hidden"></div>
+    <div id="ride-stats" class="mt-4 hidden"></div>
+  </section>
+
+  <!-- Stat detail modal -->
+  <div id="stat-modal" class="hidden fixed inset-0 z-[300] flex items-center justify-center p-4" onclick="closeStatModal()">
+    <div class="absolute inset-0 bg-black/70"></div>
+    <div class="relative bg-card border border-border rounded-2xl p-6 w-full max-w-xs shadow-2xl" onclick="event.stopPropagation()">
+      <button onclick="closeStatModal()" class="absolute top-3 right-3 text-muted hover:text-gray-200 text-lg leading-none">✕</button>
+      <div id="stat-modal-icon" class="text-5xl mb-3 leading-none"></div>
+      <div id="stat-modal-label" class="text-xs text-muted font-semibold tracking-widest uppercase mb-1"></div>
+      <div id="stat-modal-value" class="font-display text-5xl font-bold leading-none mb-3"></div>
+      <div id="stat-modal-sub" class="text-sm text-gray-300 leading-snug"></div>
+    </div>
+  </div>
+
+  <!-- iOS "Add to Home Screen" install banner -->
+  <div id="ios-install-banner" role="alert" aria-live="polite">
+    <div class="flex items-start gap-3">
+      <span class="text-2xl flex-shrink-0">🏍️</span>
+      <div class="flex-1 min-w-0">
+        <div class="font-display font-bold text-sm tracking-widest text-accent">INSTALEAZĂ APLICAȚIA</div>
+        <div class="text-xs text-gray-300 mt-0.5 leading-snug">
+          Apasă butonul <strong>Distribuie</strong> ↑ din bara Safari → <strong>Adaugă pe ecranul de start</strong>
+          pentru experiență completă offline.
+        </div>
+      </div>
+      <button onclick="dismissIosBanner()" aria-label="Închide"
+        class="flex-shrink-0 text-muted hover:text-gray-200 text-lg leading-none transition-colors">✕</button>
+    </div>
+  </div>
+
+  <div id="pwa-install-banner" class="hidden fixed left-3 right-3 bottom-3 z-[230] sm:left-auto sm:right-4 sm:max-w-sm"
+    role="alert" aria-live="polite">
+    <div class="bg-card border border-accent/40 rounded-xl p-3 shadow-2xl flex items-start gap-3">
+      <span class="text-xl">⬇️</span>
+      <div class="flex-1 min-w-0">
+        <div class="font-display text-xs tracking-widest text-accent">INSTALEAZĂ MOTO METEO</div>
+        <div class="text-xs text-gray-300 mt-1">Instalează aplicația pentru lansare rapidă și notificări mai stabile.
+        </div>
+        <div class="mt-2 flex items-center gap-2">
+          <button onclick="installPwaNow()"
+            class="bg-accent hover:bg-orange-400 text-black text-xs font-display font-bold tracking-wider px-3 py-1.5 rounded-lg">Instalează</button>
+          <button onclick="dismissPwaInstallBanner()" class="text-xs text-muted hover:text-gray-200">Mai târziu</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- ══ ACCOUNT MODAL ══════════════════════════════════════════════════ -->
   <div id="account-modal" class="hidden fixed inset-0 z-[600] flex items-center justify-center p-4"
@@ -693,166 +795,14 @@
     </div>
   </div>
 
-  <!-- MAIN -->
-  <main class="max-w-5xl mx-auto px-3 sm:px-4 py-6 min-w-0" id="app">
-  </main>
-
-  <!-- PLANIFICATOR TRASEU -->
-  <section class="max-w-5xl mx-auto px-3 sm:px-4 pb-10">
-    <div class="flex items-center gap-3 mt-2 mb-4">
-      <span class="font-display text-sm font-bold tracking-[0.25em] text-muted uppercase">🗺️ Planificator traseu</span>
-      <div class="flex-1 h-px bg-border"></div>
-      <span class="text-xs text-muted italic hidden sm:inline">opriri multiple → ⚡ Premium</span>
-    </div>
-    <div class="bg-card border border-border rounded-xl p-4 mb-4">
-      <!-- Dynamic stops list -->
-      <div id="route-stops-list" class="mb-3">
-        <div class="stop-row flex items-center gap-2 mb-2">
-          <span class="text-xl flex-shrink-0" title="Start">🟢</span>
-          <input id="route-stop-0" type="text" placeholder="Plecare..."
-            class="route-stop-input w-full bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent placeholder-muted transition-colors" />
-          <span class="w-8 flex-shrink-0"></span>
-        </div>
-        <div class="stop-row flex items-center gap-2 mb-2">
-          <span class="text-xl flex-shrink-0" title="Destinație">🔴</span>
-          <input id="route-stop-1" type="text" placeholder="Destinație..."
-            class="route-stop-input w-full bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent placeholder-muted transition-colors" />
-          <span class="w-8 flex-shrink-0"></span>
-        </div>
-      </div>
-      <button onclick="addRouteStop()" id="add-stop-btn"
-        class="mb-4 text-xs text-accent border border-accent/30 hover:bg-accent/10 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
-        <span class="text-base leading-none font-bold">+</span>
-        <span>Adaugă oprire intermediară</span>
-        <span class="ml-1 text-muted/70">(⚡ Premium · max 5 total)</span>
-      </button>
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-        <div>
-          <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Ora plecării</label>
-          <input id="route-departure" type="datetime-local"
-            class="w-full bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent transition-colors" />
-        </div>
-        <div>
-          <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Viteză medie (km/h)</label>
-          <input id="route-speed" type="number" value="80" min="20" max="180"
-            class="w-full bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent transition-colors" />
-        </div>
-      </div>
-      <button onclick="calcRoute()"
-        class="bg-accent hover:bg-orange-400 text-black font-display font-bold tracking-wider px-5 py-2 rounded-lg transition-colors text-sm">
-        🗺️ CALCULEAZĂ TRASEU
-      </button>
-    </div>
-    <div id="route-result"></div>
-    <div id="route-tools" class="mt-3 hidden"></div>
-    <div id="route-map" class="mt-3 h-64 rounded-xl border border-border overflow-hidden bg-card hidden"></div>
-    <div id="hazard-list" class="mt-3 hidden"></div>
-    <div id="saved-routes" class="mt-4 hidden"></div>
-    <div id="ride-stats" class="mt-4 hidden"></div>
-  </section>
-
-  <!-- iOS "Add to Home Screen" install banner -->
-  <div id="ios-install-banner" role="alert" aria-live="polite">
-    <div class="flex items-start gap-3">
-      <span class="text-2xl flex-shrink-0">🏍️</span>
-      <div class="flex-1 min-w-0">
-        <div class="font-display font-bold text-sm tracking-widest text-accent">INSTALEAZĂ APLICAȚIA</div>
-        <div class="text-xs text-gray-300 mt-0.5 leading-snug">
-          Apasă butonul <strong>Distribuie</strong> ↑ din bara Safari → <strong>Adaugă pe ecranul de start</strong>
-          pentru experiență completă offline.
-        </div>
-      </div>
-      <button onclick="dismissIosBanner()" aria-label="Închide"
-        class="flex-shrink-0 text-muted hover:text-gray-200 text-lg leading-none transition-colors">✕</button>
-    </div>
-  </div>
-
-  <div id="pwa-install-banner" class="hidden fixed left-3 right-3 bottom-3 z-[230] sm:left-auto sm:right-4 sm:max-w-sm"
-    role="alert" aria-live="polite">
-    <div class="bg-card border border-accent/40 rounded-xl p-3 shadow-2xl flex items-start gap-3">
-      <span class="text-xl">⬇️</span>
-      <div class="flex-1 min-w-0">
-        <div class="font-display text-xs tracking-widest text-accent">INSTALEAZĂ MOTO METEO</div>
-        <div class="text-xs text-gray-300 mt-1">Instalează aplicația pentru lansare rapidă și notificări mai stabile.
-        </div>
-        <div class="mt-2 flex items-center gap-2">
-          <button onclick="installPwaNow()"
-            class="bg-accent hover:bg-orange-400 text-black text-xs font-display font-bold tracking-wider px-3 py-1.5 rounded-lg">Instalează</button>
-          <button onclick="dismissPwaInstallBanner()" class="text-xs text-muted hover:text-gray-200">Mai târziu</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- STAT DETAIL MODAL -->
-  <div id="stat-detail-modal" class="hidden fixed inset-0 z-[650] flex items-center justify-center p-4"
-    style="background:rgba(0,0,0,0.75);backdrop-filter:blur(8px)"
-    onclick="event.target===this&&closeStatModal()">
-    <div class="bg-card border border-border rounded-2xl p-5 max-w-xs w-full shadow-2xl">
-      <div class="flex items-center justify-between mb-3">
-        <div class="flex items-center gap-2">
-          <span id="sdm-icon" class="text-2xl leading-none"></span>
-          <span id="sdm-label" class="font-display font-bold text-gray-100 tracking-wider text-sm uppercase"></span>
-        </div>
-        <button onclick="closeStatModal()" class="text-muted hover:text-gray-200 text-xl leading-none transition-colors">✕</button>
-      </div>
-      <div id="sdm-value" class="font-display text-4xl font-bold text-gray-100 leading-none mb-1"></div>
-      <div id="sdm-sub" class="text-xs text-muted mb-4 leading-snug"></div>
-      <div id="sdm-details" class="text-sm space-y-1.5 text-gray-200 leading-relaxed"></div>
-    </div>
-  </div>
-
-  <!-- ══ PAYWALL MODAL ══════════════════════════════════════════════════ -->
-  <div id="paywall-modal" class="hidden fixed inset-0 z-[200] flex items-center justify-center p-4"
-    style="background:rgba(0,0,0,0.8);backdrop-filter:blur(10px)" onclick="event.target===this&&closePaywall()">
-    <div class="bg-card border border-accent/30 rounded-2xl p-6 max-w-sm w-full shadow-2xl">
-      <div class="text-center mb-5">
-        <div class="text-5xl mb-2">🏍️⚡</div>
-        <div class="font-display text-3xl font-bold tracking-widest text-accent">MOTO<span class="text-gray-500"> ///
-          </span>PLUS</div>
-        <div class="text-sm text-muted mt-1">Deblochează toate funcțiile premium</div>
-      </div>
-      <div id="paywall-feature-name"
-        class="mb-4 text-center text-sm text-warn font-semibold py-2 px-3 bg-warn/10 rounded-lg border border-warn/20 hidden">
-      </div>
-      <ul class="mb-5 space-y-2.5 text-sm">
-        <li class="flex items-center gap-3"><span class="text-ok text-lg flex-shrink-0">✓</span><span>Prognoză extinsă
-            <strong class="text-gray-200">14 zile</strong></span></li>
-        <li class="flex items-center gap-3"><span class="text-ok text-lg flex-shrink-0">✓</span><span>Traseu cu <strong
-              class="text-gray-200">până la 5 opriri</strong></span></li>
-        <li class="flex items-center gap-3"><span class="text-ok text-lg flex-shrink-0">✓</span><span><strong
-              class="text-gray-200">Alerte personalizate</strong> de vreme (vânt, ploaie, temperatură)</span></li>
-        <li class="flex items-center gap-3"><span class="text-ok text-lg flex-shrink-0">✓</span><span>Hartă <strong
-              class="text-gray-200">radar precipitații</strong> interactiv</span></li>
-        <li class="flex items-center gap-3"><span class="text-ok text-lg flex-shrink-0">✓</span><span>Notificări <strong
-              class="text-gray-200">Mergi / Nu merge</strong> zilnice</span></li>
-      </ul>
-      <div class="mb-4 bg-bg rounded-xl p-4 text-center border border-border">
-        <div class="font-display text-4xl font-bold text-accent">2,99€<span
-            class="text-base text-muted font-normal">/lună</span></div>
-        <div class="text-xs text-muted mt-1">sau <strong class="text-gray-300">19,99€/an</strong> — economisești 44%
-        </div>
-      </div>
-      <button onclick="activatePremium()"
-        class="w-full bg-accent hover:bg-orange-400 text-black font-display font-bold tracking-wider py-3 rounded-xl transition-colors mb-2 text-lg">
-        ⚡ ABONEAZĂ-TE ACUM
-      </button>
-      <button onclick="restorePremium()"
-        class="w-full border border-border text-muted hover:text-gray-200 hover:border-gray-500 font-body text-sm py-2 rounded-xl transition-colors mb-1">
-        Restaurează achiziția
-      </button>
-      <button onclick="closePaywall()" class="w-full text-xs text-muted/50 hover:text-muted py-1.5 transition-colors">
-        Nu acum
-      </button>
-    </div>
-  </div>
-
   <!-- GHID DE INTERPRETARE -->
   <div id="guide-modal"
     class="hidden fixed inset-0 z-[620] flex items-start justify-center p-4 pt-8"
     style="background:rgba(0,0,0,0.85);backdrop-filter:blur(12px)"
     onclick="event.target===this&&closeGuideModal()">
     <div class="bg-card border border-border rounded-2xl w-full max-w-2xl shadow-2xl max-h-[88vh] overflow-y-auto">
+
+      <!-- Header -->
       <div class="sticky top-0 bg-card border-b border-border rounded-t-2xl px-6 py-4 flex items-center justify-between z-10">
         <div>
           <h2 class="font-display text-lg font-bold text-gray-100 tracking-wide">📖 Ghid de Interpretare</h2>
@@ -860,66 +810,160 @@
         </div>
         <button onclick="closeGuideModal()" class="text-muted hover:text-gray-100 text-3xl leading-none transition-colors w-9 h-9 flex items-center justify-center rounded-lg hover:bg-border">×</button>
       </div>
+
       <div class="px-6 py-5 space-y-8">
+
+        <!-- 1. Scorul Moto -->
         <section>
           <h3 class="font-display font-bold text-base text-gray-100 mb-3 flex items-center gap-2">
             <span class="w-7 h-7 rounded-lg bg-accent/20 text-accent flex items-center justify-center text-sm">🏍</span>
             Scorul Moto (0 – 100)
           </h3>
-          <p class="text-sm text-muted leading-relaxed mb-3">Scorul reflectă cât de potrivite sunt condițiile atmosferice pentru o deplasare cu motocicleta. Este calculat pe baza mai multor factori, fiecăruia aplicându-i-se o penalizare proporțională cu severitatea sa.</p>
+          <p class="text-sm text-muted leading-relaxed mb-3">
+            Scorul reflectă cât de potrivite sunt condițiile atmosferice pentru o deplasare cu motocicleta. Este calculat pe baza mai multor factori, fiecăruia aplicându-i-se o penalizare proporțională cu severitatea sa.
+          </p>
           <div class="bg-bg rounded-xl border border-border overflow-hidden">
             <table class="w-full text-sm">
-              <thead><tr class="border-b border-border"><th class="text-left px-4 py-2.5 text-muted font-medium">Factor</th><th class="text-left px-4 py-2.5 text-muted font-medium">Impact</th><th class="text-left px-4 py-2.5 text-muted font-medium">Detalii</th></tr></thead>
+              <thead>
+                <tr class="border-b border-border">
+                  <th class="text-left px-4 py-2.5 text-muted font-medium">Factor</th>
+                  <th class="text-left px-4 py-2.5 text-muted font-medium">Impact</th>
+                  <th class="text-left px-4 py-2.5 text-muted font-medium">Detalii</th>
+                </tr>
+              </thead>
               <tbody class="divide-y divide-border">
-                <tr><td class="px-4 py-2.5 text-gray-200 font-medium">🌧 Probabilitate ploaie</td><td class="px-4 py-2.5"><span class="text-danger font-bold">Mare</span></td><td class="px-4 py-2.5 text-muted">Cel mai important factor — penalizare progresivă</td></tr>
-                <tr><td class="px-4 py-2.5 text-gray-200 font-medium">💧 Cantitate precipitații</td><td class="px-4 py-2.5"><span class="text-danger font-bold">Mare</span></td><td class="px-4 py-2.5 text-muted">mm/h sau mm/zi; adaugă penalizare suplimentară</td></tr>
-                <tr><td class="px-4 py-2.5 text-gray-200 font-medium">🌨 Cod meteo (WMO)</td><td class="px-4 py-2.5"><span class="text-danger font-bold">Mare</span></td><td class="px-4 py-2.5 text-muted">Zăpadă, gheață, furtună → penalizare severă</td></tr>
-                <tr><td class="px-4 py-2.5 text-gray-200 font-medium">💨 Rafale de vânt</td><td class="px-4 py-2.5"><span class="text-accent font-bold">Mediu</span></td><td class="px-4 py-2.5 text-muted">Penalizare la &gt;40 km/h, severă &gt;70 km/h</td></tr>
-                <tr><td class="px-4 py-2.5 text-gray-200 font-medium">🌡 Temperatură resimțită</td><td class="px-4 py-2.5"><span class="text-warn font-bold">Moderat</span></td><td class="px-4 py-2.5 text-muted">Penalizare sub 5°C și peste 38°C</td></tr>
+                <tr>
+                  <td class="px-4 py-2.5 text-gray-200 font-medium">🌧 Probabilitate ploaie</td>
+                  <td class="px-4 py-2.5"><span class="text-danger font-bold">Mare</span></td>
+                  <td class="px-4 py-2.5 text-muted">Cel mai important factor — penalizare progresivă</td>
+                </tr>
+                <tr>
+                  <td class="px-4 py-2.5 text-gray-200 font-medium">💧 Cantitate precipitații</td>
+                  <td class="px-4 py-2.5"><span class="text-danger font-bold">Mare</span></td>
+                  <td class="px-4 py-2.5 text-muted">mm/h sau mm/zi; adaugă penalizare suplimentară</td>
+                </tr>
+                <tr>
+                  <td class="px-4 py-2.5 text-gray-200 font-medium">🌨 Cod meteo (WMO)</td>
+                  <td class="px-4 py-2.5"><span class="text-danger font-bold">Mare</span></td>
+                  <td class="px-4 py-2.5 text-muted">Zăpadă, gheață, furtună → penalizare severă</td>
+                </tr>
+                <tr>
+                  <td class="px-4 py-2.5 text-gray-200 font-medium">💨 Rafale de vânt</td>
+                  <td class="px-4 py-2.5"><span class="text-accent font-bold">Mediu</span></td>
+                  <td class="px-4 py-2.5 text-muted">Penalizare la &gt;40 km/h, severă &gt;70 km/h</td>
+                </tr>
+                <tr>
+                  <td class="px-4 py-2.5 text-gray-200 font-medium">🌡 Temperatură resimțită</td>
+                  <td class="px-4 py-2.5"><span class="text-warn font-bold">Moderat</span></td>
+                  <td class="px-4 py-2.5 text-muted">Penalizare sub 5°C și peste 38°C</td>
+                </tr>
               </tbody>
             </table>
           </div>
-          <div class="mt-3 bg-danger/10 border border-danger/30 rounded-lg px-4 py-3 text-xs text-muted leading-relaxed"><span class="text-danger font-semibold">Sistem de plafon:</span> Orice risc de ploaie limitează scorul maxim la 79. Ploaie abundentă → max 39. Cod de furtună/ninsoare → max 19.</div>
+          <div class="mt-3 bg-danger/10 border border-danger/30 rounded-lg px-4 py-3 text-xs text-muted leading-relaxed">
+            <span class="text-danger font-semibold">Sistem de plafon:</span> Orice risc de ploaie limitează scorul maxim la 79. Ploaie abundentă → max 39. Cod de furtună/ninsoare → max 19.
+          </div>
         </section>
+
         <hr class="border-border" />
+
+        <!-- 2. Codul Culorilor -->
         <section>
           <h3 class="font-display font-bold text-base text-gray-100 mb-3 flex items-center gap-2">
             <span class="w-7 h-7 rounded-lg bg-ok/20 text-ok flex items-center justify-center text-sm">🎨</span>
             Codul Culorilor
           </h3>
-          <p class="text-sm text-muted leading-relaxed mb-4">Culoarea borderii și a scorului reflectă aceeași scală — sunt întotdeauna sincronizate.</p>
+          <p class="text-sm text-muted leading-relaxed mb-4">
+            Culoarea borderii și a scorului reflectă aceeași scală — sunt întotdeauna sincronizate.
+          </p>
           <div class="space-y-2">
-            <div class="flex items-stretch gap-3 bg-ok/10 border border-ok/30 rounded-xl overflow-hidden"><div class="w-2 bg-ok flex-shrink-0"></div><div class="py-3 pr-4"><div class="flex items-center gap-2 mb-1"><span class="font-display font-bold text-ok text-sm tracking-wider">✓ IDEAL</span><span class="text-xs bg-ok/20 text-ok px-2 py-0.5 rounded-full font-mono">≥ 85</span></div><p class="text-xs text-muted">Condiții excelente. Drum liber, vizibilitate bună, fără precipitații, vânt moderat și temperaturi confortabile.</p></div></div>
-            <div class="flex items-stretch gap-3 bg-warn/10 border border-warn/30 rounded-xl overflow-hidden"><div class="w-2 bg-warn flex-shrink-0"></div><div class="py-3 pr-4"><div class="flex items-center gap-2 mb-1"><span class="font-display font-bold text-warn text-sm tracking-wider">~ OK</span><span class="text-xs bg-warn/20 text-warn px-2 py-0.5 rounded-full font-mono">60 – 84</span></div><p class="text-xs text-muted">Condiții acceptabile. Pot exista probabilități mici de ploaie, vânt mai susținut sau temperaturi la limita confortului.</p></div></div>
-            <div class="flex items-stretch gap-3 bg-accent/10 border border-accent/30 rounded-xl overflow-hidden"><div class="w-2 bg-accent flex-shrink-0"></div><div class="py-3 pr-4"><div class="flex items-center gap-2 mb-1"><span class="font-display font-bold text-accent text-sm tracking-wider">⚠ PRECAUȚIE</span><span class="text-xs bg-accent/20 text-accent px-2 py-0.5 rounded-full font-mono">40 – 59</span></div><p class="text-xs text-muted">Condiții dificile. Ploaie probabilă, vânt puternic sau frig accentuat. Recomandat echipament complet.</p></div></div>
-            <div class="flex items-stretch gap-3 bg-danger/10 border border-danger/30 rounded-xl overflow-hidden"><div class="w-2 bg-danger flex-shrink-0"></div><div class="py-3 pr-4"><div class="flex items-center gap-2 mb-1"><span class="font-display font-bold text-danger text-sm tracking-wider">✗ EVITĂ</span><span class="text-xs bg-danger/20 text-danger px-2 py-0.5 rounded-full font-mono">&lt; 40</span></div><p class="text-xs text-muted">Condiții periculoase. Furtună, ninsoare, gheață sau precipitații abundente. Nu este recomandat mersul cu motocicleta.</p></div></div>
+            <div class="flex items-stretch gap-3 bg-ok/10 border border-ok/30 rounded-xl overflow-hidden">
+              <div class="w-2 bg-ok flex-shrink-0"></div>
+              <div class="py-3 pr-4">
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="font-display font-bold text-ok text-sm tracking-wider">✓ IDEAL</span>
+                  <span class="text-xs bg-ok/20 text-ok px-2 py-0.5 rounded-full font-mono">≥ 85</span>
+                </div>
+                <p class="text-xs text-muted">Condiții excelente. Drum liber, vizibilitate bună, fără precipitații, vânt moderat și temperaturi confortabile.</p>
+              </div>
+            </div>
+            <div class="flex items-stretch gap-3 bg-warn/10 border border-warn/30 rounded-xl overflow-hidden">
+              <div class="w-2 bg-warn flex-shrink-0"></div>
+              <div class="py-3 pr-4">
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="font-display font-bold text-warn text-sm tracking-wider">~ OK</span>
+                  <span class="text-xs bg-warn/20 text-warn px-2 py-0.5 rounded-full font-mono">60 – 84</span>
+                </div>
+                <p class="text-xs text-muted">Condiții acceptabile. Pot exista probabilități mici de ploaie, vânt mai susținut sau temperaturi la limita confortului. Mers posibil cu atenție.</p>
+              </div>
+            </div>
+            <div class="flex items-stretch gap-3 bg-accent/10 border border-accent/30 rounded-xl overflow-hidden">
+              <div class="w-2 bg-accent flex-shrink-0"></div>
+              <div class="py-3 pr-4">
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="font-display font-bold text-accent text-sm tracking-wider">⚠ PRECAUȚIE</span>
+                  <span class="text-xs bg-accent/20 text-accent px-2 py-0.5 rounded-full font-mono">40 – 59</span>
+                </div>
+                <p class="text-xs text-muted">Condiții dificile. Ploaie probabilă, vânt puternic sau frig accentuat. Recomandat echipament complet; evaluează necesitatea deplasării.</p>
+              </div>
+            </div>
+            <div class="flex items-stretch gap-3 bg-danger/10 border border-danger/30 rounded-xl overflow-hidden">
+              <div class="w-2 bg-danger flex-shrink-0"></div>
+              <div class="py-3 pr-4">
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="font-display font-bold text-danger text-sm tracking-wider">✗ EVITĂ</span>
+                  <span class="text-xs bg-danger/20 text-danger px-2 py-0.5 rounded-full font-mono">&lt; 40</span>
+                </div>
+                <p class="text-xs text-muted">Condiții periculoase. Furtună, ninsoare, gheață sau precipitații abundente. Nu este recomandat mersul cu motocicleta.</p>
+              </div>
+            </div>
           </div>
         </section>
+
         <hr class="border-border" />
+
+        <!-- 3. Temperatura Drumului -->
         <section>
           <h3 class="font-display font-bold text-base text-gray-100 mb-3 flex items-center gap-2">
             <span class="w-7 h-7 rounded-lg bg-warn/20 text-warn flex items-center justify-center text-sm">🛣</span>
             Temperatura Drumului
           </h3>
-          <p class="text-sm text-muted leading-relaxed mb-3">Temperatura suprafeței drumului este estimată pe baza unui model empiric:</p>
+          <p class="text-sm text-muted leading-relaxed mb-3">
+            Temperatura suprafeței drumului este estimată (nu măsurată direct) pe baza unui model empiric:
+          </p>
           <ul class="text-sm text-muted space-y-1.5 list-none">
-            <li class="flex items-start gap-2"><span class="text-ok mt-0.5">+</span><span>Zi senină + temperaturi &gt;15°C → drum poate fi cu până la <strong class="text-gray-300">+9°C</strong> față de aerul ambiant</span></li>
-            <li class="flex items-start gap-2"><span class="text-accent mt-0.5">−</span><span>Drum umed → <strong class="text-gray-300">−1°C</strong> față de estimare</span></li>
+            <li class="flex items-start gap-2"><span class="text-ok mt-0.5">+</span><span>Zi senină + temperaturi &gt;15°C → drum poate fi cu până la <strong class="text-gray-300">+9°C</strong> față de aerul ambiant (absorbție solară)</span></li>
+            <li class="flex items-start gap-2"><span class="text-accent mt-0.5">−</span><span>Drum umed (ploaie recentă) → <strong class="text-gray-300">−1°C</strong> față de estimare</span></li>
             <li class="flex items-start gap-2"><span class="text-danger mt-0.5">⚠</span><span>Temperatură drum apropiată de <strong class="text-danger">0°C</strong> → risc de brumă sau gheață activat</span></li>
           </ul>
         </section>
+
         <hr class="border-border" />
+
+        <!-- 4. Echipament -->
         <section>
           <h3 class="font-display font-bold text-base text-gray-100 mb-3 flex items-center gap-2">
             <span class="w-7 h-7 rounded-lg bg-accent/20 text-accent flex items-center justify-center text-sm">🧥</span>
             Recomandări Echipament
           </h3>
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
-            <div class="bg-bg border border-border rounded-lg px-3 py-2.5 text-center"><div class="text-xs font-bold text-ok mb-1">RECOMANDAT</div><div class="text-xs text-muted">Util, dar mersul e posibil fără</div></div>
-            <div class="bg-bg border border-border rounded-lg px-3 py-2.5 text-center"><div class="text-xs font-bold text-warn mb-1">ATENȚIE</div><div class="text-xs text-muted">Recomandat puternic pentru confort și siguranță</div></div>
-            <div class="bg-bg border border-border rounded-lg px-3 py-2.5 text-center"><div class="text-xs font-bold text-danger mb-1">OBLIGATORIU</div><div class="text-xs text-muted">Esențial pentru siguranță în aceste condiții</div></div>
+          <p class="text-sm text-muted leading-relaxed mb-3">
+            Recomandrile sunt generate automat pe baza condițiilor curente, fiecare cu un nivel de urgență:
+          </p>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div class="bg-bg border border-border rounded-lg px-3 py-2.5 text-center">
+              <div class="text-xs font-bold text-ok mb-1">RECOMANDAT</div>
+              <div class="text-xs text-muted">Util, dar mersul e posibil fără</div>
+            </div>
+            <div class="bg-bg border border-border rounded-lg px-3 py-2.5 text-center">
+              <div class="text-xs font-bold text-warn mb-1">ATENȚIE</div>
+              <div class="text-xs text-muted">Recomandat puternic pentru confort și siguranță</div>
+            </div>
+            <div class="bg-bg border border-border rounded-lg px-3 py-2.5 text-center">
+              <div class="text-xs font-bold text-danger mb-1">OBLIGATORIU</div>
+              <div class="text-xs text-muted">Esențial pentru siguranță în aceste condiții</div>
+            </div>
           </div>
-          <div class="grid grid-cols-2 gap-2 text-xs text-muted">
+          <div class="mt-3 grid grid-cols-2 gap-2 text-xs text-muted">
             <div class="flex items-center gap-2"><span>🌧</span> Echipament de ploaie dacă prob. &gt;30%</div>
             <div class="flex items-center gap-2"><span>🧤</span> Mănuși termoizolante sub 10°C</div>
             <div class="flex items-center gap-2"><span>🧥</span> Geacă termică sub 15°C</div>
@@ -928,34 +972,112 @@
             <div class="flex items-center gap-2"><span>❄️</span> Verificare anvelope la brumă/gheață</div>
           </div>
         </section>
+
         <hr class="border-border" />
+
+        <!-- 5. Prognoza Orara vs Zilnica -->
         <section>
           <h3 class="font-display font-bold text-base text-gray-100 mb-3 flex items-center gap-2">
             <span class="w-7 h-7 rounded-lg bg-ok/20 text-ok flex items-center justify-center text-sm">🕐</span>
             Prognoză Orară vs. Zilnică
           </h3>
           <div class="grid sm:grid-cols-2 gap-3">
-            <div class="bg-bg border border-border rounded-xl p-3"><div class="text-xs font-bold text-gray-200 mb-1.5">📅 Prognoza Zilnică</div><p class="text-xs text-muted leading-relaxed">Scorul zilnic folosește valorile maxime acumulate pe zi pentru a evita suprapenalizarea. Reflectă tendința generală a zilei.</p></div>
-            <div class="bg-bg border border-border rounded-xl p-3"><div class="text-xs font-bold text-gray-200 mb-1.5">⏱ Prognoza Orară</div><p class="text-xs text-muted leading-relaxed">Calculul orar folosește intensitatea precipitațiilor pe oră și este mai precis pentru planificarea unui interval specific.</p></div>
+            <div class="bg-bg border border-border rounded-xl p-3">
+              <div class="text-xs font-bold text-gray-200 mb-1.5">📅 Prognoza Zilnică</div>
+              <p class="text-xs text-muted leading-relaxed">Scorul zilnic este calculat folosind valorile maxime de precipitații acumulate pe zi, pentru a evita suprapenalizarea față de calculul orar. Reflectă tendința generală a zilei.</p>
+            </div>
+            <div class="bg-bg border border-border rounded-xl p-3">
+              <div class="text-xs font-bold text-gray-200 mb-1.5">⏱ Prognoza Orară</div>
+              <p class="text-xs text-muted leading-relaxed">Calculul orar folosește intensitatea precipitațiilor pe oră și este mai precis pentru planificarea unui interval specific. Extinde ziua selectată pentru detalii pe ore.</p>
+            </div>
           </div>
-          <div class="mt-3 bg-ok/10 border border-ok/30 rounded-lg px-4 py-2.5 text-xs text-muted"><span class="text-ok font-semibold">💡 Interval ideal:</span> Sistemul identifică automat fereastra orară cu cel mai mare scor consecutiv din zi, dacă există un interval ≥90 puncte.</div>
+          <div class="mt-3 bg-ok/10 border border-ok/30 rounded-lg px-4 py-2.5 text-xs text-muted">
+            <span class="text-ok font-semibold">💡 Interval ideal:</span> Sistemul identifică automat fereastra orară cu cel mai mare scor consecutiv din zi, dacă există un interval ≥90 puncte.
+          </div>
         </section>
+
         <hr class="border-border" />
+
+        <!-- 6. Calitatea Aerului -->
+        <section>
+          <h3 class="font-display font-bold text-base text-gray-100 mb-3 flex items-center gap-2">
+            <span class="w-7 h-7 rounded-lg bg-warn/20 text-warn flex items-center justify-center text-sm">🌿</span>
+            Calitatea Aerului & Polen
+          </h3>
+          <div class="bg-bg rounded-xl border border-border overflow-hidden">
+            <table class="w-full text-xs">
+              <thead>
+                <tr class="border-b border-border">
+                  <th class="text-left px-3 py-2 text-muted font-medium">Indicator</th>
+                  <th class="text-left px-3 py-2 text-muted font-medium">Sursă</th>
+                  <th class="text-left px-3 py-2 text-muted font-medium">Ce măsoară</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-border">
+                <tr>
+                  <td class="px-3 py-2 text-gray-200 font-medium">AQI European</td>
+                  <td class="px-3 py-2 text-muted">Open-Meteo</td>
+                  <td class="px-3 py-2 text-muted">Indice 1–5 (Bun → Foarte Rău), standard UE</td>
+                </tr>
+                <tr>
+                  <td class="px-3 py-2 text-gray-200 font-medium">AQI SUA</td>
+                  <td class="px-3 py-2 text-muted">OWM / Open-Meteo</td>
+                  <td class="px-3 py-2 text-muted">Indice 0–500, standard EPA american</td>
+                </tr>
+                <tr>
+                  <td class="px-3 py-2 text-gray-200 font-medium">PM2.5 / PM10</td>
+                  <td class="px-3 py-2 text-muted">Ambele surse</td>
+                  <td class="px-3 py-2 text-muted">Particule fine și grosiere (μg/m³)</td>
+                </tr>
+                <tr>
+                  <td class="px-3 py-2 text-gray-200 font-medium">Index Polen</td>
+                  <td class="px-3 py-2 text-muted">Open-Meteo</td>
+                  <td class="px-3 py-2 text-muted">Maxim din 5 tipuri: iarbă, copaci, pelin, ragweed, măslin</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <hr class="border-border" />
+
+        <!-- 7. Surse date -->
         <section>
           <h3 class="font-display font-bold text-base text-gray-100 mb-3 flex items-center gap-2">
             <span class="w-7 h-7 rounded-lg bg-border flex items-center justify-center text-sm">📡</span>
             Surse de Date
           </h3>
-          <p class="text-sm text-muted leading-relaxed mb-3">MotoMeteo agregă date din <strong class="text-gray-300">patru surse independente</strong> și calculează o medie ponderată pentru a crește acuratețea.</p>
+          <p class="text-sm text-muted leading-relaxed mb-3">
+            MotoMeteo agregă date din <strong class="text-gray-300">patru surse independente</strong> și calculează o medie ponderată pentru a crește acuratețea.
+          </p>
           <div class="grid sm:grid-cols-2 gap-3">
-            <div class="bg-bg border border-border rounded-xl p-4"><div class="text-sm font-bold text-gray-200 mb-1">🌐 Open-Meteo</div><div class="text-xs text-muted leading-relaxed">Sursă primară (pondere 1.2). Date gratuite, modele WMO/ECMWF/GFS/ICON. Prognoză până la 16 zile. Calitate aer inclusă.</div></div>
-            <div class="bg-bg border border-border rounded-xl p-4"><div class="text-sm font-bold text-gray-200 mb-1">🌤 OpenWeatherMap</div><div class="text-xs text-muted leading-relaxed">Sursă secundară (pondere 1.0). Date actuale și prognoză pe 5 zile. Descrieri meteo în română.</div></div>
-            <div class="bg-bg border border-border rounded-xl p-4"><div class="text-sm font-bold text-gray-200 mb-1">🇳🇴 MET Norway / Yr</div><div class="text-xs text-muted leading-relaxed">Sursă terțiară (pondere 1.1). Model AROME/MetCoOp, foarte precis pentru Europa. Gratuit, fără cheie API.</div></div>
-            <div class="bg-bg border border-border rounded-xl p-4"><div class="text-sm font-bold text-gray-200 mb-1">🏴‍☠️ Pirate Weather</div><div class="text-xs text-muted leading-relaxed">Sursă suplimentară (pondere 0.8). Compatible Dark Sky, modele NOAA GFS/HRRR. Rafale de vânt incluse.</div></div>
+            <div class="bg-bg border border-border rounded-xl p-4">
+              <div class="text-sm font-bold text-gray-200 mb-1">🌐 Open-Meteo</div>
+              <div class="text-xs text-muted leading-relaxed">Sursă primară (pondere 1.2). Date gratuite, modele WMO/ECMWF/GFS/ICON. Prognoză până la 16 zile. Calitate aer și geocodare inclusă.</div>
+            </div>
+            <div class="bg-bg border border-border rounded-xl p-4">
+              <div class="text-sm font-bold text-gray-200 mb-1">🌤 OpenWeatherMap</div>
+              <div class="text-xs text-muted leading-relaxed">Sursă secundară (pondere 1.0). Date actuale și prognoză pe 5 zile. Descrieri meteo în română.</div>
+            </div>
+            <div class="bg-bg border border-border rounded-xl p-4">
+              <div class="text-sm font-bold text-gray-200 mb-1">🇳🇴 MET Norway / Yr</div>
+              <div class="text-xs text-muted leading-relaxed">Sursă terțiară (pondere 1.1). Model AROME/MetCoOp, foarte precis pentru Europa. Gratuit, fără cheie API.</div>
+            </div>
+            <div class="bg-bg border border-border rounded-xl p-4">
+              <div class="text-sm font-bold text-gray-200 mb-1">🏴‍☠️ Pirate Weather</div>
+              <div class="text-xs text-muted leading-relaxed">Sursă suplimentară (pondere 0.8). Compatible Dark Sky, modele NOAA GFS/HRRR. Rafale de vânt incluse.</div>
+            </div>
           </div>
-          <div class="mt-3 text-xs text-muted bg-bg border border-border rounded-lg px-4 py-2.5"><strong class="text-gray-300">Medie ponderată:</strong> Valorile celor patru surse sunt combinate inteligent — dacă o sursă lipsește, celelalte preiau controlul. Temperatura și umiditatea au ponderea Open-Meteo/MET Norway mai mare (1.2/1.1 vs 1.0/0.8).</div>
+          <div class="mt-3 text-xs text-muted bg-bg border border-border rounded-lg px-4 py-2.5 leading-relaxed">
+            <strong class="text-gray-300">Medie ponderată:</strong> Valorile celor patru surse sunt combinate inteligent — dacă o sursă lipsește, celelalte preiau controlul. Temperatura și umiditatea au ponderea Open-Meteo/MET Norway mai mare (1.2/1.1 vs 1.0/0.8).
+          </div>
         </section>
-        <div class="pt-2 text-center text-xs text-muted">MotoMeteo · Date meteo în timp real pentru motocicliști</div>
+
+        <!-- Footer modal -->
+        <div class="pt-2 text-center text-xs text-muted">
+          MotoMeteo · Date meteo în timp real pentru motocicliști
+        </div>
+
       </div>
     </div>
   </div>
@@ -1000,7 +1122,7 @@
     var API_URL = _resolveApiUrl();
 
     // -----------------------------------------------------------------------
-    // Account + web push
+    // Account + web push (browser-first)
     // -----------------------------------------------------------------------
     var AUTH_TOKEN_KEY = 'mmAuthTokenV1';
     var USER_EMAIL_KEY = 'mmUserEmailV1';
@@ -1012,11 +1134,9 @@
     function _api(path) {
       return (API_URL === null || API_URL === '') ? path : (API_URL + path);
     }
-
     function _authToken() {
       try { return localStorage.getItem(AUTH_TOKEN_KEY) || ''; } catch (_) { return ''; }
     }
-
     function _setAuth(token, email) {
       try {
         if (token) localStorage.setItem(AUTH_TOKEN_KEY, token); else localStorage.removeItem(AUTH_TOKEN_KEY);
@@ -1042,9 +1162,9 @@
       if (!btn) return;
       var email = '';
       try { email = localStorage.getItem(USER_EMAIL_KEY) || ''; } catch (_) { }
-      btn.title = email ? ('Cont: ' + email) : 'Cont și setări';
-      btn.classList.toggle('border-ok', !!email);
-      btn.classList.toggle('text-ok', !!email);
+      btn.title = email ? ('Cont: ' + email) : 'Cont';
+      var txt = btn.querySelector('span:last-child');
+      if (txt) txt.textContent = email ? 'Cont ON' : 'Cont';
     }
 
     function openAccountModal() {
@@ -1402,121 +1522,52 @@
     var AUTO_REFRESH_SEC = 1800; // 30 minutes
 
     // -----------------------------------------------------------------------
-    // Premium subscription management
+    // Feature availability
     // -----------------------------------------------------------------------
     function isPremium() {
-      try { return localStorage.getItem('mmPremium') === '1'; } catch (_) { return false; }
+      return true;
     }
-    function _setPremium(val) {
-      try { localStorage.setItem('mmPremium', val ? '1' : '0'); } catch (_) { }
-      _updatePremiumUI();
-    }
-    function _updatePremiumUI() {
-      var btn = document.getElementById('premium-hdr-btn');
-      if (!btn) return;
-      if (isPremium()) {
-        btn.textContent = '⚡ PLUS ✓';
-        btn.classList.remove('prem-glow');
-        btn.title = 'MotoMeteo Plus ativo';
-      } else {
-        btn.textContent = '⚡ PLUS';
-        btn.classList.add('prem-glow');
-      }
-    }
+    function _setPremium() { }
+    function _updatePremiumUI() { }
     function showPremiumStatus() {
-      if (confirm('MotoMeteo Plus este activ ✓\n\nDesactivezi abonamentul?')) {
-        _setPremium(false);
-        alert('Abonament dezactivat.');
-        loadWeather();
+      alert('Toate funcțiile MotoMeteo sunt disponibile în această versiune.');
+    }
+    function openPaywall() {
+      showPremiumStatus();
+    }
+    function closePaywall() { }
+
+    function toggleMobileMenu() {
+      var controls = document.getElementById('header-controls');
+      var btn = document.getElementById('mobile-menu-btn');
+      if (!controls) return;
+      var isHidden = controls.classList.contains('hidden');
+      if (isHidden) {
+        controls.classList.remove('hidden');
+        controls.classList.add('flex', 'flex-col', 'items-stretch');
+        if (btn) btn.textContent = '✕';
+      } else {
+        closeMobileMenu();
       }
     }
-    function openPaywall(featureName) {
-      var modal = document.getElementById('paywall-modal');
-      if (!modal) return;
-      var nameEl = document.getElementById('paywall-feature-name');
-      if (nameEl) {
-        if (featureName) { nameEl.textContent = '🔒 ' + featureName; nameEl.classList.remove('hidden'); }
-        else nameEl.classList.add('hidden');
+
+    function closeMobileMenu() {
+      var controls = document.getElementById('header-controls');
+      var btn = document.getElementById('mobile-menu-btn');
+      if (!controls) return;
+      if (window.innerWidth < 768) {
+        controls.classList.add('hidden');
+        controls.classList.remove('flex', 'flex-col', 'items-stretch');
       }
-      modal.classList.remove('hidden');
-      haptic([10, 40, 10]);
+      if (btn) btn.textContent = '☰';
     }
-    function closePaywall() {
-      var modal = document.getElementById('paywall-modal');
-      if (modal) modal.classList.add('hidden');
-    }
-    var APPSTORE_URL = 'https://apps.apple.com/app/motometeo/id000000000'; // înlocuiește cu ID-ul real după publicare
 
     function activatePremium() {
-      if (typeof window.Purchases !== 'undefined') {
-        // Native iOS / Android — RevenueCat purchase flow
-        window.Purchases.getOfferings()
-          .then(function (offerings) {
-            var pkg = offerings.current && offerings.current.availablePackages[0];
-            if (!pkg) { _showPremiumError('Nicio ofertă disponibilă. Încearcă mai târziu.'); return; }
-            return window.Purchases.purchasePackage(pkg);
-          })
-          .then(function (purchaseResult) {
-            if (!purchaseResult) return;
-            var active = purchaseResult.customerInfo
-              && purchaseResult.customerInfo.entitlements
-              && purchaseResult.customerInfo.entitlements.active
-              && purchaseResult.customerInfo.entitlements.active['premium'];
-            if (active) {
-              _setPremium(true);
-              closePaywall();
-              loadWeather();
-            }
-          })
-          .catch(function (err) {
-            // User cancelled purchase — not an error
-            if (err && err.userCancelled) return;
-            _showPremiumError('Eroare la procesarea plății: ' + (err && err.message || err));
-          });
-      } else {
-        // Web browser — redirect to App Store
-        _showWebPremiumMessage();
-      }
+      showPremiumStatus();
     }
 
     function restorePremium() {
-      if (typeof window.Purchases !== 'undefined') {
-        window.Purchases.restorePurchases()
-          .then(function (info) {
-            var active = info
-              && info.entitlements
-              && info.entitlements.active
-              && info.entitlements.active['premium'];
-            _setPremium(!!active);
-            closePaywall();
-            if (active) { loadWeather(); }
-            else { alert('Nu s-a găsit nicio achiziție anterioară asociată contului Apple.'); }
-          })
-          .catch(function (err) {
-            _showPremiumError('Eroare la restaurare: ' + (err && err.message || err));
-          });
-      } else {
-        _showWebPremiumMessage();
-      }
-    }
-
-    function _showPremiumError(msg) {
-      var el = document.getElementById('paywall-feature-name');
-      if (el) { el.textContent = '⚠️ ' + msg; el.classList.remove('hidden'); el.style.color = '#ef4444'; }
-    }
-
-    function _showWebPremiumMessage() {
-      // Close paywall and show a non-dismissible info banner
-      closePaywall();
-      var app = document.getElementById('app');
-      if (!app) return;
-      var banner = document.createElement('div');
-      banner.className = 'fixed inset-x-4 top-20 z-[300] bg-card border border-accent rounded-xl p-5 shadow-2xl max-w-sm mx-auto';
-      banner.innerHTML = '<div class="font-display text-lg font-bold text-accent tracking-wider mb-2">⚡ MotoMeteo Plus</div>'
-        + '<div class="text-sm text-gray-300 mb-4 leading-relaxed">Abonamentul se activează exclusiv prin <strong>aplicația iOS</strong> — plata este procesată securizat de Apple.</div>'
-        + '<a href="' + APPSTORE_URL + '" target="_blank" class="block w-full bg-accent hover:bg-orange-400 text-black font-display font-bold tracking-wider py-3 rounded-xl text-center mb-2 transition-colors">📱 Descarcă din App Store</a>'
-        + '<button onclick="this.parentNode.remove()" class="w-full text-xs text-muted hover:text-gray-300 py-2 transition-colors">Închide</button>';
-      document.body.appendChild(banner);
+      showPremiumStatus();
     }
 
     // -----------------------------------------------------------------------
@@ -1689,6 +1740,7 @@
 
       alert('Alertele personalizate au fost salvate.');
     }
+
     function toggleAlerts() {
       openAccountModal();
     }
@@ -1776,10 +1828,6 @@
     function addRouteStop() {
       var rows = document.querySelectorAll('#route-stops-list .stop-row');
       if (rows.length >= 5) { alert('Maxim 5 opriri permise.'); return; }
-      if (rows.length >= 3 && !isPremium()) {
-        openPaywall('Traseu cu opriri multiple');
-        return;
-      }
       var list = document.getElementById('route-stops-list');
       var lastRow = list.lastElementChild; // destination row – keep it last
       var newRow = document.createElement('div');
@@ -2001,12 +2049,7 @@
 
     async function calcRoute() {
       var stops = getRouteStops();
-      if (stops.length < 2) {
-        clearRoutePanels();
-        alert('Completează cel puțin 2 opriri (plecare și destinație)');
-        return;
-      }
-      if (stops.length > 2 && !isPremium()) { openPaywall('Traseu cu opriri multiple'); return; }
+      if (stops.length < 2) { clearRoutePanels(); alert('Completează cel puțin 2 opriri (plecare și destinație)'); return; }
 
       var routeDepEl = document.getElementById('route-departure');
       var routeSpeedEl = document.getElementById('route-speed');
@@ -2039,7 +2082,7 @@
           var weatherResults = await Promise.all(waypoints.map(function (wp) { return fetchWaypointWeather(wp.lat, wp.lon, wp.eta); }));
           renderRoute(waypoints, weatherResults, totalDistKm, totalHours, originGeo.name, destGeo.name, depDt);
         } else {
-          // Multi-stop route (premium, backend or client-side fallback)
+          // Multi-stop route (backend or client-side fallback)
           if (API_URL) {
             var stopNames = geoResults.map(function (g) { return g.name; }).join(';');
             var depIso = depDt.toISOString().slice(0, 16);
@@ -2147,7 +2190,13 @@
       var scoreValues = [];
       data.segments.forEach(function (seg) {
         seg.waypoints.forEach(function (wp) {
-          flatWaypoints.push({ lat: wp.lat, lon: wp.lon, name: wp.name, eta: wp.eta_iso ? new Date(wp.eta_iso) : new Date(), distKm: 0 });
+          flatWaypoints.push({
+            lat: wp.lat,
+            lon: wp.lon,
+            name: wp.name,
+            eta: wp.eta_iso ? new Date(wp.eta_iso) : new Date(),
+            distKm: 0,
+          });
           if (wp.weather && wp.weather.moto_score != null) scoreValues.push(wp.weather.moto_score);
         });
       });
@@ -2302,7 +2351,9 @@
         if (!n || n.indexOf('~') === 0) return;
         if (!seen[n]) { seen[n] = true; stops.push(n); }
       });
-      if (stops.length < 2) stops = [_routeStartName(), _routeEndName()];
+      if (stops.length < 2) {
+        stops = [_routeStartName(), _routeEndName()];
+      }
       try {
         var resp = await fetch(_api('/me/routes'), {
           method: 'POST',
@@ -2344,7 +2395,10 @@
         });
         html += '</div></div>';
         el.innerHTML = html;
-      } catch (_) { el.innerHTML = ''; el.classList.add('hidden'); }
+      } catch (_) {
+        el.innerHTML = '';
+        el.classList.add('hidden');
+      }
     }
 
     async function loadSavedRouteById(routeId) {
@@ -2438,7 +2492,10 @@
           + '</div>'
           + '</div>';
         el.innerHTML = html;
-      } catch (_) { el.innerHTML = ''; el.classList.add('hidden'); }
+      } catch (_) {
+        el.innerHTML = '';
+        el.classList.add('hidden');
+      }
     }
 
     function _ensureLeaflet(cb) {
@@ -2494,7 +2551,10 @@
         });
         html += '</div></div>';
         listEl.innerHTML = html;
-      } catch (_) { listEl.innerHTML = ''; listEl.classList.add('hidden'); }
+      } catch (_) {
+        listEl.innerHTML = '';
+        listEl.classList.add('hidden');
+      }
     }
 
     async function reportHazardAtCenter() {
@@ -2847,12 +2907,15 @@
         daily: "weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,"
           + "apparent_temperature_min,precipitation_sum,wind_speed_10m_max,wind_gusts_10m_max,"
           + "precipitation_probability_max,sunrise,sunset",
-        timezone: "auto", forecast_days: isPremium() ? 14 : 7, wind_speed_unit: "kmh",
+        timezone: "auto", forecast_days: 14, wind_speed_unit: "kmh",
       });
-      var [omResp, owm, metData] = await Promise.all([
+      var [omResp, owm, metData, omEcmwf, omGfs, omIcon] = await Promise.all([
         fetch("https://api.open-meteo.com/v1/forecast?" + params),
         OWM_API_KEY ? fetchOWMDirect(lat, lon, OWM_API_KEY) : Promise.resolve({ current: null, forecast: null, air: null }),
         fetchMET(lat, lon),
+        fetchOpenMeteoModel(lat, lon, 'ecmwf_ifs025'),
+        fetchOpenMeteoModel(lat, lon, 'gfs_seamless'),
+        fetchOpenMeteoModel(lat, lon, 'icon_global'),
       ]);
       if (!omResp.ok) throw new Error("Open-Meteo HTTP " + omResp.status);
       var om = await omResp.json();
@@ -2870,16 +2933,28 @@
       var metPrecCur = met1h.details ? (met1h.details.precipitation_amount || 0) : 0;
       var metCode = met1h.summary ? metSymToWmo(met1h.summary.symbol_code) : null;
 
+      var mTemp = [omEcmwf && omEcmwf.temperature_2m, omGfs && omGfs.temperature_2m, omIcon && omIcon.temperature_2m];
+      var mHum = [omEcmwf && omEcmwf.relative_humidity_2m, omGfs && omGfs.relative_humidity_2m, omIcon && omIcon.relative_humidity_2m];
+      var mWind = [omEcmwf && omEcmwf.wind_speed_10m, omGfs && omGfs.wind_speed_10m, omIcon && omIcon.wind_speed_10m];
+      var mGust = [omEcmwf && omEcmwf.wind_gusts_10m, omGfs && omGfs.wind_gusts_10m, omIcon && omIcon.wind_gusts_10m];
+      var mPrec = [omEcmwf && omEcmwf.precipitation, omGfs && omGfs.precipitation, omIcon && omIcon.precipitation];
+      var mCode = [omEcmwf && omEcmwf.weather_code, omGfs && omGfs.weather_code, omIcon && omIcon.weather_code];
+
       var temp = _wavg([c.temperature_2m, owmCur ? owmCur.main.temp : null, metInst.air_temperature], [1, 1, 1.2]);
+      temp = _wavg([temp, mTemp[0], mTemp[1], mTemp[2]], [1.3, 0.8, 0.8, 0.8]);
       var feels = _wavg([c.apparent_temperature, owmCur ? owmCur.main.feels_like : null], [1, 1]);
       var humidity = _wavg([c.relative_humidity_2m, owmCur ? owmCur.main.humidity : null, metInst.relative_humidity], [1, 1, 1]);
+      humidity = _wavg([humidity, mHum[0], mHum[1], mHum[2]], [1.2, 0.7, 0.7, 0.7]);
       var windSpeed = _wavg([c.wind_speed_10m, owmCur ? owmCur.wind.speed * 3.6 : null, metWind], [1, 1, 1.2]);
+      windSpeed = _wavg([windSpeed, mWind[0], mWind[1], mWind[2]], [1.2, 0.8, 0.8, 0.8]);
       var windGusts = _wavg([c.wind_gusts_10m, owmCur ? (owmCur.wind.gust || owmCur.wind.speed) * 3.6 : null, metGust], [1.2, 0.8, 1.2]);
+      windGusts = _wavg([windGusts, mGust[0], mGust[1], mGust[2]], [1.2, 0.8, 0.8, 0.8]);
       var prec = _wavg([c.precipitation || 0, owmCur ? ((owmCur.rain && owmCur.rain["1h"]) || 0) : null, metPrecCur], [1, 1, 1.2]) || 0;
+      prec = _wavg([prec, mPrec[0], mPrec[1], mPrec[2]], [1.2, 0.8, 0.8, 0.8]) || 0;
       var omCode = c.weather_code;
       var owmCode = owmCur ? owmIdToWmo(owmCur.weather[0].id) : null;
       // Use most severe code across all sources (safety-first for motorcyclists)
-      var allCodes = [omCode, owmCode, metCode].filter(function (x) { return x != null; });
+      var allCodes = [omCode, owmCode, metCode].concat(mCode).filter(function (x) { return x != null; });
       var finalCode = allCodes.length ? allCodes.reduce(function (a, b) { return b > a ? b : a; }) : 0;
       var description = owmCur
         ? owmCur.weather[0].description.charAt(0).toUpperCase() + owmCur.weather[0].description.slice(1)
@@ -2896,6 +2971,9 @@
       var sources = ["open-meteo"];
       if (owmCur) sources.push("openweathermap");
       if (met0) sources.push("met-norway");
+      if (omEcmwf) sources.push('open-meteo-ecmwf');
+      if (omGfs) sources.push('open-meteo-gfs');
+      if (omIcon) sources.push('open-meteo-icon');
       var current = {
         temperature: temp, feels_like: feels, humidity: humidity,
         wind_speed_kmh: windSpeed, wind_gusts_kmh: windGusts,
@@ -3019,6 +3097,47 @@
         city: cityName, latitude: lat, longitude: lon,
         timezone: om.timezone || "UTC", current: current, daily: daily, hourly: hourly
       };
+    }
+
+    async function enrichCurrentWithExtraSources(data) {
+      if (!data || !data.current) return data;
+      var c = data.current;
+      var [metData, omEcmwf, omGfs, omIcon] = await Promise.all([
+        fetchMET(LAT, LON),
+        fetchOpenMeteoModel(LAT, LON, 'ecmwf_ifs025'),
+        fetchOpenMeteoModel(LAT, LON, 'gfs_seamless'),
+        fetchOpenMeteoModel(LAT, LON, 'icon_global'),
+      ]);
+      var metSeries = metData && metData.properties ? metData.properties.timeseries || [] : [];
+      var met0 = metSeries[0] || null;
+      var metInst = met0 ? (met0.data.instant.details || {}) : {};
+      var met1h = met0 ? (met0.data.next_1_hours || met0.data.next_6_hours || {}) : {};
+      var metCode = met1h.summary ? metSymToWmo(met1h.summary.symbol_code) : null;
+
+      c.temperature = _wavg([c.temperature, omEcmwf && omEcmwf.temperature_2m, omGfs && omGfs.temperature_2m, omIcon && omIcon.temperature_2m], [1.3, 0.8, 0.8, 0.8]);
+      c.humidity = _wavg([c.humidity, metInst.relative_humidity, omEcmwf && omEcmwf.relative_humidity_2m, omGfs && omGfs.relative_humidity_2m, omIcon && omIcon.relative_humidity_2m], [1, 1, 0.7, 0.7, 0.7]);
+      c.wind_speed_kmh = _wavg([c.wind_speed_kmh, metInst.wind_speed != null ? metInst.wind_speed * 3.6 : null, omEcmwf && omEcmwf.wind_speed_10m, omGfs && omGfs.wind_speed_10m, omIcon && omIcon.wind_speed_10m], [1.2, 1.0, 0.8, 0.8, 0.8]);
+      c.wind_gusts_kmh = _wavg([c.wind_gusts_kmh, metInst.wind_speed_of_gust != null ? metInst.wind_speed_of_gust * 3.6 : null, omEcmwf && omEcmwf.wind_gusts_10m, omGfs && omGfs.wind_gusts_10m, omIcon && omIcon.wind_gusts_10m], [1.2, 1.0, 0.8, 0.8, 0.8]);
+      c.precipitation_mm = _wavg([c.precipitation_mm, met1h.details ? (met1h.details.precipitation_amount || 0) : null, omEcmwf && omEcmwf.precipitation, omGfs && omGfs.precipitation, omIcon && omIcon.precipitation], [1.2, 1.0, 0.8, 0.8, 0.8]) || 0;
+
+      var allCodes = [c.weather_code, metCode, omEcmwf && omEcmwf.weather_code, omGfs && omGfs.weather_code, omIcon && omIcon.weather_code].filter(function (x) { return x != null; });
+      if (allCodes.length) {
+        c.weather_code = allCodes.reduce(function (a, b) { return b > a ? b : a; });
+        c.icon = wmoIcon(c.weather_code);
+        c.description = wmoDesc(c.weather_code);
+      }
+      c.moto_score = scoreHourly(c.feels_like, c.wind_gusts_kmh, c.precipitation_mm, c.weather_code, 0);
+      c.moto_label = motoLabel(c.moto_score);
+
+      var src = (c.sources || []).slice();
+      function addSrc(v) { if (v && src.indexOf(v) < 0) src.push(v); }
+      if (met0) addSrc('met-norway');
+      if (omEcmwf) addSrc('open-meteo-ecmwf');
+      if (omGfs) addSrc('open-meteo-gfs');
+      if (omIcon) addSrc('open-meteo-icon');
+      c.sources = src;
+      data.current = c;
+      return data;
     }
 
     // -----------------------------------------------------------------------
@@ -3203,7 +3322,7 @@
           // No backend configured — call Open-Meteo directly from the browser
           d = await fetchDirect(LAT, LON, CITY);
         } else {
-          var days = isPremium() ? 14 : 7;
+          var days = 14;
           var url = API_URL + "/weather?lat=" + LAT + "&lon=" + LON + "&city=" + encodeURIComponent(CITY) + "&days=" + days;
           var res;
           try { res = await fetch(url); }
@@ -3215,9 +3334,9 @@
           }
           d = await res.json();
         }
+        d = await enrichCurrentWithExtraSources(d);
         render(d);
         saveCity(); renderFavsBar();
-        _updatePremiumUI();
         // Sync route planner origin with current city
         var routeStop0 = document.getElementById('route-stop-0');
         if (routeStop0 && !routeStop0.value) routeStop0.value = CITY;
@@ -3235,6 +3354,36 @@
           + '<button onclick="loadWeather()" class="mt-4 bg-accent hover:bg-orange-400 text-black font-display font-bold'
           + ' tracking-wider px-6 py-2 rounded-lg transition-colors">RETRY</button>';
       }
+    }
+
+    async function fetchOpenMeteoModel(lat, lon, modelName) {
+      try {
+        var params = new URLSearchParams({
+          latitude: lat,
+          longitude: lon,
+          current: 'temperature_2m,relative_humidity_2m,wind_speed_10m,wind_gusts_10m,precipitation,weather_code',
+          timezone: 'auto',
+          forecast_days: 1,
+          wind_speed_unit: 'kmh',
+          models: modelName,
+        });
+        var resp = await fetch('https://api.open-meteo.com/v1/forecast?' + params.toString());
+        if (!resp.ok) return null;
+        var data = await resp.json();
+        return data && data.current ? data.current : null;
+      } catch (_) { return null; }
+    }
+
+    function sourceLabel(src) {
+      var m = {
+        'open-meteo': 'Open-Meteo (best match)',
+        'openweathermap': 'OpenWeatherMap',
+        'met-norway': 'MET Norway (ECMWF)',
+        'open-meteo-ecmwf': 'Open-Meteo ECMWF IFS',
+        'open-meteo-gfs': 'Open-Meteo GFS Seamless',
+        'open-meteo-icon': 'Open-Meteo ICON Global',
+      };
+      return m[src] || src;
     }
 
     function setBackendUrl() {
@@ -3317,34 +3466,12 @@
         + '</div>';
     }
 
-    var _modalStore = {};
-    var _modalCounter = 0;
-    function showStatModal(mid) {
-      var d = _modalStore[mid];
-      if (!d) return;
-      document.getElementById('sdm-icon').innerHTML = d.icon;
-      document.getElementById('sdm-label').textContent = d.label;
-      document.getElementById('sdm-value').innerHTML = d.value;
-      document.getElementById('sdm-sub').innerHTML = d.sub;
-      document.getElementById('sdm-details').innerHTML = d.details;
-      document.getElementById('stat-detail-modal').classList.remove('hidden');
-    }
-    function closeStatModal() {
-      document.getElementById('stat-detail-modal').classList.add('hidden');
-    }
-    function statCard(icon, label, value, valueCls, sub, details) {
-      var mid = '';
-      if (details) {
-        mid = 'sc' + (++_modalCounter);
-        _modalStore[mid] = { icon: icon, label: label, value: value, sub: sub, details: details };
-      }
-      var clickAttr = mid ? ' onclick="showStatModal(\'' + mid + '\')" role="button" tabindex="0"' : '';
-      return '<div class="bg-card border border-border rounded-lg p-2 flex flex-col gap-0 wx-card' + (mid ? ' cursor-pointer hover:border-accent/50' : '') + '"' + clickAttr + '>'
-        + '<div class="text-lg leading-none">' + icon + '</div>'
-        + '<div class="text-[0.6rem] text-muted font-semibold tracking-widest uppercase leading-tight mt-1">' + label + '</div>'
-        + '<div class="font-display text-xl font-bold leading-none mt-0.5 ' + valueCls + '">' + value + '</div>'
-        + '<div class="text-[0.6rem] text-muted leading-tight mt-0.5">' + sub + '</div>'
-        + (mid ? '<div class="text-[0.5rem] text-accent/50 mt-1 tracking-widest uppercase">tap ›</div>' : '')
+    function statCard(icon, label, value, valueCls, sub) {
+      return '<div class="bg-card border border-border rounded-xl p-4 flex flex-col gap-1 wx-card">'
+        + '<div class="text-3xl mb-1">' + icon + '</div>'
+        + '<div class="text-xs text-muted font-semibold tracking-widest uppercase">' + label + '</div>'
+        + '<div class="font-display text-4xl font-bold leading-none ' + valueCls + '">' + value + '</div>'
+        + '<div class="text-xs text-muted mt-1 leading-snug flex items-center gap-1">' + sub + '</div>'
         + '</div>';
     }
 
@@ -3357,6 +3484,195 @@
       if (arr) arr.classList.toggle('open', opening);
     }
 
+    var PRE_RIDE_CHECKLIST = [
+      { id: 'tires', icon: '🛞', label: 'Presiune anvelope verificata' },
+      { id: 'chain', icon: '⛓️', label: 'Lant uns si tensionat corect' },
+      { id: 'brakes', icon: '🛑', label: 'Frane si lichid in parametri' },
+      { id: 'lights', icon: '💡', label: 'Faruri / stop / semnalizari functionale' },
+      { id: 'docs', icon: '📄', label: 'Acte + asigurare + permis la tine' },
+    ];
+
+    function _checklistKey() { return 'motoPreRideChecklistV2'; }
+    function _todayKey() { return new Date().toISOString().slice(0, 10); }
+    function _clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+    function _getChecklistState() {
+      try {
+        var raw = JSON.parse(localStorage.getItem(_checklistKey()) || '{}');
+        if (!raw || raw.date !== _todayKey() || !raw.items) {
+          return { date: _todayKey(), items: {} };
+        }
+        return raw;
+      } catch (_) {
+        return { date: _todayKey(), items: {} };
+      }
+    }
+
+    function _saveChecklistState(state) {
+      try { localStorage.setItem(_checklistKey(), JSON.stringify(state)); } catch (_) { }
+    }
+
+    function toggleChecklistItem(id) {
+      var state = _getChecklistState();
+      state.items[id] = !state.items[id];
+      _saveChecklistState(state);
+      if (window._lastWeatherData) render(window._lastWeatherData);
+    }
+
+    function resetChecklist() {
+      _saveChecklistState({ date: _todayKey(), items: {} });
+      if (window._lastWeatherData) render(window._lastWeatherData);
+    }
+
+    function calcRideDna(current) {
+      var rain = current.precipitation_mm || 0;
+      var gusts = current.wind_gusts_kmh || 0;
+      var vis = current.visibility_km;
+      var feels = current.feels_like;
+      var roadT = current.road_surface_temp;
+      var profile = getProfile();
+      var mode = (profile && profile.motoType) || 'naked';
+      var modeCfg = {
+        naked: { name: 'NAKED', gripMul: 1.0, windMul: 1.0, visMul: 1.0, weights: [0.4, 0.35, 0.25] },
+        touring: { name: 'TOURING', gripMul: 0.9, windMul: 0.95, visMul: 1.0, weights: [0.42, 0.3, 0.28] },
+        sport: { name: 'SPORT', gripMul: 1.15, windMul: 1.1, visMul: 1.05, weights: [0.46, 0.32, 0.22] },
+        enduro: { name: 'ADVENTURE', gripMul: 0.8, windMul: 1.0, visMul: 0.95, weights: [0.34, 0.33, 0.33] },
+        scooter: { name: 'SCOOTER', gripMul: 1.1, windMul: 1.2, visMul: 1.1, weights: [0.36, 0.38, 0.26] },
+      }[mode] || { name: 'NAKED', gripMul: 1.0, windMul: 1.0, visMul: 1.0, weights: [0.4, 0.35, 0.25] };
+
+      var grip = 100;
+      if (rain > 0.1) grip -= Math.round(10 * modeCfg.gripMul);
+      if (rain > 1) grip -= Math.round(20 * modeCfg.gripMul);
+      if (rain > 3) grip -= Math.round(20 * modeCfg.gripMul);
+      if (roadT != null && roadT < 3) grip -= Math.round(20 * modeCfg.gripMul);
+      if (roadT != null && roadT > 52) grip -= Math.round(10 * modeCfg.gripMul);
+
+      var wind = 100;
+      if (gusts > 35) wind -= Math.round(15 * modeCfg.windMul);
+      if (gusts > 50) wind -= Math.round(20 * modeCfg.windMul);
+      if (gusts > 70) wind -= Math.round(25 * modeCfg.windMul);
+
+      var visibility = 100;
+      if (vis != null && vis < 8) visibility -= Math.round(15 * modeCfg.visMul);
+      if (vis != null && vis < 4) visibility -= Math.round(20 * modeCfg.visMul);
+      if (vis != null && vis < 1) visibility -= Math.round(30 * modeCfg.visMul);
+      if (feels != null && feels < 2) visibility -= Math.round(10 * modeCfg.visMul);
+
+      grip = Math.round(_clamp(grip, 0, 100));
+      wind = Math.round(_clamp(wind, 0, 100));
+      visibility = Math.round(_clamp(visibility, 0, 100));
+
+      var overall = Math.round(grip * modeCfg.weights[0] + wind * modeCfg.weights[1] + visibility * modeCfg.weights[2]);
+      var label = overall >= 80 ? 'STABIL' : overall >= 60 ? 'ATENTIE MODERATA' : overall >= 40 ? 'RISC CRESCUT' : 'CRITIC';
+      var color = overall >= 85 ? '#22c55e' : overall >= 60 ? '#eab308' : overall >= 40 ? '#f97316' : '#ef4444';
+
+      return { grip: grip, wind: wind, visibility: visibility, overall: overall, label: label, color: color, modeLabel: modeCfg.name };
+    }
+
+    function rideDnaHtml(dna) {
+      var bars = [
+        { key: 'Aderenta', icon: '🛣️', val: dna.grip },
+        { key: 'Stabilitate vant', icon: '💨', val: dna.wind },
+        { key: 'Vizibilitate', icon: '👁️', val: dna.visibility },
+      ];
+      var html = '<div class="bg-card border border-border rounded-xl p-4">';
+      html += '<div class="flex items-center gap-2 mb-3">';
+      html += '<span class="font-display text-sm tracking-[0.2em] text-muted">RIDE DNA</span>';
+      html += '<span class="text-[10px] px-1.5 py-0.5 rounded border border-border text-muted">' + (dna.modeLabel || 'NAKED') + '</span>';
+      html += '<span class="ml-auto text-xs px-2 py-1 rounded-md font-semibold" style="background:' + dna.color + '22;color:' + dna.color + '">' + dna.label + '</span>';
+      html += '</div>';
+      bars.forEach(function (b) {
+        var c = b.val >= 75 ? '#22c55e' : b.val >= 55 ? '#eab308' : b.val >= 35 ? '#f97316' : '#ef4444';
+        html += '<div class="mb-3 last:mb-0">';
+        html += '<div class="flex items-center text-xs text-muted mb-1"><span>' + b.icon + ' ' + b.key + '</span><span class="ml-auto font-bold" style="color:' + c + '">' + b.val + '</span></div>';
+        html += '<div class="w-full h-2 bg-bg border border-border rounded-full overflow-hidden"><div class="h-full" style="width:' + b.val + '%;background:' + c + '"></div></div>';
+        html += '</div>';
+      });
+      html += '<div class="mt-3 pt-3 border-t border-border text-xs text-muted">Scor compozit: <strong style="color:' + dna.color + '">' + dna.overall + '/100</strong></div>';
+      html += '</div>';
+      return html;
+    }
+
+    function getDepartureAdvisor(hourly) {
+      if (!hourly || !hourly.length) return [];
+      var next = hourly.slice(0, 6).map(function (h) {
+        var score = scoreHourly(h.feels_like, h.wind_gusts_kmh, h.precipitation_mm, h.weather_code, h.precipitation_probability);
+        return {
+          time: new Date(h.time).getHours().toString().padStart(2, '0') + ':00',
+          score: score,
+          gusts: h.wind_gusts_kmh || 0,
+          rain: h.precipitation_mm || 0,
+          icon: h.icon || '🌤️'
+        };
+      });
+      next.sort(function (a, b) { return b.score - a.score; });
+      return next.slice(0, 2);
+    }
+
+    function departureAdvisorHtml(hourly) {
+      var best = getDepartureAdvisor(hourly);
+      var html = '<div class="bg-card border border-border rounded-xl p-4">';
+      html += '<div class="font-display text-sm tracking-[0.2em] text-muted mb-3">START ADVISOR 6H</div>';
+      if (!best.length) {
+        html += '<div class="text-sm text-muted">Nu exista suficiente date orare pentru recomandare.</div>';
+      } else {
+        best.forEach(function (slot, idx) {
+          var col = slot.score >= 80 ? 'text-ok' : slot.score >= 60 ? 'text-accent' : 'text-warn';
+          html += '<div class="mb-2 last:mb-0 p-3 rounded-lg border border-border bg-bg/40">';
+          html += '<div class="flex items-center gap-2">';
+          html += '<span class="text-xl">' + slot.icon + '</span>';
+          html += '<span class="text-xs tracking-widest text-muted">' + (idx === 0 ? 'FEREASTRA #1' : 'FEREASTRA #2') + '</span>';
+          html += '<span class="ml-auto font-display text-lg ' + col + '">' + slot.time + '</span>';
+          html += '</div>';
+          html += '<div class="text-xs text-muted mt-1">Scor <strong class="' + col + '">' + slot.score + '</strong> · Rafale ' + Math.round(slot.gusts) + ' km/h · Ploaie ' + slot.rain.toFixed(1) + ' mm/h</div>';
+          html += '</div>';
+        });
+      }
+      html += '</div>';
+      return html;
+    }
+
+    function briefingText(current, dna) {
+      var parts = [];
+      if (dna.modeLabel) parts.push('Profil activ: ' + dna.modeLabel + '.');
+      if (dna.overall >= 80) parts.push('Conditii foarte bune pentru o iesire mai lunga.');
+      else if (dna.overall >= 60) parts.push('Conditii decente, dar mentine ritm defensiv.');
+      else if (dna.overall >= 40) parts.push('Conditii mixte, evita depasirile agresive.');
+      else parts.push('Conditii dificile: recomanda amanare sau traseu scurt.');
+
+      if ((current.precipitation_mm || 0) > 1) parts.push('Prioritizeaza echipament impermeabil complet.');
+      if ((current.wind_gusts_kmh || 0) > 50) parts.push('Vant lateral puternic, tine marja pe banda.');
+      if (current.uv_index != null && current.uv_index >= 6) parts.push('UV ridicat, foloseste protectie solara.');
+      if (current.frost_risk) parts.push('Posibil carosabil rece/alunecos in zone umbrite.');
+
+      return parts.join(' ');
+    }
+
+    function checklistHtml() {
+      var st = _getChecklistState();
+      var done = 0;
+      PRE_RIDE_CHECKLIST.forEach(function (it) { if (st.items[it.id]) done++; });
+      var pct = Math.round((done / PRE_RIDE_CHECKLIST.length) * 100);
+      var html = '<div class="bg-card border border-border rounded-xl p-4">';
+      html += '<div class="flex items-center gap-2 mb-3">';
+      html += '<span class="font-display text-sm tracking-[0.2em] text-muted">CHECK PRE-RIDE</span>';
+      html += '<span class="ml-auto text-xs text-gray-300">' + done + '/' + PRE_RIDE_CHECKLIST.length + '</span>';
+      html += '</div>';
+      html += '<div class="w-full h-2 bg-bg border border-border rounded-full overflow-hidden mb-3"><div class="h-full bg-accent" style="width:' + pct + '%"></div></div>';
+      PRE_RIDE_CHECKLIST.forEach(function (it) {
+        var on = !!st.items[it.id];
+        html += '<button onclick="toggleChecklistItem(\'' + it.id + '\')" class="w-full mb-2 last:mb-0 p-2 rounded-lg border text-left transition-colors '
+          + (on ? 'border-ok/40 bg-ok/10 text-gray-100' : 'border-border bg-bg/40 text-muted hover:border-accent/40') + '">'
+          + '<span class="mr-2">' + it.icon + '</span>'
+          + '<span class="text-sm">' + it.label + '</span>'
+          + '<span class="float-right">' + (on ? '✓' : '○') + '</span>'
+          + '</button>';
+      });
+      html += '<button onclick="resetChecklist()" class="mt-3 text-xs text-muted hover:text-accent transition-colors">Reset pentru azi</button>';
+      html += '</div>';
+      return html;
+    }
+
     function render(d) {
       var c = d.current;
       var now = new Date();
@@ -3367,7 +3683,7 @@
       var allMax = Math.max.apply(null, daily.map(function (x) { return x.temp_max; }));
       var html = '';
 
-      // Custom alert banners (premium)
+      // Custom alert banners
       html += checkAlerts(c);
 
       // Frost / ice risk alert banner
@@ -3377,6 +3693,30 @@
           : '🥶 <strong>TEMPERATURI RESIMȚITE FOARTE SCĂZUTE</strong> — îmbracă-te corespunzător.';
         html += '<div class="mb-5 p-4 rounded-xl border border-danger bg-danger/10 text-danger text-sm flex items-center gap-3">'
           + '<div>' + iceMsg + '</div></div>';
+      }
+
+      // Best riding window banners (today + tomorrow)
+      var win = findBestWindow(d.hourly);
+      var winTom = findTomorrowWindow(d.hourly);
+      if (win || winTom) {
+        var _wBanner = function (w, label) {
+          var wBorderCls = w.avg >= 80 ? 'border-ok' : w.avg >= 60 ? 'border-accent' : 'border-warn';
+          var wTextCls = w.avg >= 80 ? 'text-ok' : w.avg >= 60 ? 'text-accent' : 'text-warn';
+          var wBgCls = w.avg >= 80 ? 'bg-ok/5' : w.avg >= 60 ? 'bg-accent/5' : 'bg-warn/5';
+          return '<div class="mb-3 p-4 rounded-xl border ' + wBorderCls + ' ' + wBgCls + ' flex items-center gap-4">'
+            + '<span class="text-3xl flex-shrink-0">🎯</span>'
+            + '<div class="flex-1">'
+            + '<div class="font-display text-lg font-bold tracking-wide ' + wTextCls + '">'
+            + label + ': ' + w.fromH + ' – ' + w.toH + '</div>'
+            + '<div class="text-xs text-muted mt-0.5">Scor mediu <strong class="' + wTextCls + '">' + w.avg + '/100</strong>'
+            + ' &middot; ' + w.len + 'h consecutiv de condiții bune'
+            + (w.avg >= 80 ? ' &middot; <span class="text-ok">Condiții ideale! 🏍️</span>' : '') + '</div>'
+            + '</div>'
+            + '<div class="flex-shrink-0 font-display text-2xl font-bold ' + wTextCls + '">' + w.avg + '</div>'
+            + '</div>';
+        };
+        if (win) html += _wBanner(win, 'FEREASTRĂ OPTIMĂ AZI');
+        if (winTom) html += _wBanner(winTom, 'FEREASTRĂ OPTIMĂ MÂINE');
       }
 
       // Location
@@ -3406,7 +3746,70 @@
       }
       html += '</div></div></div>';
 
-      // ── Hourly scroll (moved up — right after hero card) ───────────────────
+      // Stats grid
+      html += secTitle('Condiții actuale');
+      html += '<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-2">';
+      html += statCard('🌡️', 'Temperatură', Math.round(c.temperature) + '°', tempCls(c.temperature), 'resimțit ' + Math.round(c.feels_like) + '°C');
+      html += statCard('💨', 'Vânt', Math.round(c.wind_speed_kmh) + '<span class="text-lg"> km/h</span>', windCls(c.wind_gusts_kmh),
+        windCompassSvg(c.wind_direction_deg) + ' <span class="font-semibold text-gray-300">' + c.wind_direction + '</span>'
+        + ' · rafale <strong>' + Math.round(c.wind_gusts_kmh) + ' km/h</strong> · Bf ' + c.beaufort);
+      html += statCard('🌧️', 'Precipitații', c.precipitation_mm.toFixed(1) + '<span class="text-xl"> mm</span>', (c.precipitation_mm > 1 ? 'text-danger' : c.precipitation_mm > 0.1 ? 'text-warn' : 'text-ok'), 'mm / oră curentă');
+      html += statCard('💧', 'Umiditate', c.humidity + '<span class="text-xl">%</span>', (c.humidity > 90 ? 'text-warn' : 'text-gray-100'), 'drum potențial umed');
+      if (c.pressure_hpa != null)
+        html += statCard('🔵', 'Presiune', Math.round(c.pressure_hpa) + '<span class="text-xl"> hPa</span>', 'text-gray-100', 'presiune atmosferică');
+      if (c.visibility_km != null)
+        html += statCard('👁️', 'Vizibilitate', c.visibility_km + '<span class="text-xl"> km</span>', (c.visibility_km < 1 ? 'text-danger' : c.visibility_km < 5 ? 'text-warn' : 'text-gray-100'), 'distanța de vizibilitate');
+      if (c.aqi != null)
+        html += statCard('🍃', 'Calitate aer', c.aqi, aqiCls(c.aqi), aqiLabel(c.aqi));
+      if (c.pm2_5 != null)
+        html += statCard('🫁', 'PM2.5', Math.round(c.pm2_5) + '<span class="text-lg"> µg/m³</span>', c.pm2_5 > 35 ? 'text-danger' : c.pm2_5 > 20 ? 'text-warn' : 'text-ok', 'particule fine');
+      if (c.pm10 != null)
+        html += statCard('🌫️', 'PM10', Math.round(c.pm10) + '<span class="text-lg"> µg/m³</span>', c.pm10 > 50 ? 'text-danger' : c.pm10 > 30 ? 'text-warn' : 'text-ok', 'particule în suspensie');
+      if (c.ozone != null)
+        html += statCard('🧪', 'Ozon', Math.round(c.ozone) + '<span class="text-lg"> µg/m³</span>', c.ozone > 140 ? 'text-warn' : 'text-gray-100', 'nivel O₃');
+      if (c.pollen_index != null)
+        html += statCard('🌾', 'Pollen index', c.pollen_index.toFixed(0), c.pollen_index > 80 ? 'text-danger' : c.pollen_index > 40 ? 'text-warn' : 'text-ok', 'alergeni atmosferici');
+      if (c.uv_index != null)
+        html += statCard('☀️', 'Indice UV', c.uv_index.toFixed(1), uvCls(c.uv_index), uvDesc(c.uv_index));
+      // Road surface temperature — moto-specific
+      var rst = c.road_surface_temp != null ? c.road_surface_temp
+        : roadSurfaceTempClient(c.temperature, c.humidity, c.weather_code, c.precipitation_mm);
+      if (rst != null) {
+        var rstCls = rst < 0 ? 'text-danger' : rst < 5 ? 'text-warn' : rst > 50 ? 'text-warn' : 'text-gray-100';
+        var rstDesc = rst < 0 ? '⚠️ gheață posibilă' : rst < 5 ? 'risc îngheț' : rst < 15 ? 'carosabil rece' : rst > 55 ? 'carosabil fierbinte' : 'carosabil normal';
+        html += statCard('🛣️', 'Temp. carosabil', Math.round(rst) + '°', rstCls, rstDesc + ' (estimat)');
+      }
+      if (daily.length && daily[0].sunrise)
+        html += statCard('🌅', 'Răsărit', fmtTime(daily[0].sunrise), 'text-gray-100', 'ora răsăritului soarelui');
+      if (daily.length && daily[0].sunset)
+        html += statCard('🌇', 'Apus', fmtTime(daily[0].sunset), 'text-gray-100', 'ora apusului soarelui');
+      html += '</div>';
+
+      // Differentiation block: Ride DNA + advisor + checklist
+      var dna = calcRideDna(c);
+      html += secTitle('Ride Briefing 360');
+      html += '<div class="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-2 items-start">';
+      html += rideDnaHtml(dna);
+      html += departureAdvisorHtml(hourly);
+      html += checklistHtml();
+      html += '</div>';
+      html += '<div class="mb-4 p-4 rounded-xl border border-border bg-card text-sm text-gray-300 leading-relaxed">'
+        + '<span class="font-display text-xs tracking-[0.2em] text-muted block mb-1">BRIEFING PERSONALIZAT</span>'
+        + briefingText(c, dna)
+        + '</div>';
+
+      // Gear recommendation
+      var gearRecs = c.gear_recommendation && c.gear_recommendation.length
+        ? c.gear_recommendation
+        : gearRecommendationClient(c.feels_like, c.wind_gusts_kmh, c.precipitation_mm, c.weather_code);
+      html += gearRecommendationHtml(gearRecs);
+
+      // Chart
+      html += secTitle('Grafic temperatură, vânt &amp; ploaie — 24h');
+      html += '<div class="bg-card border border-border rounded-xl p-4 mb-2" style="height:220px;">';
+      html += '<canvas id="tempChart"></canvas></div>';
+
+      // Hourly scroll
       html += secTitle('Orar — 24h');
       html += '<div class="flex gap-3 overflow-x-auto scroll-x pb-2 mb-2">';
       hourly.forEach(function (h, idx) {
@@ -3417,14 +3820,15 @@
         var scoreColor = hs >= 85 ? '#22c55e' : hs >= 60 ? '#eab308' : hs >= 40 ? '#f97316' : '#ef4444';
         var borderCol = hs < 40 ? "border-danger" : rp > 40 ? "border-warn" : idx === 0 ? "border-accent" : "border-border";
         var nowClass = idx === 0 ? "hourly-now border-accent" : "";
-        html += '<div class="flex-shrink-0 bg-card border ' + borderCol + ' ' + nowClass + ' rounded-xl p-3 w-24 text-center flex flex-col items-center gap-1">';
+        html += '<div class="hourly-main-card flex-shrink-0 bg-card border ' + borderCol + ' ' + nowClass + ' rounded-xl p-3 w-24 text-center flex flex-col items-center gap-1">';
         html += '<div class="text-xs font-semibold tracking-widest ' + (idx === 0 ? 'text-accent' : 'text-muted') + '">' + (idx === 0 ? "ACUM" : hh) + '</div>';
         html += '<div style="font-size:2.5rem;line-height:1">' + h.icon + '</div>';
-        html += '<div class="font-display text-3xl font-bold leading-none text-gray-100">' + Math.round(h.temperature) + '°</div>';
+        html += '<div class="hour-temp font-display text-3xl font-bold leading-none text-gray-100">' + Math.round(h.temperature) + '°</div>';
         html += '<div class="text-xs ' + rainCls(rp) + '">' + rp + '% 💧</div>';
         html += '<div class="text-xs text-muted">' + Math.round(h.wind_speed_kmh) + ' km/h</div>';
         if (h.uv_index != null && h.uv_index > 0)
           html += '<div class="text-xs ' + uvCls(h.uv_index) + '">UV ' + h.uv_index.toFixed(0) + '</div>';
+        // Moto score bar + label
         html += '<div class="mt-2 w-full score-bar-track">'
           + '<div class="score-bar-fill" style="width:' + hs + '%;background:' + scoreColor + '"></div>'
           + '</div>';
@@ -3433,11 +3837,10 @@
       });
       html += '</div>';
 
-      // ── Daily forecast (moved up — right after hourly) ───────────────────
-      html += secTitle('Prognoză ' + (isPremium() ? daily.length : Math.min(daily.length, 7)) + ' zile'
-        + (daily.length > 7 && isPremium() ? '' : (daily.length > 7 ? ' <span class="text-xs text-accent/60 font-normal normal-case ml-2">+7 zile → ⚡ Premium</span>' : '')));
-      html += '<div class="flex flex-col gap-2 mb-4">';
-      var maxDay = isPremium() ? daily.length : Math.min(daily.length, 7);
+      // Daily forecast — responsive + expandable
+      html += secTitle('Prognoză ' + daily.length + ' zile');
+      html += '<div class="flex flex-col gap-2 mb-8">';
+      var maxDay = daily.length;
       daily.slice(0, maxDay).forEach(function (day, i) {
         var date = new Date(day.date + "T12:00:00");
         var dname = i === 0 ? "AZI" : (i === 1 ? "MÂINE" : DAYS[date.getDay()]);
@@ -3520,7 +3923,7 @@
             var hrp = h.precipitation_probability || 0;
             var hsc = scoreHourly(h.feels_like, h.wind_gusts_kmh, h.precipitation_mm, h.weather_code, h.precipitation_probability);
             var hCol = hsc >= 85 ? '#22c55e' : hsc >= 60 ? '#eab308' : hsc >= 40 ? '#f97316' : '#ef4444';
-            html += '<div class="flex-shrink-0 bg-card border border-border rounded-xl p-2 w-16 text-center flex flex-col items-center gap-0.5">';
+            html += '<div class="daily-mini-card flex-shrink-0 bg-card border border-border rounded-xl p-2 w-16 text-center flex flex-col items-center gap-0.5">';
             html += '<div class="text-xs text-muted font-semibold">' + ht + '</div>';
             html += '<div style="font-size:1.5rem;line-height:1.2">' + h.icon + '</div>';
             html += '<div class="font-display text-lg font-bold leading-none text-gray-100">' + Math.round(h.temperature) + '°</div>';
@@ -3549,202 +3952,28 @@
         html += '</div>'; // end wrapper
       });
 
-      // Locked premium days preview (show 3 blurred rows if not premium and >7 days available)
-      if (!isPremium() && daily.length > 7) {
-        html += '<div class="relative mt-2">';
-        for (var li = 7; li < Math.min(daily.length, 10); li++) {
-          var lday = daily[li];
-          var ldate = new Date(lday.date + 'T12:00:00');
-          var ldname = DAYS[ldate.getDay()];
-          html += '<div class="bg-card border border-border border-l-4 border-l-border rounded-xl overflow-hidden mb-2 opacity-40 blur-[1.5px] pointer-events-none">';
-          html += '<div class="px-3 py-3 flex items-center gap-1.5 sm:gap-3">';
-          html += '<div class="flex-shrink-0 w-8 text-center" style="font-size:1.75rem">' + lday.icon + '</div>';
-          html += '<div class="flex-shrink-0 w-14 sm:w-20"><div class="font-display text-sm font-bold text-gray-100">' + ldname + '</div></div>';
-          html += '<div class="flex-1 h-1.5 bg-border rounded-full"></div>';
-          html += '<div class="text-danger text-xs font-bold">?</div>';
-          html += '</div></div>';
-        }
-        html += '<div class="absolute inset-0 flex flex-col items-center justify-center rounded-xl">';
-        html += '<button onclick="openPaywall(\'Prognoză 14 zile\')" class="bg-card border border-accent/40 rounded-xl px-6 py-4 flex flex-col items-center gap-2 shadow-xl hover:border-accent transition-colors">';
-        html += '<span class="text-3xl">🔒</span>';
-        html += '<span class="font-display font-bold text-accent tracking-wider">DEBLOCHEAZĂ 14 ZILE</span>';
-        html += '<span class="text-xs text-muted">⚡ MotoMeteo Plus</span>';
-        html += '</button></div></div>';
-      }
-
       html += '</div>';
 
-      // ── Stats grid — compact, all items clickable for details ────────────
-      var rst = c.road_surface_temp != null ? c.road_surface_temp
-        : roadSurfaceTempClient(c.temperature, c.humidity, c.weather_code, c.precipitation_mm);
-      var rstCls = rst != null ? (rst < 0 ? 'text-danger' : rst < 5 ? 'text-warn' : rst > 50 ? 'text-warn' : 'text-gray-100') : 'text-gray-100';
-      var rstDesc = rst != null ? (rst < 0 ? '⚠️ gheață posibilă' : rst < 5 ? 'risc îngheț' : rst < 15 ? 'carosabil rece' : rst > 55 ? 'carosabil fierbinte' : 'carosabil normal') : '';
+      html += secTitle('🗺️ Radar precipitații');
+      html += '<div class="bg-card border border-border rounded-xl overflow-hidden mb-6">';
+      html += '<div id="radar-map" style="height:260px;background:#13151a"></div>';
+      html += '<div class="px-3 py-2 text-xs text-muted/60 flex justify-between">'
+        + '<span>Sursa: RainViewer &amp; OpenStreetMap</span>'
+        + '<span>Live · actualizare automată 10min</span>'
+        + '</div></div>';
 
-      html += secTitle('Condiții actuale');
-      html += '<div class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2 mb-2">';
-
-      html += statCard('🌡️', 'Temp.', Math.round(c.temperature) + '°', tempCls(c.temperature),
-        'res. ' + Math.round(c.feels_like) + '°',
-        '<div class="space-y-1.5">'
-        + '<div>🌡️ Temperatura aerului: <strong>' + Math.round(c.temperature) + '°C</strong></div>'
-        + '<div>🤔 Resimțit: <strong>' + Math.round(c.feels_like) + '°C</strong></div>'
-        + (rst != null ? '<div>🛣️ Carosabil estimat: <strong class="' + rstCls + '">' + Math.round(rst) + '°C</strong> — ' + rstDesc + '</div>' : '')
-        + '<div class="text-xs text-muted mt-1">Temperatura resimțită include efectul vântului și umidității asupra percepției termice.</div>'
-        + '</div>');
-
-      html += statCard('💨', 'Vânt', Math.round(c.wind_speed_kmh) + '<span class="text-sm"> km/h</span>',
-        windCls(c.wind_gusts_kmh),
-        windCompassSvg(c.wind_direction_deg) + ' ' + c.wind_direction,
-        '<div class="space-y-1.5">'
-        + '<div>💨 Viteză medie: <strong>' + Math.round(c.wind_speed_kmh) + ' km/h</strong></div>'
-        + '<div>💥 Rafale: <strong class="' + windCls(c.wind_gusts_kmh) + '">' + Math.round(c.wind_gusts_kmh) + ' km/h</strong></div>'
-        + '<div>🧭 Direcție: <strong>' + c.wind_direction + '</strong> (' + Math.round(c.wind_direction_deg || 0) + '°)</div>'
-        + '<div>⚡ Beaufort: <strong>Bf ' + c.beaufort + '</strong></div>'
-        + '<div class="text-xs text-muted mt-1">Rafale >50 km/h afectează stabilitatea. >70 km/h: condiții periculoase.</div>'
-        + '</div>');
-
-      html += statCard('🌧️', 'Prec.', c.precipitation_mm.toFixed(1) + '<span class="text-sm"> mm</span>',
-        (c.precipitation_mm > 1 ? 'text-danger' : c.precipitation_mm > 0.1 ? 'text-warn' : 'text-ok'),
-        'mm / oră',
-        '<div class="space-y-1.5">'
-        + '<div>💧 Intensitate curentă: <strong>' + c.precipitation_mm.toFixed(1) + ' mm/h</strong></div>'
-        + '<div class="text-xs text-muted mt-1">0 mm = fără ploaie · 0.1–1 mm = burniță · 1–5 mm = ploaie moderată · >5 mm = torențial</div>'
-        + '</div>');
-
-      html += statCard('💧', 'Umid.', c.humidity + '<span class="text-sm">%</span>',
-        (c.humidity > 90 ? 'text-warn' : 'text-gray-100'),
-        'umiditate',
-        '<div class="space-y-1.5">'
-        + '<div>💧 Umiditate relativă: <strong>' + c.humidity + '%</strong></div>'
-        + '<div class="text-xs text-muted mt-1">>85%: carosabilul poate fi umed fără precipitații active.<br>>95%: condens pe vizor, drum lunecos posibil.</div>'
-        + '</div>');
-
-      if (c.pressure_hpa != null)
-        html += statCard('🔵', 'Pres.', Math.round(c.pressure_hpa) + '<span class="text-sm"> hPa</span>',
-          'text-gray-100', 'atmosf.',
-          '<div class="space-y-1.5">'
-          + '<div>📊 Presiune: <strong>' + Math.round(c.pressure_hpa) + ' hPa</strong></div>'
-          + '<div class="text-xs text-muted mt-1">Normal: ~1013 hPa<br><990 hPa = vreme instabilă<br>>1025 hPa = vreme stabilă</div>'
-          + '</div>');
-
-      if (c.visibility_km != null) {
-        var visLabel = c.visibility_km < 1 ? '⛔ Critică' : c.visibility_km < 5 ? '⚠️ Redusă' : c.visibility_km < 10 ? '🟡 Medie' : '✅ Bună';
-        html += statCard('👁️', 'Vizib.', c.visibility_km + '<span class="text-sm"> km</span>',
-          (c.visibility_km < 1 ? 'text-danger' : c.visibility_km < 5 ? 'text-warn' : 'text-gray-100'),
-          visLabel,
-          '<div class="space-y-1.5">'
-          + '<div>👁️ Vizibilitate: <strong>' + c.visibility_km + ' km</strong></div>'
-          + '<div>Evaluare: <strong>' + visLabel + '</strong></div>'
-          + '<div class="text-xs text-muted mt-1">>10 km = bună · 5–10 km = medie · 1–5 km = redusă · <1 km = periculos</div>'
-          + '</div>');
-      }
-
-      if (c.aqi != null)
-        html += statCard('🍃', 'AQI', c.aqi, aqiCls(c.aqi), aqiLabel(c.aqi),
-          '<div class="space-y-1.5">'
-          + '<div>🍃 AQI (1–5): <strong class="' + aqiCls(c.aqi) + '">' + c.aqi + ' — ' + aqiLabel(c.aqi) + '</strong></div>'
-          + (c.pm2_5 != null ? '<div>🫁 PM2.5: <strong>' + Math.round(c.pm2_5) + ' µg/m³</strong></div>' : '')
-          + (c.pm10 != null ? '<div>🌫️ PM10: <strong>' + Math.round(c.pm10) + ' µg/m³</strong></div>' : '')
-          + (c.eu_aqi != null ? '<div>🇪🇺 EU AQI: <strong>' + c.eu_aqi + '</strong></div>' : '')
-          + '<div class="text-xs text-muted mt-1">1=Bun · 2=Acceptabil · 3=Moderat · 4=Slab · 5=Foarte slab</div>'
-          + '</div>');
-
-      if (c.pm2_5 != null)
-        html += statCard('🫁', 'PM2.5', Math.round(c.pm2_5) + '<span class="text-sm"> µg</span>',
-          c.pm2_5 > 35 ? 'text-danger' : c.pm2_5 > 20 ? 'text-warn' : 'text-ok',
-          'particule fine',
-          '<div class="space-y-1.5">'
-          + '<div>🫁 PM2.5: <strong>' + Math.round(c.pm2_5) + ' µg/m³</strong></div>'
-          + '<div class="text-xs text-muted mt-1">Particule fine sub 2.5µm — pătrund adânc în plămâni.<br><12 = bun · 12–35 = moderat · >35 = nesănătos</div>'
-          + '</div>');
-
-      if (c.pm10 != null)
-        html += statCard('🌫️', 'PM10', Math.round(c.pm10) + '<span class="text-sm"> µg</span>',
-          c.pm10 > 50 ? 'text-danger' : c.pm10 > 30 ? 'text-warn' : 'text-ok',
-          'suspend.',
-          '<div class="space-y-1.5">'
-          + '<div>🌫️ PM10: <strong>' + Math.round(c.pm10) + ' µg/m³</strong></div>'
-          + '<div class="text-xs text-muted mt-1"><20 = bun · 20–50 = moderat · >50 = nesănătos</div>'
-          + '</div>');
-
-      if (c.ozone != null)
-        html += statCard('🧪', 'Ozon', Math.round(c.ozone) + '<span class="text-sm"> µg</span>',
-          c.ozone > 140 ? 'text-warn' : 'text-gray-100',
-          'O₃',
-          '<div class="space-y-1.5">'
-          + '<div>🧪 Ozon troposferic: <strong>' + Math.round(c.ozone) + ' µg/m³</strong></div>'
-          + '<div class="text-xs text-muted mt-1"><100 µg/m³ = sigur · 100–140 = moderat · >140 = alertă</div>'
-          + '</div>');
-
-      if (c.pollen_index != null)
-        html += statCard('🌾', 'Polen', c.pollen_index.toFixed(0),
-          c.pollen_index > 80 ? 'text-danger' : c.pollen_index > 40 ? 'text-warn' : 'text-ok',
-          'alergeni',
-          '<div class="space-y-1.5">'
-          + '<div>🌾 Index maxim de polen: <strong>' + c.pollen_index.toFixed(0) + '</strong></div>'
-          + '<div class="text-xs text-muted mt-1">Surse: anin, mesteacăn, iarbă, pelin, ambrozie.<br>0–10: scăzut · 10–50: moderat · 50–80: ridicat · >80: extrem</div>'
-          + '</div>');
-
-      if (c.uv_index != null)
-        html += statCard('☀️', 'UV', c.uv_index.toFixed(1), uvCls(c.uv_index), uvDesc(c.uv_index),
-          '<div class="space-y-1.5">'
-          + '<div>☀️ Indice UV: <strong class="' + uvCls(c.uv_index) + '">' + c.uv_index.toFixed(1) + ' — ' + uvDesc(c.uv_index) + '</strong></div>'
-          + '<div class="text-xs text-muted mt-1">'
-          + (c.uv_index < 3 ? 'Protecție minimă necesară.' : c.uv_index < 6 ? 'Recomandată protecție solară.' : c.uv_index < 8 ? 'SPF50+ obligatoriu.' : 'Limitați expunerea directă.')
-          + '<br>0–2: scăzut · 3–5: moderat · 6–7: ridicat · 8–10: foarte ridicat · 11+: extrem</div>'
-          + '</div>');
-
-      if (rst != null)
-        html += statCard('🛣️', 'Carosabil', Math.round(rst) + '°', rstCls, rstDesc,
-          '<div class="space-y-1.5">'
-          + '<div>🛣️ Temp. suprafață drum: <strong class="' + rstCls + '">' + Math.round(rst) + '°C</strong></div>'
-          + '<div>Condiție: <strong>' + rstDesc + '</strong></div>'
-          + '<div class="text-xs text-muted mt-1">Asfalt negru pe soare: +4°C...+9°C față de aer.<br>Drum ud: ≈ temp. aerului −1°C.</div>'
-          + '</div>');
-
-      if (daily.length && daily[0].sunrise)
-        html += statCard('🌅', 'Răsărit', fmtTime(daily[0].sunrise), 'text-gray-100', 'soare', null);
-      if (daily.length && daily[0].sunset)
-        html += statCard('🌇', 'Apus', fmtTime(daily[0].sunset), 'text-gray-100', 'soare', null);
-
-      html += '</div>';
-
-      // Gear recommendation
-      var gearRecs = c.gear_recommendation && c.gear_recommendation.length
-        ? c.gear_recommendation
-        : gearRecommendationClient(c.feels_like, c.wind_gusts_kmh, c.precipitation_mm, c.weather_code);
-      html += gearRecommendationHtml(gearRecs);
-
-      // Chart
-      html += secTitle('Grafic temperatură, vânt &amp; ploaie — 24h');
-      html += '<div class="bg-card border border-border rounded-xl p-4 mb-2" style="height:220px;">';
-      html += '<canvas id="tempChart"></canvas></div>';
-
-      // ── Precipitation radar card (premium) ──────────────────────────────
-      if (isPremium()) {
-        html += secTitle('🗺️ Radar precipitații');
-        html += '<div class="bg-card border border-border rounded-xl overflow-hidden mb-6">';
-        html += '<div id="radar-map" style="height:260px;background:#13151a"></div>';
-        html += '<div class="px-3 py-2 text-xs text-muted/60 flex justify-between">'
-          + '<span>Sursa: RainViewer &amp; OpenStreetMap</span>'
-          + '<span>Live · actualizare automată 10min</span>'
-          + '</div></div>';
-      } else {
-        html += '<div class="mb-6 border border-dashed border-accent/25 rounded-xl p-5 flex items-center gap-4 cursor-pointer hover:border-accent/50 transition-colors" onclick="openPaywall(\'Radar precipitații\')">';
-        html += '<span class="text-4xl flex-shrink-0">🔒</span>';
-        html += '<div><div class="font-display font-bold text-accent tracking-wider">RADAR PRECIPITAȚII</div>';
-        html += '<div class="text-sm text-muted mt-0.5">Hartă interactivă cu precipitații în timp real — ⚡ Premium</div></div>';
-        html += '</div>';
-      }
-
+      var sourceNames = (c.sources || ['open-meteo']).map(sourceLabel);
+      var sourceUnique = [];
+      sourceNames.forEach(function (s) { if (sourceUnique.indexOf(s) < 0) sourceUnique.push(s); });
       html += '<div class="border-t border-border pt-4 pb-8 text-xs text-muted tracking-widest text-center">'
-        + '<div>DATE: OPEN-METEO.COM &middot; OPENWEATHERMAP &middot; MET NORWAY (ECMWF)</div>'
-        + '<div class="mt-1 text-muted/60">Datele sunt media ponderată a ' + (c.sources ? c.sources.length : 1) + ' surse &middot; Actualizat la fiecare 30 min automat</div>'
+        + '<div>DATE: ' + sourceUnique.join(' &middot; ') + '</div>'
+        + '<div class="mt-1 text-muted/60">Fuziune multi-sursă asistată AI pentru scorul moto &middot; ' + sourceUnique.length + ' surse active &middot; Actualizat la fiecare 30 min automat</div>'
         + '</div>';
 
+      window._lastWeatherData = d;
       document.getElementById("app").innerHTML = html;
       renderChart(hourly);
-      if (isPremium()) initRadarMap(d.latitude, d.longitude);
+      initRadarMap(d.latitude, d.longitude);
     }
 
     if ('serviceWorker' in navigator) {
@@ -3795,7 +4024,7 @@
     });
 
     // -----------------------------------------------------------------------
-    // Precipitation radar (Leaflet + RainViewer) — premium
+    // Precipitation radar (Leaflet + RainViewer)
     // -----------------------------------------------------------------------
     function initRadarMap(lat, lon) {
       function _doInit() {
@@ -3803,11 +4032,12 @@
         if (!container || !window.L) return;
         if (window._radarMap) { window._radarMap.remove(); window._radarMap = null; }
         var map = window.L.map('radar-map', {
-          zoomControl: true, attributionControl: true, scrollWheelZoom: false
-        }).setView([lat, lon], 8);
+          zoomControl: true, attributionControl: true, scrollWheelZoom: false,
+          minZoom: 4, maxZoom: 10
+        }).setView([lat, lon], 7);
         window._radarMap = map;
         window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          maxZoom: 13, attribution: '&copy; <a href="https://osm.org/copyright">OSM</a>'
+          minZoom: 4, maxZoom: 10, attribution: '&copy; <a href="https://osm.org/copyright">OSM</a>'
         }).addTo(map);
         window.L.circleMarker([lat, lon], {
           radius: 7, color: '#f97316', fillColor: '#f97316', fillOpacity: 0.9
@@ -3819,7 +4049,14 @@
             var frame = rv.radar.past[rv.radar.past.length - 1];
             window.L.tileLayer(
               'https://tilecache.rainviewer.com' + frame.path + '/256/{z}/{x}/{y}/4/1_1.png',
-              { opacity: 0.6, attribution: '<a href="https://www.rainviewer.com">RainViewer</a>' }
+              {
+                opacity: 0.6,
+                minZoom: 4,
+                maxZoom: 10,
+                maxNativeZoom: 10,
+                noWrap: true,
+                attribution: '<a href="https://www.rainviewer.com">RainViewer</a>'
+              }
             ).addTo(map);
           }).catch(function () { });
       }
@@ -3849,6 +4086,9 @@
     document.addEventListener('click', function (e) {
       if (e.target.closest('button')) haptic(10);
     }, { capture: true });
+    window.addEventListener('resize', function () {
+      if (window.innerWidth >= 768) closeMobileMenu();
+    });
 
     // iOS "Add to Home Screen" banner – only show on iOS Safari outside standalone mode
     function _isIos() {
@@ -3894,27 +4134,12 @@
       if (stop0 && CITY !== 'București') stop0.value = CITY;
     })();
     // Pre-fill route origin with current city when it changes
-    // Initialize RevenueCat if running in Capacitor native build
-    (function () {
-      if (typeof window.Purchases === 'undefined') return;
-      var RC_API_KEY_IOS = 'appl_REPLACE_WITH_REVENUECAT_IOS_KEY'; // <-- înlocuiește după configurare RevenueCat
-      try {
-        window.Purchases.configure({ apiKey: RC_API_KEY_IOS });
-        window.Purchases.getCustomerInfo().then(function (info) {
-          var active = info
-            && info.entitlements
-            && info.entitlements.active
-            && info.entitlements.active['premium'];
-          _setPremium(!!active);
-        }).catch(function () { });
-      } catch (_) { }
-    }());
 
     loadProfileUI();
+    renderFavsBar();
     applyTheme();
     _updateAccountButton();
     _refreshPushStatus();
-    renderFavsBar();
     loadSavedRoutes();
     loadRideStats();
     loadWeather();
