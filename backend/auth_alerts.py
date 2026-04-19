@@ -1262,12 +1262,19 @@ async def alerts_dispatch_all(secret: str) -> dict[str, Any]:
     conn = _connect()
     try:
         users = conn.execute("SELECT id, email FROM users").fetchall()
-        total_sent = 0
-        total_events = 0
-        for u in users:
-            result = await _dispatch_for_user(conn, u["id"], u["email"], OWM_API_KEY)
-            total_sent += int(result.get("sent", 0))
-            total_events += len(result.get("events", []))
-        return {"ok": True, "users": len(users), "sent": total_sent, "events": total_events}
     finally:
         conn.close()
+
+    results = await asyncio.gather(
+        *[_dispatch_for_user(u["id"], u["email"], OWM_API_KEY) for u in users],
+        return_exceptions=True,
+    )
+    total_sent = 0
+    total_events = 0
+    for r in results:
+        if isinstance(r, Exception):
+            logger.warning("dispatch_for_user error: %s", r)
+            continue
+        total_sent += int(r.get("sent", 0))
+        total_events += len(r.get("events", []))
+    return {"ok": True, "users": len(users), "sent": total_sent, "events": total_events}
