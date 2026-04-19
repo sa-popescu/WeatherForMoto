@@ -4285,12 +4285,16 @@
     loadSavedRoutes();
     loadRideStats();
 
+    _applyStaticI18n();
+
     // Handle password reset link (?reset_token=...)
     (function() {
       var params = new URLSearchParams(window.location.search);
       var resetToken = params.get('reset_token');
       if (resetToken) {
         history.replaceState({}, '', window.location.pathname);
+        var planner = document.getElementById('route-planner-section');
+        if (planner) planner.style.display = 'none';
         document.getElementById('app').innerHTML =
           '<div class="mt-8 max-w-sm mx-auto bg-card border border-border rounded-2xl p-6">'
           + '<div class="font-display text-xl font-bold tracking-wide text-gray-100 mb-4">Resetare parolă</div>'
