@@ -3818,7 +3818,7 @@
             var hCol = hsc >= 85 ? '#22c55e' : hsc >= 60 ? '#eab308' : hsc >= 40 ? '#f97316' : '#ef4444';
             html += '<div class="daily-mini-card flex-shrink-0 bg-card border border-border rounded-xl p-2 w-16 text-center flex flex-col items-center gap-0.5">';
             html += '<div class="text-xs text-muted font-semibold">' + ht + '</div>';
-            html += '<div style="font-size:1.5rem;line-height:1.2">' + h.icon + '</div>';
+            html += '<div class="text-gray-100">' + wmoLucideIcon(h.weather_code, 22) + '</div>';
             html += '<div class="font-display text-lg font-bold leading-none text-gray-100">' + Math.round(h.temperature) + '°</div>';
             if (h.feels_like != null) html += '<div class="text-xs text-muted">res ' + Math.round(h.feels_like) + '°</div>';
             html += '<div class="text-xs ' + rainCls(hrp) + '">' + hrp + '%💧</div>';
