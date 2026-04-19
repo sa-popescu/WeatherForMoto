@@ -3804,7 +3804,7 @@
       html += '</div>';
 
       // Daily forecast — moved here (right after hourly)
-      html += secTitle('Prognoză ' + daily.length + ' zile');
+      html += secTitle(t('sec_forecast').replace('{n}', daily.length));
       html += '<div class="flex flex-col gap-2 mb-6">';
       var maxDay = daily.length;
       daily.slice(0, maxDay).forEach(function (day, i) {
