@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 from typing import Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 import httpx
 from pydantic import BaseModel, EmailStr, Field
 from pywebpush import WebPushException, webpush
