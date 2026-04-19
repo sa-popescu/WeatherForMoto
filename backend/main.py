@@ -49,9 +49,7 @@ logger = logging.getLogger("weatherformoto")
 load_dotenv()
 
 # API key must be supplied via the OPENWEATHERMAP_API_KEY environment variable.
-# A demo key is provided as a last-resort fallback; replace it with your own key for production.
-_DEMO_OWM_KEY = "REMOVED-OWM-API-KEY"
-OWM_API_KEY: str = os.getenv("OPENWEATHERMAP_API_KEY", _DEMO_OWM_KEY)
+OWM_API_KEY: str = os.getenv("OPENWEATHERMAP_API_KEY", "")
 DEFAULT_CITY: str = os.getenv("DEFAULT_CITY", "Bucharest")
 PIRATE_WEATHER_API_KEY: str = os.getenv("PIRATE_WEATHER_API_KEY", "")
 MET_NORWAY_USER_AGENT: str = os.getenv(
