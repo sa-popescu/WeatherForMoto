@@ -3487,13 +3487,34 @@
         + '</div>';
     }
 
+    var _smData = {};
+    var _smIdx = 0;
+
     function statCard(icon, label, value, valueCls, sub) {
-      return '<div class="bg-card border border-border rounded-xl p-4 flex flex-col gap-1 wx-card">'
-        + '<div class="mb-2 text-accent/70">' + icon + '</div>'
-        + '<div class="text-xs text-muted font-semibold tracking-widest uppercase">' + label + '</div>'
-        + '<div class="font-display text-4xl font-bold leading-none ' + valueCls + '">' + value + '</div>'
-        + '<div class="text-xs text-muted mt-1 leading-snug flex items-center gap-1">' + sub + '</div>'
+      var k = 's' + (_smIdx++);
+      _smData[k] = { icon: icon, label: label, value: value, valueCls: valueCls, sub: sub };
+      return '<div onclick="openStatModal(\'' + k + '\')" class="bg-card border border-border rounded-lg p-2 flex flex-col items-center gap-0.5 wx-card cursor-pointer hover:border-accent/50 transition-colors text-center min-w-0">'
+        + '<div class="text-accent/70 flex items-center justify-center mb-0.5" style="height:20px">' + icon + '</div>'
+        + '<div class="font-display text-sm font-bold leading-tight ' + valueCls + '">' + value + '</div>'
+        + '<div class="text-[9px] text-muted font-medium tracking-wide uppercase leading-none truncate w-full">' + label + '</div>'
         + '</div>';
+    }
+
+    function openStatModal(k) {
+      var d = _smData[k];
+      if (!d) return;
+      document.getElementById('stat-modal-icon').innerHTML = d.icon;
+      document.getElementById('stat-modal-label').textContent = d.label;
+      var valEl = document.getElementById('stat-modal-value');
+      valEl.innerHTML = d.value;
+      valEl.className = 'font-display text-5xl font-bold leading-none mb-3 ' + d.valueCls;
+      document.getElementById('stat-modal-sub').innerHTML = d.sub;
+      document.getElementById('stat-modal').classList.remove('hidden');
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function closeStatModal() {
+      document.getElementById('stat-modal').classList.add('hidden');
     }
 
     function toggleDay(idx) {
