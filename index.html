@@ -3477,45 +3477,7 @@
       if (arr) arr.classList.toggle('open', opening);
     }
 
-    var PRE_RIDE_CHECKLIST = [
-      { id: 'tires', icon: '🛞', label: 'Presiune anvelope verificata' },
-      { id: 'chain', icon: '⛓️', label: 'Lant uns si tensionat corect' },
-      { id: 'brakes', icon: '🛑', label: 'Frane si lichid in parametri' },
-      { id: 'lights', icon: '💡', label: 'Faruri / stop / semnalizari functionale' },
-      { id: 'docs', icon: '📄', label: 'Acte + asigurare + permis la tine' },
-    ];
-
-    function _checklistKey() { return 'motoPreRideChecklistV2'; }
-    function _todayKey() { return new Date().toISOString().slice(0, 10); }
     function _clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
-
-    function _getChecklistState() {
-      try {
-        var raw = JSON.parse(localStorage.getItem(_checklistKey()) || '{}');
-        if (!raw || raw.date !== _todayKey() || !raw.items) {
-          return { date: _todayKey(), items: {} };
-        }
-        return raw;
-      } catch (_) {
-        return { date: _todayKey(), items: {} };
-      }
-    }
-
-    function _saveChecklistState(state) {
-      try { localStorage.setItem(_checklistKey(), JSON.stringify(state)); } catch (_) { }
-    }
-
-    function toggleChecklistItem(id) {
-      var state = _getChecklistState();
-      state.items[id] = !state.items[id];
-      _saveChecklistState(state);
-      if (window._lastWeatherData) render(window._lastWeatherData);
-    }
-
-    function resetChecklist() {
-      _saveChecklistState({ date: _todayKey(), items: {} });
-      if (window._lastWeatherData) render(window._lastWeatherData);
-    }
 
     function calcRideDna(current) {
       var rain = current.precipitation_mm || 0;
