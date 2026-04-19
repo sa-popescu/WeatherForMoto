@@ -3742,40 +3742,40 @@
       // Stats grid
       html += secTitle('Condiții actuale');
       html += '<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-2">';
-      html += statCard('🌡️', 'Temperatură', Math.round(c.temperature) + '°', tempCls(c.temperature), 'resimțit ' + Math.round(c.feels_like) + '°C');
-      html += statCard('💨', 'Vânt', Math.round(c.wind_speed_kmh) + '<span class="text-lg"> km/h</span>', windCls(c.wind_gusts_kmh),
+      html += statCard(licon('thermometer', 28), 'Temperatură', Math.round(c.temperature) + '°', tempCls(c.temperature), 'resimțit ' + Math.round(c.feels_like) + '°C');
+      html += statCard(licon('wind', 28), 'Vânt', Math.round(c.wind_speed_kmh) + '<span class="text-lg"> km/h</span>', windCls(c.wind_gusts_kmh),
         windCompassSvg(c.wind_direction_deg) + ' <span class="font-semibold text-gray-300">' + c.wind_direction + '</span>'
         + ' · rafale <strong>' + Math.round(c.wind_gusts_kmh) + ' km/h</strong> · Bf ' + c.beaufort);
-      html += statCard('🌧️', 'Precipitații', c.precipitation_mm.toFixed(1) + '<span class="text-xl"> mm</span>', (c.precipitation_mm > 1 ? 'text-danger' : c.precipitation_mm > 0.1 ? 'text-warn' : 'text-ok'), 'mm / oră curentă');
-      html += statCard('💧', 'Umiditate', c.humidity + '<span class="text-xl">%</span>', (c.humidity > 90 ? 'text-warn' : 'text-gray-100'), 'drum potențial umed');
+      html += statCard(licon('cloud-rain', 28), 'Precipitații', c.precipitation_mm.toFixed(1) + '<span class="text-xl"> mm</span>', (c.precipitation_mm > 1 ? 'text-danger' : c.precipitation_mm > 0.1 ? 'text-warn' : 'text-ok'), 'mm / oră curentă');
+      html += statCard(licon('droplets', 28), 'Umiditate', c.humidity + '<span class="text-xl">%</span>', (c.humidity > 90 ? 'text-warn' : 'text-gray-100'), 'drum potențial umed');
       if (c.pressure_hpa != null)
-        html += statCard('🔵', 'Presiune', Math.round(c.pressure_hpa) + '<span class="text-xl"> hPa</span>', 'text-gray-100', 'presiune atmosferică');
+        html += statCard(licon('gauge', 28), 'Presiune', Math.round(c.pressure_hpa) + '<span class="text-xl"> hPa</span>', 'text-gray-100', 'presiune atmosferică');
       if (c.visibility_km != null)
-        html += statCard('👁️', 'Vizibilitate', c.visibility_km + '<span class="text-xl"> km</span>', (c.visibility_km < 1 ? 'text-danger' : c.visibility_km < 5 ? 'text-warn' : 'text-gray-100'), 'distanța de vizibilitate');
+        html += statCard(licon('eye', 28), 'Vizibilitate', c.visibility_km + '<span class="text-xl"> km</span>', (c.visibility_km < 1 ? 'text-danger' : c.visibility_km < 5 ? 'text-warn' : 'text-gray-100'), 'distanța de vizibilitate');
       if (c.aqi != null)
-        html += statCard('🍃', 'Calitate aer', c.aqi, aqiCls(c.aqi), aqiLabel(c.aqi));
+        html += statCard(licon('leaf', 28), 'Calitate aer', c.aqi, aqiCls(c.aqi), aqiLabel(c.aqi));
       if (c.pm2_5 != null)
-        html += statCard('🫁', 'PM2.5', Math.round(c.pm2_5) + '<span class="text-lg"> µg/m³</span>', c.pm2_5 > 35 ? 'text-danger' : c.pm2_5 > 20 ? 'text-warn' : 'text-ok', 'particule fine');
+        html += statCard(licon('activity', 28), 'PM2.5', Math.round(c.pm2_5) + '<span class="text-lg"> µg/m³</span>', c.pm2_5 > 35 ? 'text-danger' : c.pm2_5 > 20 ? 'text-warn' : 'text-ok', 'particule fine');
       if (c.pm10 != null)
-        html += statCard('🌫️', 'PM10', Math.round(c.pm10) + '<span class="text-lg"> µg/m³</span>', c.pm10 > 50 ? 'text-danger' : c.pm10 > 30 ? 'text-warn' : 'text-ok', 'particule în suspensie');
+        html += statCard(licon('cloud-fog', 28), 'PM10', Math.round(c.pm10) + '<span class="text-lg"> µg/m³</span>', c.pm10 > 50 ? 'text-danger' : c.pm10 > 30 ? 'text-warn' : 'text-ok', 'particule în suspensie');
       if (c.ozone != null)
-        html += statCard('🧪', 'Ozon', Math.round(c.ozone) + '<span class="text-lg"> µg/m³</span>', c.ozone > 140 ? 'text-warn' : 'text-gray-100', 'nivel O₃');
+        html += statCard(licon('flask-conical', 28), 'Ozon', Math.round(c.ozone) + '<span class="text-lg"> µg/m³</span>', c.ozone > 140 ? 'text-warn' : 'text-gray-100', 'nivel O₃');
       if (c.pollen_index != null)
-        html += statCard('🌾', 'Pollen index', c.pollen_index.toFixed(0), c.pollen_index > 80 ? 'text-danger' : c.pollen_index > 40 ? 'text-warn' : 'text-ok', 'alergeni atmosferici');
+        html += statCard(licon('sprout', 28), 'Pollen index', c.pollen_index.toFixed(0), c.pollen_index > 80 ? 'text-danger' : c.pollen_index > 40 ? 'text-warn' : 'text-ok', 'alergeni atmosferici');
       if (c.uv_index != null)
-        html += statCard('☀️', 'Indice UV', c.uv_index.toFixed(1), uvCls(c.uv_index), uvDesc(c.uv_index));
+        html += statCard(licon('sun', 28), 'Indice UV', c.uv_index.toFixed(1), uvCls(c.uv_index), uvDesc(c.uv_index));
       // Road surface temperature — moto-specific
       var rst = c.road_surface_temp != null ? c.road_surface_temp
         : roadSurfaceTempClient(c.temperature, c.humidity, c.weather_code, c.precipitation_mm);
       if (rst != null) {
         var rstCls = rst < 0 ? 'text-danger' : rst < 5 ? 'text-warn' : rst > 50 ? 'text-warn' : 'text-gray-100';
         var rstDesc = rst < 0 ? '⚠️ gheață posibilă' : rst < 5 ? 'risc îngheț' : rst < 15 ? 'carosabil rece' : rst > 55 ? 'carosabil fierbinte' : 'carosabil normal';
-        html += statCard('🛣️', 'Temp. carosabil', Math.round(rst) + '°', rstCls, rstDesc + ' (estimat)');
+        html += statCard(licon('route', 28), 'Temp. carosabil', Math.round(rst) + '°', rstCls, rstDesc + ' (estimat)');
       }
       if (daily.length && daily[0].sunrise)
-        html += statCard('🌅', 'Răsărit', fmtTime(daily[0].sunrise), 'text-gray-100', 'ora răsăritului soarelui');
+        html += statCard(licon('sunrise', 28), 'Răsărit', fmtTime(daily[0].sunrise), 'text-gray-100', 'ora răsăritului soarelui');
       if (daily.length && daily[0].sunset)
-        html += statCard('🌇', 'Apus', fmtTime(daily[0].sunset), 'text-gray-100', 'ora apusului soarelui');
+        html += statCard(licon('sunset', 28), 'Apus', fmtTime(daily[0].sunset), 'text-gray-100', 'ora apusului soarelui');
       html += '</div>';
 
       // Differentiation block: Ride DNA + advisor + checklist
