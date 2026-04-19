@@ -3718,10 +3718,9 @@
       // Differentiation block: Ride DNA + advisor + checklist
       var dna = calcRideDna(c);
       html += secTitle('Ride Briefing 360');
-      html += '<div class="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-2 items-start">';
+      html += '<div class="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-2 items-start">';
       html += rideDnaHtml(dna);
       html += departureAdvisorHtml(hourly);
-      html += checklistHtml();
       html += '</div>';
       html += '<div class="mb-4 p-4 rounded-xl border border-border bg-card text-sm text-gray-300 leading-relaxed">'
         + '<span class="font-display text-xs tracking-[0.2em] text-muted block mb-1">BRIEFING PERSONALIZAT</span>'
