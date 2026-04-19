@@ -3603,31 +3603,6 @@
       return parts.join(' ');
     }
 
-    function checklistHtml() {
-      var st = _getChecklistState();
-      var done = 0;
-      PRE_RIDE_CHECKLIST.forEach(function (it) { if (st.items[it.id]) done++; });
-      var pct = Math.round((done / PRE_RIDE_CHECKLIST.length) * 100);
-      var html = '<div class="bg-card border border-border rounded-xl p-4">';
-      html += '<div class="flex items-center gap-2 mb-3">';
-      html += '<span class="font-display text-sm tracking-[0.2em] text-muted">CHECK PRE-RIDE</span>';
-      html += '<span class="ml-auto text-xs text-gray-300">' + done + '/' + PRE_RIDE_CHECKLIST.length + '</span>';
-      html += '</div>';
-      html += '<div class="w-full h-2 bg-bg border border-border rounded-full overflow-hidden mb-3"><div class="h-full bg-accent" style="width:' + pct + '%"></div></div>';
-      PRE_RIDE_CHECKLIST.forEach(function (it) {
-        var on = !!st.items[it.id];
-        html += '<button onclick="toggleChecklistItem(\'' + it.id + '\')" class="w-full mb-2 last:mb-0 p-2 rounded-lg border text-left transition-colors '
-          + (on ? 'border-ok/40 bg-ok/10 text-gray-100' : 'border-border bg-bg/40 text-muted hover:border-accent/40') + '">'
-          + '<span class="mr-2">' + it.icon + '</span>'
-          + '<span class="text-sm">' + it.label + '</span>'
-          + '<span class="float-right">' + (on ? '✓' : '○') + '</span>'
-          + '</button>';
-      });
-      html += '<button onclick="resetChecklist()" class="mt-3 text-xs text-muted hover:text-accent transition-colors">Reset pentru azi</button>';
-      html += '</div>';
-      return html;
-    }
-
     function render(d) {
       var c = d.current;
       var now = new Date();
