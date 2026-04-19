@@ -3876,6 +3876,7 @@
       document.getElementById("app").innerHTML = html;
       renderChart(hourly);
       initRadarMap(d.latitude, d.longitude);
+      if (window.lucide) lucide.createIcons();
     }
 
     if ('serviceWorker' in navigator) {
