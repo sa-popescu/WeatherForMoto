@@ -660,7 +660,7 @@ RESET_TOKEN_TTL_MINUTES = 30
 
 
 @router.post("/auth/request-reset")
-async def auth_request_reset(payload: RequestResetPayload) -> dict[str, bool]:
+async def auth_request_reset(payload: RequestResetPayload, request: Request) -> dict[str, bool]:
     conn = _connect()
     try:
         email = payload.email.lower()
@@ -681,7 +681,8 @@ async def auth_request_reset(payload: RequestResetPayload) -> dict[str, bool]:
             (user_id, token_hash, expires, now.isoformat()),
         )
         conn.commit()
-        reset_link = f"{os.getenv('APP_BASE_URL', 'https://weatherformoto.up.railway.app')}/?reset_token={raw_token}"
+        base_url = os.getenv("APP_BASE_URL") or str(request.base_url).rstrip("/")
+        reset_link = f"{base_url}/?reset_token={raw_token}"
         await _send_email(
             email,
             "MotoMeteo — resetare parolă",
