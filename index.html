@@ -4160,8 +4160,8 @@
       var sourceUnique = [];
       sourceNames.forEach(function (s) { if (sourceUnique.indexOf(s) < 0) sourceUnique.push(s); });
       html += '<div class="border-t border-border pt-4 pb-8 text-xs text-muted tracking-widest text-center">'
-        + '<div>DATE: ' + sourceUnique.join(' &middot; ') + '</div>'
-        + '<div class="mt-1 text-muted/60">Fuziune multi-sursă asistată AI pentru scorul moto &middot; ' + sourceUnique.length + ' surse active &middot; Actualizat la fiecare 30 min automat</div>'
+        + '<div>' + t('data_sources') + ': ' + sourceUnique.join(' &middot; ') + '</div>'
+        + '<div class="mt-1 text-muted/60">' + t('fusion_text').replace('{n}', sourceUnique.length) + ' &middot; ' + sourceUnique.length + ' ' + t('sources_active') + '</div>'
         + '</div>';
 
       window._lastWeatherData = d;
