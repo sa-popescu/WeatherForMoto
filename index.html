@@ -483,24 +483,24 @@
   </main>
 
   <!-- PLANIFICATOR TRASEU -->
-  <section class="max-w-5xl mx-auto px-3 sm:px-4 pb-10">
+  <section id="route-planner-section" class="max-w-5xl mx-auto px-3 sm:px-4 pb-10">
     <div class="flex items-center gap-3 mt-2 mb-4">
-      <span class="font-display text-sm font-bold tracking-[0.25em] text-muted uppercase">🗺️ Planificator traseu</span>
+      <span class="font-display text-sm font-bold tracking-[0.25em] text-muted uppercase" data-i18n="planner_title">🗺️ Planificator traseu</span>
       <div class="flex-1 h-px bg-border"></div>
-      <span class="text-xs text-muted italic hidden sm:inline">până la 5 opriri pe traseu</span>
+      <span class="text-xs text-muted italic hidden sm:inline" data-i18n="planner_stops_hint">până la 5 opriri pe traseu</span>
     </div>
     <div class="planner-card bg-card border border-border rounded-xl p-4 mb-4">
       <!-- Dynamic stops list -->
       <div id="route-stops-list" class="mb-3">
         <div class="stop-row flex items-center gap-2 mb-2">
           <span class="text-xl flex-shrink-0" title="Start">🟢</span>
-          <input id="route-stop-0" type="text" placeholder="Plecare..."
+          <input id="route-stop-0" type="text" data-i18n-ph="planner_departure" placeholder="Plecare..."
             class="route-stop-input w-full bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent placeholder-muted transition-colors" />
           <span class="w-8 flex-shrink-0"></span>
         </div>
         <div class="stop-row flex items-center gap-2 mb-2">
           <span class="text-xl flex-shrink-0" title="Destinație">🔴</span>
-          <input id="route-stop-1" type="text" placeholder="Destinație..."
+          <input id="route-stop-1" type="text" data-i18n-ph="planner_destination" placeholder="Destinație..."
             class="route-stop-input w-full bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent placeholder-muted transition-colors" />
           <span class="w-8 flex-shrink-0"></span>
         </div>
@@ -508,23 +508,23 @@
       <button onclick="addRouteStop()" id="add-stop-btn"
         class="planner-add-btn mb-4 text-xs text-accent border border-accent/30 hover:bg-accent/10 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 flex-wrap">
         <span class="text-base leading-none font-bold">+</span>
-        <span>Adaugă oprire intermediară</span>
-        <span class="ml-1 text-muted/70 hidden sm:inline">(maxim 5 total)</span>
+        <span data-i18n="planner_add_stop">Adaugă oprire intermediară</span>
+        <span class="ml-1 text-muted/70 hidden sm:inline" data-i18n="planner_max_stops">(maxim 5 total)</span>
       </button>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
         <div>
-          <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Ora plecării</label>
+          <label class="text-xs text-muted tracking-widest uppercase mb-1 block" data-i18n="planner_dep_time">Ora plecării</label>
           <input id="route-departure" type="datetime-local"
             class="w-full bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent transition-colors" />
         </div>
         <div>
-          <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Viteză medie (km/h)</label>
+          <label class="text-xs text-muted tracking-widest uppercase mb-1 block" data-i18n="planner_speed">Viteză medie (km/h)</label>
           <input id="route-speed" type="number" value="80" min="20" max="180"
             class="w-full bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent transition-colors" />
         </div>
       </div>
       <button onclick="calcRoute()"
-        class="bg-accent hover:bg-orange-400 text-black font-display font-bold tracking-wider px-5 py-2 rounded-lg transition-colors text-sm">
+        class="bg-accent hover:bg-orange-400 text-black font-display font-bold tracking-wider px-5 py-2 rounded-lg transition-colors text-sm" data-i18n="planner_calc">
         🗺️ CALCULEAZĂ TRASEU
       </button>
     </div>
