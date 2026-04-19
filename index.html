@@ -2752,10 +2752,10 @@
     }
 
     function scoreInfo(s) {
-      if (s >= 85) return { label: "IDEAL PENTRU MERS", color: "#22c55e", cls: "text-ok", msg: "Condiții excelente. Drum liber! 🏍️" };
-      if (s >= 60) return { label: "ACCEPTABIL", color: "#eab308", cls: "text-warn", msg: "Condiții bune, atenție la schimbări." };
-      if (s >= 40) return { label: "CU PRECAUȚIE", color: "#f97316", cls: "text-accent", msg: "Mergi cu atenție sporită." };
-      return { label: "NU RECOMAND", color: "#ef4444", cls: "text-danger", msg: "Condiții periculoase pentru două roți." };
+      if (s >= 85) return { label: t('score_ideal'), color: "#22c55e", cls: "text-ok", msg: t('msg_ideal') };
+      if (s >= 60) return { label: t('score_ok'),    color: "#eab308", cls: "text-warn", msg: t('msg_ok') };
+      if (s >= 40) return { label: t('score_caution'),color: "#f97316", cls: "text-accent", msg: t('msg_caution') };
+      return { label: t('score_avoid'), color: "#ef4444", cls: "text-danger", msg: t('msg_avoid') };
     }
 
     function fmtTime(iso) {
