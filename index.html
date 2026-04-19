@@ -1337,6 +1337,30 @@
       if (s) s.classList.toggle('hidden');
     }
 
+    async function submitResetPassword(token) {
+      var pw = document.getElementById('reset-new-pw').value;
+      var msg = document.getElementById('reset-pw-msg');
+      if (!pw || pw.length < 8) { alert('Parola trebuie să aibă cel puțin 8 caractere.'); return; }
+      msg.classList.add('hidden');
+      try {
+        var resp = await fetch(_api('/auth/reset-password'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: token, new_password: pw })
+        });
+        var data = await resp.json();
+        if (!resp.ok) throw new Error(data.detail || 'Eroare la resetare.');
+        msg.textContent = 'Parola a fost resetată! Te poți autentifica acum.';
+        msg.className = 'text-xs text-ok';
+        msg.classList.remove('hidden');
+        setTimeout(function() { loadWeather(); }, 2000);
+      } catch (e) {
+        msg.textContent = 'Eroare: ' + (e && e.message || e);
+        msg.className = 'text-xs text-danger';
+        msg.classList.remove('hidden');
+      }
+    }
+
     async function changePassword() {
       var current = document.getElementById('change-pw-current').value;
       var next = document.getElementById('change-pw-new').value;
