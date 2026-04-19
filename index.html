@@ -4041,7 +4041,7 @@
           html += '</div>';
         }
         html += '<div class="flex flex-wrap gap-x-4 gap-y-1 px-3 pb-3 text-xs text-muted">';
-        if (fMin != null) html += '<span>🌡️ resimțit <strong class="text-gray-300">' + fMin + '° – ' + fMax + '°</strong></span>';
+        if (fMin != null) html += '<span>🌡️ ' + t('feels_like').toLowerCase() + ' <strong class="text-gray-300">' + fMin + '° – ' + fMax + '°</strong></span>';
         if (gustMax) html += '<span>💨 rafale max <strong class="' + windCls(gustMax) + '">' + gustMax + ' km/h</strong></span>';
         if (day.precipitation_mm > 0) html += '<span>🌧️ precipitații <strong class="text-gray-300">' + day.precipitation_mm + ' mm</strong></span>';
         if (day.sunrise) html += '<span>🌅 răsărit <strong class="text-gray-300">' + fmtTime(day.sunrise) + '</strong></span>';
