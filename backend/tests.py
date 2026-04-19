@@ -245,8 +245,8 @@ def test_merge_current_with_owm():
         "visibility": 9000,
     }
     result = _merge_current(om_data, owm_current, None)
-    # Average of 18 and 20
-    assert result["temperature"] == 19.0
+    # Weighted average: om=18 (w=1.2), owm=20 (w=1.0) → 18.91
+    assert result["temperature"] == 18.91
     assert "openweathermap" in result["sources"]
 
 
