@@ -3528,8 +3528,8 @@
         // Record fetch time for visibility-based refresh
         try { localStorage.setItem('lastWeatherFetch', String(Date.now())); } catch (_) { }
         document.getElementById("upd").innerHTML =
-          'ACTUALIZAT: ' + new Date().toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" })
-          + ' &nbsp;<span id="refresh-pill" class="refresh-pill text-muted cursor-pointer" onclick="loadWeather()" title="Refresh acum">↻ auto în 30m</span>';
+          t('updated') + ': ' + new Date().toLocaleTimeString(_lang === 'en' ? 'en-GB' : 'ro-RO', { hour: "2-digit", minute: "2-digit" })
+          + ' &nbsp;<span id="refresh-pill" class="refresh-pill text-muted cursor-pointer" onclick="loadWeather()" title="Refresh">' + t('auto_refresh') + '</span>';
         startAutoRefresh();
       } catch (e) {
         document.getElementById("app").innerHTML =
