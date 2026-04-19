@@ -2173,11 +2173,11 @@
       if (!recs || !recs.length) return '';
       var p = getProfile();
       var motoTypeLabel = { naked: 'Naked / Roadster', touring: 'Touring', enduro: 'Enduro / Adventure', sport: 'Supersport', scooter: 'Scooter' }[p.motoType] || p.motoType;
-      var html = secTitle('🎒 Ce să îmbrac?');
+      var html = secTitle(t('gear_title'));
       html += '<div class="bg-card border border-border rounded-xl p-4 mb-4">';
       html += '<div class="flex items-center gap-2 mb-3">'
-        + '<span class="text-xs text-muted tracking-widest">🏍️ ' + motoTypeLabel + ' &middot; Confort <strong class="text-gray-300">' + p.comfortTemp + '°C</strong></span>'
-        + '<button onclick="openAccountModal()" class="ml-auto text-xs text-muted hover:text-accent transition-colors">⚙ setări cont</button>'
+        + '<span class="text-xs text-muted tracking-widest">🏍️ ' + motoTypeLabel + ' &middot; ' + t('gear_comfort') + ' <strong class="text-gray-300">' + p.comfortTemp + '°C</strong></span>'
+        + '<button onclick="openAccountModal()" class="ml-auto text-xs text-muted hover:text-accent transition-colors">' + t('gear_settings') + '</button>'
         + '</div>';
       html += '<div class="flex flex-col gap-2">';
       recs.forEach(function (rec) {
@@ -2187,7 +2187,7 @@
         var badgeBg = rec.urgency === 'required' ? 'bg-danger/20 text-danger'
           : rec.urgency === 'warn' ? 'bg-warn/20 text-warn'
             : 'bg-ok/20 text-ok';
-        var badgeLabel = rec.urgency === 'required' ? 'OBLIGATORIU' : rec.urgency === 'warn' ? 'RECOMANDAT' : 'OK';
+        var badgeLabel = rec.urgency === 'required' ? t('gear_required') : rec.urgency === 'warn' ? t('gear_recommended') : t('gear_ok');
         html += '<div class="flex items-start gap-3 p-3 rounded-lg border ' + bgCls + '">';
         html += '<span class="text-2xl flex-shrink-0 leading-none mt-0.5">' + rec.icon + '</span>';
         html += '<div class="flex-1 min-w-0">';
