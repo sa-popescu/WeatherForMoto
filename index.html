@@ -4229,40 +4229,109 @@
       // Stats grid
       html += secTitle(t('sec_conditions'));
       html += '<div class="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-1.5 mb-2">';
-      html += statCard(licon('thermometer', 28), t('lbl_temp'), Math.round(c.temperature) + '°', tempCls(c.temperature), t('sub_temp').replace('{fl}', Math.round(c.feels_like)));
+      var _dp = _lang === 'en' ? 'dew point' : 'punct de rouă';
+      var _dewPoint = c.temperature - ((100 - c.humidity) / 5);
+      var _tempDetail = _dRow(t('feels_like'), Math.round(c.feels_like) + '°C', tempCls(c.feels_like))
+        + _dRow(_dp, Math.round(_dewPoint) + '°C', 'text-gray-200')
+        + (daily.length ? _dRow(_lang==='en'?'Min / Max today':'Min / Max azi', daily[0].temp_min + '° / ' + daily[0].temp_max + '°', 'text-gray-200') : '')
+        + _dRow(_lang==='en'?'Thermal comfort zone':'Zonă de confort termic', '18–26°C', 'text-muted');
+      html += statCard(licon('thermometer', 28), t('lbl_temp'), Math.round(c.temperature) + '°', tempCls(c.temperature), t('sub_temp').replace('{fl}', Math.round(c.feels_like)), _tempDetail);
+
+      var _bfDesc = ['Calm','Briză ușoară','Briză','Briză moderată','Vânt moderat','Vânt proaspăt','Vânt tare','Vânt foarte tare','Furtună'][Math.min(c.beaufort||0,8)];
+      if (_lang==='en') _bfDesc = ['Calm','Light air','Light breeze','Gentle breeze','Moderate breeze','Fresh breeze','Strong breeze','Near gale','Gale'][Math.min(c.beaufort||0,8)];
+      var _windDetail = _dRow(t('gusts'), Math.round(c.wind_gusts_kmh) + ' km/h', windCls(c.wind_gusts_kmh))
+        + _dRow(_lang==='en'?'Direction':'Direcție', c.wind_direction + ' (' + c.wind_direction_deg + '°)', 'text-gray-200')
+        + _dRow('Beaufort', 'Bf ' + c.beaufort + ' — ' + _bfDesc, 'text-gray-200')
+        + _dRow(_lang==='en'?'Moto risk':'Risc moto', c.wind_gusts_kmh > 70 ? '⚠️ '+ (t('score_avoid')) : c.wind_gusts_kmh > 50 ? '⚡ '+t('score_caution') : '✓ OK', windCls(c.wind_gusts_kmh));
       html += statCard(licon('wind', 28), t('lbl_wind'), Math.round(c.wind_speed_kmh) + '<span class="text-lg"> km/h</span>', windCls(c.wind_gusts_kmh),
         windCompassSvg(c.wind_direction_deg) + ' <span class="font-semibold text-gray-300">' + c.wind_direction + '</span>'
-        + ' · ' + t('gusts').toLowerCase() + ' <strong>' + Math.round(c.wind_gusts_kmh) + ' km/h</strong> · Bf ' + c.beaufort);
-      html += statCard(licon('cloud-rain', 28), t('lbl_rain'), c.precipitation_mm.toFixed(1) + '<span class="text-xl"> mm</span>', (c.precipitation_mm > 1 ? 'text-danger' : c.precipitation_mm > 0.1 ? 'text-warn' : 'text-ok'), t('sub_rain'));
-      html += statCard(licon('droplets', 28), t('lbl_humidity'), c.humidity + '<span class="text-xl">%</span>', (c.humidity > 90 ? 'text-warn' : 'text-gray-100'), t('sub_humidity'));
-      if (c.pressure_hpa != null)
-        html += statCard(licon('gauge', 28), t('lbl_pressure'), Math.round(c.pressure_hpa) + '<span class="text-xl"> hPa</span>', 'text-gray-100', t('sub_pressure'));
-      if (c.visibility_km != null)
-        html += statCard(licon('eye', 28), t('lbl_visibility'), c.visibility_km + '<span class="text-xl"> km</span>', (c.visibility_km < 1 ? 'text-danger' : c.visibility_km < 5 ? 'text-warn' : 'text-gray-100'), t('sub_visibility'));
-      if (c.aqi != null)
-        html += statCard(licon('leaf', 28), t('lbl_aqi'), c.aqi, aqiCls(c.aqi), aqiLabel(c.aqi));
+        + ' · ' + t('gusts').toLowerCase() + ' <strong>' + Math.round(c.wind_gusts_kmh) + ' km/h</strong> · Bf ' + c.beaufort, _windDetail);
+
+      var _rainRisk = c.precipitation_mm > 5 ? (_lang==='en'?'Heavy rain':'Ploaie torențială') : c.precipitation_mm > 1 ? (_lang==='en'?'Moderate rain':'Ploaie moderată') : c.precipitation_mm > 0.1 ? (_lang==='en'?'Light rain':'Ploaie ușoară') : (_lang==='en'?'Dry':'Uscat');
+      var _rainDetail = _dRow(_lang==='en'?'Current intensity':'Intensitate curentă', c.precipitation_mm.toFixed(1) + ' mm/h', c.precipitation_mm > 1 ? 'text-danger' : 'text-ok')
+        + _dRow(_lang==='en'?'Category':'Categorie', _rainRisk, c.precipitation_mm > 1 ? 'text-danger' : c.precipitation_mm > 0 ? 'text-warn' : 'text-ok')
+        + _dRow(_lang==='en'?'Wet road risk':'Risc drum ud', c.precipitation_mm > 0.5 || c.humidity > 85 ? (_lang==='en'?'High':'Ridicat') : (_lang==='en'?'Low':'Scăzut'), c.precipitation_mm > 0.5 ? 'text-warn' : 'text-ok')
+        + _dRow(_lang==='en'?'Gear recommendation':'Echipament recomandat', c.precipitation_mm > 0.2 ? (_lang==='en'?'Full waterproof':'Impermeabil complet') : (_lang==='en'?'Standard':'Standard'), 'text-gray-200');
+      html += statCard(licon('cloud-rain', 28), t('lbl_rain'), c.precipitation_mm.toFixed(1) + '<span class="text-xl"> mm</span>', (c.precipitation_mm > 1 ? 'text-danger' : c.precipitation_mm > 0.1 ? 'text-warn' : 'text-ok'), t('sub_rain'), _rainDetail);
+
+      var _humDetail = _dRow(_lang==='en'?'Dew point':'Punct de rouă', Math.round(_dewPoint) + '°C', 'text-gray-200')
+        + _dRow(_lang==='en'?'Condensation risk':'Risc condens', c.humidity > 90 ? (_lang==='en'?'Very high':'Foarte ridicat') : c.humidity > 75 ? (_lang==='en'?'Moderate':'Moderat') : (_lang==='en'?'Low':'Scăzut'), c.humidity > 90 ? 'text-warn' : 'text-ok')
+        + _dRow(_lang==='en'?'Road wet risk':'Risc drum umed', c.humidity > 85 ? (_lang==='en'?'Possible':'Posibil') : (_lang==='en'?'Unlikely':'Puțin probabil'), c.humidity > 85 ? 'text-warn' : 'text-ok')
+        + _dRow(_lang==='en'?'Visor fogging':'Aburire vizor', c.humidity > 80 ? (_lang==='en'?'Likely':'Probabil') : (_lang==='en'?'Unlikely':'Puțin probabil'), c.humidity > 80 ? 'text-warn' : 'text-ok');
+      html += statCard(licon('droplets', 28), t('lbl_humidity'), c.humidity + '<span class="text-xl">%</span>', (c.humidity > 90 ? 'text-warn' : 'text-gray-100'), t('sub_humidity'), _humDetail);
+
+      if (c.pressure_hpa != null) {
+        var _pressCat = c.pressure_hpa > 1022 ? (_lang==='en'?'High — stable':'Ridicată — stabil') : c.pressure_hpa < 1000 ? (_lang==='en'?'Low — unstable':'Scăzută — instabil') : (_lang==='en'?'Normal':'Normal');
+        var _pressDetail = _dRow(_lang==='en'?'Category':'Categorie', _pressCat, c.pressure_hpa < 1000 ? 'text-warn' : 'text-ok')
+          + _dRow(_lang==='en'?'Normal range':'Interval normal', '1013 hPa ± 15', 'text-muted')
+          + _dRow(_lang==='en'?'Weather outlook':'Tendință vreme', c.pressure_hpa > 1018 ? (_lang==='en'?'Clear/stable':'Senin/stabil') : c.pressure_hpa < 1005 ? (_lang==='en'?'Precipitation likely':'Precipitații probabile') : (_lang==='en'?'Variable':'Variabil'), 'text-gray-200');
+        html += statCard(licon('gauge', 28), t('lbl_pressure'), Math.round(c.pressure_hpa) + '<span class="text-xl"> hPa</span>', 'text-gray-100', t('sub_pressure'), _pressDetail);
+      }
+      if (c.visibility_km != null) {
+        var _visCat = c.visibility_km >= 10 ? (_lang==='en'?'Excellent':'Excelentă') : c.visibility_km >= 5 ? (_lang==='en'?'Good':'Bună') : c.visibility_km >= 2 ? (_lang==='en'?'Moderate':'Moderată') : c.visibility_km >= 1 ? (_lang==='en'?'Poor':'Slabă') : (_lang==='en'?'Very poor (fog)':'Foarte slabă (ceață)');
+        var _visDetail = _dRow(_lang==='en'?'Category':'Categorie', _visCat, c.visibility_km < 2 ? 'text-danger' : c.visibility_km < 5 ? 'text-warn' : 'text-ok')
+          + _dRow(_lang==='en'?'Moto minimum':'Minim moto', '5 km', 'text-muted')
+          + _dRow(_lang==='en'?'Recommended speed':'Viteză recomandată', c.visibility_km < 1 ? '< 30 km/h' : c.visibility_km < 5 ? '< 60 km/h' : (_lang==='en'?'Normal':'Normal'), c.visibility_km < 5 ? 'text-warn' : 'text-ok');
+        html += statCard(licon('eye', 28), t('lbl_visibility'), c.visibility_km + '<span class="text-xl"> km</span>', (c.visibility_km < 1 ? 'text-danger' : c.visibility_km < 5 ? 'text-warn' : 'text-gray-100'), t('sub_visibility'), _visDetail);
+      }
+      if (c.aqi != null) {
+        var _aqiDetail = _dRow('AQI', c.aqi, aqiCls(c.aqi))
+          + _dRow(_lang==='en'?'Category':'Categorie', aqiLabel(c.aqi), aqiCls(c.aqi))
+          + (c.pm2_5 != null ? _dRow('PM2.5', Math.round(c.pm2_5) + ' µg/m³', c.pm2_5 > 35 ? 'text-danger' : 'text-ok') : '')
+          + (c.pm10 != null ? _dRow('PM10', Math.round(c.pm10) + ' µg/m³', c.pm10 > 50 ? 'text-danger' : 'text-ok') : '')
+          + _dRow(_lang==='en'?'Advice':'Sfat', c.aqi > 150 ? (_lang==='en'?'Avoid long exposure':'Evită expunere lungă') : (_lang==='en'?'No restriction':'Fără restricții'), c.aqi > 100 ? 'text-warn' : 'text-ok');
+        html += statCard(licon('leaf', 28), t('lbl_aqi'), c.aqi, aqiCls(c.aqi), aqiLabel(c.aqi), _aqiDetail);
+      }
       if (c.pm2_5 != null)
-        html += statCard(licon('activity', 28), t('lbl_pm25'), Math.round(c.pm2_5) + '<span class="text-lg"> µg/m³</span>', c.pm2_5 > 35 ? 'text-danger' : c.pm2_5 > 20 ? 'text-warn' : 'text-ok', 'particule fine');
+        html += statCard(licon('activity', 28), t('lbl_pm25'), Math.round(c.pm2_5) + '<span class="text-lg"> µg/m³</span>', c.pm2_5 > 35 ? 'text-danger' : c.pm2_5 > 20 ? 'text-warn' : 'text-ok',
+          _lang==='en'?'fine particles':'particule fine',
+          _dRow(_lang==='en'?'Safe limit (EU)':'Limita sigură (UE)', '25 µg/m³', 'text-muted') + _dRow(_lang==='en'?'Risk':'Risc', c.pm2_5 > 35 ? (_lang==='en'?'High':'Ridicat') : (_lang==='en'?'Low':'Scăzut'), c.pm2_5 > 35 ? 'text-danger' : 'text-ok'));
       if (c.pm10 != null)
-        html += statCard(licon('cloud-fog', 28), t('lbl_pm10'), Math.round(c.pm10) + '<span class="text-lg"> µg/m³</span>', c.pm10 > 50 ? 'text-danger' : c.pm10 > 30 ? 'text-warn' : 'text-ok', 'particule în suspensie');
+        html += statCard(licon('cloud-fog', 28), t('lbl_pm10'), Math.round(c.pm10) + '<span class="text-lg"> µg/m³</span>', c.pm10 > 50 ? 'text-danger' : c.pm10 > 30 ? 'text-warn' : 'text-ok',
+          _lang==='en'?'suspended particles':'particule în suspensie',
+          _dRow(_lang==='en'?'Safe limit (EU)':'Limita sigură (UE)', '50 µg/m³', 'text-muted') + _dRow(_lang==='en'?'Risk':'Risc', c.pm10 > 50 ? (_lang==='en'?'High':'Ridicat') : (_lang==='en'?'Low':'Scăzut'), c.pm10 > 50 ? 'text-danger' : 'text-ok'));
       if (c.ozone != null)
-        html += statCard(licon('flask-conical', 28), t('lbl_ozone'), Math.round(c.ozone) + '<span class="text-lg"> µg/m³</span>', c.ozone > 140 ? 'text-warn' : 'text-gray-100', 'nivel O₃');
-      if (c.pollen_index != null)
-        html += statCard(licon('sprout', 28), t('lbl_pollen'), c.pollen_index.toFixed(0), c.pollen_index > 80 ? 'text-danger' : c.pollen_index > 40 ? 'text-warn' : 'text-ok', 'alergeni atmosferici');
-      if (c.uv_index != null)
-        html += statCard(licon('sun', 28), t('lbl_uv'), c.uv_index.toFixed(1), uvCls(c.uv_index), uvDesc(c.uv_index));
+        html += statCard(licon('flask-conical', 28), t('lbl_ozone'), Math.round(c.ozone) + '<span class="text-lg"> µg/m³</span>', c.ozone > 140 ? 'text-warn' : 'text-gray-100',
+          'O₃',
+          _dRow(_lang==='en'?'Alert threshold':'Prag alertă', '180 µg/m³', 'text-muted') + _dRow(_lang==='en'?'Current level':'Nivel curent', c.ozone > 140 ? (_lang==='en'?'Elevated':'Ridicat') : (_lang==='en'?'Normal':'Normal'), c.ozone > 140 ? 'text-warn' : 'text-ok'));
+      if (c.pollen_index != null) {
+        var _pollenLevel = c.pollen_index > 80 ? (_lang==='en'?'Very high':'Foarte ridicat') : c.pollen_index > 50 ? (_lang==='en'?'High':'Ridicat') : c.pollen_index > 20 ? (_lang==='en'?'Moderate':'Moderat') : (_lang==='en'?'Low':'Scăzut');
+        html += statCard(licon('sprout', 28), t('lbl_pollen'), c.pollen_index.toFixed(0), c.pollen_index > 80 ? 'text-danger' : c.pollen_index > 40 ? 'text-warn' : 'text-ok',
+          _lang==='en'?'atmospheric allergens':'alergeni atmosferici',
+          _dRow(_lang==='en'?'Level':'Nivel', _pollenLevel, c.pollen_index > 50 ? 'text-warn' : 'text-ok') + _dRow(_lang==='en'?'Allergy risk':'Risc alergie', c.pollen_index > 50 ? (_lang==='en'?'Take antihistamine':'Ia antihistaminic') : (_lang==='en'?'No action needed':'Nu e nevoie de acțiune'), c.pollen_index > 50 ? 'text-warn' : 'text-muted'));
+      }
+      if (c.uv_index != null) {
+        var _uvProt = c.uv_index < 3 ? (_lang==='en'?'None needed':'Nu e necesar') : c.uv_index < 6 ? 'SPF 15+' : c.uv_index < 8 ? 'SPF 30+' : 'SPF 50+';
+        var _uvDetail = _dRow(_lang==='en'?'Category':'Categorie', uvDesc(c.uv_index), uvCls(c.uv_index))
+          + _dRow(_lang==='en'?'Sun protection':'Protecție solară', _uvProt, c.uv_index >= 6 ? 'text-warn' : 'text-muted')
+          + _dRow(_lang==='en'?'Max exposure':'Expunere max', c.uv_index < 3 ? (_lang==='en'?'Unlimited':'Nelimitată') : c.uv_index < 6 ? '45 min' : c.uv_index < 8 ? '20 min' : '< 10 min', c.uv_index >= 8 ? 'text-danger' : 'text-gray-200');
+        html += statCard(licon('sun', 28), t('lbl_uv'), c.uv_index.toFixed(1), uvCls(c.uv_index), uvDesc(c.uv_index), _uvDetail);
+      }
       // Road surface temperature — moto-specific
       var rst = c.road_surface_temp != null ? c.road_surface_temp
         : roadSurfaceTempClient(c.temperature, c.humidity, c.weather_code, c.precipitation_mm);
       if (rst != null) {
         var rstCls = rst < 0 ? 'text-danger' : rst < 5 ? 'text-warn' : rst > 50 ? 'text-warn' : 'text-gray-100';
-        var rstDesc = rst < 0 ? '⚠️ gheață posibilă' : rst < 5 ? 'risc îngheț' : rst < 15 ? 'carosabil rece' : rst > 55 ? 'carosabil fierbinte' : 'carosabil normal';
-        html += statCard(licon('route', 28), t('lbl_road_temp'), Math.round(rst) + '°', rstCls, rstDesc + ' (estimat)');
+        var rstDesc = rst < 0 ? (_lang==='en'?'⚠️ ice possible':'⚠️ gheață posibilă') : rst < 5 ? (_lang==='en'?'frost risk':'risc îngheț') : rst < 15 ? (_lang==='en'?'cold road':'carosabil rece') : rst > 55 ? (_lang==='en'?'hot road':'carosabil fierbinte') : (_lang==='en'?'normal road':'carosabil normal');
+        var _rstDetail = _dRow(_lang==='en'?'Air temp':'Temp. aer', Math.round(c.temperature) + '°C', 'text-gray-200')
+          + _dRow(_lang==='en'?'Road surface':'Suprafață drum', Math.round(rst) + '°C', rstCls)
+          + _dRow(_lang==='en'?'Traction':'Tracțiune', rst < 0 ? (_lang==='en'?'Extremely reduced':'Extrem redusă') : rst < 5 ? (_lang==='en'?'Reduced':'Redusă') : rst > 60 ? (_lang==='en'?'Reduced (hot)':'Redusă (cald)') : (_lang==='en'?'Normal':'Normală'), rstCls)
+          + _dRow(_lang==='en'?'Source':'Sursă', _lang==='en'?'estimated':'estimat', 'text-muted');
+        html += statCard(licon('route', 28), t('lbl_road_temp'), Math.round(rst) + '°', rstCls, rstDesc, _rstDetail);
       }
-      if (daily.length && daily[0].sunrise)
-        html += statCard(licon('sunrise', 28), t('lbl_sunrise'), fmtTime(daily[0].sunrise), 'text-gray-100', t('sub_sunrise'));
+      if (daily.length && daily[0].sunrise) {
+        var _dayLen = '';
+        if (daily[0].sunrise && daily[0].sunset) {
+          var _sr = new Date(daily[0].sunrise), _ss = new Date(daily[0].sunset);
+          var _dl = Math.round((_ss - _sr) / 3600000 * 10) / 10;
+          _dayLen = _dRow(_lang==='en'?'Daylight hours':'Ore de lumină', _dl + 'h', 'text-gray-200');
+        }
+        html += statCard(licon('sunrise', 28), t('lbl_sunrise'), fmtTime(daily[0].sunrise), 'text-gray-100', t('sub_sunrise'),
+          _dRow(_lang==='en'?'Sunrise':'Răsărit', fmtTime(daily[0].sunrise), 'text-gray-200') + _dayLen + _dRow(_lang==='en'?'Riding light from':'Lumină pentru mers de la', fmtTime(daily[0].sunrise), 'text-ok'));
+      }
       if (daily.length && daily[0].sunset)
-        html += statCard(licon('sunset', 28), t('lbl_sunset'), fmtTime(daily[0].sunset), 'text-gray-100', t('sub_sunset'));
+        html += statCard(licon('sunset', 28), t('lbl_sunset'), fmtTime(daily[0].sunset), 'text-gray-100', t('sub_sunset'),
+          _dRow(_lang==='en'?'Sunset':'Apus', fmtTime(daily[0].sunset), 'text-gray-200') + _dRow(_lang==='en'?'Riding after sunset':'Mers după apus', _lang==='en'?'Use full lighting':'Folosește iluminare completă', 'text-warn'));
       html += '</div>';
 
       // Differentiation block: Ride DNA + advisor + checklist
