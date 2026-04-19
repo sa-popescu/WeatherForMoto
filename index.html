@@ -621,11 +621,22 @@
           <button onclick="unsubscribeEmailAlerts()"
             class="w-full border border-warn/40 text-warn hover:border-warn py-2 rounded-xl text-sm transition-colors">Dezabonare
             alerte email</button>
+          <button onclick="showChangePassword()"
+            class="w-full border border-border text-gray-200 hover:border-accent hover:text-accent py-2 rounded-xl text-sm transition-colors">Schimbă parola</button>
           <button onclick="logoutAccount()"
-            class="w-full border border-border text-gray-200 hover:border-accent hover:text-accent py-2 rounded-xl text-sm transition-colors">Logout</button>
+            class="w-full border border-border text-gray-200 hover:border-accent hover:text-accent py-2 rounded-xl text-sm transition-colors">Ieșire din cont</button>
           <button onclick="deleteMyAccount()"
-            class="w-full border border-danger/40 text-danger hover:border-danger py-2 rounded-xl text-sm transition-colors">Șterge
-            contul</button>
+            class="w-full border border-danger/40 text-danger hover:border-danger py-2 rounded-xl text-sm transition-colors">Șterge contul</button>
+        </div>
+        <div id="change-pw-section" class="hidden mt-3 space-y-2 border border-border rounded-xl p-3">
+          <div class="text-xs text-muted font-semibold tracking-widest uppercase mb-2">Schimbă parola</div>
+          <input id="change-pw-current" type="password" placeholder="Parola curentă"
+            class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent" />
+          <input id="change-pw-new" type="password" placeholder="Parola nouă (minim 8 caractere)"
+            class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent" />
+          <button onclick="changePassword()"
+            class="w-full bg-accent hover:bg-orange-400 text-black font-display font-bold tracking-wider py-2 rounded-xl transition-colors text-sm">Salvează parola</button>
+          <div id="change-pw-msg" class="text-xs hidden"></div>
         </div>
 
         <div class="mt-5 border-t border-border pt-4">
