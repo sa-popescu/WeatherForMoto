@@ -3845,7 +3845,7 @@
 
       // Stats grid
       html += secTitle('Condiții actuale');
-      html += '<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-2">';
+      html += '<div class="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-1.5 mb-2">';
       html += statCard(licon('thermometer', 28), 'Temperatură', Math.round(c.temperature) + '°', tempCls(c.temperature), 'resimțit ' + Math.round(c.feels_like) + '°C');
       html += statCard(licon('wind', 28), 'Vânt', Math.round(c.wind_speed_kmh) + '<span class="text-lg"> km/h</span>', windCls(c.wind_gusts_kmh),
         windCompassSvg(c.wind_direction_deg) + ' <span class="font-semibold text-gray-300">' + c.wind_direction + '</span>'
