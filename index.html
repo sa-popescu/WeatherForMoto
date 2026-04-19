@@ -3788,7 +3788,7 @@
         var borderCol = hs < 40 ? "border-danger" : rp > 40 ? "border-warn" : idx === 0 ? "border-accent" : "border-border";
         var nowClass = idx === 0 ? "hourly-now border-accent" : "";
         html += '<div class="hourly-main-card flex-shrink-0 bg-card border ' + borderCol + ' ' + nowClass + ' rounded-xl p-3 w-24 text-center flex flex-col items-center gap-1">';
-        html += '<div class="text-xs font-semibold tracking-widest ' + (idx === 0 ? 'text-accent' : 'text-muted') + '">' + (idx === 0 ? "ACUM" : hh) + '</div>';
+        html += '<div class="text-xs font-semibold tracking-widest ' + (idx === 0 ? 'text-accent' : 'text-muted') + '">' + (idx === 0 ? t('now_lbl') : hh) + '</div>';
         html += '<div class="text-gray-100">' + wmoWeatherIcon(h.weather_code, 38) + '</div>';
         html += '<div class="hour-temp font-display text-3xl font-bold leading-none text-gray-100">' + Math.round(h.temperature) + '°</div>';
         html += '<div class="text-xs ' + rainCls(rp) + '">' + rp + '% 💧</div>';
