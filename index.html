@@ -1306,6 +1306,67 @@
       }
     }
 
+    function toggleForgotPassword() {
+      var s = document.getElementById('forgot-pw-section');
+      if (s) s.classList.toggle('hidden');
+    }
+
+    async function requestPasswordReset() {
+      var email = document.getElementById('forgot-pw-email').value.trim();
+      var msg = document.getElementById('forgot-pw-msg');
+      if (!email) { alert('Introdu adresa de email.'); return; }
+      msg.classList.add('hidden');
+      try {
+        var resp = await fetch(_api('/auth/request-reset'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email })
+        });
+        msg.textContent = t('reset_sent');
+        msg.className = 'text-xs text-ok';
+        msg.classList.remove('hidden');
+      } catch (e) {
+        msg.textContent = 'Eroare: ' + (e && e.message || e);
+        msg.className = 'text-xs text-danger';
+        msg.classList.remove('hidden');
+      }
+    }
+
+    function showChangePassword() {
+      var s = document.getElementById('change-pw-section');
+      if (s) s.classList.toggle('hidden');
+    }
+
+    async function changePassword() {
+      var current = document.getElementById('change-pw-current').value;
+      var next = document.getElementById('change-pw-new').value;
+      var msg = document.getElementById('change-pw-msg');
+      var token = _authToken();
+      if (!token) return;
+      if (!current || !next) { alert('Completează ambele câmpuri.'); return; }
+      if (next.length < 8) { alert('Parola nouă trebuie să aibă cel puțin 8 caractere.'); return; }
+      msg.classList.add('hidden');
+      try {
+        var resp = await fetch(_api('/auth/change-password'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify({ current_password: current, new_password: next })
+        });
+        var data = await resp.json();
+        if (!resp.ok) throw new Error(data.detail || 'Eroare schimbare parolă.');
+        msg.textContent = 'Parola a fost schimbată cu succes!';
+        msg.className = 'text-xs text-ok';
+        msg.classList.remove('hidden');
+        document.getElementById('change-pw-current').value = '';
+        document.getElementById('change-pw-new').value = '';
+        showChangePassword();
+      } catch (e) {
+        msg.textContent = 'Eroare: ' + (e && e.message || e);
+        msg.className = 'text-xs text-danger';
+        msg.classList.remove('hidden');
+      }
+    }
+
     async function logoutAccount() {
       var token = _authToken();
       try {
