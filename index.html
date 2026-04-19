@@ -2930,7 +2930,19 @@
       80: ["Averse ușoare", "🌦️"], 81: ["Averse moderate", "🌧️"], 82: ["Averse violente", "⛈️"],
       95: ["Furtună", "⛈️"], 96: ["Furtună cu grindină", "⛈️"], 99: ["Furtună puternică cu grindină", "⛈️"],
     };
-    function wmoDesc(c) { return ((WMO_MAP[c] || [])[0]) || "—"; }
+    var WMO_MAP_EN = {
+      0: "Clear sky", 1: "Mostly clear", 2: "Partly cloudy",
+      3: "Overcast", 45: "Fog", 48: "Icy fog",
+      51: "Light drizzle", 53: "Moderate drizzle", 55: "Dense drizzle",
+      61: "Light rain", 63: "Moderate rain", 65: "Heavy rain",
+      71: "Light snow", 73: "Moderate snow", 75: "Heavy snow",
+      80: "Light showers", 81: "Moderate showers", 82: "Violent showers",
+      95: "Thunderstorm", 96: "Thunderstorm with hail", 99: "Heavy thunderstorm with hail",
+    };
+    function wmoDesc(c) {
+      if (_lang === 'en') return WMO_MAP_EN[c] || "—";
+      return ((WMO_MAP[c] || [])[0]) || "—";
+    }
     function wmoIcon(c) { return ((WMO_MAP[c] || [])[1]) || "🌡️"; }
 
     var _BMIL = 'https://cdn.jsdelivr.net/gh/basmilius/weather-icons@v2.0.0/production/fill/all/';
