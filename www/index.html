@@ -784,6 +784,24 @@
     </div>
   </div>
 
+  <!-- STAT DETAIL MODAL -->
+  <div id="stat-detail-modal" class="hidden fixed inset-0 z-[650] flex items-center justify-center p-4"
+    style="background:rgba(0,0,0,0.75);backdrop-filter:blur(8px)"
+    onclick="event.target===this&&closeStatModal()">
+    <div class="bg-card border border-border rounded-2xl p-5 max-w-xs w-full shadow-2xl">
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-2">
+          <span id="sdm-icon" class="text-2xl leading-none"></span>
+          <span id="sdm-label" class="font-display font-bold text-gray-100 tracking-wider text-sm uppercase"></span>
+        </div>
+        <button onclick="closeStatModal()" class="text-muted hover:text-gray-200 text-xl leading-none transition-colors">✕</button>
+      </div>
+      <div id="sdm-value" class="font-display text-4xl font-bold text-gray-100 leading-none mb-1"></div>
+      <div id="sdm-sub" class="text-xs text-muted mb-4 leading-snug"></div>
+      <div id="sdm-details" class="text-sm space-y-1.5 text-gray-200 leading-relaxed"></div>
+    </div>
+  </div>
+
   <!-- ══ PAYWALL MODAL ══════════════════════════════════════════════════ -->
   <div id="paywall-modal" class="hidden fixed inset-0 z-[200] flex items-center justify-center p-4"
     style="background:rgba(0,0,0,0.8);backdrop-filter:blur(10px)" onclick="event.target===this&&closePaywall()">
