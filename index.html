@@ -2734,12 +2734,20 @@
       _afterRouteRendered(flatWaypoints, totalDist || 0, totalH || 0, avgScore);
     }
 
-    function renderRoute(waypoints, weatherResults, totalDistKm, totalHours, originName, destName, depDt, geometry) {
+    function renderRoute(waypoints, weatherResults, totalDistKm, totalHours, originName, destName, depDt, geometry, routeIdx) {
       var resultEl = document.getElementById('route-result');
       if (!resultEl) return;
       var durH = Math.floor(totalHours);
       var durM = Math.round((totalHours - durH) * 60);
+      var altLabels = ['🏆 Recomandat', '↪ Alternativ 1', '↪ Alternativ 2'];
       var html = '<div class="bg-card border border-border rounded-xl p-4 mb-3">';
+      // Header with back button if alternatives exist
+      if (_routeAlts && _routeAlts.length > 1) {
+        html += '<div class="flex items-center gap-2 mb-3">';
+        html += '<button onclick="showRouteAlts()" class="text-xs border border-border rounded-lg px-2 py-1 hover:border-accent hover:text-accent transition-colors">← Schimbă traseul</button>';
+        if (routeIdx != null) html += '<span class="text-xs font-semibold text-accent">' + (altLabels[routeIdx] || '') + '</span>';
+        html += '</div>';
+      }
       html += '<div class="flex flex-wrap gap-3 sm:gap-4 text-sm text-muted mb-4">';
       html += '<span>📍 <strong class="text-gray-200">' + originName + '</strong> → <strong class="text-gray-200">' + destName + '</strong></span>';
       html += '<span>📏 <strong class="text-gray-200">' + Math.round(totalDistKm) + ' km</strong> <span class="text-xs text-ok">pe drumuri reale</span></span>';
