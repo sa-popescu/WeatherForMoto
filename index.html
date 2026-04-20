@@ -2452,53 +2452,48 @@
       if (stops.length < 2) { clearRoutePanels(); alert('Completează cel puțin 2 opriri (plecare și destinație)'); return; }
 
       var routeDepEl = document.getElementById('route-departure');
-      var routeSpeedEl = document.getElementById('route-speed');
       var deptTime = routeDepEl ? routeDepEl.value : '';
-      var avgSpeed = parseFloat(routeSpeedEl ? routeSpeedEl.value : 80) || 80;
-
       var resultEl = document.getElementById('route-result');
-      if (resultEl) resultEl.innerHTML = '<div class="text-muted text-sm py-4 text-center pulse-anim">⏳ Se calculează traseul…</div>';
+      if (resultEl) resultEl.innerHTML = '<div class="text-muted text-sm py-4 text-center pulse-anim">⏳ Se calculează traseul pe drumuri reale…</div>';
 
       try {
+        // 1. Geocode all stops
         var geoResults = await Promise.all(stops.map(geocodeDirect));
         var depDt = deptTime ? new Date(deptTime) : new Date();
 
-        if (stops.length === 2) {
-          // Simple 2-stop route (client-side, existing logic)
-          var originGeo = geoResults[0], destGeo = geoResults[1];
-          var totalDistKm = haversineKm(originGeo.lat, originGeo.lon, destGeo.lat, destGeo.lon);
-          var totalHours = totalDistKm / avgSpeed;
-          var NUM_SEGMENTS = 4;
-          var waypoints = [];
-          for (var i = 0; i <= NUM_SEGMENTS; i++) {
-            var frac = i / NUM_SEGMENTS;
-            var wpLat = originGeo.lat + frac * (destGeo.lat - originGeo.lat);
-            var wpLon = originGeo.lon + frac * (destGeo.lon - originGeo.lon);
-            var hoursOffset = frac * totalHours;
-            var wpEta = new Date(depDt.getTime() + hoursOffset * 3600000);
-            var wpName = i === 0 ? originGeo.name : (i === NUM_SEGMENTS ? destGeo.name : '~' + Math.round(frac * totalDistKm) + ' km');
-            waypoints.push({ lat: wpLat, lon: wpLon, eta: wpEta, name: wpName, distKm: Math.round(frac * totalDistKm) });
-          }
-          var weatherResults = await Promise.all(waypoints.map(function (wp) { return fetchWaypointWeather(wp.lat, wp.lon, wp.eta); }));
-          renderRoute(waypoints, weatherResults, totalDistKm, totalHours, originGeo.name, destGeo.name, depDt);
-        } else {
-          // Multi-stop route (backend or client-side fallback)
-          if (API_URL) {
-            var stopNames = geoResults.map(function (g) { return g.name; }).join(';');
-            var depIso = depDt.toISOString().slice(0, 16);
-            var resp = await fetch(
-              API_URL + '/route/multi?stops=' + encodeURIComponent(stopNames)
-              + '&departure=' + encodeURIComponent(depIso)
-              + '&avg_speed=' + avgSpeed
-            );
-            if (!resp.ok) { var ed = await resp.json().catch(function () { return {}; }); throw new Error(ed.detail || 'HTTP ' + resp.status); }
-            var data = await resp.json();
-            renderMultiRoute(data, depDt);
-          } else {
-            // Direct fallback: call Open-Meteo for each stop's waypoints client-side
-            await calcMultiRouteDirect(geoResults, depDt, avgSpeed);
+        // 2. Real road routing via OSRM (OpenStreetMap)
+        var route = await routeViaOSRM(geoResults);
+
+        // 3. Build weather waypoints at each named stop + midpoints for long legs
+        var waypoints = [];
+        var elapsedH = 0, elapsedKm = 0;
+        for (var si = 0; si < geoResults.length; si++) {
+          var g = geoResults[si];
+          waypoints.push({ lat: g.lat, lon: g.lon, eta: new Date(depDt.getTime() + elapsedH * 3600000), name: g.name, distKm: Math.round(elapsedKm), isStop: true });
+          if (si < geoResults.length - 1 && route.legs[si]) {
+            var leg = route.legs[si];
+            // For long legs add intermediate weather samples
+            var nMid = leg.distKm > 150 ? 2 : leg.distKm > 60 ? 1 : 0;
+            for (var mi = 1; mi <= nMid; mi++) {
+              var frac = mi / (nMid + 1);
+              var midH = elapsedH + leg.durationH * frac;
+              var midKm = elapsedKm + leg.distKm * frac;
+              var geomFrac = (elapsedKm + leg.distKm * frac) / route.distanceKm;
+              var geomIdx = Math.min(Math.round(geomFrac * (route.geometry.length - 1)), route.geometry.length - 1);
+              var midPt = route.geometry[geomIdx];
+              waypoints.push({ lat: midPt.lat, lon: midPt.lon, eta: new Date(depDt.getTime() + midH * 3600000), name: '~' + Math.round(midKm) + ' km', distKm: Math.round(midKm), isStop: false });
+            }
+            elapsedH += leg.durationH;
+            elapsedKm += leg.distKm;
           }
         }
+
+        // 4. Fetch weather for each waypoint
+        var weatherResults = await Promise.all(waypoints.map(function(wp) { return fetchWaypointWeather(wp.lat, wp.lon, wp.eta); }));
+
+        // 5. Render
+        renderRoute(waypoints, weatherResults, route.distanceKm, route.durationH, geoResults[0].name, geoResults[geoResults.length - 1].name, depDt, route.geometry);
+
       } catch (e) {
         clearRoutePanels();
         if (resultEl) resultEl.innerHTML = '<div class="text-danger text-sm py-2 p-4 rounded-xl border border-danger bg-danger/10">⚠️ Eroare: ' + e.message + '</div>';
