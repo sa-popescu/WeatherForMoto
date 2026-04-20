@@ -2690,15 +2690,16 @@
 
       var scoreValues = weatherResults.filter(function (w) { return w && w.moto_score != null; }).map(function (w) { return w.moto_score; });
       var avgScore = scoreValues.length ? Math.round(scoreValues.reduce(function (s, v) { return s + v; }, 0) / scoreValues.length) : null;
-      _afterRouteRendered(waypoints, totalDistKm || 0, totalHours || 0, avgScore);
+      _afterRouteRendered(waypoints, totalDistKm || 0, totalHours || 0, avgScore, geometry || null);
     }
 
-    function _afterRouteRendered(waypoints, totalDistKm, totalHours, avgScore) {
+    function _afterRouteRendered(waypoints, totalDistKm, totalHours, avgScore, geometry) {
       LAST_ROUTE_CTX = {
         waypoints: waypoints || [],
         totalDistKm: totalDistKm || 0,
         totalHours: totalHours || 0,
         avgScore: avgScore,
+        geometry: geometry || null,
       };
       _renderRouteTools();
       renderRouteMap();
