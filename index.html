@@ -2948,69 +2948,89 @@
     var HEAVY_RAIN_CODES = [63, 65, 81, 82];
     var STORM_CODES = [95, 96, 99];
 
+    var SNOW_CODES = [71, 73, 75, 77, 85, 86];
+    var ICE_CODES = [56, 57, 66, 67];
+
     function precipProbabilityPenalty(prob, isDaily) {
       prob = prob || 0;
       if (isDaily) {
-        if (prob >= 80) return 55;
-        if (prob >= 60) return 40;
-        if (prob >= 40) return 28;
-        if (prob >= 20) return 18;
-        if (prob > 0) return 8;
+        if (prob >= 80) return 62;
+        if (prob >= 60) return 48;
+        if (prob >= 40) return 34;
+        if (prob >= 20) return 22;
+        if (prob > 0) return 10;
         return 0;
       }
-      if (prob >= 80) return 60;
-      if (prob >= 60) return 45;
-      if (prob >= 40) return 35;
-      if (prob >= 20) return 25;
-      if (prob > 0) return 12;
+      if (prob >= 80) return 68;
+      if (prob >= 60) return 52;
+      if (prob >= 40) return 40;
+      if (prob >= 20) return 28;
+      if (prob > 0) return 14;
       return 0;
     }
 
     function precipAmountPenalty(amount, isDaily) {
       amount = amount || 0;
       if (isDaily) {
-        if (amount > 20) return 55;
-        if (amount > 10) return 35;
-        if (amount > 5) return 20;
-        if (amount > 1) return 10;
-        if (amount > 0) return 6;
+        if (amount > 20) return 62;
+        if (amount > 10) return 42;
+        if (amount > 5) return 26;
+        if (amount > 1) return 14;
+        if (amount > 0) return 8;
         return 0;
       }
-      if (amount > 5) return 60;
-      if (amount > 1) return 38;
-      if (amount > 0.2) return 22;
-      if (amount > 0) return 10;
+      if (amount > 5) return 68;
+      if (amount > 1) return 45;
+      if (amount > 0.2) return 28;
+      if (amount > 0) return 14;
       return 0;
     }
 
     function weatherCodePenalty(code) {
-      if (STORM_CODES.indexOf(code) > -1) return 40;
-      if (HEAVY_RAIN_CODES.indexOf(code) > -1) return 20;
-      if (LIGHT_RAIN_CODES.indexOf(code) > -1) return 10;
-      if ([45, 48].indexOf(code) > -1) return 18;
+      if (STORM_CODES.indexOf(code) > -1) return 55;
+      if (ICE_CODES.indexOf(code) > -1) return 50;
+      if (SNOW_CODES.indexOf(code) > -1) return 45;
+      if (HEAVY_RAIN_CODES.indexOf(code) > -1) return 28;
+      if (LIGHT_RAIN_CODES.indexOf(code) > -1) return 15;
+      if ([45, 48].indexOf(code) > -1) return 25;
       return 0;
     }
 
     function windPenalty(gusts) {
-      if (gusts > 70) return 30;
-      if (gusts > 50) return 15;
-      if (gusts > 35) return 8;
+      // On 2 wheels, crosswind is significantly more dangerous than in a car
+      if (gusts > 90) return 50;
+      if (gusts > 70) return 38;
+      if (gusts > 60) return 28;
+      if (gusts > 50) return 20;
+      if (gusts > 40) return 13;
+      if (gusts > 30) return 6;
       return 0;
     }
 
     function hourlyTempPenalty(feels) {
-      if (feels < 5) return 25;
-      if (feels < 10) return 12;
-      if (feels > 36) return 10;
+      // Below 0°C: ice risk on road surface, hands/feet numb quickly
+      if (feels < -5) return 50;
+      if (feels < 0) return 40;
+      if (feels < 5) return 28;
+      if (feels < 10) return 15;
+      if (feels < 14) return 5;
+      if (feels > 40) return 25;
+      if (feels > 38) return 18;
+      if (feels > 35) return 10;
       return 0;
     }
 
     function dailyTempPenalty(feelsMin, feelsMax) {
-      var avg = ((feelsMin != null ? feelsMin : 12) + (feelsMax != null ? feelsMax : 24)) / 2;
+      var fMin = feelsMin != null ? feelsMin : 12;
+      var fMax = feelsMax != null ? feelsMax : 24;
       var p = 0;
-      if (avg < 5) p += 20;
-      else if (avg < 10) p += 10;
-      if ((feelsMax != null ? feelsMax : 24) > 36) p += 10;
+      if (fMin < -5) p += 45;
+      else if (fMin < 0) p += 35;
+      else if (fMin < 5) p += 22;
+      else if (fMin < 10) p += 12;
+      if (fMax > 40) p += 25;
+      else if (fMax > 38) p += 18;
+      else if (fMax > 35) p += 10;
       return p;
     }
 
@@ -3019,20 +3039,23 @@
       prob = prob || 0;
       var cap = 100;
       var hasRainRisk = prob > 0 || amount > 0 || LIGHT_RAIN_CODES.indexOf(code) > -1 || HEAVY_RAIN_CODES.indexOf(code) > -1 || STORM_CODES.indexOf(code) > -1;
-      if (hasRainRisk) cap = 79;
+      if (hasRainRisk) cap = 76;
+      if (ICE_CODES.indexOf(code) > -1) return 25;
+      if (SNOW_CODES.indexOf(code) > -1) return Math.min(cap, 30);
       if (isDaily) {
-        if (prob >= 40 || amount > 5 || HEAVY_RAIN_CODES.indexOf(code) > -1) cap = Math.min(cap, 69);
-        if (prob >= 60 || amount > 10) cap = Math.min(cap, 59);
-        if (prob >= 80 || amount > 20 || STORM_CODES.indexOf(code) > -1) cap = Math.min(cap, 39);
+        if (prob >= 40 || amount > 5 || HEAVY_RAIN_CODES.indexOf(code) > -1) cap = Math.min(cap, 64);
+        if (prob >= 60 || amount > 10) cap = Math.min(cap, 52);
+        if (prob >= 80 || amount > 20 || STORM_CODES.indexOf(code) > -1) cap = Math.min(cap, 34);
       } else {
-        if (prob >= 40 || amount > 0.2 || HEAVY_RAIN_CODES.indexOf(code) > -1) cap = Math.min(cap, 69);
-        if (prob >= 60 || amount > 1) cap = Math.min(cap, 59);
-        if (prob >= 80 || amount > 5 || STORM_CODES.indexOf(code) > -1) cap = Math.min(cap, 39);
+        if (prob >= 40 || amount > 0.2 || HEAVY_RAIN_CODES.indexOf(code) > -1) cap = Math.min(cap, 64);
+        if (prob >= 60 || amount > 1) cap = Math.min(cap, 52);
+        if (prob >= 80 || amount > 5 || STORM_CODES.indexOf(code) > -1) cap = Math.min(cap, 34);
       }
       return cap;
     }
 
     function scoreHourly(feels, gusts, prec, code, precipProb) {
+      feels = feels != null ? feels : 20;
       var s = 100;
       s -= Math.max(
         precipAmountPenalty(prec, false),
@@ -3040,12 +3063,17 @@
         weatherCodePenalty(code)
       );
       s -= windPenalty(gusts || 0);
-      s -= hourlyTempPenalty(feels != null ? feels : 20);
+      s -= hourlyTempPenalty(feels);
+      // compound penalty: cold + wet is significantly worse on a motorcycle
+      if (feels < 5 && (precipProb || 0) >= 30) s -= 12;
+      if (feels < 0) s -= 15; // near-freezing road surface risk
       s = Math.min(s, precipitationCap(prec, precipProb, code, false));
       return Math.max(0, Math.min(100, Math.round(s)));
     }
 
     function scoreDaily(feelsMin, feelsMax, gustMax, precDay, code, precipProb) {
+      var fMin = feelsMin != null ? feelsMin : 12;
+      var fMax = feelsMax != null ? feelsMax : 24;
       var s = 100;
       s -= Math.max(
         precipAmountPenalty(precDay, true),
@@ -3053,7 +3081,10 @@
         weatherCodePenalty(code)
       );
       s -= windPenalty(gustMax || 0);
-      s -= dailyTempPenalty(feelsMin != null ? feelsMin : 12, feelsMax != null ? feelsMax : 24);
+      s -= dailyTempPenalty(fMin, fMax);
+      // compound: cold morning + rain risk
+      if (fMin < 5 && (precipProb || 0) >= 30) s -= 10;
+      if (fMin < 0) s -= 15;
       s = Math.min(s, precipitationCap(precDay, precipProb, code, true));
       return Math.max(0, Math.min(100, Math.round(s)));
     }
