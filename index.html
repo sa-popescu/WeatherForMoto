@@ -2478,50 +2478,111 @@
       var routeDepEl = document.getElementById('route-departure');
       var deptTime = routeDepEl ? routeDepEl.value : '';
       var resultEl = document.getElementById('route-result');
-      if (resultEl) resultEl.innerHTML = '<div class="text-muted text-sm py-4 text-center pulse-anim">⏳ Se calculează traseul pe drumuri reale…</div>';
+      if (resultEl) resultEl.innerHTML = '<div class="text-muted text-sm py-4 text-center pulse-anim">⏳ Se calculează trasee alternative…</div>';
 
       try {
-        // 1. Geocode all stops
         var geoResults = await Promise.all(stops.map(geocodeDirect));
         var depDt = deptTime ? new Date(deptTime) : new Date();
+        var routes = await routeViaOSRM(geoResults);
 
-        // 2. Real road routing via OSRM (OpenStreetMap)
-        var route = await routeViaOSRM(geoResults);
+        _routeAlts = routes;
+        _routeGeos = geoResults;
+        _routeDepDt = depDt;
 
-        // 3. Build weather waypoints at each named stop + midpoints for long legs
-        var waypoints = [];
-        var elapsedH = 0, elapsedKm = 0;
-        for (var si = 0; si < geoResults.length; si++) {
-          var g = geoResults[si];
-          waypoints.push({ lat: g.lat, lon: g.lon, eta: new Date(depDt.getTime() + elapsedH * 3600000), name: g.name, distKm: Math.round(elapsedKm), isStop: true });
-          if (si < geoResults.length - 1 && route.legs[si]) {
-            var leg = route.legs[si];
-            // For long legs add intermediate weather samples
-            var nMid = leg.distKm > 150 ? 2 : leg.distKm > 60 ? 1 : 0;
-            for (var mi = 1; mi <= nMid; mi++) {
-              var frac = mi / (nMid + 1);
-              var midH = elapsedH + leg.durationH * frac;
-              var midKm = elapsedKm + leg.distKm * frac;
-              var geomFrac = (elapsedKm + leg.distKm * frac) / route.distanceKm;
-              var geomIdx = Math.min(Math.round(geomFrac * (route.geometry.length - 1)), route.geometry.length - 1);
-              var midPt = route.geometry[geomIdx];
-              waypoints.push({ lat: midPt.lat, lon: midPt.lon, eta: new Date(depDt.getTime() + midH * 3600000), name: '~' + Math.round(midKm) + ' km', distKm: Math.round(midKm), isStop: false });
-            }
-            elapsedH += leg.durationH;
-            elapsedKm += leg.distKm;
-          }
-        }
-
-        // 4. Fetch weather for each waypoint
-        var weatherResults = await Promise.all(waypoints.map(function(wp) { return fetchWaypointWeather(wp.lat, wp.lon, wp.eta); }));
-
-        // 5. Render
-        renderRoute(waypoints, weatherResults, route.distanceKm, route.durationH, geoResults[0].name, geoResults[geoResults.length - 1].name, depDt, route.geometry);
-
+        renderRouteAlternatives(routes, geoResults, depDt);
       } catch (e) {
         clearRoutePanels();
         if (resultEl) resultEl.innerHTML = '<div class="text-danger text-sm py-2 p-4 rounded-xl border border-danger bg-danger/10">⚠️ Eroare: ' + e.message + '</div>';
       }
+    }
+
+    function renderRouteAlternatives(routes, geoResults, depDt) {
+      var resultEl = document.getElementById('route-result');
+      if (!resultEl) return;
+      var labels = ['🏆 Recomandat (cel mai rapid)', '↪ Alternativ 1', '↪ Alternativ 2'];
+      var html = '<div class="bg-card border border-border rounded-xl p-4 mb-3">';
+      html += '<div class="text-xs text-muted tracking-widest uppercase mb-3">Alege traseul</div>';
+      html += '<div class="flex flex-col gap-2">';
+      routes.forEach(function(r, i) {
+        var dH = Math.floor(r.durationH), dM = Math.round((r.durationH - dH) * 60);
+        var extraKm = i > 0 ? ' <span class="text-xs text-muted">(+' + Math.round(r.distanceKm - routes[0].distanceKm) + ' km)</span>' : '';
+        var extraTime = i > 0 ? ' <span class="text-xs text-muted">(+' + Math.round((r.durationH - routes[0].durationH) * 60) + ' min)</span>' : '';
+        html += '<div onclick="selectRouteAlt(' + i + ')" class="cursor-pointer bg-bg border border-border hover:border-accent rounded-xl px-4 py-3 flex items-center gap-3 transition-colors group">';
+        html += '<div class="flex-1 min-w-0">';
+        html += '<div class="font-semibold text-sm text-gray-200 group-hover:text-accent transition-colors">' + (labels[i] || '↪ Alternativ') + '</div>';
+        html += '<div class="text-xs text-muted mt-0.5">'
+          + '<strong class="text-gray-300">' + Math.round(r.distanceKm) + ' km</strong>' + extraKm
+          + ' &middot; <strong class="text-gray-300">~' + dH + 'h ' + dM + 'min</strong>' + extraTime + '</div>';
+        html += '</div>';
+        html += '<div class="text-accent text-lg flex-shrink-0">→</div>';
+        html += '</div>';
+      });
+      html += '</div></div>';
+      resultEl.innerHTML = html;
+      _renderAltsOnMap(routes, -1, geoResults);
+    }
+
+    function showRouteAlts() {
+      if (_routeAlts && _routeGeos && _routeDepDt) {
+        clearRoutePanels();
+        renderRouteAlternatives(_routeAlts, _routeGeos, _routeDepDt);
+      }
+    }
+
+    async function selectRouteAlt(idx) {
+      var routes = _routeAlts, geoResults = _routeGeos, depDt = _routeDepDt;
+      if (!routes || !geoResults || !depDt) return;
+      var route = routes[idx];
+      var resultEl = document.getElementById('route-result');
+      if (resultEl) resultEl.innerHTML = '<div class="text-muted text-sm py-4 text-center pulse-anim">⏳ Se încarcă meteo pentru traseul ales…</div>';
+      try {
+        var waypoints = _buildRouteWaypoints(route, geoResults, depDt);
+        var weatherResults = await Promise.all(waypoints.map(function(wp) { return fetchWaypointWeather(wp.lat, wp.lon, wp.eta); }));
+        renderRoute(waypoints, weatherResults, route.distanceKm, route.durationH, geoResults[0].name, geoResults[geoResults.length - 1].name, depDt, route.geometry, idx);
+      } catch(e) {
+        if (resultEl) resultEl.innerHTML = '<div class="text-danger text-sm py-2 p-4 rounded-xl border border-danger bg-danger/10">⚠️ Eroare: ' + e.message + '</div>';
+      }
+    }
+
+    function _renderAltsOnMap(routes, selectedIdx, geoResults) {
+      var el = document.getElementById('route-map');
+      if (!el) return;
+      el.classList.remove('hidden');
+      _ensureLeaflet(function() {
+        if (ROUTE_MAP) { ROUTE_MAP.remove(); ROUTE_MAP = null; }
+        var first = routes[0].geometry[0];
+        ROUTE_MAP = window.L.map('route-map', { scrollWheelZoom: false }).setView([first.lat, first.lon], 8);
+        window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>' }).addTo(ROUTE_MAP);
+        var altColors = ['#f97316', '#60a5fa', '#a78bfa'];
+        var allLatLngs = [];
+        // Draw unselected first (underneath)
+        routes.forEach(function(r, i) {
+          if (i === selectedIdx) return;
+          var pts = r.geometry.map(function(p) { return [p.lat, p.lon]; });
+          allLatLngs = allLatLngs.concat(pts);
+          window.L.polyline(pts, { color: '#6b7280', weight: 3, opacity: 0.5 }).addTo(ROUTE_MAP);
+        });
+        // Draw selected on top
+        if (selectedIdx >= 0 && routes[selectedIdx]) {
+          var sPts = routes[selectedIdx].geometry.map(function(p) { return [p.lat, p.lon]; });
+          window.L.polyline(sPts, { color: altColors[selectedIdx] || '#f97316', weight: 5, opacity: 0.9 }).addTo(ROUTE_MAP);
+        } else {
+          // No selection yet — draw recommended in orange
+          var rPts = routes[0].geometry.map(function(p) { return [p.lat, p.lon]; });
+          window.L.polyline(rPts, { color: '#f97316', weight: 4, opacity: 0.8, dashArray: '8 5' }).addTo(ROUTE_MAP);
+        }
+        // Stop markers
+        if (geoResults) {
+          geoResults.forEach(function(g, i) {
+            var color = i === 0 ? '#22c55e' : i === geoResults.length - 1 ? '#f97316' : '#60a5fa';
+            window.L.circleMarker([g.lat, g.lon], { radius: 7, color: color, fillColor: color, fillOpacity: 1, weight: 2 })
+              .bindPopup('<strong>' + g.name + '</strong>')
+              .addTo(ROUTE_MAP);
+          });
+        }
+        var fitPts = routes.reduce(function(a, r) { return a.concat(r.geometry.map(function(p) { return [p.lat, p.lon]; })); }, []);
+        ROUTE_MAP.fitBounds(window.L.latLngBounds(fitPts), { padding: [30, 30] });
+      });
     }
 
     function clearRoutePanels() {
