@@ -2914,14 +2914,29 @@
       el.classList.remove('hidden');
       _ensureLeaflet(function () {
         if (ROUTE_MAP) { ROUTE_MAP.remove(); ROUTE_MAP = null; }
-        ROUTE_MAP = window.L.map('route-map', { scrollWheelZoom: false }).setView([LAST_ROUTE_CTX.waypoints[0].lat, LAST_ROUTE_CTX.waypoints[0].lon], 7);
-        window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 13, attribution: '&copy; OSM' }).addTo(ROUTE_MAP);
-        var pts = LAST_ROUTE_CTX.waypoints.map(function (w) { return [w.lat, w.lon]; });
-        window.L.polyline(pts, { color: '#f97316', weight: 4, opacity: 0.85 }).addTo(ROUTE_MAP);
-        pts.forEach(function (p, idx) {
-          window.L.circleMarker(p, { radius: idx === 0 || idx === pts.length - 1 ? 6 : 4, color: '#22c55e', fillOpacity: 0.9 }).addTo(ROUTE_MAP);
+        ROUTE_MAP = window.L.map('route-map', { scrollWheelZoom: false })
+          .setView([LAST_ROUTE_CTX.waypoints[0].lat, LAST_ROUTE_CTX.waypoints[0].lon], 8);
+        window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>' }).addTo(ROUTE_MAP);
+
+        // Use real road geometry if available, else fallback to straight lines
+        var linePts = (LAST_ROUTE_CTX.geometry && LAST_ROUTE_CTX.geometry.length > 1)
+          ? LAST_ROUTE_CTX.geometry.map(function(p) { return [p.lat, p.lon]; })
+          : LAST_ROUTE_CTX.waypoints.map(function(w) { return [w.lat, w.lon]; });
+
+        window.L.polyline(linePts, { color: '#f97316', weight: 5, opacity: 0.9 }).addTo(ROUTE_MAP);
+
+        // Mark named stops with distinct markers
+        LAST_ROUTE_CTX.waypoints.forEach(function(wp, idx) {
+          var isEnd = idx === 0 || idx === LAST_ROUTE_CTX.waypoints.length - 1;
+          var color = idx === 0 ? '#22c55e' : idx === LAST_ROUTE_CTX.waypoints.length - 1 ? '#f97316' : '#60a5fa';
+          var marker = window.L.circleMarker([wp.lat, wp.lon], {
+            radius: isEnd ? 8 : 5, color: color, fillColor: color,
+            fillOpacity: 0.95, weight: 2
+          }).addTo(ROUTE_MAP);
+          marker.bindPopup('<strong>' + wp.name + '</strong><br>ETA ' + wp.eta.getHours().toString().padStart(2,'0') + ':' + wp.eta.getMinutes().toString().padStart(2,'0'));
         });
-        ROUTE_MAP.fitBounds(window.L.latLngBounds(pts), { padding: [20, 20] });
+
+        ROUTE_MAP.fitBounds(window.L.latLngBounds(linePts), { padding: [30, 30] });
       });
     }
 
