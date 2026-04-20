@@ -2387,23 +2387,44 @@
     async function routeViaOSRM(geoPoints) {
       var coordStr = geoPoints.map(function(p) { return p.lon + ',' + p.lat; }).join(';');
       var url = 'https://router.project-osrm.org/route/v1/driving/' + coordStr
-        + '?overview=full&geometries=geojson';
+        + '?overview=full&geometries=geojson&alternatives=3';
       var resp = await fetch(url);
       if (!resp.ok) throw new Error('OSRM HTTP ' + resp.status);
       var data = await resp.json();
       if (data.code !== 'Ok' || !data.routes || !data.routes.length)
         throw new Error('Traseul nu a putut fi calculat pe drumuri reale.');
-      var route = data.routes[0];
-      var geometry = route.geometry.coordinates.map(function(c) { return { lat: c[1], lon: c[0] }; });
-      var legs = (route.legs || []).map(function(l) {
-        return { distKm: (l.distance || 0) / 1000, durationH: (l.duration || 0) / 3600 };
+      return data.routes.map(function(route) {
+        var geometry = route.geometry.coordinates.map(function(c) { return { lat: c[1], lon: c[0] }; });
+        var legs = (route.legs || []).map(function(l) {
+          return { distKm: (l.distance || 0) / 1000, durationH: (l.duration || 0) / 3600 };
+        });
+        return { distanceKm: route.distance / 1000, durationH: route.duration / 3600, geometry: geometry, legs: legs };
       });
-      return {
-        distanceKm: route.distance / 1000,
-        durationH: route.duration / 3600,
-        geometry: geometry,
-        legs: legs,
-      };
+    }
+
+    function _buildRouteWaypoints(route, geoResults, depDt) {
+      var waypoints = [];
+      var elapsedH = 0, elapsedKm = 0;
+      for (var si = 0; si < geoResults.length; si++) {
+        var g = geoResults[si];
+        waypoints.push({ lat: g.lat, lon: g.lon, eta: new Date(depDt.getTime() + elapsedH * 3600000), name: g.name, distKm: Math.round(elapsedKm), isStop: true });
+        if (si < geoResults.length - 1 && route.legs[si]) {
+          var leg = route.legs[si];
+          var nMid = leg.distKm > 150 ? 2 : leg.distKm > 60 ? 1 : 0;
+          for (var mi = 1; mi <= nMid; mi++) {
+            var frac = mi / (nMid + 1);
+            var midH = elapsedH + leg.durationH * frac;
+            var midKm = elapsedKm + leg.distKm * frac;
+            var geomFrac = (elapsedKm + leg.distKm * frac) / route.distanceKm;
+            var geomIdx = Math.min(Math.round(geomFrac * (route.geometry.length - 1)), route.geometry.length - 1);
+            var midPt = route.geometry[geomIdx];
+            waypoints.push({ lat: midPt.lat, lon: midPt.lon, eta: new Date(depDt.getTime() + midH * 3600000), name: '~' + Math.round(midKm) + ' km', distKm: Math.round(midKm), isStop: false });
+          }
+          elapsedH += leg.durationH;
+          elapsedKm += leg.distKm;
+        }
+      }
+      return waypoints;
     }
 
     function samplePolyline(geometry, n) {
