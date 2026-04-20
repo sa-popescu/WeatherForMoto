@@ -2777,16 +2777,15 @@
         html += '</div>';
       });
       html += '</div>';
-      html += '<div class="text-xs text-muted/60 mt-2">⚠️ Distanța este calculată în linie dreaptă. Distanța reală pe drum poate fi cu 20-40% mai mare.</div>';
       html += '</div>';
       resultEl.innerHTML = html;
 
       var scoreValues = weatherResults.filter(function (w) { return w && w.moto_score != null; }).map(function (w) { return w.moto_score; });
       var avgScore = scoreValues.length ? Math.round(scoreValues.reduce(function (s, v) { return s + v; }, 0) / scoreValues.length) : null;
-      _afterRouteRendered(waypoints, totalDistKm || 0, totalHours || 0, avgScore, geometry || null);
+      _afterRouteRendered(waypoints, totalDistKm || 0, totalHours || 0, avgScore, geometry || null, routeIdx != null ? routeIdx : -1);
     }
 
-    function _afterRouteRendered(waypoints, totalDistKm, totalHours, avgScore, geometry) {
+    function _afterRouteRendered(waypoints, totalDistKm, totalHours, avgScore, geometry, routeIdx) {
       LAST_ROUTE_CTX = {
         waypoints: waypoints || [],
         totalDistKm: totalDistKm || 0,
@@ -2795,7 +2794,7 @@
         geometry: geometry || null,
       };
       _renderRouteTools();
-      renderRouteMap();
+      _renderAltsOnMap(_routeAlts || [{ geometry: geometry || [], legs: [] }], routeIdx != null ? routeIdx : -1, _routeGeos);
       loadHazardsNearRoute();
       loadSavedRoutes();
       loadRideStats();
