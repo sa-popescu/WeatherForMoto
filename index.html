@@ -2381,6 +2381,37 @@
       return R * 2 * Math.asin(Math.sqrt(a));
     }
 
+    async function routeViaOSRM(geoPoints) {
+      var coordStr = geoPoints.map(function(p) { return p.lon + ',' + p.lat; }).join(';');
+      var url = 'https://router.project-osrm.org/route/v1/driving/' + coordStr
+        + '?overview=full&geometries=geojson';
+      var resp = await fetch(url);
+      if (!resp.ok) throw new Error('OSRM HTTP ' + resp.status);
+      var data = await resp.json();
+      if (data.code !== 'Ok' || !data.routes || !data.routes.length)
+        throw new Error('Traseul nu a putut fi calculat pe drumuri reale.');
+      var route = data.routes[0];
+      var geometry = route.geometry.coordinates.map(function(c) { return { lat: c[1], lon: c[0] }; });
+      var legs = (route.legs || []).map(function(l) {
+        return { distKm: (l.distance || 0) / 1000, durationH: (l.duration || 0) / 3600 };
+      });
+      return {
+        distanceKm: route.distance / 1000,
+        durationH: route.duration / 3600,
+        geometry: geometry,
+        legs: legs,
+      };
+    }
+
+    function samplePolyline(geometry, n) {
+      if (!geometry || geometry.length === 0) return [];
+      if (geometry.length <= n) return geometry.slice();
+      var step = (geometry.length - 1) / (n - 1);
+      var result = [];
+      for (var i = 0; i < n; i++) result.push(geometry[Math.round(i * step)]);
+      return result;
+    }
+
     async function fetchWaypointWeather(lat, lon, etaDt) {
       var params = new URLSearchParams({
         latitude: lat.toFixed(4), longitude: lon.toFixed(4),
