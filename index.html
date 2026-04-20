@@ -4088,12 +4088,64 @@
       // Custom alert banners
       html += checkAlerts(c);
 
-      // Frost / ice risk alert banner
-      if (c.frost_risk || c.feels_like < 3) {
-        var iceMsg = c.frost_risk ? t('frost_alert') : t('cold_alert');
-        html += '<div class="mb-5 p-4 rounded-xl border border-danger bg-danger/10 text-danger text-sm flex items-center gap-3">'
-          + '<div>' + iceMsg + '</div></div>';
-      }
+      // Weather condition alert banners
+      (function() {
+        var nextHours = hourly.slice(0, 6);
+        var alerts = [];
+
+        // Ice / frost
+        if (c.frost_risk || c.feels_like < 3) {
+          alerts.push({ msg: c.frost_risk ? t('frost_alert') : t('cold_alert'), cls: 'border-danger bg-danger/10 text-danger' });
+        }
+
+        // Snow or freezing rain from weather code
+        var nowCode = c.weather_code;
+        if (SNOW_CODES.indexOf(nowCode) > -1 || ICE_CODES.indexOf(nowCode) > -1) {
+          alerts.push({ msg: t('snow_alert'), cls: 'border-danger bg-danger/10 text-danger' });
+        } else {
+          var upcomingSnow = nextHours.some(function(h) { return SNOW_CODES.indexOf(h.weather_code) > -1 || ICE_CODES.indexOf(h.weather_code) > -1; });
+          if (upcomingSnow) alerts.push({ msg: t('snow_alert'), cls: 'border-danger bg-danger/10 text-danger' });
+        }
+
+        // Storm
+        var stormNow = STORM_CODES.indexOf(nowCode) > -1;
+        var stormSoon = nextHours.some(function(h) { return STORM_CODES.indexOf(h.weather_code) > -1; });
+        if (stormNow || stormSoon) {
+          alerts.push({ msg: t('heavy_rain_alert'), cls: 'border-danger bg-danger/10 text-danger' });
+        } else {
+          // Rain probability
+          var maxRainProb = Math.max.apply(null, [c.precipitation_probability || 0].concat(nextHours.map(function(h) { return h.precipitation_probability || 0; })));
+          if (maxRainProb >= 60) {
+            alerts.push({ msg: t('heavy_rain_alert'), cls: 'border-warn bg-warn/10 text-warn' });
+          } else if (maxRainProb >= 20) {
+            alerts.push({ msg: t('rain_alert'), cls: 'border-warn bg-warn/10 text-warn' });
+          }
+        }
+
+        // Wind gusts
+        var maxGusts = Math.max.apply(null, [c.wind_gusts_kmh || 0].concat(nextHours.map(function(h) { return h.wind_gusts_kmh || 0; })));
+        if (maxGusts > 70) {
+          alerts.push({ msg: t('extreme_wind_alert'), cls: 'border-danger bg-danger/10 text-danger' });
+        } else if (maxGusts > 50) {
+          alerts.push({ msg: t('wind_alert'), cls: 'border-warn bg-warn/10 text-warn' });
+        }
+
+        // Heat
+        var maxFeels = Math.max.apply(null, [c.feels_like].concat(nextHours.map(function(h) { return h.feels_like || 0; })));
+        if (maxFeels >= 38) {
+          alerts.push({ msg: t('heat_alert'), cls: 'border-warn bg-warn/10 text-warn' });
+        }
+
+        // Very cold (not frost, but still brutal)
+        if (!alerts.some(function(a) { return a.msg === t('frost_alert') || a.msg === t('cold_alert'); }) && c.feels_like < 5) {
+          alerts.push({ msg: t('cold_alert'), cls: 'border-danger bg-danger/10 text-danger' });
+        }
+
+        alerts.forEach(function(a) {
+          html += '<div class="mb-3 p-4 rounded-xl border ' + a.cls + ' text-sm flex items-start gap-3">'
+            + '<div>' + a.msg + '</div></div>';
+        });
+      })();
 
       // Best riding window banners (today + tomorrow)
       var win = findBestWindow(d.hourly);
