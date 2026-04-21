@@ -791,9 +791,9 @@ async def update_prefs(payload: AlertPrefsPayload, user: SessionUser = Depends(g
                 email_alert_score, email_alert_temp_low, email_alert_temp_high, email_alert_frost,
                 min_score, max_wind_gust, max_precip, max_rain_probability, min_temp, max_temp,
                 frost_risk_enabled, quiet_hours_enabled, quiet_start_hour, quiet_end_hour,
-                severity, home_lat, home_lon, city, updated_at
+                severity, home_lat, home_lon, city, alert_states, updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(user_id) DO UPDATE SET
                 enabled = excluded.enabled,
                 email_alerts_enabled = excluded.email_alerts_enabled,
@@ -818,6 +818,7 @@ async def update_prefs(payload: AlertPrefsPayload, user: SessionUser = Depends(g
                 home_lat = excluded.home_lat,
                 home_lon = excluded.home_lon,
                 city = excluded.city,
+                alert_states = excluded.alert_states,
                 updated_at = excluded.updated_at
             """,
             (
@@ -845,6 +846,7 @@ async def update_prefs(payload: AlertPrefsPayload, user: SessionUser = Depends(g
                 payload.home_lat,
                 payload.home_lon,
                 payload.city,
+                payload.alert_states,
                 now,
             ),
         )
