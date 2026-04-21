@@ -4480,6 +4480,59 @@
         if (winTom) html += _wBanner(winTom, t('window_tomorrow'));
       }
 
+      // Best weekend in 14-day forecast
+      (function() {
+        var today = new Date();
+        today.setHours(0, 0, 0, 0);
+        // Find weekend days (Sat=6, Sun=0) in the next 14 days, skip today/tomorrow
+        var weekends = [];
+        daily.forEach(function(day) {
+          var dt = new Date(day.date + 'T12:00:00');
+          var dow = dt.getDay();
+          var diffDays = Math.round((dt - today) / 86400000);
+          if ((dow === 6 || dow === 0) && diffDays >= 2 && day.moto_score != null) {
+            weekends.push({ day: day, dt: dt, diffDays: diffDays });
+          }
+        });
+        if (!weekends.length) return;
+        // Group by weekend (Sat+Sun pairs)
+        var wkGroups = {};
+        weekends.forEach(function(w) {
+          var dt = w.dt;
+          var sat = new Date(dt);
+          if (dt.getDay() === 0) sat.setDate(sat.getDate() - 1);
+          var key = sat.toISOString().slice(0, 10);
+          if (!wkGroups[key]) wkGroups[key] = [];
+          wkGroups[key].push(w);
+        });
+        // Score each weekend group (avg moto_score of its days)
+        var bestGroup = null, bestScore = -1;
+        Object.keys(wkGroups).forEach(function(key) {
+          var grp = wkGroups[key];
+          var avg = Math.round(grp.reduce(function(s, w) { return s + w.day.moto_score; }, 0) / grp.length);
+          if (avg > bestScore) { bestScore = avg; bestGroup = { grp: grp, avg: avg, key: key }; }
+        });
+        if (!bestGroup || bestGroup.avg < 55) return;
+        var grp = bestGroup.grp;
+        var scoreColor = bestGroup.avg >= 85 ? '#22c55e' : bestGroup.avg >= 60 ? '#eab308' : '#f97316';
+        var borderCls = bestGroup.avg >= 85 ? 'border-ok' : bestGroup.avg >= 60 ? 'border-accent' : 'border-warn';
+        var bgCls = bestGroup.avg >= 85 ? 'bg-ok/5' : bestGroup.avg >= 60 ? 'bg-accent/5' : 'bg-warn/5';
+        var daysStr = grp.map(function(w) {
+          var dname = DAYS[w.dt.getDay()];
+          var dt = w.dt;
+          var dateStr = dt.toLocaleDateString(_lang === 'en' ? 'en-GB' : 'ro-RO', { day: 'numeric', month: 'short' });
+          return '<span style="color:' + scoreColor + '">' + dname + ' ' + dateStr + ' <strong>' + w.day.moto_score + '</strong></span>';
+        }).join(' &amp; ');
+        html += '<div class="mb-3 p-4 rounded-xl border ' + borderCls + ' ' + bgCls + ' flex items-center gap-4">'
+          + '<span class="text-3xl flex-shrink-0">🏆</span>'
+          + '<div class="flex-1">'
+          + '<div class="font-display text-base font-bold tracking-wide" style="color:' + scoreColor + '">' + t('best_weekend') + '</div>'
+          + '<div class="text-xs text-muted mt-0.5">' + daysStr + '</div>'
+          + '</div>'
+          + '<div class="flex-shrink-0 font-display text-2xl font-bold" style="color:' + scoreColor + '">' + bestGroup.avg + '</div>'
+          + '</div>';
+      })();
+
       // Location
       html += '<div class="mb-6">';
       html += '<h1 class="font-display text-5xl sm:text-6xl font-bold tracking-widest leading-none text-gray-100">' + d.city.toUpperCase() + '</h1>';
