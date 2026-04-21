@@ -4475,6 +4475,14 @@
       // Custom alert banners
       html += checkAlerts(c);
 
+      // Offline data banner
+      if (_omIsOffline) {
+        html += '<div class="mb-3 p-3 rounded-xl border border-warn/40 bg-warn/10 text-warn text-xs flex items-center gap-2">'
+          + '<span class="flex-shrink-0">📶</span>'
+          + '<span>' + _gt('offline_cache_banner', { min: _omOfflineAge }) + '</span>'
+          + '</div>';
+      }
+
       // Weather condition alert banners
       (function() {
         var nextHours = hourly.slice(0, 6);
