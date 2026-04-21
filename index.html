@@ -4207,7 +4207,7 @@
       rows.push({ icon: 'droplets', label: t('rain_prob_lbl') || 'Rain prob.', val: (d.precipProb || 0) + '%' });
       rows.push({ icon: 'cloud-rain', label: t('precip_lbl') || 'Precip.', val: (d.precip || 0).toFixed(1) + ' mm' });
       if (d.humidity != null) rows.push({ icon: 'droplets', label: t('humidity_lbl') || 'Humidity', val: Math.round(d.humidity) + '%' });
-      if (d.visibility != null) rows.push({ icon: 'eye', label: t('visibility_lbl') || 'Visibility', val: (Math.round(d.visibility / 100) / 10) + ' km' });
+      if (d.visibility != null) rows.push({ icon: 'eye', label: t('visibility_lbl') || 'Visibility', val: (d.isNow ? Math.round(d.visibility * 10) / 10 : Math.round(d.visibility / 100) / 10) + ' km' });
       if (d.uv != null && d.uv > 0) rows.push({ icon: 'sun', label: 'UV', val: d.uv.toFixed(0) + ' — ' + uvLabel(d.uv) });
       if (d.pressure != null) rows.push({ icon: 'gauge', label: t('pressure_lbl') || 'Pressure', val: Math.round(d.pressure) + ' hPa' });
       if (d.dewPoint != null) rows.push({ icon: 'thermometer', label: t('dew_point_lbl') || 'Dew point', val: Math.round(d.dewPoint) + '°C' });
