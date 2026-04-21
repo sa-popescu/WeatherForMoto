@@ -2080,7 +2080,7 @@
     function renderAlertsForm() {
       var state = _getAlertState();
       var html = '';
-      ALERT_DEFS.forEach(function (a) {
+      _alertDefs().forEach(function (a) {
         var checked = state[a.id] !== false; // default on
         html += '<label class="flex items-center gap-3 p-3 rounded-xl border border-border hover:border-accent/50 cursor-pointer transition-colors">';
         html += '<input type="checkbox" id="alert-chk-' + a.id + '" ' + (checked ? 'checked' : '') + ' class="accent-accent w-4 h-4 flex-shrink-0">';
@@ -2095,7 +2095,7 @@
     }
     async function saveAlerts() {
       var state = {};
-      ALERT_DEFS.forEach(function (a) {
+      _alertDefs().forEach(function (a) {
         var chk = document.getElementById('alert-chk-' + a.id);
         state[a.id] = chk ? chk.checked : true;
       });
@@ -2172,7 +2172,7 @@
       var state = _getAlertState();
       var cfg = _getAlertSettings();
       var banners = '';
-      ALERT_DEFS.forEach(function (a) {
+      _alertDefs().forEach(function (a) {
         if (state[a.id] === false) return;
         var val = current[a.field];
         if (val == null) return;
@@ -4553,11 +4553,8 @@
         + briefingText(c, dna)
         + '</div>';
 
-      // Gear recommendation
-      var gearRecs = c.gear_recommendation && c.gear_recommendation.length
-        ? c.gear_recommendation
-        : gearRecommendationClient(c.feels_like, c.wind_gusts_kmh, c.precipitation_mm, c.weather_code);
-      html += gearRecommendationHtml(gearRecs);
+      // Always use client-side gear (backend strings are hardcoded RO; client uses t() for i18n)
+      html += gearRecommendationHtml(gearRecommendationClient(c.feels_like, c.wind_gusts_kmh, c.precipitation_mm, c.weather_code));
 
       // Chart
       html += secTitle(t('sec_chart'));
