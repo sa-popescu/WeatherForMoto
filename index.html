@@ -2625,7 +2625,7 @@
       // Header with back button if alternatives exist
       if (_routeAlts && _routeAlts.length > 1) {
         html += '<div class="flex items-center gap-2 mb-3">';
-        html += '<button onclick="showRouteAlts()" class="text-xs border border-border rounded-lg px-2 py-1 hover:border-accent hover:text-accent transition-colors">← Schimbă traseul</button>';
+        html += '<button onclick="showRouteAlts()" class="text-xs border border-border rounded-lg px-2 py-1 hover:border-accent hover:text-accent transition-colors">' + t('route_change') + '</button>';
         if (routeIdx != null) html += '<span class="text-xs font-semibold text-accent">' + (altLabels[routeIdx] || '') + '</span>';
         html += '</div>';
       }
