@@ -3700,29 +3700,57 @@
     // -----------------------------------------------------------------------
     // Geolocation
     // -----------------------------------------------------------------------
-    function geolocate() {
-      if (!navigator.geolocation) { alert("Geolocalizare indisponibilă în acest browser."); return; }
-      var btn = document.querySelector('button[onclick="geolocate()"]');
-      if (btn) btn.textContent = "⏳";
+    function geolocate(silent) {
+      if (!navigator.geolocation) {
+        if (!silent) alert("Geolocalizare indisponibilă în acest browser.");
+        return;
+      }
+      var btn = document.querySelector('button[onclick^="geolocate"]');
+      var btnIcon = btn ? btn.querySelector('[data-lucide]') : null;
+      if (btnIcon) btnIcon.setAttribute('data-lucide', 'loader-2');
+      if (window.lucide) lucide.createIcons();
+
       navigator.geolocation.getCurrentPosition(function (pos) {
         LAT = pos.coords.latitude;
         LON = pos.coords.longitude;
-        CITY = "Locația mea";
-        // Reverse geocode via Nominatim (OpenStreetMap)
-        fetch("https://nominatim.openstreetmap.org/reverse?lat=" + LAT + "&lon=" + LON + "&format=json")
+        try { localStorage.setItem('motoUseGPS', '1'); } catch(_) {}
+        CITY = _lang === 'en' ? "My location" : "Locația mea";
+
+        // Reverse geocode: prefer suburb/neighbourhood for large cities (more precise)
+        fetch("https://nominatim.openstreetmap.org/reverse?lat=" + LAT + "&lon=" + LON + "&format=json&zoom=14")
           .then(function (r) { return r.json(); })
           .then(function (d) {
             var a = d.address || {};
-            CITY = a.city || a.town || a.village || a.county || "Locația mea";
-            document.getElementById("city-in").value = CITY;
-            if (btn) btn.textContent = "📍";
+            // For a big city, use suburb/neighbourhood + city for context
+            var sub = a.suburb || a.neighbourhood || a.quarter || a.residential;
+            var city = a.city || a.town || a.village || a.county || '';
+            CITY = sub ? (sub + (city ? ', ' + city : '')) : (city || (_lang === 'en' ? "My location" : "Locația mea"));
+            var inp = document.getElementById("city-in");
+            if (inp) inp.value = CITY;
+            if (btnIcon) { btnIcon.setAttribute('data-lucide', 'map-pin'); if (window.lucide) lucide.createIcons(); }
             loadWeather();
-          }).catch(function () { if (btn) btn.textContent = "📍"; loadWeather(); });
+          }).catch(function () {
+            if (btnIcon) { btnIcon.setAttribute('data-lucide', 'map-pin'); if (window.lucide) lucide.createIcons(); }
+            loadWeather();
+          });
       }, function () {
-        if (btn) btn.textContent = "📍";
-        alert("Nu am putut obține locația. Verifică permisiunile browserului.");
-      });
+        try { localStorage.removeItem('motoUseGPS'); } catch(_) {}
+        if (btnIcon) { btnIcon.setAttribute('data-lucide', 'map-pin'); if (window.lucide) lucide.createIcons(); }
+        if (!silent) alert(_lang === 'en' ? "Could not get location. Check browser permissions." : "Nu am putut obține locația. Verifică permisiunile browserului.");
+      }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 });
     }
+
+    // Auto-use GPS on load if user previously granted permission
+    (function() {
+      try {
+        if (localStorage.getItem('motoUseGPS') !== '1' || !navigator.geolocation) return;
+        if (navigator.permissions) {
+          navigator.permissions.query({ name: 'geolocation' }).then(function(p) {
+            if (p.state === 'granted') geolocate(true);
+          }).catch(function() {});
+        }
+      } catch(_) {}
+    })();
 
     // -----------------------------------------------------------------------
     // Favourite / recent cities (localStorage)
