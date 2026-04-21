@@ -4571,6 +4571,8 @@
       if (c.sources && c.sources.length > 0) {
         html += '<span class="bg-ok/10 rounded-lg px-3 py-1 border border-ok/20 text-ok text-xs">⬆ ' + c.sources.join(' + ') + '</span>';
       }
+      html += '<button onclick="shareConditions()" class="bg-bg/60 rounded-lg px-3 py-1 border border-border text-xs text-muted hover:text-accent hover:border-accent transition-colors flex items-center gap-1">'
+        + licon('share-2', 12) + ' ' + t('share_btn') + '</button>';
       html += '</div></div></div>';
 
       // Hourly scroll — moved here (right after hero)
