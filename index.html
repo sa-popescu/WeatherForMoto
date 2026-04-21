@@ -3530,10 +3530,12 @@
       return v !== undefined ? v : null;
     }
     async function geocodeDirect(city) {
-      // If query contains a comma (e.g. "Răzmirești, Teleorman") skip Open-Meteo
-      // and go straight to Nominatim which understands structured queries better
-      var hasDisambig = city.indexOf(',') > -1;
-      if (!hasDisambig) {
+      // Comma in query may mean Romanian county hint ("Răzmirești, Teleorman")
+      // or may be a neighborhood/city pair from a shared link ("Ferentari, Bucharest").
+      // Strategy: try Open-Meteo first for simple names; for comma queries try
+      // Nominatim with countrycodes=ro first, then fall back without restriction.
+      var hasComma = city.indexOf(',') > -1;
+      if (!hasComma) {
         try {
           var resp = await fetch(
             "https://geocoding-api.open-meteo.com/v1/search?name=" + encodeURIComponent(city) + "&count=1&language=" + _lang
@@ -3547,17 +3549,31 @@
           }
         } catch (_) {}
       }
-      // Nominatim — use countrycodes=ro for Romanian queries (comma = county hint)
-      var nUrl = "https://nominatim.openstreetmap.org/search?q=" + encodeURIComponent(city)
-        + "&format=json&limit=1&addressdetails=1&accept-language=" + _lang
-        + (hasDisambig ? "&countrycodes=ro" : "");
-      var nResp = await fetch(nUrl);
+
+      function _parseNominatim(n) {
+        var nName = (n.address && (n.address.village || n.address.hamlet || n.address.suburb || n.address.town || n.address.city)) || n.display_name.split(',')[0];
+        return { lat: parseFloat(n.lat), lon: parseFloat(n.lon), name: nName, country: (n.address && n.address.country_code) || "", timezone: "auto" };
+      }
+
+      // For comma queries: try Romania-restricted first, then global fallback
+      if (hasComma) {
+        try {
+          var nRespRo = await fetch("https://nominatim.openstreetmap.org/search?q=" + encodeURIComponent(city)
+            + "&format=json&limit=1&addressdetails=1&accept-language=" + _lang + "&countrycodes=ro");
+          if (nRespRo.ok) {
+            var nDataRo = await nRespRo.json();
+            if (nDataRo && nDataRo.length) return _parseNominatim(nDataRo[0]);
+          }
+        } catch (_) {}
+      }
+
+      // Global Nominatim search (also handles comma queries that aren't RO-specific)
+      var nResp = await fetch("https://nominatim.openstreetmap.org/search?q=" + encodeURIComponent(city)
+        + "&format=json&limit=1&addressdetails=1&accept-language=" + _lang);
       if (!nResp.ok) throw new Error("Geocoding failed");
       var nData = await nResp.json();
-      if (!nData || !nData.length) throw new Error("'" + city + "' not found.");
-      var n = nData[0];
-      var nName = (n.address && (n.address.village || n.address.hamlet || n.address.town || n.address.city)) || n.display_name.split(',')[0];
-      return { lat: parseFloat(n.lat), lon: parseFloat(n.lon), name: nName, country: (n.address && n.address.country_code) || "", timezone: "auto" };
+      if (!nData || !nData.length) throw new Error(_gt('geocode_not_found', { city: city }));
+      return _parseNominatim(nData[0]);
     }
 
     // -----------------------------------------------------------------------
