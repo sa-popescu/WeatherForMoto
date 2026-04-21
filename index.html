@@ -3567,8 +3567,21 @@
         return { lat: parseFloat(n.lat), lon: parseFloat(n.lon), name: nName, country: (n.address && n.address.country_code) || "", timezone: "auto" };
       }
 
-      // For comma queries: try Romania-restricted first, then global fallback
+      // For comma queries: use structured geocoding (city= + county=) first — more accurate than free-text
       if (hasComma) {
+        try {
+          var commaIdx = city.indexOf(',');
+          var cityPart = city.slice(0, commaIdx).trim();
+          var countyPart = city.slice(commaIdx + 1).trim();
+          var nRespStruct = await fetch("https://nominatim.openstreetmap.org/search?city=" + encodeURIComponent(cityPart)
+            + "&county=" + encodeURIComponent(countyPart)
+            + "&format=json&limit=1&addressdetails=1&accept-language=" + _lang + "&countrycodes=ro");
+          if (nRespStruct.ok) {
+            var nDataStruct = await nRespStruct.json();
+            if (nDataStruct && nDataStruct.length) return _parseNominatim(nDataStruct[0]);
+          }
+        } catch (_) {}
+        // Fallback: free-text with countrycodes=ro
         try {
           var nRespRo = await fetch("https://nominatim.openstreetmap.org/search?q=" + encodeURIComponent(city)
             + "&format=json&limit=1&addressdetails=1&accept-language=" + _lang + "&countrycodes=ro");
