@@ -2195,12 +2195,20 @@
               home_lat: LAT,
               home_lon: LON,
               city: CITY,
+              alert_states: alertStatesJson,
             }),
           });
-        } catch (_) { }
+          if (!resp.ok) {
+            var errData = await resp.json().catch(function() { return {}; });
+            throw new Error(errData.detail || resp.status);
+          }
+        } catch (e) {
+          alert(t('acc_err_generic') + (e && e.message || e));
+          return;
+        }
       }
 
-      alert('Alertele personalizate au fost salvate.');
+      alert(t('acc_save_alerts_ok'));
     }
 
     function toggleAlerts() {
