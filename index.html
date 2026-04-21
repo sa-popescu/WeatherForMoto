@@ -1385,8 +1385,8 @@
       var msg = document.getElementById('change-pw-msg');
       var token = _authToken();
       if (!token) return;
-      if (!current || !next) { alert('Completează ambele câmpuri.'); return; }
-      if (next.length < 8) { alert('Parola nouă trebuie să aibă cel puțin 8 caractere.'); return; }
+      if (!current || !next) { alert(t('acc_fill_both')); return; }
+      if (next.length < 8) { alert(t('acc_pass_new_min8')); return; }
       msg.classList.add('hidden');
       try {
         var resp = await fetch(_api('/auth/change-password'), {
@@ -1395,15 +1395,15 @@
           body: JSON.stringify({ current_password: current, new_password: next })
         });
         var data = await resp.json();
-        if (!resp.ok) throw new Error(data.detail || 'Eroare schimbare parolă.');
-        msg.textContent = 'Parola a fost schimbată cu succes!';
+        if (!resp.ok) throw new Error(data.detail || t('acc_err_change_pw'));
+        msg.textContent = t('acc_pass_changed_ok');
         msg.className = 'text-xs text-ok';
         msg.classList.remove('hidden');
         document.getElementById('change-pw-current').value = '';
         document.getElementById('change-pw-new').value = '';
         showChangePassword();
       } catch (e) {
-        msg.textContent = 'Eroare: ' + (e && e.message || e);
+        msg.textContent = t('acc_err_generic') + (e && e.message || e);
         msg.className = 'text-xs text-danger';
         msg.classList.remove('hidden');
       }
