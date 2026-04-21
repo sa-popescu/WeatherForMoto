@@ -2515,7 +2515,7 @@
     function renderRouteAlternatives(routes, geoResults, depDt) {
       var resultEl = document.getElementById('route-result');
       if (!resultEl) return;
-      var labels = ['🏆 Recomandat (cel mai rapid)', '↪ Alternativ 1', '↪ Alternativ 2'];
+      var labels = [t('route_recommended'), t('route_alt') + ' 1', t('route_alt') + ' 2'];
       var html = '<div class="bg-card border border-border rounded-xl p-4 mb-3">';
       html += '<div class="text-xs text-muted tracking-widest uppercase mb-3">Alege traseul</div>';
       html += '<div class="flex flex-col gap-2">';
