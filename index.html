@@ -1250,8 +1250,8 @@
       var email = (emailEl && emailEl.value || '').trim().toLowerCase();
       var password = (passEl && passEl.value || '').trim();
 
-      if (!email || !password) { alert('Completează email și parolă.'); return; }
-      if (password.length < 8) { alert('Parola trebuie să aibă minim 8 caractere.'); return; }
+      if (!email || !password) { alert(t('acc_fill_email_pass')); return; }
+      if (password.length < 8) { alert(t('acc_pass_min8')); return; }
 
       try {
         var resp = await fetch(_api('/auth/signup'), {
@@ -1260,14 +1260,14 @@
           body: JSON.stringify({ email: email, password: password, display_name: displayName || null })
         });
         var data = await resp.json();
-        if (!resp.ok) throw new Error(data.detail || 'Nu am putut crea contul.');
+        if (!resp.ok) throw new Error(data.detail || t('acc_err_signup'));
         _setAuth(data.token, data.user && data.user.email ? data.user.email : email);
         _setUserName(data.user && data.user.display_name ? data.user.display_name : '');
         await _setDefaultPrefs();
         await refreshAccountState();
-        alert('Cont creat și autentificat.');
+        alert(t('acc_created_ok'));
       } catch (e) {
-        alert('Eroare creare cont: ' + (e && e.message || e));
+        alert(t('acc_err_signup') + (e && e.message || e));
       }
     }
 
