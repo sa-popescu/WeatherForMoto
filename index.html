@@ -4244,6 +4244,35 @@
       if (modal) modal.classList.add('hidden');
     }
 
+    async function shareConditions() {
+      if (!window._lastWeatherData) return;
+      var c = window._lastWeatherData.current;
+      var city = window._lastWeatherData.city || CITY;
+      var score = c && c.moto_score != null ? c.moto_score : '?';
+      var temp = c ? Math.round(c.temperature) : '?';
+      var desc = c ? wmoDesc(c.weather_code) : '';
+      var url = window.location.origin + window.location.pathname + '?q=' + encodeURIComponent(city);
+      var text = city + ' — ' + temp + '°C, ' + desc + ' · Moto score: ' + score + '/100\n' + url;
+      if (navigator.share) {
+        try {
+          await navigator.share({ title: 'Moto Meteo — ' + city, text: text, url: url });
+          return;
+        } catch (_) {}
+      }
+      // Fallback: copy to clipboard
+      try {
+        await navigator.clipboard.writeText(text);
+        var btn = document.querySelector('[onclick="shareConditions()"]');
+        if (btn) {
+          var orig = btn.innerHTML;
+          btn.textContent = '✓ ' + (t('share_copied') || 'Copied!');
+          setTimeout(function() { btn.innerHTML = orig; }, 2000);
+        }
+      } catch (_) {
+        alert(text);
+      }
+    }
+
     function _windDirArrow(deg) {
       var dirs = ['N','NE','E','SE','S','SV','V','NV'];
       return dirs[Math.round(deg / 45) % 8];
