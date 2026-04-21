@@ -1199,6 +1199,12 @@ def _build_hourly(om_data: dict) -> list[dict]:
             "icon": _wmo_icon(code),
             "description": _wmo_desc(code),
             "uv_index": _safe(hourly.get("uv_index"), i),
+            "relative_humidity": _safe(hourly.get("relative_humidity_2m"), i),
+            "surface_pressure": _safe(hourly.get("surface_pressure"), i),
+            "dew_point_2m": _safe(hourly.get("dew_point_2m"), i),
+            "cloud_cover": _safe(hourly.get("cloud_cover"), i),
+            "visibility": _safe(hourly.get("visibility"), i),
+            "wind_direction_10m": _safe(hourly.get("wind_direction_10m"), i),
         })
     return result
 
