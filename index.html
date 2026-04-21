@@ -1300,7 +1300,7 @@
       if (!token) return;
       var nameEl = document.getElementById('me-name-input');
       var displayName = (nameEl && nameEl.value || '').trim();
-      if (!displayName) { alert('Introdu un nume.'); return; }
+      if (!displayName) { alert(t('acc_fill_name')); return; }
 
       try {
         var resp = await fetch(_api('/me/profile'), {
@@ -1312,11 +1312,11 @@
           body: JSON.stringify({ display_name: displayName })
         });
         var data = await resp.json();
-        if (!resp.ok) throw new Error(data.detail || 'Nu am putut salva profilul.');
+        if (!resp.ok) throw new Error(data.detail || t('acc_err_profile'));
         _setUserName(displayName);
         await refreshAccountState();
       } catch (e) {
-        alert('Eroare profil: ' + (e && e.message || e));
+        alert(t('acc_err_profile') + (e && e.message || e));
       }
     }
 
