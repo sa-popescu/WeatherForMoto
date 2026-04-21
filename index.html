@@ -2239,7 +2239,7 @@
         var pill = document.getElementById('refresh-pill');
         if (pill) {
           var m = Math.ceil(_refreshSecondsLeft / 60);
-          pill.textContent = '↻ auto în ' + m + 'm';
+          pill.textContent = '↻ ' + _gt('auto_in', {m: m});
         }
         if (_refreshSecondsLeft <= 0) loadWeather();
       }, 1000);
