@@ -2494,7 +2494,7 @@
       var routeDepEl = document.getElementById('route-departure');
       var deptTime = routeDepEl ? routeDepEl.value : '';
       var resultEl = document.getElementById('route-result');
-      if (resultEl) resultEl.innerHTML = '<div class="text-muted text-sm py-4 text-center pulse-anim">⏳ Se calculează trasee alternative…</div>';
+      if (resultEl) resultEl.innerHTML = '<div class="text-muted text-sm py-4 text-center pulse-anim">' + t('route_calculating') + '</div>';
 
       try {
         var geoResults = await Promise.all(stops.map(geocodeDirect));
