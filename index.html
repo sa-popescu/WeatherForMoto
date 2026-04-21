@@ -3537,9 +3537,7 @@
       // Use most severe code across all sources (safety-first for motorcyclists)
       var allCodes = [omCode, owmCode, metCode].concat(mCode).filter(function (x) { return x != null; });
       var finalCode = allCodes.length ? allCodes.reduce(function (a, b) { return b > a ? b : a; }) : 0;
-      var description = owmCur
-        ? owmCur.weather[0].description.charAt(0).toUpperCase() + owmCur.weather[0].description.slice(1)
-        : wmoDesc(finalCode);
+      var description = wmoDesc(finalCode);
       var pressure = owmCur ? owmCur.main.pressure : (metInst.air_pressure_at_sea_level || c.surface_pressure);
       var visKm = owmCur && owmCur.visibility != null
         ? Math.round(owmCur.visibility / 100) / 10
