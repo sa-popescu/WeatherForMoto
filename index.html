@@ -2921,6 +2921,7 @@
       el.innerHTML = '<div class="bg-card border border-border rounded-xl p-3 flex flex-wrap items-center gap-2">'
         + '<button onclick="saveCurrentRoute()" class="text-xs border border-border rounded-lg px-3 py-1.5 hover:border-accent hover:text-accent transition-colors">💾 ' + t('route_save') + '</button>'
         + '<button onclick="logCurrentRide()" class="text-xs border border-border rounded-lg px-3 py-1.5 hover:border-ok hover:text-ok transition-colors">📈 ' + t('route_log') + '</button>'
+        + '<button onclick="exportRouteGPX()" class="text-xs border border-border rounded-lg px-3 py-1.5 hover:border-accent hover:text-accent transition-colors">📥 GPX</button>'
         + '<button onclick="reportHazardAtCenter()" class="text-xs border border-border rounded-lg px-3 py-1.5 hover:border-warn hover:text-warn transition-colors">⚠️ ' + t('route_hazard') + '</button>'
         + '<span class="text-xs text-muted ml-auto">~' + dist + ' km · ' + h + 'h ' + m + 'm</span>'
         + '</div>';
