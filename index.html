@@ -2874,7 +2874,7 @@
     async function saveCurrentRoute() {
       if (!LAST_ROUTE_CTX || !LAST_ROUTE_CTX.waypoints || LAST_ROUTE_CTX.waypoints.length < 2) return;
       var token = _authToken();
-      if (!token) { alert('Autentifică-te pentru salvarea rutelor.'); return; }
+      if (!token) { alert(t('auth_req_route')); return; }
       var name = prompt('Nume pentru rută:', _routeStartName() + ' → ' + _routeEndName());
       if (!name) return;
       var stops = [];
