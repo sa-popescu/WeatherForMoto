@@ -2388,13 +2388,23 @@
       if (val.length < 2) { drop.innerHTML = ''; drop.classList.add('hidden'); return; }
       _geoTimers[inputId] = setTimeout(async function() {
         try {
-          // countrycodes=ro → prioritize Romania but also show foreign results
-          // limit=10 → enough to show duplicates (same name, different județ)
-          var url = 'https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(val)
-            + '&format=json&limit=10&addressdetails=1&countrycodes=ro&accept-language=ro';
-          var resp = await fetch(url, { headers: { 'Accept-Language': 'ro' } });
+          // If query contains comma, use Nominatim structured geocoding (city= + county=)
+          // which pins the search to the correct county — free-text can return wrong duplicates
+          var commaIdx = val.indexOf(',');
+          var url;
+          if (commaIdx > -1) {
+            var cityPart = val.slice(0, commaIdx).trim();
+            var countyPart = val.slice(commaIdx + 1).trim();
+            url = 'https://nominatim.openstreetmap.org/search?city=' + encodeURIComponent(cityPart)
+              + '&county=' + encodeURIComponent(countyPart)
+              + '&format=json&limit=10&addressdetails=1&countrycodes=ro&accept-language=ro';
+          } else {
+            url = 'https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(val)
+              + '&format=json&limit=10&addressdetails=1&countrycodes=ro&accept-language=ro';
+          }
+          var resp = await fetch(url);
           var data = await resp.json();
-          // If nothing in RO, retry without country restriction
+          // Fallback: free-text without country restriction
           if (!data || !data.length) {
             var url2 = 'https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(val)
               + '&format=json&limit=6&addressdetails=1&accept-language=' + _lang;
