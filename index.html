@@ -1328,7 +1328,7 @@
     async function requestPasswordReset() {
       var email = document.getElementById('forgot-pw-email').value.trim();
       var msg = document.getElementById('forgot-pw-msg');
-      if (!email) { alert('Introdu adresa de email.'); return; }
+      if (!email) { alert(t('acc_fill_email')); return; }
       msg.classList.add('hidden');
       try {
         var resp = await fetch(_api('/auth/request-reset'), {
