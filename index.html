@@ -2628,8 +2628,18 @@
 
     function showRouteAlts() {
       if (_routeAlts && _routeGeos && _routeDepDt) {
-        clearRoutePanels();
-        renderRouteAlternatives(_routeAlts, _routeGeos, _routeDepDt);
+        var resultEl = document.getElementById('route-result');
+        if (resultEl) resultEl.innerHTML = '';
+        ['route-tools','hazard-list','saved-routes','ride-stats'].forEach(function(id){
+          var el = document.getElementById(id); if(el){el.innerHTML='';el.classList.add('hidden');}
+        });
+        if (ROUTE_MAP) { try { ROUTE_MAP.remove(); } catch(_){} ROUTE_MAP = null; }
+        LAST_ROUTE_CTX = null;
+        // Re-fetch score previews
+        renderRouteAlternatives(_routeAlts, _routeGeos, _routeDepDt, null);
+        Promise.all(_routeAlts.map(function(r) { return _fetchRoutePreviewScore(r, _routeDepDt); }))
+          .then(function(scores) { renderRouteAlternatives(_routeAlts, _routeGeos, _routeDepDt, scores); })
+          .catch(function(){});
       }
     }
 
