@@ -2255,6 +2255,53 @@
       if (addBtn) addBtn.style.display = '';
     }
 
+    var _geoTimers = {};
+    function onStopInput(inputId, dropId) {
+      clearTimeout(_geoTimers[inputId]);
+      var val = document.getElementById(inputId).value.trim();
+      var drop = document.getElementById(dropId);
+      if (!drop) return;
+      if (val.length < 2) { drop.innerHTML = ''; drop.classList.add('hidden'); return; }
+      _geoTimers[inputId] = setTimeout(async function() {
+        try {
+          var resp = await fetch('https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(val) + '&count=6&language=' + _lang);
+          var data = await resp.json();
+          if (!data.results || !data.results.length) { drop.classList.add('hidden'); return; }
+          drop.innerHTML = data.results.map(function(r) {
+            var label = r.name + (r.admin1 ? ', ' + r.admin1 : '') + (r.country_code ? ', ' + r.country_code.toUpperCase() : '');
+            var safe = r.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+            return '<div class="geo-suggestion px-3 py-2 text-sm text-gray-200 border-b border-border/40 last:border-0"'
+              + ' onclick="selectGeoSuggestion(\'' + inputId + '\',\'' + dropId + '\',\'' + safe + '\')">' + label + '</div>';
+          }).join('');
+          drop.classList.remove('hidden');
+        } catch(_) {}
+      }, 280);
+    }
+    function selectGeoSuggestion(inputId, dropId, name) {
+      var inp = document.getElementById(inputId);
+      var drop = document.getElementById(dropId);
+      if (inp) inp.value = name;
+      if (drop) { drop.innerHTML = ''; drop.classList.add('hidden'); }
+    }
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('.stop-wrap')) {
+        document.querySelectorAll('.geo-dropdown').forEach(function(d) { d.classList.add('hidden'); });
+      }
+    });
+
+    async function _fetchRoutePreviewScore(route, depDt) {
+      // Fetch weather at start, middle, and end of route for a quick score estimate
+      try {
+        var pts = [0, Math.floor(route.geometry.length / 2), route.geometry.length - 1].map(function(i) { return route.geometry[i]; });
+        var etaOffsets = [0, route.durationH * 0.5, route.durationH];
+        var wxResults = await Promise.all(pts.map(function(p, i) {
+          return fetchWaypointWeather(p.lat, p.lon, new Date(depDt.getTime() + etaOffsets[i] * 3600000));
+        }));
+        var scores = wxResults.filter(function(w) { return w && w.moto_score != null; }).map(function(w) { return w.moto_score; });
+        return scores.length ? Math.round(scores.reduce(function(a,b){return a+b;},0)/scores.length) : null;
+      } catch(_) { return null; }
+    }
+
     function startAutoRefresh() {
       if (_autoRefreshTimer) clearInterval(_autoRefreshTimer);
       _refreshSecondsLeft = AUTO_REFRESH_SEC;
