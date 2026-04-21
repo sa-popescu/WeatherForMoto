@@ -2972,7 +2972,7 @@
     async function logCurrentRide() {
       if (!LAST_ROUTE_CTX) return;
       var token = _authToken();
-      if (!token) { alert('Autentifică-te pentru statistici ride.'); return; }
+      if (!token) { alert(t('auth_req_stats')); return; }
       try {
         var payload = {
           route_name: _routeStartName() + ' → ' + _routeEndName(),
