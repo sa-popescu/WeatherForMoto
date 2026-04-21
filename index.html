@@ -2330,7 +2330,7 @@
     }
     function addRouteStop() {
       var rows = document.querySelectorAll('#route-stops-list .stop-row');
-      if (rows.length >= 5) { alert('Maxim 5 opriri permise.'); return; }
+      if (rows.length >= 5) { alert(t('planner_max_stops_alert') || 'Max 5 stops allowed.'); return; }
       var list = document.getElementById('route-stops-list');
       var lastRow = list.lastElementChild;
       var idx = rows.length;
@@ -2339,13 +2339,15 @@
       var inputId = 'route-stop-mid-' + idx, dropId = 'geo-drop-mid-' + idx;
       newRow.innerHTML = '<span class="text-xl flex-shrink-0">📍</span>'
         + '<div class="stop-wrap">'
-        + '<input id="' + inputId + '" type="text" placeholder="Oprire intermediară..." autocomplete="off"'
+        + '<input id="' + inputId + '" type="text" placeholder="' + (t('planner_waypoint_ph') || 'Intermediate stop...') + '" autocomplete="off"'
         + ' oninput="onStopInput(\'' + inputId + '\',\'' + dropId + '\')"'
         + ' class="route-stop-input w-full bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent placeholder-muted transition-colors" />'
         + '<div id="' + dropId + '" class="geo-dropdown hidden"></div>'
         + '</div>'
-        + '<button onclick="removeRouteStop(this)" class="w-8 flex-shrink-0 text-muted hover:text-danger text-sm transition-colors" title="Șterge">✕</button>';
+        + '<button onclick="removeRouteStop(this)" class="w-8 flex-shrink-0 text-muted hover:text-danger text-sm transition-colors" title="' + (t('remove') || 'Remove') + '">✕</button>';
       list.insertBefore(newRow, lastRow);
+      // Focus the new input
+      setTimeout(function() { var inp = document.getElementById(inputId); if (inp) inp.focus(); }, 50);
       if (rows.length + 1 >= 5) {
         var addBtn = document.getElementById('add-stop-btn');
         if (addBtn) addBtn.style.display = 'none';
