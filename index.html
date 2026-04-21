@@ -1572,7 +1572,7 @@
           headers: { 'Authorization': 'Bearer ' + token }
         });
       } catch (e) {
-        alert('Eroare push: ' + (e && e.message || e));
+        alert(t('acc_err_push') + (e && e.message || e));
       }
     }
 
