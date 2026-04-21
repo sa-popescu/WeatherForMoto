@@ -1,5 +1,7 @@
 // MotoMeteo Service Worker — cache-first strategy for offline support
-var CACHE = 'motometeo-v4';
+var CACHE = 'motometeo-v5';
+var WEATHER_CACHE = 'motometeo-weather-v2';
+var WEATHER_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 var SNOOZED_UNTIL = 0;
 var ASSETS = [
     '/',
