@@ -2288,18 +2288,29 @@
       if (val.length < 2) { drop.innerHTML = ''; drop.classList.add('hidden'); return; }
       _geoTimers[inputId] = setTimeout(async function() {
         try {
-          var resp = await fetch('https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(val) + '&count=6&language=' + _lang);
+          // Nominatim covers villages, communes, all OSM data
+          var url = 'https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(val)
+            + '&format=json&limit=6&addressdetails=1&accept-language=' + _lang;
+          var resp = await fetch(url, { headers: { 'Accept-Language': _lang } });
           var data = await resp.json();
-          if (!data.results || !data.results.length) { drop.classList.add('hidden'); return; }
-          drop.innerHTML = data.results.map(function(r) {
-            var label = r.name + (r.admin1 ? ', ' + r.admin1 : '') + (r.country_code ? ', ' + r.country_code.toUpperCase() : '');
-            var safe = r.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+          if (!data || !data.length) { drop.classList.add('hidden'); return; }
+          drop.innerHTML = data.map(function(r) {
+            var addr = r.address || {};
+            var parts = [r.name || addr.village || addr.town || addr.city || r.display_name.split(',')[0]];
+            if (addr.county || addr.state) parts.push(addr.county || addr.state);
+            if (addr.country_code) parts.push(addr.country_code.toUpperCase());
+            var label = parts.filter(Boolean).join(', ');
+            var name = r.name || addr.village || addr.town || addr.city || r.display_name.split(',')[0];
+            var safe = name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
             return '<div class="geo-suggestion px-3 py-2 text-sm text-gray-200 border-b border-border/40 last:border-0"'
-              + ' onclick="selectGeoSuggestion(\'' + inputId + '\',\'' + dropId + '\',\'' + safe + '\')">' + label + '</div>';
+              + ' onclick="selectGeoSuggestion(\'' + inputId + '\',\'' + dropId + '\',\'' + safe + '\')">'
+              + '<div>' + label + '</div>'
+              + '<div class="text-xs text-muted/60 truncate">' + (r.display_name || '') + '</div>'
+              + '</div>';
           }).join('');
           drop.classList.remove('hidden');
         } catch(_) {}
-      }, 280);
+      }, 320);
     }
     function selectGeoSuggestion(inputId, dropId, name) {
       var inp = document.getElementById(inputId);
