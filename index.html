@@ -1340,7 +1340,7 @@
         msg.className = 'text-xs text-ok';
         msg.classList.remove('hidden');
       } catch (e) {
-        msg.textContent = 'Eroare: ' + (e && e.message || e);
+        msg.textContent = t('acc_err_generic') + (e && e.message || e);
         msg.className = 'text-xs text-danger';
         msg.classList.remove('hidden');
       }
