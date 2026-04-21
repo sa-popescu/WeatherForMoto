@@ -453,27 +453,27 @@
                       focus:outline-none focus:border-accent placeholder-muted transition-colors" data-i18n-ph="search_ph" />
         <button onclick="searchCity();closeMobileMenu()" class="bg-accent hover:bg-orange-400 text-black font-display font-bold text-sm tracking-wider
                        px-4 py-2 rounded-lg transition-colors" data-i18n="btn_search">CAUTĂ</button>
-        <button onclick="geolocate();closeMobileMenu()" title="Locația mea"
+        <button onclick="geolocate();closeMobileMenu()" data-i18n-title="nav_location"
           class="bg-card border border-border text-muted hover:text-accent hover:border-accent
                        text-base px-3 py-2 rounded-lg transition-colors flex items-center gap-2 justify-center md:justify-start">
           <i data-lucide="map-pin" style="width:18px;height:18px"></i><span class="text-sm md:hidden" data-i18n="nav_location">Locația mea</span>
         </button>
-        <button onclick="loadWeather();closeMobileMenu()" title="Reîncarcă"
+        <button onclick="loadWeather();closeMobileMenu()" data-i18n-title="nav_reload"
           class="bg-card border border-border text-muted hover:text-gray-200 hover:border-gray-500
                        text-base px-3 py-2 rounded-lg transition-colors flex items-center gap-2 justify-center md:justify-start">
           <i data-lucide="refresh-cw" style="width:18px;height:18px"></i><span class="text-sm md:hidden" data-i18n="nav_reload">Reîncarcă</span>
         </button>
-        <button onclick="openAccountModal();closeMobileMenu()" title="Cont și setări"
+        <button onclick="openAccountModal();closeMobileMenu()" data-i18n-title="nav_account"
           class="bg-card border border-border text-muted hover:text-accent hover:border-accent
                        text-base px-3 py-2 rounded-lg transition-colors flex items-center gap-2 justify-center md:justify-start" id="account-hdr-btn">
           <i data-lucide="user" style="width:18px;height:18px"></i><span class="text-sm md:hidden" data-i18n="nav_account">Cont</span>
         </button>
-        <button id="theme-toggle-btn" onclick="toggleTheme();closeMobileMenu()" title="Schimbă tema"
+        <button id="theme-toggle-btn" onclick="toggleTheme();closeMobileMenu()" data-i18n-title="nav_theme"
           class="bg-card border border-border text-muted hover:text-accent hover:border-accent
                        text-base px-3 py-2 rounded-lg transition-colors flex items-center gap-2 justify-center md:justify-start">
           <span id="theme-toggle-icon">🌙</span><span class="text-sm md:hidden" data-i18n="nav_theme">Temă</span>
         </button>
-        <button onclick="openGuideModal();closeMobileMenu()" title="Ghid de interpretare"
+        <button onclick="openGuideModal();closeMobileMenu()" data-i18n-title="nav_guide"
           class="bg-card border border-border text-muted hover:text-accent hover:border-accent
                        text-base px-3 py-2 rounded-lg transition-colors flex items-center gap-2 justify-center md:justify-start">
           <i data-lucide="info" style="width:18px;height:18px"></i><span class="text-sm md:hidden" data-i18n="nav_guide">Ghid</span>
