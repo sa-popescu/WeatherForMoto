@@ -2680,7 +2680,7 @@
 
     async function calcRoute() {
       var stops = getRouteStops();
-      if (stops.length < 2) { clearRoutePanels(); alert('Completează cel puțin 2 opriri (plecare și destinație)'); return; }
+      if (stops.length < 2) { clearRoutePanels(); alert(t('planner_min_stops')); return; }
 
       var routeDepEl = document.getElementById('route-departure');
       var deptTime = routeDepEl ? routeDepEl.value : '';
