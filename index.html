@@ -4373,7 +4373,7 @@
       html += '<div class="font-display text-2xl sm:text-3xl font-bold tracking-wide mb-1" style="color:' + si.color + '">' + si.label + '</div>';
       html += '<div class="text-sm text-gray-300 mb-3">' + si.msg + '</div>';
       html += '<div class="flex flex-wrap gap-2 text-sm text-muted justify-center sm:justify-start">';
-      html += '<span class="bg-bg/60 rounded-lg px-3 py-1 border border-border text-xs">' + c.description + '</span>';
+      html += '<span class="bg-bg/60 rounded-lg px-3 py-1 border border-border text-xs">' + wmoDesc(c.weather_code) + '</span>';
       html += '<span class="bg-bg/60 rounded-lg px-3 py-1 border border-border text-xs">' + licon('wind', 13) + ' ' + t('gusts') + ' <strong class="text-gray-200">' + Math.round(c.wind_gusts_kmh) + ' km/h</strong></span>';
       if (c.sources && c.sources.length > 0) {
         html += '<span class="bg-ok/10 rounded-lg px-3 py-1 border border-ok/20 text-ok text-xs">⬆ ' + c.sources.join(' + ') + '</span>';
