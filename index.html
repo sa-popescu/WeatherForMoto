@@ -1443,19 +1443,19 @@
     async function deleteMyAccount() {
       var token = _authToken();
       if (!token) return;
-      if (!confirm('Sigur vrei să ștergi contul? Acțiunea este permanentă.')) return;
+      if (!confirm(t('acc_delete_confirm'))) return;
       try {
         var resp = await fetch(_api('/me'), {
           method: 'DELETE',
           headers: { 'Authorization': 'Bearer ' + token }
         });
         var data = await resp.json();
-        if (!resp.ok) throw new Error(data.detail || 'Nu am putut șterge contul.');
+        if (!resp.ok) throw new Error(data.detail || t('acc_err_delete'));
         _resetAuth();
         closeAccountModal();
-        alert('Cont șters cu succes.');
+        alert(t('acc_delete_ok'));
       } catch (e) {
-        alert('Eroare ștergere cont: ' + (e && e.message || e));
+        alert(t('acc_err_delete') + (e && e.message || e));
       }
     }
 
