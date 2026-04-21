@@ -4035,7 +4035,7 @@
           html += '<span class="text-xs tracking-widest text-muted">' + (idx === 0 ? t('adv_w1') : t('adv_w2')) + '</span>';
           html += '<span class="ml-auto font-display text-lg ' + col + '">' + slot.time + '</span>';
           html += '</div>';
-          html += '<div class="text-xs text-muted mt-1">Scor <strong class="' + col + '">' + slot.score + '</strong> · Rafale ' + Math.round(slot.gusts) + ' km/h · Ploaie ' + slot.rain.toFixed(1) + ' mm/h</div>';
+          html += '<div class="text-xs text-muted mt-1">' + t('adv_score') + ' <strong class="' + col + '">' + slot.score + '</strong> · ' + t('adv_gusts') + ' ' + Math.round(slot.gusts) + ' km/h · ' + t('adv_rain') + ' ' + slot.rain.toFixed(1) + ' mm/h</div>';
           html += '</div>';
         });
       }
