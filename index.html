@@ -5116,6 +5116,14 @@
           + '</div>';
         return;
       }
+      // Handle shared location link (?q=CityName)
+      var sharedCity = params.get('q');
+      if (sharedCity) {
+        history.replaceState({}, '', window.location.pathname);
+        var inp = document.getElementById('city-input');
+        if (inp) inp.value = sharedCity;
+        CITY = sharedCity;
+      }
       loadWeather();
     })();
 
