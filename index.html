@@ -1433,10 +1433,10 @@
           headers: { 'Authorization': 'Bearer ' + token }
         });
         var data = await resp.json();
-        if (!resp.ok) throw new Error(data.detail || 'Nu am putut dezabona alertele email.');
-        alert('Alertele email au fost dezactivate pentru contul tău.');
+        if (!resp.ok) throw new Error(data.detail || t('acc_err_unsub'));
+        alert(t('acc_unsub_ok'));
       } catch (e) {
-        alert('Eroare dezabonare: ' + (e && e.message || e));
+        alert(t('acc_err_unsub') + (e && e.message || e));
       }
     }
 
