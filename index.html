@@ -1233,8 +1233,8 @@
         var meCreated = document.getElementById('me-created');
         var meNameInput = document.getElementById('me-name-input');
         if (meEmail) meEmail.textContent = data.email || '—';
-        if (meName) meName.textContent = data.display_name || 'Fără nume';
-        if (meCreated) meCreated.textContent = data.created_at ? new Date(data.created_at).toLocaleString('ro-RO') : '—';
+        if (meName) meName.textContent = data.display_name || t('acc_no_name');
+        if (meCreated) meCreated.textContent = data.created_at ? new Date(data.created_at).toLocaleString(_lang === 'en' ? 'en-GB' : 'ro-RO') : '—';
         if (meNameInput) meNameInput.value = data.display_name || '';
       } catch (_) {
         _resetAuth();
