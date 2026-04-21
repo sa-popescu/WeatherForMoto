@@ -1973,14 +1973,20 @@
     // -----------------------------------------------------------------------
     // Custom weather alerts (localStorage)
     // -----------------------------------------------------------------------
-    var ALERT_DEFS = [
-      { id: 'score_low', label: 'Scor Moto < 40', desc: 'Condiții periculoase', field: 'moto_score', op: '<', threshold: 40 },
-      { id: 'wind_high', label: 'Rafale > 50 km/h', desc: 'Vânt puternic', field: 'wind_gusts_kmh', op: '>', threshold: 50 },
-      { id: 'rain_heavy', label: 'Precipitații > 5 mm/h', desc: 'Ploaie torențială', field: 'precipitation_mm', op: '>', threshold: 5 },
-      { id: 'temp_cold', label: 'Temperatură < 5°C', desc: 'Risc de gheață / îngheț', field: 'temperature', op: '<', threshold: 5 },
-      { id: 'temp_hot', label: 'Temperatură > 35°C', desc: 'Caniculă — hidratare obligatorie', field: 'temperature', op: '>', threshold: 35 },
-      { id: 'rain_prob', label: 'Probabilitate ploaie > 70%', desc: 'Ploaie probabilă', field: 'precipitation_probability', op: '>', threshold: 70 },
+    var ALERT_DEF_TEMPLATES = [
+      { id: 'score_low',  labelKey: 'al_score_low',  descKey: 'al_score_low_d',  field: 'moto_score',               op: '<', threshold: 40 },
+      { id: 'wind_high',  labelKey: 'al_wind_high',  descKey: 'al_wind_high_d',  field: 'wind_gusts_kmh',            op: '>', threshold: 50 },
+      { id: 'rain_heavy', labelKey: 'al_rain_heavy', descKey: 'al_rain_heavy_d', field: 'precipitation_mm',          op: '>', threshold: 5  },
+      { id: 'temp_cold',  labelKey: 'al_temp_cold',  descKey: 'al_temp_cold_d',  field: 'temperature',               op: '<', threshold: 5  },
+      { id: 'temp_hot',   labelKey: 'al_temp_hot',   descKey: 'al_temp_hot_d',   field: 'temperature',               op: '>', threshold: 35 },
+      { id: 'rain_prob',  labelKey: 'al_rain_prob',  descKey: 'al_rain_prob_d',  field: 'precipitation_probability', op: '>', threshold: 70 },
     ];
+    function _alertDefs() {
+      return ALERT_DEF_TEMPLATES.map(function(d) {
+        return Object.assign({}, d, { label: t(d.labelKey), desc: t(d.descKey) });
+      });
+    }
+    var ALERT_DEFS = ALERT_DEF_TEMPLATES; // kept for backward compat; use _alertDefs() for display
     function _getAlertState() {
       try { return JSON.parse(localStorage.getItem('motoAlerts') || '{}'); } catch (_) { return {}; }
     }
