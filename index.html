@@ -2525,7 +2525,7 @@
         var extraTime = i > 0 ? ' <span class="text-xs text-muted">(+' + Math.round((r.durationH - routes[0].durationH) * 60) + ' min)</span>' : '';
         html += '<div onclick="selectRouteAlt(' + i + ')" class="cursor-pointer bg-bg border border-border hover:border-accent rounded-xl px-4 py-3 flex items-center gap-3 transition-colors group">';
         html += '<div class="flex-1 min-w-0">';
-        html += '<div class="font-semibold text-sm text-gray-200 group-hover:text-accent transition-colors">' + (labels[i] || '↪ Alternativ') + '</div>';
+        html += '<div class="font-semibold text-sm text-gray-200 group-hover:text-accent transition-colors">' + (labels[i] || t('route_alt')) + '</div>';
         html += '<div class="text-xs text-muted mt-0.5">'
           + '<strong class="text-gray-300">' + Math.round(r.distanceKm) + ' km</strong>' + extraKm
           + ' &middot; <strong class="text-gray-300">~' + dH + 'h ' + dM + 'min</strong>' + extraTime + '</div>';
