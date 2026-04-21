@@ -2137,6 +2137,7 @@
         state[a.id] = chk ? chk.checked : true;
       });
       try { localStorage.setItem('motoAlerts', JSON.stringify(state)); } catch (_) { }
+      var alertStatesJson = JSON.stringify(state);
 
       var settings = {
         min_score: Math.max(0, Math.min(100, parseInt((document.getElementById('alert-min-score') || {}).value || 45, 10))),
