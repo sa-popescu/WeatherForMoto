@@ -4160,6 +4160,85 @@
       document.getElementById('stat-modal').classList.add('hidden');
     }
 
+    var _hourlyDetailCache = [];
+
+    function showHourDetail(idx) {
+      var d = _hourlyDetailCache[idx];
+      if (!d) return;
+      var modal = document.getElementById('hour-modal');
+      if (!modal) return;
+
+      var score = d.score;
+      var scoreColor = score >= 85 ? '#22c55e' : score >= 60 ? '#eab308' : score >= 40 ? '#f97316' : '#ef4444';
+      var scoreLabel = score >= 85 ? t('score_excellent') : score >= 60 ? t('score_good') : score >= 40 ? t('score_caution') : t('score_danger');
+
+      // Header
+      document.getElementById('hm-header').innerHTML =
+        '<div class="flex-shrink-0">' + wmoWeatherIcon(d.code, 48) + '</div>' +
+        '<div class="flex-1">' +
+        '<div class="text-xs text-muted tracking-widest font-semibold uppercase">' + (d.isNow ? t('now_lbl') : d.timeLabel) + '</div>' +
+        '<div class="font-display text-3xl font-bold text-gray-100 leading-none">' + Math.round(d.temp) + '°<span class="text-base text-muted font-normal ml-1">' + t('feels') + ' ' + Math.round(d.feels) + '°</span></div>' +
+        '<div class="text-sm text-muted mt-0.5">' + wmoDesc(d.code) + '</div>' +
+        '</div>' +
+        '<div class="flex-shrink-0 text-right">' +
+        '<div class="font-display text-2xl font-bold" style="color:' + scoreColor + '">' + score + '</div>' +
+        '<div class="text-xs" style="color:' + scoreColor + '">' + scoreLabel + '</div>' +
+        '</div>';
+
+      // Score bar
+      document.getElementById('hm-score-bar').innerHTML =
+        '<div class="w-full h-2 rounded-full bg-bg overflow-hidden"><div class="h-2 rounded-full transition-all" style="width:' + score + '%;background:' + scoreColor + '"></div></div>';
+
+      // Detail grid
+      var rows = [];
+      var windDir = d.windDir != null ? _windDirArrow(d.windDir) : '';
+      rows.push({ icon: 'wind', label: t('gusts'), val: Math.round(d.gusts) + ' km/h' });
+      rows.push({ icon: 'navigation', label: t('wind_lbl') || 'Wind', val: Math.round(d.wind) + ' km/h ' + windDir });
+      rows.push({ icon: 'droplets', label: t('rain_prob_lbl') || 'Rain prob.', val: (d.precipProb || 0) + '%' });
+      rows.push({ icon: 'cloud-rain', label: t('precip_lbl') || 'Precip.', val: (d.precip || 0).toFixed(1) + ' mm' });
+      if (d.humidity != null) rows.push({ icon: 'droplets', label: t('humidity_lbl') || 'Humidity', val: Math.round(d.humidity) + '%' });
+      if (d.visibility != null) rows.push({ icon: 'eye', label: t('visibility_lbl') || 'Visibility', val: (Math.round(d.visibility / 100) / 10) + ' km' });
+      if (d.uv != null && d.uv > 0) rows.push({ icon: 'sun', label: 'UV', val: d.uv.toFixed(0) + ' — ' + uvLabel(d.uv) });
+      if (d.pressure != null) rows.push({ icon: 'gauge', label: t('pressure_lbl') || 'Pressure', val: Math.round(d.pressure) + ' hPa' });
+      if (d.dewPoint != null) rows.push({ icon: 'thermometer', label: t('dew_point_lbl') || 'Dew point', val: Math.round(d.dewPoint) + '°C' });
+      if (d.cloudCover != null) rows.push({ icon: 'cloud', label: t('cloud_cover_lbl') || 'Cloud cover', val: d.cloudCover + '%' });
+
+      document.getElementById('hm-grid').innerHTML = rows.map(function(r) {
+        return '<div class="bg-bg rounded-xl p-3 flex items-center gap-2">' +
+          '<i data-lucide="' + r.icon + '" class="text-muted flex-shrink-0" style="width:15px;height:15px"></i>' +
+          '<div><div class="text-xs text-muted leading-none mb-0.5">' + r.label + '</div>' +
+          '<div class="text-sm font-semibold text-gray-100">' + r.val + '</div></div>' +
+          '</div>';
+      }).join('');
+
+      // Gear
+      var gear = gearRecommendationClient(d.feels, d.gusts, d.precip, d.code);
+      document.getElementById('hm-gear').innerHTML =
+        '<div class="text-xs text-muted tracking-widest uppercase font-semibold mb-2">' + t('gear_title') + '</div>' +
+        gearRecommendationHtml(gear);
+
+      modal.classList.remove('hidden');
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function closeHourModal() {
+      var modal = document.getElementById('hour-modal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    function _windDirArrow(deg) {
+      var dirs = ['N','NE','E','SE','S','SV','V','NV'];
+      return dirs[Math.round(deg / 45) % 8];
+    }
+
+    function uvLabel(uv) {
+      if (uv >= 11) return t('uv_extreme') || 'Extreme';
+      if (uv >= 8) return t('uv_very_high') || 'Very High';
+      if (uv >= 6) return t('uv_high') || 'High';
+      if (uv >= 3) return t('uv_moderate') || 'Moderate';
+      return t('uv_low') || 'Low';
+    }
+
     function toggleDay(idx) {
       var det = document.getElementById('det-' + idx);
       var arr = document.getElementById('arr-' + idx);
