@@ -2386,24 +2386,43 @@
       if (val.length < 2) { drop.innerHTML = ''; drop.classList.add('hidden'); return; }
       _geoTimers[inputId] = setTimeout(async function() {
         try {
-          // Nominatim covers villages, communes, all OSM data
+          // countrycodes=ro → prioritize Romania but also show foreign results
+          // limit=10 → enough to show duplicates (same name, different județ)
           var url = 'https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(val)
-            + '&format=json&limit=6&addressdetails=1&accept-language=' + _lang;
-          var resp = await fetch(url, { headers: { 'Accept-Language': _lang } });
+            + '&format=json&limit=10&addressdetails=1&countrycodes=ro&accept-language=ro';
+          var resp = await fetch(url, { headers: { 'Accept-Language': 'ro' } });
           var data = await resp.json();
+          // If nothing in RO, retry without country restriction
+          if (!data || !data.length) {
+            var url2 = 'https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(val)
+              + '&format=json&limit=6&addressdetails=1&accept-language=' + _lang;
+            var resp2 = await fetch(url2);
+            data = await resp2.json();
+          }
           if (!data || !data.length) { drop.classList.add('hidden'); return; }
           drop.innerHTML = data.map(function(r) {
             var addr = r.address || {};
-            var parts = [r.name || addr.village || addr.town || addr.city || r.display_name.split(',')[0]];
-            if (addr.county || addr.state) parts.push(addr.county || addr.state);
-            if (addr.country_code) parts.push(addr.country_code.toUpperCase());
-            var label = parts.filter(Boolean).join(', ');
-            var name = r.name || addr.village || addr.town || addr.city || r.display_name.split(',')[0];
+            // Extract locality name
+            var name = r.name || addr.village || addr.hamlet || addr.suburb
+              || addr.town || addr.city || r.display_name.split(',')[0];
+            // Extract judet (county) — Nominatim returns it as addr.county
+            var county = addr.county || addr.state || '';
+            // Strip "Județul " prefix if present
+            county = county.replace(/^Jude[tț]ul\s+/i, '');
+            // Type label
+            var typeMap = { village: 'Comună', hamlet: 'Cătun', town: 'Oraș', city: 'Municipiu', suburb: 'Cartier' };
+            var typeLabel = typeMap[addr.village ? 'village' : addr.hamlet ? 'hamlet' : addr.town ? 'town' : addr.city ? 'city' : ''] || '';
+            var countryLabel = (addr.country_code && addr.country_code.toUpperCase() !== 'RO') ? ' · ' + addr.country_code.toUpperCase() : '';
             var safe = name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-            return '<div class="geo-suggestion px-3 py-2 text-sm text-gray-200 border-b border-border/40 last:border-0"'
-              + ' onclick="selectGeoSuggestion(\'' + inputId + '\',\'' + dropId + '\',\'' + safe + '\')">'
-              + '<div>' + label + '</div>'
-              + '<div class="text-xs text-muted/60 truncate">' + (r.display_name || '') + '</div>'
+            var fullSafe = (name + (county ? ', ' + county : '')).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+            return '<div class="geo-suggestion px-3 py-2 text-sm text-gray-200 border-b border-border/40 last:border-0 cursor-pointer hover:bg-accent/10"'
+              + ' onclick="selectGeoSuggestion(\'' + inputId + '\',\'' + dropId + '\',\'' + fullSafe + '\')">'
+              + '<div class="flex items-baseline gap-2">'
+              + '<span class="font-medium">' + name + '</span>'
+              + (county ? '<span class="text-xs text-accent/80 font-semibold">' + county + '</span>' : '')
+              + (typeLabel ? '<span class="text-xs text-muted/60">' + typeLabel + '</span>' : '')
+              + countryLabel
+              + '</div>'
               + '</div>';
           }).join('');
           drop.classList.remove('hidden');
