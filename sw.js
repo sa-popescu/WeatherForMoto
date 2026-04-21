@@ -102,6 +102,48 @@ self.addEventListener('fetch', function (e) {
         || url.hostname === 'api.met.no'
         || url.hostname === 'nominatim.openstreetmap.org';
 
+    // Weather endpoint: network-first with 6h offline fallback cache
+    var isWeatherApi = url.pathname.startsWith('/weather') || url.pathname.startsWith('/geocode');
+    if (isWeatherApi && e.request.method === 'GET') {
+        e.respondWith(
+            fetch(e.request).then(function (resp) {
+                if (resp && resp.status === 200) {
+                    var clone = resp.clone();
+                    caches.open(WEATHER_CACHE).then(function (c) {
+                        // Store with timestamp header
+                        resp.clone().blob().then(function(body) {
+                            var headers = new Headers(resp.headers);
+                            headers.set('x-sw-cached-at', String(Date.now()));
+                            var stamped = new Response(body, { status: resp.status, statusText: resp.statusText, headers: headers });
+                            c.put(e.request, stamped);
+                        });
+                    });
+                    return clone;
+                }
+                return resp;
+            }).catch(function () {
+                return caches.open(WEATHER_CACHE).then(function (c) {
+                    return c.match(e.request).then(function (cached) {
+                        if (!cached) return new Response(JSON.stringify({ error: 'offline', cached: false }), { status: 503, headers: { 'Content-Type': 'application/json' } });
+                        var cachedAt = parseInt(cached.headers.get('x-sw-cached-at') || '0', 10);
+                        var age = Date.now() - cachedAt;
+                        if (age > WEATHER_TTL_MS) {
+                            return new Response(JSON.stringify({ error: 'cache_expired', cached: true, age_h: Math.round(age / 3600000) }), { status: 503, headers: { 'Content-Type': 'application/json' } });
+                        }
+                        // Clone with extra header so app knows it's cached
+                        return cached.blob().then(function(body) {
+                            var h = new Headers(cached.headers);
+                            h.set('x-sw-offline', 'true');
+                            h.set('x-sw-age-min', String(Math.round(age / 60000)));
+                            return new Response(body, { status: 200, headers: h });
+                        });
+                    });
+                });
+            })
+        );
+        return;
+    }
+
     if (isApi) {
         e.respondWith(
             fetch(e.request).catch(function () {
