@@ -2550,7 +2550,7 @@
       if (!routes || !geoResults || !depDt) return;
       var route = routes[idx];
       var resultEl = document.getElementById('route-result');
-      if (resultEl) resultEl.innerHTML = '<div class="text-muted text-sm py-4 text-center pulse-anim">⏳ Se încarcă meteo pentru traseul ales…</div>';
+      if (resultEl) resultEl.innerHTML = '<div class="text-muted text-sm py-4 text-center pulse-anim">' + t('route_loading_wx') + '</div>';
       try {
         var waypoints = _buildRouteWaypoints(route, geoResults, depDt);
         var weatherResults = await Promise.all(waypoints.map(function(wp) { return fetchWaypointWeather(wp.lat, wp.lon, wp.eta); }));
