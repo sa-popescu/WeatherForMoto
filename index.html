@@ -2408,7 +2408,7 @@
       if (!resp.ok) throw new Error('OSRM HTTP ' + resp.status);
       var data = await resp.json();
       if (data.code !== 'Ok' || !data.routes || !data.routes.length)
-        throw new Error('Traseul nu a putut fi calculat pe drumuri reale.');
+        throw new Error(t('route_no_route'));
       return data.routes.map(function(route) {
         var geometry = route.geometry.coordinates.map(function(c) { return { lat: c[1], lon: c[0] }; });
         var legs = (route.legs || []).map(function(l) {
