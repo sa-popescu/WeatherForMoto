@@ -4368,7 +4368,7 @@
         html += '<div class="flex-shrink-0 text-gray-100" title="' + day.description + '">' + wmoWeatherIcon(day.weather_code, 28) + '</div>';
         html += '<div class="flex-shrink-0 w-14 sm:w-20">'
           + '<div class="font-display text-sm sm:text-lg font-bold tracking-wide text-gray-100">' + dname + '</div>'
-          + '<div class="text-xs text-muted">' + date.toLocaleDateString("ro-RO", { day: "numeric", month: "short" }) + '</div>'
+          + '<div class="text-xs text-muted">' + date.toLocaleDateString(_lang === 'en' ? 'en-GB' : 'ro-RO', { day: "numeric", month: "short" }) + '</div>'
           + '</div>';
         html += '<div class="flex-1 min-w-0">'
           + '<div class="flex items-center gap-1">'
