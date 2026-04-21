@@ -2576,7 +2576,11 @@
         _routeGeos = geoResults;
         _routeDepDt = depDt;
 
-        renderRouteAlternatives(routes, geoResults, depDt);
+        // Show alternatives immediately, then enrich with weather scores in background
+        renderRouteAlternatives(routes, geoResults, depDt, null);
+        Promise.all(routes.map(function(r) { return _fetchRoutePreviewScore(r, depDt); }))
+          .then(function(scores) { renderRouteAlternatives(routes, geoResults, depDt, scores); })
+          .catch(function() {});
       } catch (e) {
         clearRoutePanels();
         if (resultEl) resultEl.innerHTML = '<div class="text-danger text-sm py-2 p-4 rounded-xl border border-danger bg-danger/10">⚠️ Eroare: ' + e.message + '</div>';
