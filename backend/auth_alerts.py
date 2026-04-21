@@ -374,6 +374,12 @@ def init_db() -> None:
             "severity",
             "ALTER TABLE alert_prefs ADD COLUMN severity TEXT NOT NULL DEFAULT 'medium'",
         )
+        _ensure_column(
+            conn,
+            "alert_prefs",
+            "alert_states",
+            "ALTER TABLE alert_prefs ADD COLUMN alert_states TEXT",
+        )
         conn.commit()
     finally:
         conn.close()
