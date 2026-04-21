@@ -1277,7 +1277,7 @@
       var email = (emailEl && emailEl.value || '').trim().toLowerCase();
       var password = (passEl && passEl.value || '').trim();
 
-      if (!email || !password) { alert('Completează email și parolă.'); return; }
+      if (!email || !password) { alert(t('acc_fill_email_pass')); return; }
       try {
         var resp = await fetch(_api('/auth/login'), {
           method: 'POST',
@@ -1285,13 +1285,13 @@
           body: JSON.stringify({ email: email, password: password })
         });
         var data = await resp.json();
-        if (!resp.ok) throw new Error(data.detail || 'Autentificare eșuată.');
+        if (!resp.ok) throw new Error(data.detail || t('acc_err_login'));
         _setAuth(data.token, data.user && data.user.email ? data.user.email : email);
         _setUserName(data.user && data.user.display_name ? data.user.display_name : '');
         await _setDefaultPrefs();
         await refreshAccountState();
       } catch (e) {
-        alert('Eroare autentificare: ' + (e && e.message || e));
+        alert(t('acc_err_login') + (e && e.message || e));
       }
     }
 
