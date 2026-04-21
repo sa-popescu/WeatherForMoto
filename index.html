@@ -3076,7 +3076,7 @@
 
     async function reportHazardAtCenter() {
       var token = _authToken();
-      if (!token) { alert('Autentifică-te pentru raportare hazard.'); return; }
+      if (!token) { alert(t('auth_req_hazard')); return; }
       if (!LAST_ROUTE_CTX || !LAST_ROUTE_CTX.waypoints || !LAST_ROUTE_CTX.waypoints.length) return;
       var c = LAST_ROUTE_CTX.waypoints[Math.floor(LAST_ROUTE_CTX.waypoints.length / 2)];
       var type = prompt('Tip hazard (ex: gravel, ice, flood, accident):', 'gravel');
