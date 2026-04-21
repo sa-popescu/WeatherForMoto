@@ -4505,6 +4505,7 @@
       // Hourly scroll — moved here (right after hero)
       html += secTitle(t('sec_hourly'));
       html += '<div class="flex gap-3 overflow-x-auto scroll-x pb-2 mb-2">';
+      _hourlyDetailCache = [];
       hourly.forEach(function (h, idx) {
         var hDate = new Date(h.time);
         var hh = hDate.getHours().toString().padStart(2, "0") + ":00";
@@ -4519,7 +4520,18 @@
         var scoreColor = hs >= 85 ? '#22c55e' : hs >= 60 ? '#eab308' : hs >= 40 ? '#f97316' : '#ef4444';
         var borderCol = hs < 40 ? "border-danger" : rp > 40 ? "border-warn" : idx === 0 ? "border-accent" : "border-border";
         var nowClass = idx === 0 ? "hourly-now border-accent" : "";
-        html += '<div class="hourly-main-card flex-shrink-0 bg-card border ' + borderCol + ' ' + nowClass + ' rounded-xl p-3 w-24 text-center flex flex-col items-center gap-1">';
+        // Cache all data for the detail modal
+        _hourlyDetailCache.push({
+          isNow: idx === 0, timeLabel: hh, temp: slotTemp, feels: slotFeels,
+          gusts: slotGusts, wind: slotWind, code: slotCode, score: hs,
+          precipProb: rp, precip: h.precipitation_mm || 0,
+          humidity: idx === 0 ? c.relative_humidity : h.relative_humidity,
+          visibility: idx === 0 ? c.visibility : h.visibility,
+          uv: h.uv_index, pressure: idx === 0 ? c.surface_pressure : h.surface_pressure,
+          dewPoint: h.dew_point_2m, cloudCover: h.cloud_cover,
+          windDir: idx === 0 ? c.wind_direction_10m : h.wind_direction_10m,
+        });
+        html += '<div class="hourly-main-card flex-shrink-0 bg-card border ' + borderCol + ' ' + nowClass + ' rounded-xl p-3 w-24 text-center flex flex-col items-center gap-1 cursor-pointer active:scale-95 transition-transform" onclick="showHourDetail(' + idx + ')">';
         html += '<div class="text-xs font-semibold tracking-widest ' + (idx === 0 ? 'text-accent' : 'text-muted') + '">' + (idx === 0 ? t('now_lbl') : hh) + '</div>';
         html += '<div class="text-gray-100">' + wmoWeatherIcon(slotCode, 38) + '</div>';
         html += '<div class="hour-temp font-display text-3xl font-bold leading-none text-gray-100">' + Math.round(slotTemp) + '°</div>';
