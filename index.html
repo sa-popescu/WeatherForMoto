@@ -4275,7 +4275,7 @@
 
       // Gear
       var gear = gearRecommendationClient(d.feels, d.gusts, d.precip, d.code);
-      document.getElementById('hm-gear').innerHTML = gearRecommendationHtml(gear);
+      document.getElementById('hm-gear').innerHTML = '<div class="text-xs text-muted tracking-widest uppercase font-semibold mb-2">' + t('gear_title') + '</div>' + gearRecommendationHtml(gear, true);
 
       modal.classList.remove('hidden');
       if (window.lucide) lucide.createIcons();
