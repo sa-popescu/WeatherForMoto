@@ -4680,7 +4680,7 @@
           gusts: slotGusts, wind: slotWind, code: slotCode, score: hs,
           precipProb: rp, precip: h.precipitation_mm || 0,
           humidity: idx === 0 ? c.humidity : h.relative_humidity,
-          visibility: idx === 0 ? (c.visibility_km != null ? c.visibility_km * 1000 : null) : h.visibility,
+          visibility: idx === 0 ? c.visibility_km : (h.visibility != null ? h.visibility / 1000 : null),
           uv: h.uv_index, pressure: idx === 0 ? c.pressure_hpa : h.surface_pressure,
           dewPoint: h.dew_point_2m, cloudCover: h.cloud_cover,
           windDir: idx === 0 ? c.wind_direction_deg : h.wind_direction_10m,
