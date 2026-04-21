@@ -1510,7 +1510,7 @@
     async function togglePushAlerts() {
       var token = _authToken();
       if (!token) {
-        alert('Autentifică-te mai întâi din butonul Cont.');
+        alert(t('auth_req_generic'));
         return;
       }
       if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
