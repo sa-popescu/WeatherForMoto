@@ -760,7 +760,7 @@ async def me(user: SessionUser = Depends(get_current_user)) -> dict[str, Any]:
             (user.user_id,),
         ).fetchone()
         prefs = conn.execute(
-            "SELECT enabled, email_alerts_enabled, email_alert_wind, email_alert_rain, email_alert_rain_probability, email_alert_score, email_alert_temp_low, email_alert_temp_high, email_alert_frost, min_score, max_wind_gust, max_precip, max_rain_probability, min_temp, max_temp, frost_risk_enabled, quiet_hours_enabled, quiet_start_hour, quiet_end_hour, severity, home_lat, home_lon, city FROM alert_prefs WHERE user_id = ?",
+            "SELECT enabled, email_alerts_enabled, email_alert_wind, email_alert_rain, email_alert_rain_probability, email_alert_score, email_alert_temp_low, email_alert_temp_high, email_alert_frost, min_score, max_wind_gust, max_precip, max_rain_probability, min_temp, max_temp, frost_risk_enabled, quiet_hours_enabled, quiet_start_hour, quiet_end_hour, severity, home_lat, home_lon, city, alert_states FROM alert_prefs WHERE user_id = ?",
             (user.user_id,),
         ).fetchone()
         sub_count = conn.execute(
