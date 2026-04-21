@@ -2110,6 +2110,15 @@
         var merged = Object.assign({}, _getAlertSettings(), data.prefs || {});
         _saveAlertSettings(merged);
         _applyAlertSettingsToForm(merged);
+        // Restore alert checkbox states from server if available
+        if (data.prefs && data.prefs.alert_states) {
+          try {
+            var serverStates = JSON.parse(data.prefs.alert_states);
+            try { localStorage.setItem('motoAlerts', JSON.stringify(serverStates)); } catch (_) { }
+            // Re-render checkboxes with restored states
+            renderAlertsForm();
+          } catch (_) { }
+        }
       } catch (_) {
         _applyAlertSettingsToForm(_getAlertSettings());
       }
