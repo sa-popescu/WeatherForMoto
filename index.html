@@ -2821,10 +2821,9 @@
       var h = Math.floor(LAST_ROUTE_CTX.totalHours || 0);
       var m = Math.round(((LAST_ROUTE_CTX.totalHours || 0) - h) * 60);
       el.innerHTML = '<div class="bg-card border border-border rounded-xl p-3 flex flex-wrap items-center gap-2">'
-        + '<span class="text-xs text-muted">Faza 3:</span>'
-        + '<button onclick="saveCurrentRoute()" class="text-xs border border-border rounded-lg px-3 py-1.5 hover:border-accent hover:text-accent transition-colors">💾 Salvează ruta</button>'
-        + '<button onclick="logCurrentRide()" class="text-xs border border-border rounded-lg px-3 py-1.5 hover:border-ok hover:text-ok transition-colors">📈 Log ride</button>'
-        + '<button onclick="reportHazardAtCenter()" class="text-xs border border-border rounded-lg px-3 py-1.5 hover:border-warn hover:text-warn transition-colors">⚠️ Raportează hazard</button>'
+        + '<button onclick="saveCurrentRoute()" class="text-xs border border-border rounded-lg px-3 py-1.5 hover:border-accent hover:text-accent transition-colors">💾 ' + t('route_save') + '</button>'
+        + '<button onclick="logCurrentRide()" class="text-xs border border-border rounded-lg px-3 py-1.5 hover:border-ok hover:text-ok transition-colors">📈 ' + t('route_log') + '</button>'
+        + '<button onclick="reportHazardAtCenter()" class="text-xs border border-border rounded-lg px-3 py-1.5 hover:border-warn hover:text-warn transition-colors">⚠️ ' + t('route_hazard') + '</button>'
         + '<span class="text-xs text-muted ml-auto">~' + dist + ' km · ' + h + 'h ' + m + 'm</span>'
         + '</div>';
     }
