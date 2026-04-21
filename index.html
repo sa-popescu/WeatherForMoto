@@ -1610,6 +1610,7 @@
 
     var LAT = 44.4268, LON = 26.1025, CITY = "București";
     var LAST_ROUTE_CTX = null;
+    var _omIsOffline = false, _omOfflineAge = null;
     var ROUTE_MAP = null;
     var _routeAlts = null;   // array of OSRM route objects (alternatives)
     var _routeGeos = null;   // geocoded stops for current query
