@@ -4535,11 +4535,11 @@
           isNow: idx === 0, timeLabel: hh, temp: slotTemp, feels: slotFeels,
           gusts: slotGusts, wind: slotWind, code: slotCode, score: hs,
           precipProb: rp, precip: h.precipitation_mm || 0,
-          humidity: idx === 0 ? c.relative_humidity : h.relative_humidity,
-          visibility: idx === 0 ? c.visibility : h.visibility,
-          uv: h.uv_index, pressure: idx === 0 ? c.surface_pressure : h.surface_pressure,
+          humidity: idx === 0 ? c.humidity : h.relative_humidity,
+          visibility: idx === 0 ? (c.visibility_km != null ? c.visibility_km * 1000 : null) : h.visibility,
+          uv: h.uv_index, pressure: idx === 0 ? c.pressure_hpa : h.surface_pressure,
           dewPoint: h.dew_point_2m, cloudCover: h.cloud_cover,
-          windDir: idx === 0 ? c.wind_direction_10m : h.wind_direction_10m,
+          windDir: idx === 0 ? c.wind_direction_deg : h.wind_direction_10m,
         });
         html += '<div class="hourly-main-card flex-shrink-0 bg-card border ' + borderCol + ' ' + nowClass + ' rounded-xl p-3 w-24 text-center flex flex-col items-center gap-1 cursor-pointer active:scale-95 transition-transform" onclick="showHourDetail(' + idx + ')">';
         html += '<div class="text-xs font-semibold tracking-widest ' + (idx === 0 ? 'text-accent' : 'text-muted') + '">' + (idx === 0 ? t('now_lbl') : hh) + '</div>';
