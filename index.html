@@ -2755,7 +2755,7 @@
       html += '<span>📍 <strong class="text-gray-200">' + originName + '</strong> → <strong class="text-gray-200">' + destName + '</strong></span>';
       html += '<span>📏 <strong class="text-gray-200">' + Math.round(totalDistKm) + ' km</strong> <span class="text-xs text-ok">' + t('route_real_roads') + '</span></span>';
       html += '<span>⏱️ <strong class="text-gray-200">~' + durH + 'h ' + durM + 'min</strong></span>';
-      html += '<span>🕐 Plecare: <strong class="text-gray-200">' + depDt.toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" }) + '</strong></span>';
+      html += '<span>🕐 ' + t('route_depart') + ': <strong class="text-gray-200">' + depDt.toLocaleTimeString(_lang === 'en' ? 'en-GB' : 'ro-RO', { hour: "2-digit", minute: "2-digit" }) + '</strong></span>';
       html += '</div>';
       html += '<div class="flex gap-3 overflow-x-auto scroll-x pb-2">';
       waypoints.forEach(function (wp, idx) {
