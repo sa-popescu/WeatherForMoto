@@ -1966,6 +1966,10 @@
         var k = el.getAttribute('data-i18n-ph');
         var v = t(k); if (v && v !== k) el.placeholder = v;
       });
+      document.querySelectorAll('[data-i18n-title]').forEach(function(el) {
+        var k = el.getAttribute('data-i18n-title');
+        var v = t(k); if (v && v !== k) el.title = v;
+      });
     }
     var DAYS = [t('d0'),t('d1'),t('d2'),t('d3'),t('d4'),t('d5'),t('d6')];
     var _refreshSecondsLeft = 0;
