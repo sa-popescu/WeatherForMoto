@@ -311,6 +311,15 @@
         justify-content: center;
       }
 
+      .geo-dropdown {
+        position: absolute; left: 0; right: 0; top: 100%; z-index: 200;
+        background: var(--color-card); border: 1px solid var(--color-border);
+        border-radius: 0.5rem; margin-top: 2px; overflow: hidden;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      }
+      .geo-suggestion:hover { background: rgba(249,115,22,0.12); }
+      .stop-wrap { position: relative; flex: 1; }
+
       .hourly-main-card {
         width: 5rem;
         padding: 0.55rem;
