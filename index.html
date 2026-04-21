@@ -2536,11 +2536,11 @@
       return recs;
     }
 
-    function gearRecommendationHtml(recs) {
+    function gearRecommendationHtml(recs, noTitle) {
       if (!recs || !recs.length) return '';
       var p = getProfile();
       var motoTypeLabel = { naked: 'Naked / Roadster', touring: 'Touring', enduro: 'Enduro / Adventure', sport: 'Supersport', scooter: 'Scooter' }[p.motoType] || p.motoType;
-      var html = secTitle(t('gear_title'));
+      var html = noTitle ? '' : secTitle(t('gear_title'));
       html += '<div class="bg-card border border-border rounded-xl p-4 mb-4">';
       html += '<div class="flex items-center gap-2 mb-3">'
         + '<span class="text-xs text-muted tracking-widest">🏍️ ' + motoTypeLabel + ' &middot; ' + t('gear_comfort') + ' <strong class="text-gray-300">' + p.comfortTemp + '°C</strong></span>'
