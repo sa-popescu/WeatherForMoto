@@ -2950,12 +2950,44 @@
           body: JSON.stringify({ name: name, stops: stops, total_distance_km: LAST_ROUTE_CTX.totalDistKm || 0 }),
         });
         var data = await resp.json();
-        if (!resp.ok) throw new Error(data.detail || 'Nu am putut salva ruta.');
+        if (!resp.ok) throw new Error(data.detail || t('route_save_err'));
         loadSavedRoutes();
-        alert('Ruta a fost salvată.');
+        alert(t('route_saved_ok'));
       } catch (e) {
-        alert('Eroare salvare rută: ' + (e && e.message || e));
+        alert(t('route_save_err') + ': ' + (e && e.message || e));
       }
+    }
+
+    function exportRouteGPX() {
+      if (!LAST_ROUTE_CTX || !LAST_ROUTE_CTX.geometry || !LAST_ROUTE_CTX.geometry.length) {
+        alert(t('route_no_route')); return;
+      }
+      var origin = _routeStartName();
+      var dest = _routeEndName();
+      var name = origin + ' → ' + dest;
+      var pts = LAST_ROUTE_CTX.geometry;
+      var trkpts = pts.map(function(p) {
+        return '    <trkpt lat="' + p.lat.toFixed(6) + '" lon="' + p.lon.toFixed(6) + '"></trkpt>';
+      }).join('\n');
+      // Also add waypoints for named stops
+      var wpts = (LAST_ROUTE_CTX.waypoints || []).filter(function(wp) { return wp.isStop && wp.name && wp.name.indexOf('~') !== 0; }).map(function(wp) {
+        return '  <wpt lat="' + wp.lat.toFixed(6) + '" lon="' + wp.lon.toFixed(6) + '"><name>' + wp.name.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</name></wpt>';
+      }).join('\n');
+      var gpx = '<?xml version="1.0" encoding="UTF-8"?>\n'
+        + '<gpx version="1.1" creator="MotoMeteo" xmlns="http://www.topografix.com/GPX/1/1">\n'
+        + '  <metadata><name>' + name.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</name></metadata>\n'
+        + (wpts ? wpts + '\n' : '')
+        + '  <trk><name>' + name.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</name><trkseg>\n'
+        + trkpts + '\n'
+        + '  </trkseg></trk>\n</gpx>';
+      var blob = new Blob([gpx], { type: 'application/gpx+xml' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = (origin + '-' + dest).replace(/[^a-z0-9]/gi, '_').toLowerCase() + '.gpx';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function() { URL.revokeObjectURL(url); a.remove(); }, 1000);
     }
 
     async function loadSavedRoutes() {
