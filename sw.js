@@ -103,7 +103,9 @@ self.addEventListener('fetch', function (e) {
         || url.hostname === 'nominatim.openstreetmap.org';
 
     // Weather endpoint: network-first with 6h offline fallback cache
-    var isWeatherApi = url.pathname.startsWith('/weather') || url.pathname.startsWith('/geocode');
+    var isWeatherApi = url.pathname.startsWith('/weather') || url.pathname.startsWith('/geocode')
+        || url.hostname.endsWith('open-meteo.com')
+        || url.hostname === 'api.met.no';
     if (isWeatherApi && e.request.method === 'GET') {
         e.respondWith(
             fetch(e.request).then(function (resp) {
