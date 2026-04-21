@@ -2262,7 +2262,7 @@
           + '<div class="p-3 rounded-xl border border-border bg-bg"><div class="text-xs text-muted">' + fb.name + '</div><div class="text-lg font-display font-bold">' + (cb.moto_score || 0) + '/100</div><div class="text-xs text-muted">' + (cb.temperature != null ? cb.temperature + '°C' : '—') + ' · ' + (cb.wind_gusts_kmh != null ? Math.round(cb.wind_gusts_kmh) + ' km/h' : '—') + '</div></div>'
           + '</div><div class="text-xs text-ok mt-2">Recomandare: ' + winner + '</div>';
       } catch (e) {
-        out.innerHTML = '<div class="text-xs text-danger">' + (e && e.message || 'Eroare comparator') + '</div>';
+        out.innerHTML = '<div class="text-xs text-danger">' + (e && e.message || t('acc_err_generic')) + '</div>';
       }
     }
 
