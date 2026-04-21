@@ -1157,9 +1157,9 @@
       if (!btn) return;
       var email = '';
       try { email = localStorage.getItem(USER_EMAIL_KEY) || ''; } catch (_) { }
-      btn.title = email ? ('Cont: ' + email) : 'Cont';
+      btn.title = email ? (t('acc_cont') + ': ' + email) : t('acc_cont');
       var txt = btn.querySelector('span:last-child');
-      if (txt) txt.textContent = email ? 'Cont ON' : 'Cont';
+      if (txt) txt.textContent = email ? t('acc_cont_on') : t('acc_cont');
     }
 
     function openAccountModal() {
