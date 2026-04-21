@@ -95,6 +95,7 @@ class AlertPrefsPayload(BaseModel):
     home_lat: float | None = Field(default=None, ge=-90, le=90)
     home_lon: float | None = Field(default=None, ge=-180, le=180)
     city: str | None = None
+    alert_states: str | None = None  # JSON string of per-alert-type enabled states
 
 
 class PushSubscriptionPayload(BaseModel):
