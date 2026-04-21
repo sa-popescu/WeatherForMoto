@@ -503,14 +503,22 @@
       <div id="route-stops-list" class="mb-3">
         <div class="stop-row flex items-center gap-2 mb-2">
           <span class="text-xl flex-shrink-0" title="Start">🟢</span>
-          <input id="route-stop-0" type="text" data-i18n-ph="planner_departure" placeholder="Plecare..."
-            class="route-stop-input w-full bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent placeholder-muted transition-colors" />
+          <div class="stop-wrap">
+            <input id="route-stop-0" type="text" data-i18n-ph="planner_departure" placeholder="Plecare..."
+              oninput="onStopInput('route-stop-0','geo-drop-0')" autocomplete="off"
+              class="route-stop-input w-full bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent placeholder-muted transition-colors" />
+            <div id="geo-drop-0" class="geo-dropdown hidden"></div>
+          </div>
           <span class="w-8 flex-shrink-0"></span>
         </div>
         <div class="stop-row flex items-center gap-2 mb-2">
           <span class="text-xl flex-shrink-0" title="Destinație">🔴</span>
-          <input id="route-stop-1" type="text" data-i18n-ph="planner_destination" placeholder="Destinație..."
-            class="route-stop-input w-full bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent placeholder-muted transition-colors" />
+          <div class="stop-wrap">
+            <input id="route-stop-1" type="text" data-i18n-ph="planner_destination" placeholder="Destinație..."
+              oninput="onStopInput('route-stop-1','geo-drop-1')" autocomplete="off"
+              class="route-stop-input w-full bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent placeholder-muted transition-colors" />
+            <div id="geo-drop-1" class="geo-dropdown hidden"></div>
+          </div>
           <span class="w-8 flex-shrink-0"></span>
         </div>
       </div>
