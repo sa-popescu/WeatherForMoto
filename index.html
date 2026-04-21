@@ -554,6 +554,18 @@
   </section>
 
   <!-- Stat detail modal -->
+  <!-- Hourly detail modal -->
+  <div id="hour-modal" class="hidden fixed inset-0 z-[400] flex items-center justify-center p-4" onclick="closeHourModal()">
+    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm"></div>
+    <div class="relative bg-card border border-border rounded-2xl p-5 w-full max-w-sm shadow-2xl" onclick="event.stopPropagation()">
+      <button onclick="closeHourModal()" class="absolute top-3 right-3 text-muted hover:text-gray-200 transition-colors"><i data-lucide="x" style="width:18px;height:18px"></i></button>
+      <div id="hm-header" class="flex items-center gap-3 mb-4"></div>
+      <div id="hm-score-bar" class="mb-4"></div>
+      <div id="hm-grid" class="grid grid-cols-2 gap-2"></div>
+      <div id="hm-gear" class="mt-4 pt-4 border-t border-border"></div>
+    </div>
+  </div>
+
   <div id="stat-modal" class="hidden fixed inset-0 z-[300] flex items-center justify-center p-4" onclick="closeStatModal()">
     <div class="absolute inset-0 bg-black/75 backdrop-blur-sm"></div>
     <div class="relative bg-card border border-border rounded-2xl p-6 w-full max-w-xs shadow-2xl" onclick="event.stopPropagation()">
