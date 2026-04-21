@@ -2620,7 +2620,7 @@
       if (!resultEl) return;
       var durH = Math.floor(totalHours);
       var durM = Math.round((totalHours - durH) * 60);
-      var altLabels = ['🏆 Recomandat', '↪ Alternativ 1', '↪ Alternativ 2'];
+      var altLabels = [t('route_recommended'), t('route_alt') + ' 1', t('route_alt') + ' 2'];
       var html = '<div class="bg-card border border-border rounded-xl p-4 mb-3">';
       // Header with back button if alternatives exist
       if (_routeAlts && _routeAlts.length > 1) {
