@@ -5120,9 +5120,10 @@
       var sharedCity = params.get('q');
       if (sharedCity) {
         history.replaceState({}, '', window.location.pathname);
-        var inp = document.getElementById('city-input');
+        var inp = document.getElementById('city-in');
         if (inp) inp.value = sharedCity;
-        CITY = sharedCity;
+        searchCity();
+        return;
       }
       loadWeather();
     })();
