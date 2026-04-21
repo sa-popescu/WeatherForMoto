@@ -686,7 +686,8 @@ async def _fetch_openmeteo(
         ),
         "hourly": (
             "temperature_2m,apparent_temperature,precipitation_probability,"
-            "precipitation,weather_code,wind_speed_10m,wind_gusts_10m,uv_index"
+            "precipitation,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,"
+            "uv_index,relative_humidity_2m,surface_pressure,dew_point_2m,cloud_cover,visibility"
         ),
         "daily": (
             "weather_code,temperature_2m_max,temperature_2m_min,"
