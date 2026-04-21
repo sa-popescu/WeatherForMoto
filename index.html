@@ -2229,11 +2229,18 @@
       var rows = document.querySelectorAll('#route-stops-list .stop-row');
       if (rows.length >= 5) { alert('Maxim 5 opriri permise.'); return; }
       var list = document.getElementById('route-stops-list');
-      var lastRow = list.lastElementChild; // destination row – keep it last
+      var lastRow = list.lastElementChild;
+      var idx = rows.length;
       var newRow = document.createElement('div');
       newRow.className = 'stop-row flex items-center gap-2 mb-2';
+      var inputId = 'route-stop-mid-' + idx, dropId = 'geo-drop-mid-' + idx;
       newRow.innerHTML = '<span class="text-xl flex-shrink-0">📍</span>'
-        + '<input type="text" placeholder="Oprire intermediară..." class="route-stop-input w-full bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent placeholder-muted transition-colors" />'
+        + '<div class="stop-wrap">'
+        + '<input id="' + inputId + '" type="text" placeholder="Oprire intermediară..." autocomplete="off"'
+        + ' oninput="onStopInput(\'' + inputId + '\',\'' + dropId + '\')"'
+        + ' class="route-stop-input w-full bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent placeholder-muted transition-colors" />'
+        + '<div id="' + dropId + '" class="geo-dropdown hidden"></div>'
+        + '</div>'
         + '<button onclick="removeRouteStop(this)" class="w-8 flex-shrink-0 text-muted hover:text-danger text-sm transition-colors" title="Șterge">✕</button>';
       list.insertBefore(newRow, lastRow);
       if (rows.length + 1 >= 5) {
