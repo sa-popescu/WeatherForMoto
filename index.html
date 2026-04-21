@@ -3380,19 +3380,30 @@
       return v !== undefined ? v : null;
     }
     async function geocodeDirect(city) {
-      var resp = await fetch(
-        "https://geocoding-api.open-meteo.com/v1/search?name=" +
-        encodeURIComponent(city) + "&count=1&language=ro"
+      // Try Open-Meteo first (fast), then Nominatim (covers villages/communes)
+      try {
+        var resp = await fetch(
+          "https://geocoding-api.open-meteo.com/v1/search?name=" + encodeURIComponent(city) + "&count=1&language=" + _lang
+        );
+        if (resp.ok) {
+          var data = await resp.json();
+          if (data.results && data.results.length) {
+            var r = data.results[0];
+            return { lat: r.latitude, lon: r.longitude, name: r.name, country: r.country_code || "", timezone: r.timezone || "auto" };
+          }
+        }
+      } catch (_) {}
+      // Fallback: Nominatim (full OSM — finds villages, communes, etc.)
+      var nResp = await fetch(
+        "https://nominatim.openstreetmap.org/search?q=" + encodeURIComponent(city)
+        + "&format=json&limit=1&addressdetails=1&accept-language=" + _lang
       );
-      if (!resp.ok) throw new Error("Geocoding eșuat: HTTP " + resp.status);
-      var data = await resp.json();
-      if (!data.results || !data.results.length)
-        throw new Error("Orașul '" + city + "' nu a fost găsit.");
-      var r = data.results[0];
-      return {
-        lat: r.latitude, lon: r.longitude, name: r.name,
-        country: r.country_code || "", timezone: r.timezone || "auto"
-      };
+      if (!nResp.ok) throw new Error("Geocoding failed");
+      var nData = await nResp.json();
+      if (!nData || !nData.length) throw new Error("'" + city + "' not found.");
+      var n = nData[0];
+      var nName = (n.address && (n.address.village || n.address.town || n.address.city || n.address.county)) || n.display_name.split(',')[0];
+      return { lat: parseFloat(n.lat), lon: parseFloat(n.lon), name: nName, country: (n.address && n.address.country_code) || "", timezone: "auto" };
     }
 
     // -----------------------------------------------------------------------
