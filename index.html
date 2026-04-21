@@ -2215,7 +2215,7 @@
       var token = _authToken();
       if (token) {
         try {
-          await fetch(_api('/me/prefs'), {
+          var resp = await fetch(_api('/me/prefs'), {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
