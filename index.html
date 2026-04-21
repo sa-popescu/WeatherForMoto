@@ -3601,8 +3601,8 @@
         fetchOpenMeteoModel(lat, lon, 'gfs_seamless'),
         fetchOpenMeteoModel(lat, lon, 'icon_global'),
       ]);
-      var _omIsOffline = omResp.headers && omResp.headers.get('x-sw-offline') === 'true';
-      var _omOfflineAge = _omIsOffline ? (omResp.headers.get('x-sw-age-min') || '?') : null;
+      _omIsOffline = omResp.headers && omResp.headers.get('x-sw-offline') === 'true';
+      _omOfflineAge = _omIsOffline ? (omResp.headers.get('x-sw-age-min') || '?') : null;
       if (!omResp.ok) throw new Error("Open-Meteo HTTP " + omResp.status);
       var om = await omResp.json();
       if (om.error) throw new Error("Open-Meteo: " + (om.reason || "eroare"));
