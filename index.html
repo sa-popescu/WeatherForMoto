@@ -2768,7 +2768,7 @@
         var prec = w.precipitation_mm || 0;
         html += '<div class="flex-shrink-0 bg-card border ' + borderCls + ' rounded-xl p-3 w-40 flex flex-col items-center gap-1">';
         html += '<div class="text-xs font-bold tracking-widest ' + (idx === 0 ? 'text-ok' : idx === waypoints.length - 1 ? 'text-accent' : 'text-muted') + '">'
-          + (idx === 0 ? 'START' : idx === waypoints.length - 1 ? 'SOSIRE' : wp.distKm + ' km') + '</div>';
+          + (idx === 0 ? t('route_start_lbl') : idx === waypoints.length - 1 ? t('route_arrival_lbl') : wp.distKm + ' km') + '</div>';
         html += '<div class="text-xs text-gray-200 font-semibold text-center leading-tight">' + wp.name + '</div>';
         html += '<div class="text-xs text-muted">ETA ' + etaStr + '</div>';
         html += '<div style="font-size:2rem;line-height:1.2">' + w.icon + '</div>';
