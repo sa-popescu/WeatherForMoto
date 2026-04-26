@@ -1,5 +1,5 @@
 // MotoMeteo Service Worker — cache-first strategy for offline support
-var CACHE = 'motometeo-v6';
+var CACHE = 'motometeo-v7';
 var WEATHER_CACHE = 'motometeo-weather-v2';
 var WEATHER_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 var SNOOZED_UNTIL = 0;
@@ -70,9 +70,10 @@ self.addEventListener('fetch', function (e) {
     var url = new URL(e.request.url);
 
     // Always try network first for HTML navigation so users get latest JS/logic.
+    // Use cache:'no-store' so the SW's internal fetch bypasses the HTTP cache entirely.
     if (e.request.mode === 'navigate') {
         e.respondWith(
-            fetch(e.request).then(function (resp) {
+            fetch(e.request, { cache: 'no-store' }).then(function (resp) {
                 if (resp && resp.status === 200) {
                     var clone = resp.clone();
                     caches.open(CACHE).then(function (c) { c.put(e.request, clone); });
