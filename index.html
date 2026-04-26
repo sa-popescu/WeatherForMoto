@@ -532,7 +532,8 @@
         <div>
           <label class="text-xs text-muted tracking-widest uppercase mb-1 block" data-i18n="planner_dep_time">Ora plecării</label>
           <input id="route-departure" type="datetime-local"
-            class="w-full appearance-none bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent transition-colors" />
+            class="w-full appearance-none bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent transition-colors text-left"
+            style="-webkit-appearance:none;color-scheme:dark;min-height:2.5rem;" />
         </div>
         <div>
           <label class="text-xs text-muted tracking-widest uppercase mb-1 block" data-i18n="planner_speed">Viteză medie (km/h)</label>
@@ -2154,7 +2155,23 @@
           _applyAlertSettingsToForm(_getAlertSettings());
           return;
         }
-        var merged = Object.assign({}, _getAlertSettings(), data.prefs || {});
+        // Smart merge: server wins only when it has a non-factory-default value.
+        // If server still has the factory default but local was customized, keep local.
+        var factoryDefaults = {
+          min_score: 45, max_wind_gust: 50, max_precip: 2, max_rain_probability: 70,
+          email_alert_wind: true, email_alert_rain: true, email_alert_rain_probability: true,
+          email_alert_score: true, email_alert_temp_low: true, email_alert_temp_high: true,
+          email_alert_frost: true, min_temp: null, max_temp: null,
+          frost_risk_enabled: true, quiet_hours_enabled: false, quiet_start_hour: 22, quiet_end_hour: 7,
+          moto_type: 'naked', comfort_temp: 20, wind_tolerance: 'medium', rain_tolerance: 'medium',
+        };
+        var local = _getAlertSettings();
+        var server = data.prefs || {};
+        var merged = Object.assign({}, local, server);
+        Object.keys(factoryDefaults).forEach(function(k) {
+          var sv = server[k], lv = local[k], dv = factoryDefaults[k];
+          if (sv == dv && lv != null && lv != dv) merged[k] = lv;
+        });
         _saveAlertSettings(merged);
         _applyAlertSettingsToForm(merged);
         // Restore alert checkbox states from server if available
@@ -5043,7 +5060,7 @@
     }
 
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js?v=6').catch(function () { });
+      navigator.serviceWorker.register('sw.js?v=7').catch(function () { });
     }
 
     function applyTheme() {
