@@ -531,9 +531,14 @@
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
         <div>
           <label class="text-xs text-muted tracking-widest uppercase mb-1 block" data-i18n="planner_dep_time">Ora plecării</label>
-          <input id="route-departure" type="datetime-local"
-            class="w-full appearance-none bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent transition-colors text-left"
-            style="-webkit-appearance:none;color-scheme:dark;min-height:2.5rem;" />
+          <div class="relative">
+            <div id="dep-display"
+                 class="w-full bg-bg border border-border text-gray-100 font-body text-sm px-3 py-2 rounded-lg cursor-pointer hover:border-accent transition-colors select-none"
+                 onclick="var i=document.getElementById('route-departure');if(i.showPicker)i.showPicker();else i.click();">&mdash;</div>
+            <input id="route-departure" type="datetime-local"
+                   class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                   onchange="_updateDepDisplay(this.value)" oninput="_updateDepDisplay(this.value)" />
+          </div>
         </div>
         <div>
           <label class="text-xs text-muted tracking-widest uppercase mb-1 block" data-i18n="planner_speed">Viteză medie (km/h)</label>
@@ -5193,10 +5198,21 @@
         }
       }
     });
+    function _updateDepDisplay(val) {
+      var el = document.getElementById('dep-display');
+      if (!el) return;
+      if (!val) { el.textContent = '—'; return; }
+      try {
+        var d = new Date(val);
+        var lang = (typeof _lang !== 'undefined' && _lang === 'en') ? 'en-GB' : 'ro-RO';
+        el.textContent = d.toLocaleDateString(lang, { day: '2-digit', month: 'short', year: 'numeric' })
+          + ' · ' + d.toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit' });
+      } catch (_) { el.textContent = val; }
+    }
     // Set default departure time for route planner (now, rounded to hour)
     (function () {
       var depEl = document.getElementById('route-departure');
-      if (depEl) { var now = new Date(); now.setMinutes(0, 0, 0); depEl.value = now.toISOString().slice(0, 16); }
+      if (depEl) { var now = new Date(); now.setMinutes(0, 0, 0); depEl.value = now.toISOString().slice(0, 16); _updateDepDisplay(depEl.value); }
       // Pre-seed origin from current city
       var stop0 = document.getElementById('route-stop-0');
       if (stop0 && CITY !== 'București') stop0.value = CITY;
