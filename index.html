@@ -1795,12 +1795,12 @@
         auth_req_stats:'Autentifică-te pentru statistici ride.',
         auth_req_hazard:'Autentifică-te pentru raportare hazard.',
         auth_req_generic:'Autentifică-te mai întâi din butonul Cont.',
-        al_score_low:'Scor Moto < 40', al_score_low_d:'Condiții periculoase',
-        al_wind_high:'Rafale > 50 km/h', al_wind_high_d:'Vânt puternic',
-        al_rain_heavy:'Precipitații > 5 mm/h', al_rain_heavy_d:'Ploaie torențială',
-        al_temp_cold:'Temperatură < 5°C', al_temp_cold_d:'Risc de gheață / îngheț',
-        al_temp_hot:'Temperatură > 35°C', al_temp_hot_d:'Caniculă — hidratare obligatorie',
-        al_rain_prob:'Probabilitate ploaie > 70%', al_rain_prob_d:'Ploaie probabilă',
+        al_score_low:'Scor Moto < {T}', al_score_low_d:'Condiții periculoase',
+        al_wind_high:'Rafale > {T} km/h', al_wind_high_d:'Vânt puternic',
+        al_rain_heavy:'Precipitații > {T} mm/h', al_rain_heavy_d:'Ploaie torențială',
+        al_temp_cold:'Temperatură < {T}°C', al_temp_cold_d:'Risc de gheață / îngheț',
+        al_temp_hot:'Temperatură > {T}°C', al_temp_hot_d:'Caniculă — hidratare obligatorie',
+        al_rain_prob:'Probabilitate ploaie > {T}%', al_rain_prob_d:'Ploaie probabilă',
         route_depart:'Plecare', route_arrival_lbl:'SOSIRE', route_start_lbl:'START',
         route_phase3:'Faza 3', route_save:'Salvează ruta', route_log:'Log ride', route_hazard:'Raportează hazard',
         route_saved_ok:'Ruta a fost salvată.', route_save_err:'Eroare la salvare rută',
@@ -1975,12 +1975,12 @@
         auth_req_stats:'Log in to access ride stats.',
         auth_req_hazard:'Log in to report hazards.',
         auth_req_generic:'Please log in first using the Account button.',
-        al_score_low:'Moto Score < 40', al_score_low_d:'Dangerous conditions',
-        al_wind_high:'Gusts > 50 km/h', al_wind_high_d:'Strong wind',
-        al_rain_heavy:'Precipitation > 5 mm/h', al_rain_heavy_d:'Heavy rain',
-        al_temp_cold:'Temperature < 5°C', al_temp_cold_d:'Ice / frost risk',
-        al_temp_hot:'Temperature > 35°C', al_temp_hot_d:'Heatwave — hydration required',
-        al_rain_prob:'Rain probability > 70%', al_rain_prob_d:'Rain likely',
+        al_score_low:'Moto Score < {T}', al_score_low_d:'Dangerous conditions',
+        al_wind_high:'Gusts > {T} km/h', al_wind_high_d:'Strong wind',
+        al_rain_heavy:'Precipitation > {T} mm/h', al_rain_heavy_d:'Heavy rain',
+        al_temp_cold:'Temperature < {T}°C', al_temp_cold_d:'Ice / frost risk',
+        al_temp_hot:'Temperature > {T}°C', al_temp_hot_d:'Heatwave — hydration required',
+        al_rain_prob:'Rain probability > {T}%', al_rain_prob_d:'Rain likely',
         route_depart:'Departure', route_arrival_lbl:'ARRIVAL', route_start_lbl:'START',
         route_phase3:'Phase 3', route_save:'Save route', route_log:'Log ride', route_hazard:'Report hazard',
         route_saved_ok:'Route saved successfully.', route_save_err:'Route save error',
@@ -2168,13 +2168,14 @@
     }
     function renderAlertsForm() {
       var state = _getAlertState();
+      var cfg = _getAlertSettings();
       var html = '';
       _alertDefs().forEach(function (a) {
         var checked = state[a.id] !== false; // default on
         html += '<label class="flex items-center gap-3 p-3 rounded-xl border border-border hover:border-accent/50 cursor-pointer transition-colors">';
         html += '<input type="checkbox" id="alert-chk-' + a.id + '" ' + (checked ? 'checked' : '') + ' class="accent-accent w-4 h-4 flex-shrink-0">';
         html += '<div class="flex-1 min-w-0">';
-        html += '<div class="text-sm font-semibold text-gray-100">' + a.label + '</div>';
+        html += '<div class="text-sm font-semibold text-gray-100">' + _alertLabel(a, cfg) + '</div>';
         html += '<div class="text-xs text-muted">' + a.desc + '</div>';
         html += '</div></label>';
       });
@@ -2266,6 +2267,21 @@
     function toggleAlerts() {
       openAccountModal();
     }
+    function _resolveAlertThreshold(alertId, cfg) {
+      var c = cfg || _getAlertSettings();
+      if (alertId === 'score_low')  return c.min_score;
+      if (alertId === 'wind_high')  return c.max_wind_gust;
+      if (alertId === 'rain_heavy') return c.max_precip;
+      if (alertId === 'rain_prob')  return c.max_rain_probability;
+      if (alertId === 'temp_cold' && c.min_temp != null) return c.min_temp;
+      if (alertId === 'temp_hot'  && c.max_temp != null) return c.max_temp;
+      return null;
+    }
+    function _alertLabel(a, cfg) {
+      var thr = _resolveAlertThreshold(a.id, cfg);
+      if (thr == null) thr = a.threshold;
+      return a.label.replace('{T}', thr);
+    }
     function checkAlerts(current) {
       var state = _getAlertState();
       var cfg = _getAlertSettings();
@@ -2274,19 +2290,15 @@
         if (state[a.id] === false) return;
         var val = current[a.field];
         if (val == null) return;
-        var threshold = a.threshold;
-        if (a.id === 'score_low') threshold = cfg.min_score;
-        if (a.id === 'wind_high') threshold = cfg.max_wind_gust;
-        if (a.id === 'rain_heavy') threshold = cfg.max_precip;
-        if (a.id === 'rain_prob') threshold = cfg.max_rain_probability;
-        if (a.id === 'temp_cold' && cfg.min_temp != null) threshold = cfg.min_temp;
-        if (a.id === 'temp_hot' && cfg.max_temp != null) threshold = cfg.max_temp;
+        var threshold = _resolveAlertThreshold(a.id, cfg);
+        if (threshold == null) threshold = a.threshold;
         var triggered = a.op === '<' ? val < threshold : val > threshold;
         if (!triggered) return;
+        var label = _alertLabel(a, cfg);
         banners += '<div class="alert-banner mb-3 p-3 rounded-xl border border-warn/40 bg-warn/10 text-warn text-sm flex items-start gap-3">'
           + '<span class="text-xl flex-shrink-0">🔔</span>'
-          + '<div><div class="font-semibold">' + a.label + '</div>'
-          + '<div class="text-xs text-muted/80 mt-0.5">' + a.desc + ' &nbsp;·&nbsp; prag: <strong class="text-warn">' + threshold + '</strong> &nbsp;·&nbsp; valoare: <strong class="text-warn">' + (Math.round(val * 10) / 10) + '</strong></div>'
+          + '<div><div class="font-semibold">' + label + '</div>'
+          + '<div class="text-xs text-muted/80 mt-0.5">' + a.desc + ' &nbsp;·&nbsp; valoare: <strong class="text-warn">' + (Math.round(val * 10) / 10) + '</strong></div>'
           + '</div></div>';
       });
       return banners;
