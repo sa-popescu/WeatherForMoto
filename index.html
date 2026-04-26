@@ -1279,7 +1279,7 @@
         if (!resp.ok) throw new Error(data.detail || t('acc_err_signup'));
         _setAuth(data.token, data.user && data.user.email ? data.user.email : email);
         _setUserName(data.user && data.user.display_name ? data.user.display_name : '');
-        await _setDefaultPrefs();
+        await _uploadLocalSettingsToServer();
         await refreshAccountState();
         alert(t('acc_created_ok'));
       } catch (e) {
@@ -1304,7 +1304,6 @@
         if (!resp.ok) throw new Error(data.detail || t('acc_err_login'));
         _setAuth(data.token, data.user && data.user.email ? data.user.email : email);
         _setUserName(data.user && data.user.display_name ? data.user.display_name : '');
-        await _setDefaultPrefs();
         await refreshAccountState();
       } catch (e) {
         alert(t('acc_err_login') + (e && e.message || e));
@@ -1484,40 +1483,45 @@
       return outputArray;
     }
 
-    async function _setDefaultPrefs() {
+    async function _uploadLocalSettingsToServer() {
       var token = _authToken();
       if (!token) return;
+      var s = _getAlertSettings();
+      var state = _getAlertState();
+      var p = getProfile();
       try {
         await fetch(_api('/me/prefs'), {
           method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + token,
-          },
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
           body: JSON.stringify({
             enabled: true,
-            email_alerts_enabled: true,
-            email_alert_wind: true,
-            email_alert_rain: true,
-            email_alert_rain_probability: true,
-            email_alert_score: true,
-            email_alert_temp_low: true,
-            email_alert_temp_high: true,
-            email_alert_frost: true,
-            min_score: 45,
-            max_wind_gust: 50,
-            max_precip: 2,
-            max_rain_probability: 70,
-            min_temp: null,
-            max_temp: null,
-            frost_risk_enabled: true,
-            quiet_hours_enabled: false,
-            quiet_start_hour: 22,
-            quiet_end_hour: 7,
+            email_alerts_enabled: s.email_alerts_enabled !== false,
+            email_alert_wind: s.email_alert_wind !== false,
+            email_alert_rain: s.email_alert_rain !== false,
+            email_alert_rain_probability: s.email_alert_rain_probability !== false,
+            email_alert_score: s.email_alert_score !== false,
+            email_alert_temp_low: s.email_alert_temp_low !== false,
+            email_alert_temp_high: s.email_alert_temp_high !== false,
+            email_alert_frost: s.email_alert_frost !== false,
+            min_score: s.min_score != null ? s.min_score : 45,
+            max_wind_gust: s.max_wind_gust != null ? s.max_wind_gust : 50,
+            max_precip: s.max_precip != null ? s.max_precip : 2,
+            max_rain_probability: s.max_rain_probability != null ? s.max_rain_probability : 70,
+            min_temp: s.min_temp != null ? s.min_temp : null,
+            max_temp: s.max_temp != null ? s.max_temp : null,
+            frost_risk_enabled: s.frost_risk_enabled !== false,
+            quiet_hours_enabled: !!s.quiet_hours_enabled,
+            quiet_start_hour: s.quiet_start_hour != null ? s.quiet_start_hour : 22,
+            quiet_end_hour: s.quiet_end_hour != null ? s.quiet_end_hour : 7,
             severity: 'medium',
             home_lat: LAT,
             home_lon: LON,
             city: CITY,
+            alert_states: JSON.stringify(state),
+            moto_type: p.motoType || 'naked',
+            comfort_temp: p.comfortTemp != null ? p.comfortTemp : 20,
+            wind_tolerance: p.windTolerance || 'medium',
+            rain_tolerance: p.rainTolerance || 'medium',
           }),
         });
       } catch (_) { }
@@ -1531,7 +1535,7 @@
       }
       if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
         try {
-          await _setDefaultPrefs();
+          await _uploadLocalSettingsToServer();
           await fetch(_api('/alerts/check-now'), {
             method: 'POST',
             headers: { 'Authorization': 'Bearer ' + token }
@@ -1545,7 +1549,7 @@
       }
 
       try {
-        await _setDefaultPrefs();
+        await _uploadLocalSettingsToServer();
         var reg = await navigator.serviceWorker.ready;
         var existing = await reg.pushManager.getSubscription();
 
@@ -2158,9 +2162,18 @@
           try {
             var serverStates = JSON.parse(data.prefs.alert_states);
             try { localStorage.setItem('motoAlerts', JSON.stringify(serverStates)); } catch (_) { }
-            // Re-render checkboxes with restored states
             renderAlertsForm();
           } catch (_) { }
+        }
+        // Restore moto profile from server
+        if (data.prefs && data.prefs.moto_type) {
+          var p = getProfile();
+          p.motoType = data.prefs.moto_type;
+          if (data.prefs.comfort_temp != null) p.comfortTemp = data.prefs.comfort_temp;
+          if (data.prefs.wind_tolerance) p.windTolerance = data.prefs.wind_tolerance;
+          if (data.prefs.rain_tolerance) p.rainTolerance = data.prefs.rain_tolerance;
+          try { localStorage.setItem('motoProfile', JSON.stringify(p)); } catch (_) { }
+          loadProfileUI();
         }
       } catch (_) {
         _applyAlertSettingsToForm(_getAlertSettings());
@@ -2224,32 +2237,39 @@
               'Content-Type': 'application/json',
               'Authorization': 'Bearer ' + token,
             },
-            body: JSON.stringify({
-              enabled: true,
-              email_alerts_enabled: true,
-              email_alert_wind: settings.email_alert_wind,
-              email_alert_rain: settings.email_alert_rain,
-              email_alert_rain_probability: settings.email_alert_rain_probability,
-              email_alert_score: settings.email_alert_score,
-              email_alert_temp_low: settings.email_alert_temp_low,
-              email_alert_temp_high: settings.email_alert_temp_high,
-              email_alert_frost: settings.email_alert_frost,
-              min_score: settings.min_score,
-              max_wind_gust: settings.max_wind_gust,
-              max_precip: settings.max_precip,
-              max_rain_probability: settings.max_rain_probability,
-              min_temp: settings.min_temp,
-              max_temp: settings.max_temp,
-              frost_risk_enabled: settings.frost_risk_enabled,
-              quiet_hours_enabled: settings.quiet_hours_enabled,
-              quiet_start_hour: settings.quiet_start_hour,
-              quiet_end_hour: settings.quiet_end_hour,
-              severity: 'medium',
-              home_lat: LAT,
-              home_lon: LON,
-              city: CITY,
-              alert_states: alertStatesJson,
-            }),
+            body: JSON.stringify((function() {
+              var p = getProfile();
+              return {
+                enabled: true,
+                email_alerts_enabled: true,
+                email_alert_wind: settings.email_alert_wind,
+                email_alert_rain: settings.email_alert_rain,
+                email_alert_rain_probability: settings.email_alert_rain_probability,
+                email_alert_score: settings.email_alert_score,
+                email_alert_temp_low: settings.email_alert_temp_low,
+                email_alert_temp_high: settings.email_alert_temp_high,
+                email_alert_frost: settings.email_alert_frost,
+                min_score: settings.min_score,
+                max_wind_gust: settings.max_wind_gust,
+                max_precip: settings.max_precip,
+                max_rain_probability: settings.max_rain_probability,
+                min_temp: settings.min_temp,
+                max_temp: settings.max_temp,
+                frost_risk_enabled: settings.frost_risk_enabled,
+                quiet_hours_enabled: settings.quiet_hours_enabled,
+                quiet_start_hour: settings.quiet_start_hour,
+                quiet_end_hour: settings.quiet_end_hour,
+                severity: 'medium',
+                home_lat: LAT,
+                home_lon: LON,
+                city: CITY,
+                alert_states: alertStatesJson,
+                moto_type: p.motoType || 'naked',
+                comfort_temp: p.comfortTemp != null ? p.comfortTemp : 20,
+                wind_tolerance: p.windTolerance || 'medium',
+                rain_tolerance: p.rainTolerance || 'medium',
+              };
+            })()),
           });
           if (!resp.ok) {
             var errData = await resp.json().catch(function() { return {}; });
@@ -2511,6 +2531,7 @@
         rainTolerance: (document.getElementById('profile-rain-tol') || {}).value || DEFAULT_PROFILE.rainTolerance,
       };
       localStorage.setItem('motoProfile', JSON.stringify(p));
+      _uploadLocalSettingsToServer();
     }
 
     function loadProfileUI() {

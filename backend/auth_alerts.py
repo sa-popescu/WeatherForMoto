@@ -96,6 +96,10 @@ class AlertPrefsPayload(BaseModel):
     home_lon: float | None = Field(default=None, ge=-180, le=180)
     city: str | None = None
     alert_states: str | None = None  # JSON string of per-alert-type enabled states
+    moto_type: str = Field(default="naked", pattern="^(naked|touring|enduro|sport|scooter)$")
+    comfort_temp: int = Field(default=20, ge=-20, le=50)
+    wind_tolerance: str = Field(default="medium", pattern="^(low|medium|high)$")
+    rain_tolerance: str = Field(default="medium", pattern="^(low|medium|high)$")
 
 
 class PushSubscriptionPayload(BaseModel):
@@ -380,6 +384,30 @@ def init_db() -> None:
             "alert_prefs",
             "alert_states",
             "ALTER TABLE alert_prefs ADD COLUMN alert_states TEXT",
+        )
+        _ensure_column(
+            conn,
+            "alert_prefs",
+            "moto_type",
+            "ALTER TABLE alert_prefs ADD COLUMN moto_type TEXT NOT NULL DEFAULT 'naked'",
+        )
+        _ensure_column(
+            conn,
+            "alert_prefs",
+            "comfort_temp",
+            "ALTER TABLE alert_prefs ADD COLUMN comfort_temp INTEGER NOT NULL DEFAULT 20",
+        )
+        _ensure_column(
+            conn,
+            "alert_prefs",
+            "wind_tolerance",
+            "ALTER TABLE alert_prefs ADD COLUMN wind_tolerance TEXT NOT NULL DEFAULT 'medium'",
+        )
+        _ensure_column(
+            conn,
+            "alert_prefs",
+            "rain_tolerance",
+            "ALTER TABLE alert_prefs ADD COLUMN rain_tolerance TEXT NOT NULL DEFAULT 'medium'",
         )
         conn.commit()
     finally:
@@ -760,7 +788,7 @@ async def me(user: SessionUser = Depends(get_current_user)) -> dict[str, Any]:
             (user.user_id,),
         ).fetchone()
         prefs = conn.execute(
-            "SELECT enabled, email_alerts_enabled, email_alert_wind, email_alert_rain, email_alert_rain_probability, email_alert_score, email_alert_temp_low, email_alert_temp_high, email_alert_frost, min_score, max_wind_gust, max_precip, max_rain_probability, min_temp, max_temp, frost_risk_enabled, quiet_hours_enabled, quiet_start_hour, quiet_end_hour, severity, home_lat, home_lon, city, alert_states FROM alert_prefs WHERE user_id = ?",
+            "SELECT enabled, email_alerts_enabled, email_alert_wind, email_alert_rain, email_alert_rain_probability, email_alert_score, email_alert_temp_low, email_alert_temp_high, email_alert_frost, min_score, max_wind_gust, max_precip, max_rain_probability, min_temp, max_temp, frost_risk_enabled, quiet_hours_enabled, quiet_start_hour, quiet_end_hour, severity, home_lat, home_lon, city, alert_states, moto_type, comfort_temp, wind_tolerance, rain_tolerance FROM alert_prefs WHERE user_id = ?",
             (user.user_id,),
         ).fetchone()
         sub_count = conn.execute(
@@ -791,9 +819,10 @@ async def update_prefs(payload: AlertPrefsPayload, user: SessionUser = Depends(g
                 email_alert_score, email_alert_temp_low, email_alert_temp_high, email_alert_frost,
                 min_score, max_wind_gust, max_precip, max_rain_probability, min_temp, max_temp,
                 frost_risk_enabled, quiet_hours_enabled, quiet_start_hour, quiet_end_hour,
-                severity, home_lat, home_lon, city, alert_states, updated_at
+                severity, home_lat, home_lon, city, alert_states,
+                moto_type, comfort_temp, wind_tolerance, rain_tolerance, updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(user_id) DO UPDATE SET
                 enabled = excluded.enabled,
                 email_alerts_enabled = excluded.email_alerts_enabled,
@@ -819,6 +848,10 @@ async def update_prefs(payload: AlertPrefsPayload, user: SessionUser = Depends(g
                 home_lon = excluded.home_lon,
                 city = excluded.city,
                 alert_states = excluded.alert_states,
+                moto_type = excluded.moto_type,
+                comfort_temp = excluded.comfort_temp,
+                wind_tolerance = excluded.wind_tolerance,
+                rain_tolerance = excluded.rain_tolerance,
                 updated_at = excluded.updated_at
             """,
             (
@@ -847,6 +880,10 @@ async def update_prefs(payload: AlertPrefsPayload, user: SessionUser = Depends(g
                 payload.home_lon,
                 payload.city,
                 payload.alert_states,
+                payload.moto_type,
+                payload.comfort_temp,
+                payload.wind_tolerance,
+                payload.rain_tolerance,
                 now,
             ),
         )
