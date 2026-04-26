@@ -123,7 +123,11 @@ async def serve_frontend():
     if not INDEX_HTML.is_file():
         logger.error("Frontend index.html not found at: %s", INDEX_HTML)
         raise HTTPException(status_code=404, detail=f"Frontend not found at {INDEX_HTML}.")
-    return FileResponse(INDEX_HTML, media_type="text/html")
+    return FileResponse(
+        INDEX_HTML,
+        media_type="text/html",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )
 
 
 @app.get("/sw.js", include_in_schema=False)
@@ -131,7 +135,11 @@ async def serve_sw():
     """Serve the PWA service worker."""
     if not SW_JS.is_file():
         raise HTTPException(status_code=404, detail="sw.js not found.")
-    return FileResponse(SW_JS, media_type="application/javascript")
+    return FileResponse(
+        SW_JS,
+        media_type="application/javascript",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )
 
 
 @app.get("/manifest.json", include_in_schema=False)
