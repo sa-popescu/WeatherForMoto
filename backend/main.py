@@ -52,6 +52,7 @@ load_dotenv()
 OWM_API_KEY: str = os.getenv("OPENWEATHERMAP_API_KEY", "")
 DEFAULT_CITY: str = os.getenv("DEFAULT_CITY", "Bucharest")
 PIRATE_WEATHER_API_KEY: str = os.getenv("PIRATE_WEATHER_API_KEY", "")
+WEATHERXM_API_KEY: str = os.getenv("WEATHERXM_API_KEY", "")
 MET_NORWAY_USER_AGENT: str = os.getenv(
     "MET_NORWAY_USER_AGENT",
     "WeatherForMoto/1.0 github.com/user/WeatherForMoto",
