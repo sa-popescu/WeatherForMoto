@@ -853,11 +853,13 @@ async def _fetch_weatherxm(
         )
         if not resp.is_success:
             return None
-        stations = resp.json()
-        if not stations:
+        payload = resp.json()
+        stations = payload.get("stations", payload) if isinstance(payload, dict) else payload
+        # Filter to stations with recent data (lastDayQod > 0) and pick closest
+        active = [s for s in stations if s.get("lastDayQod", 0) > 0]
+        if not active:
             return None
-        # Pick closest station (API returns ordered by distance)
-        station_id = stations[0].get("id")
+        station_id = active[0].get("id")
         if not station_id:
             return None
         obs_resp = await client.get(
