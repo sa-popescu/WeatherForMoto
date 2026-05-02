@@ -4833,15 +4833,31 @@
         var tMax = Math.round(day.temp_max);
         var fMin = day.feels_min != null ? Math.round(day.feels_min) : null;
         var fMax = day.feels_max != null ? Math.round(day.feels_max) : null;
+        var dayHourly = d.hourly.filter(function (h) { return h.time.startsWith(day.date); });
         var rp = day.precipitation_probability || 0;
         var gustMax = Math.round(day.wind_gusts_kmh || 0);
         var ds = day.moto_score;
+        if (i === 0) {
+          var _now = new Date();
+          var _futH = dayHourly.filter(function(h) { return new Date(h.time) >= _now; });
+          if (_futH.length > 0) {
+            rp = Math.max.apply(null, _futH.map(function(h) { return h.precipitation_probability || 0; }));
+            var _fG = Math.max.apply(null, _futH.map(function(h) { return h.wind_gusts_kmh || 0; }));
+            gustMax = Math.round(_fG);
+            var _fFMin = Math.min.apply(null, _futH.map(function(h) { return h.feels_like != null ? h.feels_like : 20; }));
+            var _fFMax = Math.max.apply(null, _futH.map(function(h) { return h.feels_like != null ? h.feels_like : 20; }));
+            var _fP = _futH.reduce(function(s, h) { return s + (h.precipitation_mm || 0); }, 0);
+            var _fC = _futH.reduce(function(w, h) {
+              return weatherCodePenalty(h.weather_code || 0) > weatherCodePenalty(w) ? (h.weather_code || 0) : w;
+            }, 0);
+            ds = scoreDaily(_fFMin, _fFMax, _fG, _fP, _fC, rp);
+          }
+        }
         var scoreColor = ds >= 85 ? '#22c55e' : ds >= 60 ? '#eab308' : ds >= 40 ? '#f97316' : '#ef4444';
         var borderCol = ds < 40 ? "border-l-danger" : ds < 60 ? "border-l-accent" : ds < 85 ? "border-l-warn" : "border-l-ok";
         var range = allMax - allMin || 1;
         var bL = Math.round(((tMin - allMin) / range) * 100);
         var bW = Math.max(4, Math.round(((tMax - allMin) / range) * 100) - bL);
-        var dayHourly = d.hourly.filter(function (h) { return h.time.startsWith(day.date); });
         var idealWindow = _findWindowForSlice(dayHourly);
 
         html += '<div class="bg-card border border-border border-l-4 ' + borderCol + ' rounded-xl overflow-hidden">';
