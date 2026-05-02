@@ -836,6 +836,76 @@ async def _fetch_pirate_weather(
         return None
 
 
+async def _fetch_weatherxm(
+    lat: float, lon: float, api_key: str, client: httpx.AsyncClient,
+    radius_m: int = 20_000,
+) -> dict | None:
+    """Fetch nearest WeatherXM PRO station and its latest observation."""
+    if not api_key:
+        return None
+    try:
+        headers = {"X-API-KEY": api_key}
+        resp = await client.get(
+            f"{WEATHERXM_PRO_BASE}/stations/near",
+            params={"lat": round(lat, 4), "lon": round(lon, 4), "radius": radius_m},
+            headers=headers,
+            timeout=10,
+        )
+        if not resp.is_success:
+            return None
+        stations = resp.json()
+        if not stations:
+            return None
+        # Pick closest station (API returns ordered by distance)
+        station_id = stations[0].get("id")
+        if not station_id:
+            return None
+        obs_resp = await client.get(
+            f"{WEATHERXM_PRO_BASE}/stations/{station_id}/latest",
+            headers=headers,
+            timeout=10,
+        )
+        if not obs_resp.is_success:
+            return None
+        return obs_resp.json()
+    except Exception:
+        return None
+
+
+_WXM_ICON_TO_WMO: dict[str, int] = {
+    "clear-day": 0, "clear-night": 0,
+    "partly-cloudy-day": 2, "partly-cloudy-night": 2,
+    "cloudy": 3, "wind": 3, "fog": 45,
+    "rain": 63, "drizzle": 51, "sleet": 68, "snow": 73,
+    "thunderstorm": 95, "hail": 96,
+}
+
+
+def _normalize_wxm_current(wxm_data: dict | None) -> dict | None:
+    """Normalise a WeatherXM PRO latest-observation response."""
+    if not wxm_data:
+        return None
+    try:
+        ws = wxm_data.get("wind_speed")       # m/s
+        wg = wxm_data.get("wind_gust")        # m/s
+        hum = wxm_data.get("humidity")        # %
+        prec = wxm_data.get("precipitation_rate", 0.0)  # mm/h
+        icon = wxm_data.get("icon", "")
+        return {
+            "temp": wxm_data.get("temperature"),
+            "feels_like": wxm_data.get("feels_like"),
+            "humidity": hum,
+            "wind_speed_kmh": (ws or 0) * 3.6,
+            "wind_gusts_kmh": (wg or 0) * 3.6,
+            "wind_dir": wxm_data.get("wind_direction"),
+            "pressure": wxm_data.get("pressure"),
+            "precipitation": prec,
+            "wmo_code": _WXM_ICON_TO_WMO.get(icon, 0),
+        }
+    except Exception:
+        return None
+
+
 def _normalize_met_current(met_data: dict | None) -> dict | None:
     """Extract current conditions from MET Norway timeseries."""
     if not met_data:
