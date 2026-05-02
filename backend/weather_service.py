@@ -888,19 +888,20 @@ def _normalize_wxm_current(wxm_data: dict | None) -> dict | None:
     if not wxm_data:
         return None
     try:
-        ws = wxm_data.get("wind_speed")       # m/s
-        wg = wxm_data.get("wind_gust")        # m/s
-        hum = wxm_data.get("humidity")        # %
-        prec = wxm_data.get("precipitation_rate", 0.0)  # mm/h
-        icon = wxm_data.get("icon", "")
+        # Response is wrapped: {"observation": {...}, "health": {...}, "location": {...}}
+        obs = wxm_data.get("observation", wxm_data)
+        ws = obs.get("wind_speed")       # m/s
+        wg = obs.get("wind_gust")        # m/s
+        prec = obs.get("precipitation_rate", 0.0)  # mm/h
+        icon = obs.get("icon", "")
         return {
-            "temp": wxm_data.get("temperature"),
-            "feels_like": wxm_data.get("feels_like"),
-            "humidity": hum,
+            "temp": obs.get("temperature"),
+            "feels_like": obs.get("feels_like"),
+            "humidity": obs.get("humidity"),
             "wind_speed_kmh": (ws or 0) * 3.6,
             "wind_gusts_kmh": (wg or 0) * 3.6,
-            "wind_dir": wxm_data.get("wind_direction"),
-            "pressure": wxm_data.get("pressure"),
+            "wind_dir": obs.get("wind_direction"),
+            "pressure": obs.get("pressure"),
             "precipitation": prec,
             "wmo_code": _WXM_ICON_TO_WMO.get(icon, 0),
         }
