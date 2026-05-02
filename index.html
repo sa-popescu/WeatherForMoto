@@ -3402,17 +3402,20 @@
     function scoreHourly(feels, gusts, prec, code, precipProb) {
       feels = feels != null ? feels : 20;
       var s = 100;
+      // When probability is low and no measured rain, a stale rain weather-code should not
+      // dominate the score — probability alone captures the actual risk.
+      var effCode = ((precipProb || 0) < 20 && (prec || 0) < 0.1) ? 0 : code;
       s -= Math.max(
         precipAmountPenalty(prec, false),
         precipProbabilityPenalty(precipProb, false),
-        weatherCodePenalty(code)
+        weatherCodePenalty(effCode)
       );
       s -= windPenalty(gusts || 0);
       s -= hourlyTempPenalty(feels);
       // compound penalty: cold + wet is significantly worse on a motorcycle
       if (feels < 5 && (precipProb || 0) >= 30) s -= 12;
       if (feels < 0) s -= 15; // near-freezing road surface risk
-      s = Math.min(s, precipitationCap(prec, precipProb, code, false));
+      s = Math.min(s, precipitationCap(prec, precipProb, effCode, false));
       return Math.max(0, Math.min(100, Math.round(s)));
     }
 
