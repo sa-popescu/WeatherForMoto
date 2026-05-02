@@ -238,7 +238,8 @@ async def weather(
     try:
         data = await get_weather(lat, lon, resolved_city, OWM_API_KEY, forecast_days=days,
                                  pirate_weather_key=PIRATE_WEATHER_API_KEY,
-                                 met_user_agent=MET_NORWAY_USER_AGENT)
+                                 met_user_agent=MET_NORWAY_USER_AGENT,
+                                 weatherxm_api_key=WEATHERXM_API_KEY)
     except Exception as exc:
         logger.exception("Weather fetch error: %s", exc)
         raise HTTPException(
