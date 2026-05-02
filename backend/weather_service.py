@@ -220,18 +220,23 @@ def _moto_score(
     Compute a 0-100 'moto suitability' score.
     Higher = better riding conditions.
     """
+    prob = precipitation_probability or 0
+    amount = precipitation_mm or 0
+    # When probability is low and no measured rain, a stale rain weather-code should not
+    # dominate the score — probability alone captures the actual risk.
+    effective_code = weather_code if (prob >= 20 or amount >= 0.1) else 0
     score = 100
     score -= max(
         _precip_amount_penalty(precipitation_mm, daily=False),
         _precip_probability_penalty(precipitation_probability, daily=False),
-        _weather_code_penalty(weather_code),
+        _weather_code_penalty(effective_code),
     )
     score -= _wind_penalty(wind_gusts_kmh)
     score -= _hourly_temperature_penalty(feels_like)
     score = min(score, _precipitation_cap(
         precipitation_mm,
         precipitation_probability,
-        weather_code,
+        effective_code,
         daily=False,
     ))
     return max(0, min(100, round(score)))
