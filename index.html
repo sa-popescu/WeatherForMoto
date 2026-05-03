@@ -2415,9 +2415,9 @@
         var triggered = a.op === '<' ? val < threshold : val > threshold;
         if (!triggered) return;
         var label = _alertLabel(a, cfg);
-        banners += '<div class="alert-banner mb-3 p-3 rounded-xl border border-warn/40 bg-warn/10 text-warn text-sm flex items-start gap-3">'
-          + '<span class="text-xl flex-shrink-0">🔔</span>'
-          + '<div><div class="font-semibold">' + label + '</div>'
+        banners += '<div class="alert-banner mb-3 p-4 rounded-xl border border-warn/40 bg-warn/10 text-warn text-sm flex items-center gap-4">'
+          + '<span class="flex-shrink-0 w-10 text-center text-2xl">🔔</span>'
+          + '<div class="flex-1"><div class="font-semibold">' + label + '</div>'
           + '<div class="text-xs text-muted/80 mt-0.5">' + a.desc + ' &nbsp;·&nbsp; valoare: <strong class="text-warn">' + (Math.round(val * 10) / 10) + '</strong></div>'
           + '</div></div>';
       });
