@@ -2646,8 +2646,9 @@
           if (commaIdx > -1) {
             var cityPart = val.slice(0, commaIdx).trim();
             var countyPart = val.slice(commaIdx + 1).trim();
+            // Romanian județe are admin_level=4 in OSM → Nominatim "state", not "county"
             url = 'https://nominatim.openstreetmap.org/search?city=' + encodeURIComponent(cityPart)
-              + '&county=' + encodeURIComponent(countyPart)
+              + '&state=' + encodeURIComponent(countyPart)
               + '&format=json&limit=10&addressdetails=1&countrycodes=ro&accept-language=ro';
           } else {
             url = 'https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(val)
