@@ -1408,12 +1408,12 @@ async def _dispatch_for_user(user_id: int, email: str, owm_api_key: str) -> dict
 
             if email_enabled and _is_email_event_enabled(prefs, ev.get("type", "")):
                 try:
-                    subject = f"MotoMeteo alertă: {ev['title']}"
+                    subject = f"WeatherForMoto alertă: {ev['title']}"
                     body = (
                         f"{ev['body']}\n"
                         f"Locație: {city}\n"
                         f"Interval: {ev['when']}\n\n"
-                        "Poți dezactiva alertele email din contul tău MotoMeteo."
+                        "Poți dezactiva alertele email din contul tău WeatherForMoto."
                     )
                     await _send_email(email, subject, body)
                     email_sent += 1
