@@ -23,6 +23,8 @@ from weather_service import get_weather, _haversine_km
 logger = logging.getLogger("weatherformoto.auth_alerts")
 
 DB_PATH = os.getenv("APP_DB_PATH", os.path.join(os.path.dirname(__file__), "app.db"))
+TURSO_URL = os.getenv("TURSO_DATABASE_URL", "")
+TURSO_TOKEN = os.getenv("TURSO_AUTH_TOKEN", "")
 AUTH_CODE_TTL_MIN = int(os.getenv("AUTH_CODE_TTL_MIN", "10"))
 SESSION_TTL_DAYS = int(os.getenv("SESSION_TTL_DAYS", "30"))
 ALLOW_INSECURE_AUTH_CODE = os.getenv("ALLOW_INSECURE_AUTH_CODE", "false").lower() == "true"
