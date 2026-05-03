@@ -2607,7 +2607,7 @@
       var newRow = document.createElement('div');
       newRow.className = 'stop-row flex items-center gap-2 mb-2';
       var inputId = 'route-stop-mid-' + idx, dropId = 'geo-drop-mid-' + idx;
-      newRow.innerHTML = '<span class="text-xl flex-shrink-0">📍</span>'
+      newRow.innerHTML = '<span class="w-8 flex-shrink-0 text-center text-xl">📍</span>'
         + '<div class="stop-wrap">'
         + '<input id="' + inputId + '" type="text" placeholder="' + (t('planner_waypoint_ph') || 'Intermediate stop...') + '" autocomplete="off"'
         + ' oninput="onStopInput(\'' + inputId + '\',\'' + dropId + '\')"'
