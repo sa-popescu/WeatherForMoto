@@ -966,6 +966,24 @@ async def update_profile(payload: ProfilePayload, user: SessionUser = Depends(ge
         conn.close()
 
 
+@router.put("/me/email")
+async def change_email(payload: ChangeEmailPayload, user: SessionUser = Depends(get_current_user)) -> dict[str, Any]:
+    conn = _connect()
+    try:
+        row = _row(conn.execute("SELECT password_hash FROM users WHERE id = ?", (user.user_id,)).fetchone())
+        if not _verify_password(payload.password, row.get("password_hash") if row else None):
+            raise HTTPException(status_code=400, detail="Parolă incorectă.")
+        new_email = str(payload.new_email).lower()
+        existing = conn.execute("SELECT id FROM users WHERE email = ? AND id != ?", (new_email, user.user_id)).fetchone()
+        if existing:
+            raise HTTPException(status_code=409, detail="Adresa de email este deja folosită.")
+        conn.execute("UPDATE users SET email = ? WHERE id = ?", (new_email, user.user_id))
+        conn.commit()
+        return {"ok": True, "email": new_email}
+    finally:
+        conn.close()
+
+
 @router.post("/me/unsubscribe-email-alerts")
 async def unsubscribe_email_alerts(user: SessionUser = Depends(get_current_user)) -> dict[str, bool]:
     conn = _connect()
