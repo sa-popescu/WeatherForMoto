@@ -5336,6 +5336,7 @@
       var params = new URLSearchParams(window.location.search);
       var resetToken = params.get('reset_token');
       if (resetToken) {
+        window._resetMode = true;
         history.replaceState({}, '', window.location.pathname);
         var planner = document.getElementById('route-planner-section');
         if (planner) planner.style.display = 'none';
