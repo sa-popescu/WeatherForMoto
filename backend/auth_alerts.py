@@ -159,12 +159,23 @@ def _utc_now() -> datetime:
 def _connect():
     if TURSO_URL and TURSO_TOKEN:
         import libsql_experimental as libsql  # type: ignore
-        conn = libsql.connect(TURSO_URL, auth_token=TURSO_TOKEN)
-        return conn
+        return libsql.connect(TURSO_URL, auth_token=TURSO_TOKEN)
     os.makedirs(os.path.dirname(os.path.abspath(DB_PATH)), exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
+
+
+def _row(row) -> dict:
+    """Normalise a DB row to a dict regardless of backend (sqlite3.Row or libsql tuple)."""
+    if row is None:
+        return None
+    if isinstance(row, dict):
+        return row
+    try:
+        return dict(row)
+    except Exception:
+        return row
 
 
 def _ensure_column(conn: sqlite3.Connection, table: str, column: str, ddl: str) -> None:
