@@ -73,6 +73,11 @@ class ProfilePayload(BaseModel):
     display_name: str = Field(min_length=1, max_length=80)
 
 
+class ChangeEmailPayload(BaseModel):
+    new_email: EmailStr
+    password: str
+
+
 class AlertPrefsPayload(BaseModel):
     enabled: bool = True
     email_alerts_enabled: bool = True
