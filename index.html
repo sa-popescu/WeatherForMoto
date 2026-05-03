@@ -640,42 +640,64 @@
       </div>
 
       <div id="account-logged-view" class="hidden">
-        <div class="space-y-2 mb-4 text-sm">
-          <div>📧 <strong id="me-email" class="text-gray-100">—</strong></div>
-          <div>🆔 <span id="me-name" class="text-gray-200">—</span></div>
-          <div>📅 <span data-i18n="acc_created">Creat la</span>: <span id="me-created" class="text-muted">—</span></div>
-        </div>
-        <div class="space-y-2 mb-4">
-          <input id="me-name-input" type="text" placeholder="Nume afișat" data-i18n-ph="acc_display_name_ph"
-            class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent" />
-          <button onclick="saveAccountProfile()" data-i18n="acc_save_profile"
-            class="w-full border border-border text-gray-200 hover:border-accent hover:text-accent text-sm py-2 rounded-xl transition-colors">Salvează profil</button>
-        </div>
-        <div class="grid grid-cols-1 gap-2">
-          <button id="push-account-btn" onclick="togglePushAlerts()"
-            class="w-full border border-border text-gray-200 hover:border-ok hover:text-ok py-2 rounded-xl text-sm transition-colors">Alerte push: OFF</button>
-          <button onclick="unsubscribeEmailAlerts()" data-i18n="acc_unsub_email"
-            class="w-full border border-warn/40 text-warn hover:border-warn py-2 rounded-xl text-sm transition-colors">Dezabonare alerte email</button>
-          <button onclick="showChangePassword()" data-i18n="acc_change_pw"
-            class="w-full border border-border text-gray-200 hover:border-accent hover:text-accent py-2 rounded-xl text-sm transition-colors">Schimbă parola</button>
-          <button onclick="logoutAccount()" data-i18n="acc_logout"
-            class="w-full border border-border text-gray-200 hover:border-accent hover:text-accent py-2 rounded-xl text-sm transition-colors">Ieșire din cont</button>
-          <button onclick="deleteMyAccount()" data-i18n="acc_delete"
-            class="w-full border border-danger/40 text-danger hover:border-danger py-2 rounded-xl text-sm transition-colors">Șterge contul</button>
-        </div>
-        <div id="change-pw-section" class="hidden mt-3 space-y-2 border border-border rounded-xl p-3">
-          <div class="text-xs text-muted font-semibold tracking-widest uppercase mb-2" data-i18n="acc_change_pw">Schimbă parola</div>
-          <input id="change-pw-current" type="password" placeholder="Parola curentă" data-i18n-ph="acc_current_pw_ph"
-            class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent" />
-          <input id="change-pw-new" type="password" placeholder="Parola nouă (minim 8 caractere)" data-i18n-ph="acc_new_pw_ph"
-            class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent" />
-          <button onclick="changePassword()" data-i18n="acc_save_pw"
-            class="w-full bg-accent hover:bg-orange-400 text-black font-display font-bold tracking-wider py-2 rounded-xl transition-colors text-sm">Salvează parola</button>
-          <div id="change-pw-msg" class="text-xs hidden"></div>
+
+        <!-- Avatar + info -->
+        <div class="flex items-center gap-4 mb-5">
+          <div id="me-avatar" class="w-14 h-14 rounded-full bg-accent flex items-center justify-center text-black font-display font-bold text-xl shrink-0 select-none">?</div>
+          <div class="min-w-0">
+            <div class="text-sm font-semibold text-gray-100 truncate" id="me-name">—</div>
+            <div class="text-xs text-muted truncate" id="me-email">—</div>
+            <div class="text-xs text-muted"><span data-i18n="acc_created">Creat la</span>: <span id="me-created">—</span></div>
+          </div>
         </div>
 
-        <div class="mt-5 border-t border-border pt-4">
-          <div class="font-display text-sm font-bold tracking-widest text-gray-100 mb-3" data-i18n="acc_moto_profile">⚙ PROFIL MOTO</div>
+        <!-- Edit Profile -->
+        <div class="border border-border rounded-xl p-4 mb-3">
+          <div class="font-display text-xs font-bold tracking-widest text-muted uppercase mb-3">✏ Editează Profilul</div>
+          <div class="space-y-2">
+            <input id="me-name-input" type="text" placeholder="Nume afișat" data-i18n-ph="acc_display_name_ph"
+              class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent" />
+            <div class="border-t border-border/40 pt-2">
+              <div class="text-xs text-muted mb-1.5">Schimbare email (necesită parola curentă)</div>
+              <input id="me-email-input" type="email" placeholder="Email nou"
+                class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent mb-2" />
+              <input id="me-email-pw" type="password" placeholder="Parola curentă"
+                class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent" />
+            </div>
+            <button onclick="saveAccountProfile()" data-i18n="acc_save_profile"
+              class="w-full bg-accent hover:bg-orange-400 text-black font-display font-bold tracking-wider py-2 rounded-xl transition-colors text-sm">Salvează</button>
+            <div id="profile-save-msg" class="text-xs hidden"></div>
+          </div>
+        </div>
+
+        <!-- Security -->
+        <div class="border border-border rounded-xl p-4 mb-3">
+          <div class="font-display text-xs font-bold tracking-widest text-muted uppercase mb-3">🔐 Securitate</div>
+          <div id="change-pw-section" class="space-y-2">
+            <input id="change-pw-current" type="password" placeholder="Parola curentă" data-i18n-ph="acc_current_pw_ph"
+              class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent" />
+            <input id="change-pw-new" type="password" placeholder="Parola nouă (minim 8 caractere)" data-i18n-ph="acc_new_pw_ph"
+              class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent" />
+            <button onclick="changePassword()" data-i18n="acc_save_pw"
+              class="w-full border border-border text-gray-200 hover:border-accent hover:text-accent text-sm py-2 rounded-xl transition-colors">Schimbă parola</button>
+            <div id="change-pw-msg" class="text-xs hidden"></div>
+          </div>
+        </div>
+
+        <!-- Notifications -->
+        <div class="border border-border rounded-xl p-4 mb-3">
+          <div class="font-display text-xs font-bold tracking-widest text-muted uppercase mb-3">🔔 Notificări</div>
+          <div class="space-y-2">
+            <button id="push-account-btn" onclick="togglePushAlerts()"
+              class="w-full border border-border text-gray-200 hover:border-ok hover:text-ok py-2 rounded-xl text-sm transition-colors">Alerte push: OFF</button>
+            <button onclick="unsubscribeEmailAlerts()" data-i18n="acc_unsub_email"
+              class="w-full border border-warn/40 text-warn hover:border-warn py-2 rounded-xl text-sm transition-colors">Dezabonare alerte email</button>
+          </div>
+        </div>
+
+        <!-- Moto Profile -->
+        <div class="border border-border rounded-xl p-4 mb-3">
+          <div class="font-display text-xs font-bold tracking-widest text-muted uppercase mb-3">⚙ Profil Moto</div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label class="text-xs text-muted tracking-widest uppercase mb-1 block" data-i18n="acc_moto_type">Tipul motocicletei</label>
@@ -707,8 +729,7 @@
               </select>
             </div>
             <div>
-              <label class="text-xs text-muted tracking-widest uppercase mb-1 block"><span data-i18n="acc_comfort">Confort</span>: <span
-                  id="profile-temp-val">20</span>°C</label>
+              <label class="text-xs text-muted tracking-widest uppercase mb-1 block"><span data-i18n="acc_comfort">Confort</span>: <span id="profile-temp-val">20</span>°C</label>
               <input id="profile-comfort-temp" type="range" min="5" max="35" value="20"
                 oninput="document.getElementById('profile-temp-val').textContent=this.value; saveProfile()"
                 class="w-full accent-accent mt-2">
@@ -716,85 +737,111 @@
           </div>
         </div>
 
-        <div class="mt-5 border-t border-border pt-4">
-          <div class="font-display text-sm font-bold tracking-widest text-gray-100 mb-1" data-i18n="acc_alerts_title">🔔 ALERTE PERSONALIZATE</div>
-          <div class="text-xs text-muted mb-3" data-i18n="acc_alerts_desc">Pragurile de mai jos se sincronizează și cu alertele push/email ale contului.</div>
-          <div id="account-alerts-list" class="space-y-2"></div>
-          <div class="mt-3">
-            <div class="text-xs text-muted tracking-widest uppercase mb-2" data-i18n="acc_email_notif">Email: notificări individuale</div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <label class="flex items-center gap-2 text-sm text-gray-200"><input id="email-alert-wind" type="checkbox"
-                  class="accent-accent" checked> <span data-i18n="acc_al_wind">Rafale puternice</span></label>
-              <label class="flex items-center gap-2 text-sm text-gray-200"><input id="email-alert-rain" type="checkbox"
-                  class="accent-accent" checked> <span data-i18n="acc_al_rain">Ploaie puternică</span></label>
-              <label class="flex items-center gap-2 text-sm text-gray-200"><input id="email-alert-rain-prob"
-                  type="checkbox" class="accent-accent" checked> <span data-i18n="acc_al_rain_prob">Probabilitate mare de ploaie</span></label>
-              <label class="flex items-center gap-2 text-sm text-gray-200"><input id="email-alert-score" type="checkbox"
-                  class="accent-accent" checked> <span data-i18n="acc_al_score">Scor moto scăzut</span></label>
-              <label class="flex items-center gap-2 text-sm text-gray-200"><input id="email-alert-temp-low"
-                  type="checkbox" class="accent-accent" checked> <span data-i18n="acc_al_temp_low">Temperatură joasă</span></label>
-              <label class="flex items-center gap-2 text-sm text-gray-200"><input id="email-alert-temp-high"
-                  type="checkbox" class="accent-accent" checked> <span data-i18n="acc_al_temp_high">Temperatură ridicată</span></label>
-              <label class="flex items-center gap-2 text-sm text-gray-200 sm:col-span-2"><input id="email-alert-frost"
-                  type="checkbox" class="accent-accent" checked> <span data-i18n="acc_al_frost">Risc carosabil alunecos</span></label>
-            </div>
-          </div>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
-            <div>
-              <label class="text-xs text-muted tracking-widest uppercase mb-1 block" data-i18n="acc_min_score">Scor minim</label>
+        <!-- Custom Alerts -->
+        <div class="border border-border rounded-xl p-4 mb-3">
+          <div class="font-display text-xs font-bold tracking-widest text-muted uppercase mb-1">🚨 Alerte Personalizate</div>
+          <div class="text-xs text-muted mb-3">Activează condițiile și setează pragul. Se sincronizează cu alertele push/email.</div>
+          <div id="account-alerts-list" class="hidden"></div>
+          <div class="space-y-1.5">
+            <div class="flex items-center gap-2 px-3 py-2 rounded-xl bg-bg border border-border">
+              <input id="email-alert-score" type="checkbox" class="accent-accent shrink-0 w-4 h-4" checked>
+              <div class="flex-1 min-w-0">
+                <div class="text-sm text-gray-200 leading-tight" data-i18n="acc_al_score">Scor moto scăzut</div>
+                <div class="text-xs text-muted">alertă sub prag</div>
+              </div>
               <input id="alert-min-score" type="number" min="0" max="100" value="45"
-                class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent" />
+                class="w-14 bg-bg border border-border/60 text-gray-100 text-xs px-2 py-1 rounded-lg focus:outline-none focus:border-accent text-center" />
+              <span class="text-xs text-muted w-6 shrink-0">pts</span>
             </div>
-            <div>
-              <label class="text-xs text-muted tracking-widest uppercase mb-1 block" data-i18n="acc_max_gusts">Rafale max (km/h)</label>
+            <div class="flex items-center gap-2 px-3 py-2 rounded-xl bg-bg border border-border">
+              <input id="email-alert-wind" type="checkbox" class="accent-accent shrink-0 w-4 h-4" checked>
+              <div class="flex-1 min-w-0">
+                <div class="text-sm text-gray-200 leading-tight" data-i18n="acc_al_wind">Rafale puternice</div>
+                <div class="text-xs text-muted">alertă peste prag</div>
+              </div>
               <input id="alert-max-wind" type="number" min="10" max="200" value="50"
-                class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent" />
+                class="w-14 bg-bg border border-border/60 text-gray-100 text-xs px-2 py-1 rounded-lg focus:outline-none focus:border-accent text-center" />
+              <span class="text-xs text-muted w-6 shrink-0">km/h</span>
             </div>
-            <div>
-              <label class="text-xs text-muted tracking-widest uppercase mb-1 block" data-i18n="acc_max_precip">Precipitații max (mm/h)</label>
+            <div class="flex items-center gap-2 px-3 py-2 rounded-xl bg-bg border border-border">
+              <input id="email-alert-rain" type="checkbox" class="accent-accent shrink-0 w-4 h-4" checked>
+              <div class="flex-1 min-w-0">
+                <div class="text-sm text-gray-200 leading-tight" data-i18n="acc_al_rain">Precipitații</div>
+                <div class="text-xs text-muted">alertă peste prag</div>
+              </div>
               <input id="alert-max-precip" type="number" min="0" max="50" step="0.1" value="2"
-                class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent" />
+                class="w-14 bg-bg border border-border/60 text-gray-100 text-xs px-2 py-1 rounded-lg focus:outline-none focus:border-accent text-center" />
+              <span class="text-xs text-muted w-6 shrink-0">mm/h</span>
             </div>
-            <div>
-              <label class="text-xs text-muted tracking-widest uppercase mb-1 block" data-i18n="acc_max_rain_prob">Prob. ploaie max (%)</label>
+            <div class="flex items-center gap-2 px-3 py-2 rounded-xl bg-bg border border-border">
+              <input id="email-alert-rain-prob" type="checkbox" class="accent-accent shrink-0 w-4 h-4" checked>
+              <div class="flex-1 min-w-0">
+                <div class="text-sm text-gray-200 leading-tight" data-i18n="acc_al_rain_prob">Probabilitate ploaie</div>
+                <div class="text-xs text-muted">alertă peste prag</div>
+              </div>
               <input id="alert-max-rain-prob" type="number" min="0" max="100" value="70"
-                class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent" />
+                class="w-14 bg-bg border border-border/60 text-gray-100 text-xs px-2 py-1 rounded-lg focus:outline-none focus:border-accent text-center" />
+              <span class="text-xs text-muted w-6 shrink-0">%</span>
             </div>
-            <div>
-              <label class="text-xs text-muted tracking-widest uppercase mb-1 block" data-i18n="acc_min_temp">Temp minimă (opțional)</label>
+            <div class="flex items-center gap-2 px-3 py-2 rounded-xl bg-bg border border-border">
+              <input id="email-alert-temp-low" type="checkbox" class="accent-accent shrink-0 w-4 h-4" checked>
+              <div class="flex-1 min-w-0">
+                <div class="text-sm text-gray-200 leading-tight" data-i18n="acc_al_temp_low">Temperatură scăzută</div>
+                <div class="text-xs text-muted">alertă sub prag</div>
+              </div>
               <input id="alert-min-temp" type="number" min="-60" max="45" step="0.5" placeholder="ex: 5"
-                class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent" />
+                class="w-14 bg-bg border border-border/60 text-gray-100 text-xs px-2 py-1 rounded-lg focus:outline-none focus:border-accent text-center" />
+              <span class="text-xs text-muted w-6 shrink-0">°C</span>
             </div>
-            <div>
-              <label class="text-xs text-muted tracking-widest uppercase mb-1 block" data-i18n="acc_max_temp">Temp maximă (opțional)</label>
+            <div class="flex items-center gap-2 px-3 py-2 rounded-xl bg-bg border border-border">
+              <input id="email-alert-temp-high" type="checkbox" class="accent-accent shrink-0 w-4 h-4" checked>
+              <div class="flex-1 min-w-0">
+                <div class="text-sm text-gray-200 leading-tight" data-i18n="acc_al_temp_high">Temperatură ridicată</div>
+                <div class="text-xs text-muted">alertă peste prag</div>
+              </div>
               <input id="alert-max-temp" type="number" min="-20" max="70" step="0.5" placeholder="ex: 36"
-                class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent" />
+                class="w-14 bg-bg border border-border/60 text-gray-100 text-xs px-2 py-1 rounded-lg focus:outline-none focus:border-accent text-center" />
+              <span class="text-xs text-muted w-6 shrink-0">°C</span>
             </div>
-            <div>
-              <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Quiet start</label>
-              <input id="alert-quiet-start" type="number" min="0" max="23" value="22"
-                class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent" />
+            <div class="flex items-center gap-2 px-3 py-2 rounded-xl bg-bg border border-border">
+              <input id="email-alert-frost" type="checkbox" class="accent-accent shrink-0 w-4 h-4" checked>
+              <div class="flex-1 min-w-0">
+                <div class="text-sm text-gray-200 leading-tight" data-i18n="acc_al_frost">Risc carosabil alunecos</div>
+                <div class="text-xs text-muted">îngheț / polei</div>
+              </div>
+              <span class="w-14"></span><span class="w-6"></span>
             </div>
-            <div>
-              <label class="text-xs text-muted tracking-widest uppercase mb-1 block">Quiet end</label>
-              <input id="alert-quiet-end" type="number" min="0" max="23" value="7"
-                class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-accent" />
+            <div class="mt-1 pt-2 border-t border-border/50">
+              <div class="flex items-center gap-2 px-3 py-2 rounded-xl bg-bg border border-border mb-2">
+                <input id="alert-quiet-enabled" type="checkbox" class="accent-accent shrink-0 w-4 h-4">
+                <div class="flex-1 min-w-0">
+                  <div class="text-sm text-gray-200 leading-tight">Quiet hours</div>
+                  <div class="text-xs text-muted">fără notificări noaptea</div>
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-2 px-1">
+                <div>
+                  <label class="text-xs text-muted block mb-1">Start (oră)</label>
+                  <input id="alert-quiet-start" type="number" min="0" max="23" value="22"
+                    class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-1.5 rounded-lg focus:outline-none focus:border-accent text-center" />
+                </div>
+                <div>
+                  <label class="text-xs text-muted block mb-1">End (oră)</label>
+                  <input id="alert-quiet-end" type="number" min="0" max="23" value="7"
+                    class="w-full bg-bg border border-border text-gray-100 text-sm px-3 py-1.5 rounded-lg focus:outline-none focus:border-accent text-center" />
+                </div>
+              </div>
             </div>
-          </div>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
-            <label class="flex items-center gap-2 text-sm text-gray-200"><input id="alert-quiet-enabled" type="checkbox"
-                class="accent-accent"> Quiet hours active</label>
-            <label class="flex items-center gap-2 text-sm text-gray-200"><input id="alert-frost-enabled" type="checkbox"
-                class="accent-accent" checked> <span data-i18n="acc_al_frost_risk">Alertă risc îngheț</span></label>
           </div>
           <button onclick="saveAlerts()" data-i18n="acc_save_alerts"
-            class="mt-3 w-full bg-accent hover:bg-orange-400 text-black font-display font-bold tracking-wider py-2.5 rounded-xl transition-colors">
+            class="mt-4 w-full bg-accent hover:bg-orange-400 text-black font-display font-bold tracking-wider py-2.5 rounded-xl transition-colors">
             Salvează alertele
           </button>
         </div>
 
-        <div class="mt-5 border-t border-border pt-4">
-          <div class="font-display text-sm font-bold tracking-widest text-gray-100 mb-1" data-i18n="acc_comparator_title">📊 COMPARATOR LOCAȚII</div>
+        <!-- Comparator -->
+        <div class="border border-border rounded-xl p-4 mb-3">
+          <div class="font-display text-xs font-bold tracking-widest text-muted uppercase mb-1">📊 Comparator Locații</div>
           <div class="text-xs text-muted mb-3" data-i18n="acc_comparator_desc">Compară rapid condițiile pentru două locații favorite.</div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <select id="cmp-a"
@@ -806,6 +853,18 @@
             class="mt-3 w-full border border-border text-gray-200 hover:border-accent hover:text-accent py-2 rounded-xl text-sm transition-colors">Compară</button>
           <div id="compare-result" class="mt-3"></div>
         </div>
+
+        <!-- Danger Zone -->
+        <div class="border border-danger/30 rounded-xl p-4">
+          <div class="font-display text-xs font-bold tracking-widest text-danger uppercase mb-3">⚠ Danger Zone</div>
+          <div class="space-y-2">
+            <button onclick="logoutAccount()" data-i18n="acc_logout"
+              class="w-full border border-border text-gray-200 hover:border-accent hover:text-accent py-2 rounded-xl text-sm transition-colors">Ieșire din cont</button>
+            <button onclick="deleteMyAccount()" data-i18n="acc_delete"
+              class="w-full border border-danger/40 text-danger hover:border-danger py-2 rounded-xl text-sm transition-colors">Șterge contul</button>
+          </div>
+        </div>
+
       </div>
     </div>
   </div>
@@ -1063,7 +1122,7 @@
             Surse de Date
           </h3>
           <p class="text-sm text-muted leading-relaxed mb-3">
-            MotoMeteo agregă date din <strong class="text-gray-300">patru surse independente</strong> și calculează o medie ponderată pentru a crește acuratețea.
+            MotoMeteo agregă date din <strong class="text-gray-300">cinci surse independente</strong> și calculează o medie ponderată pentru a crește acuratețea.
           </p>
           <div class="grid sm:grid-cols-2 gap-3">
             <div class="bg-bg border border-border rounded-xl p-4">
@@ -1082,9 +1141,13 @@
               <div class="text-sm font-bold text-gray-200 mb-1">🏴‍☠️ Pirate Weather</div>
               <div class="text-xs text-muted leading-relaxed">Sursă suplimentară (pondere 0.8). Compatible Dark Sky, modele NOAA GFS/HRRR. Rafale de vânt incluse.</div>
             </div>
+            <div class="bg-bg border border-border rounded-xl p-4 sm:col-span-2 border-accent/30">
+              <div class="text-sm font-bold text-gray-200 mb-1">📡 WeatherXM <span class="text-xs font-normal text-accent ml-1">stație fizică</span></div>
+              <div class="text-xs text-muted leading-relaxed">Cea mai mare pondere (1.5). Rețea de stații meteo fizice IoT instalate de utilizatori. Date real-time direct din teren — nu modele numerice. Disponibil automat când există o stație activă în raza de 20 km.</div>
+            </div>
           </div>
           <div class="mt-3 text-xs text-muted bg-bg border border-border rounded-lg px-4 py-2.5 leading-relaxed">
-            <strong class="text-gray-300">Medie ponderată:</strong> Valorile celor patru surse sunt combinate inteligent — dacă o sursă lipsește, celelalte preiau controlul. Temperatura și umiditatea au ponderea Open-Meteo/MET Norway mai mare (1.2/1.1 vs 1.0/0.8).
+            <strong class="text-gray-300">Medie ponderată:</strong> Valorile surselor sunt combinate inteligent — dacă o sursă lipsește, celelalte preiau controlul. WeatherXM (stație fizică) primește ponderea cea mai mare (1.5), urmat de Open-Meteo (1.2) și MET Norway (1.1).
           </div>
         </section>
 
