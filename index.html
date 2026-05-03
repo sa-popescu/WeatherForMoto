@@ -1618,10 +1618,7 @@
 
     async function togglePushAlerts() {
       var token = _authToken();
-      if (!token) {
-        alert(t('auth_req_generic'));
-        return;
-      }
+      if (!token) { return; }
       if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
         try {
           await _uploadLocalSettingsToServer();
