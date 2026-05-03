@@ -1766,8 +1766,18 @@
 
     function _updatePushButton(enabled) {
       var btn = document.getElementById('push-account-btn');
-      if (!btn) return;
-      btn.checked = !!enabled;
+      if (btn) btn.checked = !!enabled;
+      var desc = document.getElementById('push-status-desc');
+      if (desc) {
+        desc.classList.remove('text-ok', 'text-muted');
+        if (enabled) {
+          desc.textContent = 'Activ — primești alerte instant în browser / telefon';
+          desc.classList.add('text-ok');
+        } else {
+          desc.textContent = 'Inactiv — apasă pentru a activa notificările push';
+          desc.classList.add('text-muted');
+        }
+      }
     }
 
     function _updateEmailAlertsBadge(active) {
