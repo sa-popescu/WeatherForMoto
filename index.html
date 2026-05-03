@@ -4817,8 +4817,10 @@
           var dname = DAYS[w.dt.getDay()];
           var dt = w.dt;
           var dateStr = dt.toLocaleDateString(_lang === 'en' ? 'en-GB' : 'ro-RO', { day: 'numeric', month: 'short' });
-          return '<span style="color:' + scoreColor + '">' + dname + ' ' + dateStr + ' <strong>' + w.day.moto_score + '</strong></span>';
-        }).join(' &amp; ');
+          return '<span style="color:' + scoreColor + '">' + dname + ' ' + dateStr + '</span>'
+            + '<span class="text-muted mx-1">·</span>'
+            + '<span style="color:' + scoreColor + '" class="font-bold">' + (_lang === 'en' ? 'score ' : 'scor ') + w.day.moto_score + '</span>';
+        }).join('<span class="text-muted mx-2">&amp;</span>');
         html += '<div class="mb-3 p-4 rounded-xl border ' + borderCls + ' ' + bgCls + ' flex items-center gap-4">'
           + '<span class="text-3xl flex-shrink-0">🏆</span>'
           + '<div class="flex-1">'
