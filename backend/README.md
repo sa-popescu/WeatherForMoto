@@ -31,7 +31,16 @@ pip install -r requirements.txt
 
 ```bash
 cp .env.example .env
-# Edit .env – set your OpenWeatherMap API key
+# Edit .env – set your OpenWeatherMap API key and Turso variables
+```
+
+### 2.1. Migrate existing local data to Turso
+
+If you have an existing SQLite file (`backend/app.db`), migrate it before starting the backend with Turso-only mode:
+
+```bash
+cd backend
+TURSO_DATABASE_URL="<url>" TURSO_AUTH_TOKEN="<token>" python migrate_to_turso.py --source app.db
 ```
 
 ### 3. Run the server
@@ -120,7 +129,9 @@ GET /geocode?city=Brasov
 
 | Variable | Default | Description |
 |---|---|---|
-| `OPENWEATHERMAP_API_KEY` | *(built-in key)* | Your OWM API key |
+| `TURSO_DATABASE_URL` | **required** | Turso database URL |
+| `TURSO_AUTH_TOKEN` | **required** | Turso auth token |
+| `OPENWEATHERMAP_API_KEY` | *(built-in key)* | Your OWM API key (recommended for better quality) |
 | `DEFAULT_CITY` | `Bucharest` | City used when no location is specified |
 | `PORT` | `8000` | Port to listen on |
 
@@ -130,6 +141,6 @@ GET /geocode?city=Brasov
 
 The server exposes a standard ASGI app (`main:app`) and can be deployed on any platform that supports Python:
 
-- **Railway / Render / Fly.io** – set `PORT` env var, start command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
+- **Render / Fly.io** – set `PORT` env var, start command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
 - **Docker** – `COPY backend/ /app && pip install -r /app/requirements.txt && uvicorn main:app --host 0.0.0.0 --port 8000`
 - **PythonAnywhere** – upload `backend/` folder, configure WSGI to point at `main:app`
