@@ -514,10 +514,10 @@ async def _send_email(email: str, subject: str, text: str) -> None:
 
 async def _send_auth_email(email: str, code: str) -> None:
     text = (
-        "Codul tău de autentificare MotoMeteo este: "
+        "Codul tău de autentificare WeatherForMoto este: "
         f"{code}\n\nValabil {AUTH_CODE_TTL_MIN} minute."
     )
-    await _send_email(email, "MotoMeteo login code", text)
+    await _send_email(email, "WeatherForMoto — cod autentificare", text)
 
 
 async def get_current_user(authorization: str | None = Header(default=None)) -> SessionUser:
