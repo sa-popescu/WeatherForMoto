@@ -1751,10 +1751,45 @@
     function _updateEmailAlertsBadge(active) {
       var badge = document.getElementById('email-alerts-badge');
       var desc = document.getElementById('email-alerts-status-desc');
+      var btn = document.getElementById('email-alerts-toggle-btn');
       if (badge) badge.classList.toggle('hidden', !active);
-      if (desc) desc.textContent = active
-        ? 'Vei primi email când condițiile ating pragurile alese'
-        : 'Email când condițiile ating pragurile tale';
+      if (desc) {
+        desc.classList.remove('text-danger');
+        desc.textContent = active
+          ? 'Vei primi email când condițiile ating pragurile alese'
+          : 'Alertele email sunt dezactivate';
+      }
+      if (btn) {
+        if (active) {
+          btn.textContent = 'Dezactivează alertele email';
+          btn.className = 'w-full py-1.5 rounded-lg text-xs transition-colors border border-warn/30 text-warn/80 hover:border-warn hover:text-warn';
+        } else {
+          btn.textContent = 'Activează alertele email';
+          btn.className = 'w-full py-1.5 rounded-lg text-xs transition-colors border border-ok/30 text-ok/80 hover:border-ok hover:text-ok';
+        }
+      }
+    }
+
+    async function toggleEmailAlerts() {
+      var token = _authToken();
+      if (!token) return;
+      var btn = document.getElementById('email-alerts-toggle-btn');
+      var isActive = btn && btn.textContent.trim().startsWith('Dezact');
+      if (isActive) {
+        await unsubscribeEmailAlerts();
+      } else {
+        // Re-enable: upload current local settings with email_alerts_enabled = true
+        try {
+          var s = _getAlertSettings();
+          s.email_alerts_enabled = true;
+          localStorage.setItem('alertSettings', JSON.stringify(s));
+          await _uploadLocalSettingsToServer();
+          _updateEmailAlertsBadge(true);
+        } catch (e) {
+          var desc = document.getElementById('email-alerts-status-desc');
+          if (desc) { desc.textContent = 'Eroare: ' + (e && e.message || 'încearcă din nou.'); desc.classList.add('text-danger'); }
+        }
+      }
     }
 
     var LAT = 44.4268, LON = 26.1025, CITY = "București";
