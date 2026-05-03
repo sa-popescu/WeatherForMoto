@@ -704,17 +704,14 @@
 
             <div class="border-t border-border/50 pt-3">
               <!-- Email alerts row -->
-              <div class="flex items-center justify-between gap-3 mb-2">
+              <div class="flex items-center justify-between gap-3">
                 <div class="min-w-0">
                   <div class="text-sm text-gray-200 font-medium">Alerte email</div>
                   <div class="text-xs text-muted leading-snug" id="email-alerts-status-desc">Email când condițiile ating pragurile tale</div>
                 </div>
-                <span id="email-alerts-badge" class="flex-shrink-0 text-xs font-bold px-2 py-0.5 rounded border border-ok/40 text-ok hidden">ACTIV</span>
+                <button id="email-alerts-toggle-btn" onclick="toggleEmailAlerts()"
+                  class="flex-shrink-0 w-16 py-1.5 rounded-lg text-xs font-bold border border-border text-muted transition-colors">OFF</button>
               </div>
-              <button id="email-alerts-toggle-btn" onclick="toggleEmailAlerts()"
-                class="w-full py-1.5 rounded-lg text-xs transition-colors border border-warn/30 text-warn/80 hover:border-warn hover:text-warn">
-                Dezactivează alertele email
-              </button>
             </div>
 
           </div>
