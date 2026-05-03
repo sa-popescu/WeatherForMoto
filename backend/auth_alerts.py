@@ -530,6 +530,48 @@ def _issue_session(conn: sqlite3.Connection, user_id: int) -> str:
     return token
 
 
+import re as _re
+
+def _text_to_html(text: str) -> str:
+    """Convert plain-text email body to a simple branded HTML email."""
+    url_pattern = _re.compile(r'(https?://[^\s,\)]+)')
+
+    lines_html = []
+    for line in text.splitlines():
+        escaped = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        linked = url_pattern.sub(
+            lambda m: f'<a href="{m.group(1)}" style="color:#f97316;text-decoration:underline;">{m.group(1)}</a>',
+            escaped,
+        )
+        if linked.strip():
+            lines_html.append(f"<p style='margin:0 0 8px 0;'>{linked}</p>")
+        else:
+            lines_html.append("<br>")
+
+    body_inner = "\n".join(lines_html)
+    return f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#111827;font-family:Arial,sans-serif;color:#e5e7eb;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#111827;padding:32px 0;">
+    <tr><td align="center">
+      <table width="560" cellpadding="0" cellspacing="0" style="background:#1f2937;border-radius:12px;overflow:hidden;max-width:560px;width:100%;">
+        <tr><td style="background:#111827;padding:20px 32px;border-bottom:2px solid #f97316;">
+          <span style="font-size:20px;font-weight:bold;letter-spacing:2px;color:#f97316;">MOTO /// METEO</span>
+          <span style="font-size:11px;color:#9ca3af;margin-left:12px;">WeatherForMoto</span>
+        </td></tr>
+        <tr><td style="padding:28px 32px;font-size:14px;line-height:1.7;color:#d1d5db;">
+          {body_inner}
+        </td></tr>
+        <tr><td style="padding:16px 32px;background:#111827;font-size:11px;color:#6b7280;border-top:1px solid #374151;">
+          Echipa WeatherForMoto &nbsp;·&nbsp;
+          <a href="{APP_BASE_URL}" style="color:#f97316;text-decoration:none;">{APP_BASE_URL}</a>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>"""
+
+
 async def _send_email(email: str, subject: str, text: str) -> None:
 
     # Prefer Brevo Email API when configured (more reliable in cloud runtimes).
@@ -540,6 +582,7 @@ async def _send_email(email: str, subject: str, text: str) -> None:
             "to": [{"email": email}],
             "subject": subject,
             "textContent": text,
+            "htmlContent": _text_to_html(text),
         }
         headers = {
             "accept": "application/json",
@@ -563,6 +606,7 @@ async def _send_email(email: str, subject: str, text: str) -> None:
     msg["From"] = SMTP_FROM
     msg["To"] = email
     msg.set_content(text)
+    msg.add_alternative(_text_to_html(text), subtype="html")
 
     with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=8) as server:
         server.starttls()
