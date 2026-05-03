@@ -1505,7 +1505,6 @@
         msg.classList.remove('hidden');
         document.getElementById('change-pw-current').value = '';
         document.getElementById('change-pw-new').value = '';
-        showChangePassword();
       } catch (e) {
         msg.textContent = t('acc_err_generic') + (e && e.message || e);
         msg.className = 'text-xs text-danger';
