@@ -1381,24 +1381,42 @@
       var token = _authToken();
       if (!token) return;
       var nameEl = document.getElementById('me-name-input');
+      var emailEl = document.getElementById('me-email-input');
+      var emailPwEl = document.getElementById('me-email-pw');
+      var msgEl = document.getElementById('profile-save-msg');
       var displayName = (nameEl && nameEl.value || '').trim();
-      if (!displayName) { alert(t('acc_fill_name')); return; }
-
+      var newEmail = (emailEl && emailEl.value || '').trim().toLowerCase();
+      var emailPw = (emailPwEl && emailPwEl.value || '').trim();
+      if (msgEl) msgEl.classList.add('hidden');
+      if (!displayName && !newEmail) { alert(t('acc_fill_name')); return; }
       try {
-        var resp = await fetch(_api('/me/profile'), {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + token
-          },
-          body: JSON.stringify({ display_name: displayName })
-        });
-        var data = await resp.json();
-        if (!resp.ok) throw new Error(data.detail || t('acc_err_profile'));
-        _setUserName(displayName);
+        if (displayName) {
+          var r1 = await fetch(_api('/me/profile'), {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            body: JSON.stringify({ display_name: displayName })
+          });
+          var d1 = await r1.json();
+          if (!r1.ok) throw new Error(d1.detail || t('acc_err_profile'));
+          _setUserName(displayName);
+        }
+        if (newEmail) {
+          if (!emailPw) { alert('Introdu parola curentă pentru a schimba emailul.'); return; }
+          var r2 = await fetch(_api('/me/email'), {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            body: JSON.stringify({ new_email: newEmail, password: emailPw })
+          });
+          var d2 = await r2.json();
+          if (!r2.ok) throw new Error(d2.detail || 'Eroare la schimbarea emailului.');
+          if (emailEl) emailEl.value = '';
+          if (emailPwEl) emailPwEl.value = '';
+        }
+        if (msgEl) { msgEl.textContent = 'Salvat cu succes!'; msgEl.className = 'text-xs text-ok'; msgEl.classList.remove('hidden'); }
         await refreshAccountState();
       } catch (e) {
-        alert(t('acc_err_profile') + (e && e.message || e));
+        if (msgEl) { msgEl.textContent = e && e.message || 'Eroare.'; msgEl.className = 'text-xs text-danger'; msgEl.classList.remove('hidden'); }
+        else alert(e && e.message || 'Eroare.');
       }
     }
 
