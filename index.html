@@ -2639,24 +2639,45 @@
       if (val.length < 2) { drop.innerHTML = ''; drop.classList.add('hidden'); return; }
       _geoTimers[inputId] = setTimeout(async function() {
         try {
-          // If query contains comma, use Nominatim structured geocoding (city= + county=)
-          // which pins the search to the correct county — free-text can return wrong duplicates
           var commaIdx = val.indexOf(',');
+          var countyFilter = '';
           var url;
           if (commaIdx > -1) {
             var cityPart = val.slice(0, commaIdx).trim();
-            var countyPart = val.slice(commaIdx + 1).trim();
-            // Romanian județe are admin_level=4 in OSM → Nominatim "state", not "county"
-            url = 'https://nominatim.openstreetmap.org/search?city=' + encodeURIComponent(cityPart)
-              + '&state=' + encodeURIComponent(countyPart)
-              + '&format=json&limit=10&addressdetails=1&countrycodes=ro&accept-language=ro';
+            countyFilter = val.slice(commaIdx + 1).trim();
+            // Free-text search combining city + county; structured Nominatim params
+            // (city=, state=, county=) don't reliably match Romanian OSM admin levels.
+            // We fetch broadly then filter client-side by county name.
+            url = 'https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(cityPart + ' ' + countyFilter)
+              + '&format=json&limit=20&addressdetails=1&countrycodes=ro&accept-language=ro';
           } else {
             url = 'https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(val)
               + '&format=json&limit=10&addressdetails=1&countrycodes=ro&accept-language=ro';
           }
           var resp = await fetch(url);
           var data = await resp.json();
-          // Fallback: free-text without country restriction
+
+          // When user specified a county, filter results to those whose address county/state
+          // contains the typed county name (normalised, diacritics-insensitive).
+          if (countyFilter && data && data.length) {
+            var norm = function(s) { return (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); };
+            var cf = norm(countyFilter);
+            var filtered = data.filter(function(r) {
+              var addr = r.address || {};
+              return norm(addr.county).includes(cf) || norm(addr.state).includes(cf);
+            });
+            if (filtered.length) {
+              data = filtered;
+            } else {
+              // Nothing in that county — tell the user instead of showing wrong results
+              drop.innerHTML = '<div class="px-3 py-2 text-sm text-muted italic">'
+                + (t('geocode_not_in_county') || 'Locația nu a fost găsită în județul specificat.') + '</div>';
+              drop.classList.remove('hidden');
+              return;
+            }
+          }
+
+          // Fallback: free-text without country restriction (international cities)
           if (!data || !data.length) {
             var url2 = 'https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(val)
               + '&format=json&limit=6&addressdetails=1&accept-language=' + _lang;
@@ -2666,14 +2687,10 @@
           if (!data || !data.length) { drop.classList.add('hidden'); return; }
           drop.innerHTML = data.map(function(r) {
             var addr = r.address || {};
-            // Extract locality name
             var name = r.name || addr.village || addr.hamlet || addr.suburb
               || addr.town || addr.city || r.display_name.split(',')[0];
-            // Extract judet (county) — Nominatim returns it as addr.county
             var county = addr.county || addr.state || '';
-            // Strip "Județul " prefix if present
             county = county.replace(/^Jude[tț]ul\s+/i, '');
-            // Type label
             var typeMap = { village: 'Comună', hamlet: 'Cătun', town: 'Oraș', city: 'Municipiu', suburb: 'Cartier' };
             var typeLabel = typeMap[addr.village ? 'village' : addr.hamlet ? 'hamlet' : addr.town ? 'town' : addr.city ? 'city' : ''] || '';
             var countryLabel = (addr.country_code && addr.country_code.toUpperCase() !== 'RO') ? ' · ' + addr.country_code.toUpperCase() : '';
