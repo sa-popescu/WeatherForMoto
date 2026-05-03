@@ -1785,13 +1785,15 @@
 
     async function toggleEmailAlerts() {
       var token = _authToken();
-      if (!token) return;
+      if (!token) { _updateEmailAlertsBadge(false); return; }
       var btn = document.getElementById('email-alerts-toggle-btn');
-      var isActive = btn && btn.checked;
-      if (isActive) {
+      // btn.checked is the NEW state the user wants (browser already toggled it)
+      var wantsOn = btn && btn.checked;
+      if (!wantsOn) {
+        // User clicked to turn OFF
         await unsubscribeEmailAlerts();
       } else {
-        // Re-enable: upload current local settings with email_alerts_enabled = true
+        // User clicked to turn ON — re-enable with current settings
         try {
           var s = _getAlertSettings();
           s.email_alerts_enabled = true;
@@ -1801,6 +1803,7 @@
         } catch (e) {
           var desc = document.getElementById('email-alerts-status-desc');
           if (desc) { desc.textContent = 'Eroare: ' + (e && e.message || 'încearcă din nou.'); desc.classList.add('text-danger'); }
+          _updateEmailAlertsBadge(false); // revert on failure
         }
       }
     }
