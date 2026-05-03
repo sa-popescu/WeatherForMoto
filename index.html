@@ -274,6 +274,32 @@
       animation: slide-up 0.2s ease;
     }
 
+    /* Toggle switch */
+    .toggle-switch {
+      position: relative; display: inline-block;
+      width: 48px; height: 26px; flex-shrink: 0; cursor: pointer;
+    }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .toggle-track {
+      position: absolute; inset: 0;
+      background: #374151; border-radius: 9999px;
+      transition: background 0.2s;
+    }
+    .toggle-track::after {
+      content: '';
+      position: absolute; left: 3px; top: 3px;
+      width: 20px; height: 20px;
+      background: #fff; border-radius: 50%;
+      transition: transform 0.2s;
+      box-shadow: 0 1px 3px rgba(0,0,0,.4);
+    }
+    .toggle-switch input:checked + .toggle-track {
+      background: #a3e635;
+    }
+    .toggle-switch input:checked + .toggle-track::after {
+      transform: translateX(22px);
+    }
+
     /* Arrow toggle for daily expand */
     .day-arrow {
       transition: transform 0.25s cubic-bezier(.4, 0, .2, 1);
