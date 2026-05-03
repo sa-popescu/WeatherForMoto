@@ -161,15 +161,78 @@ def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+class _TursoCursor:
+    """Wraps a libsql cursor so fetchone/fetchall return dicts (like sqlite3.Row)."""
+
+    def __init__(self, cur):
+        self._cur = cur
+
+    @property
+    def description(self):
+        return self._cur.description
+
+    @property
+    def lastrowid(self):
+        return getattr(self._cur, "lastrowid", None)
+
+    def _row(self, row):
+        if row is None:
+            return None
+        desc = self._cur.description
+        if desc:
+            return {desc[i][0]: row[i] for i in range(len(desc))}
+        try:
+            return dict(row)
+        except Exception:
+            return row
+
+    def fetchone(self):
+        return self._row(self._cur.fetchone())
+
+    def fetchall(self):
+        desc = self._cur.description
+        rows = self._cur.fetchall()
+        if not rows:
+            return []
+        if desc:
+            cols = [d[0] for d in desc]
+            return [{cols[i]: row[i] for i in range(len(cols))} for row in rows]
+        result = []
+        for row in rows:
+            try:
+                result.append(dict(row))
+            except Exception:
+                result.append(row)
+        return result
+
+
+class _TursoConn:
+    """Wraps a libsql connection to return dict rows from every cursor."""
+
+    def __init__(self, conn):
+        self._conn = conn
+
+    def execute(self, sql, params=()):
+        return _TursoCursor(self._conn.execute(sql, params))
+
+    def executemany(self, sql, params_list):
+        return self._conn.executemany(sql, params_list)
+
+    def commit(self):
+        self._conn.commit()
+
+    def close(self):
+        self._conn.close()
+
+
 def _connect():
     if not TURSO_URL or not TURSO_TOKEN:
         raise RuntimeError("TURSO_DATABASE_URL and TURSO_AUTH_TOKEN must be set")
     import libsql_experimental as libsql  # type: ignore
-    return libsql.connect(TURSO_URL, auth_token=TURSO_TOKEN)
+    return _TursoConn(libsql.connect(TURSO_URL, auth_token=TURSO_TOKEN))
 
 
 def _row(row) -> dict:
-    """Normalise a DB row to a dict regardless of backend (sqlite3.Row or libsql tuple)."""
     if row is None:
         return None
     if isinstance(row, dict):
@@ -182,13 +245,7 @@ def _row(row) -> dict:
 
 def _ensure_column(conn, table: str, column: str, ddl: str) -> None:
     cols = conn.execute(f"PRAGMA table_info({table})").fetchall()
-    # rows may be sqlite3.Row, dict, or tuple depending on backend
-    names = set()
-    for c in cols:
-        try:
-            names.add(c["name"])
-        except (TypeError, KeyError):
-            names.add(c[1])
+    names = {c["name"] for c in cols}
     if column not in names:
         conn.execute(ddl)
 
