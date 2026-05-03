@@ -1678,7 +1678,8 @@
           headers: { 'Authorization': 'Bearer ' + token }
         }).catch(function() {});
       } catch (e) {
-        alert(t('acc_err_push') + (e && e.message || e));
+        console.warn('Push registration error:', e && e.message || e);
+        _updatePushButton(false, true);
       }
     }
 
