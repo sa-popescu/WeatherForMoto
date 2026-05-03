@@ -1774,10 +1774,14 @@
       var desc = document.getElementById('email-alerts-status-desc');
       var btn = document.getElementById('email-alerts-toggle-btn');
       if (desc) {
-        desc.classList.remove('text-danger');
-        desc.textContent = active
-          ? 'Vei primi email când condițiile ating pragurile alese'
-          : 'Email când condițiile ating pragurile tale';
+        desc.classList.remove('text-danger', 'text-ok', 'text-muted');
+        if (active) {
+          desc.textContent = 'Activ — primești email când condițiile ating pragurile alese';
+          desc.classList.add('text-ok');
+        } else {
+          desc.textContent = 'Inactiv — nu vei primi alerte email';
+          desc.classList.add('text-muted');
+        }
       }
       if (btn) btn.checked = !!active;
     }
