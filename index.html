@@ -1566,9 +1566,13 @@
         });
         var data = await resp.json();
         if (!resp.ok) throw new Error(data.detail || t('acc_err_unsub'));
-        alert(t('acc_unsub_ok'));
+        _updateEmailAlertsBadge(false);
+        var desc = document.getElementById('email-alerts-status-desc');
+        if (desc) { desc.textContent = 'Alertele email sunt dezactivate.'; desc.classList.add('text-muted'); }
       } catch (e) {
-        alert(t('acc_err_unsub') + (e && e.message || e));
+        console.warn('Unsubscribe email alerts error:', e && e.message || e);
+        var desc = document.getElementById('email-alerts-status-desc');
+        if (desc) { desc.textContent = 'Eroare: ' + (e && e.message || 'încearcă din nou.'); desc.classList.add('text-danger'); }
       }
     }
 
