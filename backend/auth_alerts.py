@@ -178,9 +178,15 @@ def _row(row) -> dict:
         return row
 
 
-def _ensure_column(conn: sqlite3.Connection, table: str, column: str, ddl: str) -> None:
+def _ensure_column(conn, table: str, column: str, ddl: str) -> None:
     cols = conn.execute(f"PRAGMA table_info({table})").fetchall()
-    names = {c[1] for c in cols}
+    # rows may be sqlite3.Row, dict, or tuple depending on backend
+    names = set()
+    for c in cols:
+        try:
+            names.add(c["name"])
+        except (TypeError, KeyError):
+            names.add(c[1])
     if column not in names:
         conn.execute(ddl)
 
