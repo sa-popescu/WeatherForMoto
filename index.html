@@ -1746,24 +1746,20 @@
     }
 
     function _updateEmailAlertsBadge(active) {
-      var badge = document.getElementById('email-alerts-badge');
       var desc = document.getElementById('email-alerts-status-desc');
       var btn = document.getElementById('email-alerts-toggle-btn');
-      if (badge) badge.classList.toggle('hidden', !active);
       if (desc) {
         desc.classList.remove('text-danger');
         desc.textContent = active
           ? 'Vei primi email când condițiile ating pragurile alese'
-          : 'Alertele email sunt dezactivate';
+          : 'Email când condițiile ating pragurile tale';
       }
       if (btn) {
-        if (active) {
-          btn.textContent = 'Dezactivează alertele email';
-          btn.className = 'w-full py-1.5 rounded-lg text-xs transition-colors border border-warn/30 text-warn/80 hover:border-warn hover:text-warn';
-        } else {
-          btn.textContent = 'Activează alertele email';
-          btn.className = 'w-full py-1.5 rounded-lg text-xs transition-colors border border-ok/30 text-ok/80 hover:border-ok hover:text-ok';
-        }
+        btn.textContent = active ? 'ON' : 'OFF';
+        btn.classList.toggle('border-ok', !!active);
+        btn.classList.toggle('text-ok', !!active);
+        btn.classList.toggle('border-border', !active);
+        btn.classList.toggle('text-muted', !active);
       }
     }
 
