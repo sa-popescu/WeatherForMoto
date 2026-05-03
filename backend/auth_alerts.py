@@ -1085,6 +1085,12 @@ async def unsubscribe_email_alerts(user: SessionUser = Depends(get_current_user)
     conn = _connect()
     try:
         now = _utc_now().isoformat()
+        prev = conn.execute(
+            "SELECT email_alerts_enabled FROM alert_prefs WHERE user_id = ?",
+            (user.user_id,),
+        ).fetchone()
+        was_enabled = bool(prev["email_alerts_enabled"]) if prev else False
+
         conn.execute(
             """
             INSERT INTO alert_prefs(
@@ -1100,9 +1106,25 @@ async def unsubscribe_email_alerts(user: SessionUser = Depends(get_current_user)
             (user.user_id, now),
         )
         conn.commit()
-        return {"ok": True}
     finally:
         conn.close()
+
+    if was_enabled:
+        body = (
+            f"Bună ziua,\n\n"
+            f"Alertele email WeatherForMoto au fost dezactivate pentru contul tău ({user.email}).\n\n"
+            f"Nu vei mai primi notificări email despre condițiile meteo.\n"
+            f"Notificările push (dacă erau active) rămân funcționale.\n\n"
+            f"Poți reactiva alertele email oricând din secțiunea Notificări a contului tău.\n\n"
+            f"Drum bun!\n"
+            f"Echipa WeatherForMoto"
+        )
+        try:
+            await _send_email(user.email, "WeatherForMoto — alerte email dezactivate", body)
+        except Exception as exc:
+            logger.warning("Could not send unsubscribe confirmation to %s: %s", user.email, exc)
+
+    return {"ok": True}
 
 
 @router.delete("/me")
