@@ -889,6 +889,15 @@ async def update_prefs(payload: AlertPrefsPayload, user: SessionUser = Depends(g
     conn = _connect()
     try:
         now = _utc_now().isoformat()
+
+        # Check previous email_alerts_enabled to detect first-time activation
+        prev = conn.execute(
+            "SELECT email_alerts_enabled FROM alert_prefs WHERE user_id = ?",
+            (user.user_id,),
+        ).fetchone()
+        was_email_enabled = bool(prev["email_alerts_enabled"]) if prev else False
+        email_alerts_newly_enabled = payload.email_alerts_enabled and not was_email_enabled
+
         conn.execute(
             """
             INSERT INTO alert_prefs(
