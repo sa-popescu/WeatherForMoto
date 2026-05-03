@@ -1080,14 +1080,18 @@ def _merge_current(
     om_code = c.get("weather_code")
     owm_code_raw = owm_current["weather"][0]["id"] if owm_current else None
     owm_code = _owm_id_to_wmo(owm_code_raw) if owm_code_raw is not None else None
+    wxm_code = wxm_norm.get("wmo_code") if wxm_norm else None
 
-    # prefer OWM description when available (already in Romanian via lang=ro)
+    # Weather code: when WXM station is active use its icon-derived code to
+    # decide the icon (keeps visual in sync with measured conditions).
+    # Use OWM Romanian description for text since WXM has no localization.
+    effective_code = wxm_code if wxm_code is not None else (owm_code or om_code)
     if owm_current:
-        description = owm_current["weather"][0].get("description", _wmo_desc(om_code)).capitalize()
-        icon_emoji = _wmo_icon(owm_code or om_code)
+        description = owm_current["weather"][0].get("description", _wmo_desc(effective_code)).capitalize()
+        icon_emoji = _wmo_icon(effective_code)
     else:
-        description = _wmo_desc(om_code)
-        icon_emoji = _wmo_icon(om_code)
+        description = _wmo_desc(effective_code)
+        icon_emoji = _wmo_icon(effective_code)
 
     # --- pressure, visibility
     pressure = (
