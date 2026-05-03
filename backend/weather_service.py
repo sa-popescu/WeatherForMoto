@@ -697,7 +697,8 @@ async def geocode_city(city: str, client: httpx.AsyncClient) -> dict[str, Any]:
         try:
             resp = await client.get(
                 NOMINATIM,
-                params={"city": parts[0], "county": parts[1], "countrycodes": "ro",
+                # Romanian județe are admin_level=4 in OSM → Nominatim "state", not "county"
+                params={"city": parts[0], "state": parts[1], "countrycodes": "ro",
                         "format": "json", "limit": 1, "addressdetails": 0},
                 headers=HEADERS, timeout=8,
             )
