@@ -1787,7 +1787,7 @@
       var token = _authToken();
       if (!token) return;
       var btn = document.getElementById('email-alerts-toggle-btn');
-      var isActive = btn && btn.textContent.trim() === 'ON';
+      var isActive = btn && btn.checked;
       if (isActive) {
         await unsubscribeEmailAlerts();
       } else {
