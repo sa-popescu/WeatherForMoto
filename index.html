@@ -4354,7 +4354,12 @@
         CITY = geo.name + (geo.country && geo.country !== "RO" ? ", " + geo.country : "");
         saveCity(); renderFavsBar();
         loadWeather();
-      } catch (e) { alert("Eroare geocoding: " + e.message); }
+      } catch (e) {
+        var inp = document.getElementById('city-in');
+        if (inp) { inp.classList.add('border-danger'); setTimeout(function(){ inp.classList.remove('border-danger'); }, 2500); }
+        var msg = document.getElementById('geocode-err');
+        if (msg) { msg.textContent = e.message; msg.classList.remove('hidden'); setTimeout(function(){ msg.classList.add('hidden'); }, 4000); }
+      }
     }
 
     document.getElementById("city-in").addEventListener("keydown", function (e) { if (e.key === "Enter") searchCity(); });
