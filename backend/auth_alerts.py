@@ -185,126 +185,117 @@ def _ensure_column(conn: sqlite3.Connection, table: str, column: str, ddl: str) 
         conn.execute(ddl)
 
 
+_INIT_TABLES = [
+    """CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT UNIQUE NOT NULL,
+        created_at TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS auth_codes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT NOT NULL,
+        code TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        token_hash TEXT UNIQUE NOT NULL,
+        expires_at TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY(user_id) REFERENCES users(id)
+    )""",
+    """CREATE TABLE IF NOT EXISTS alert_prefs (
+        user_id INTEGER PRIMARY KEY,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        email_alerts_enabled INTEGER NOT NULL DEFAULT 1,
+        email_alert_wind INTEGER NOT NULL DEFAULT 1,
+        email_alert_rain INTEGER NOT NULL DEFAULT 1,
+        email_alert_rain_probability INTEGER NOT NULL DEFAULT 1,
+        email_alert_score INTEGER NOT NULL DEFAULT 1,
+        email_alert_temp_low INTEGER NOT NULL DEFAULT 1,
+        email_alert_temp_high INTEGER NOT NULL DEFAULT 1,
+        email_alert_frost INTEGER NOT NULL DEFAULT 1,
+        min_score INTEGER NOT NULL DEFAULT 45,
+        max_wind_gust REAL NOT NULL DEFAULT 50,
+        max_precip REAL NOT NULL DEFAULT 2,
+        frost_risk_enabled INTEGER NOT NULL DEFAULT 1,
+        home_lat REAL,
+        home_lon REAL,
+        city TEXT,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY(user_id) REFERENCES users(id)
+    )""",
+    """CREATE TABLE IF NOT EXISTS push_subscriptions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        endpoint TEXT UNIQUE NOT NULL,
+        p256dh TEXT NOT NULL,
+        auth TEXT NOT NULL,
+        last_seen TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY(user_id) REFERENCES users(id)
+    )""",
+    """CREATE TABLE IF NOT EXISTS alert_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        event_key TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        UNIQUE(user_id, event_key)
+    )""",
+    """CREATE TABLE IF NOT EXISTS saved_routes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        stops_json TEXT NOT NULL,
+        total_distance_km REAL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY(user_id) REFERENCES users(id)
+    )""",
+    """CREATE TABLE IF NOT EXISTS ride_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        route_name TEXT,
+        start_city TEXT NOT NULL,
+        end_city TEXT NOT NULL,
+        distance_km REAL NOT NULL,
+        duration_min INTEGER NOT NULL,
+        avg_moto_score INTEGER,
+        max_wind_gust REAL,
+        max_precip REAL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY(user_id) REFERENCES users(id)
+    )""",
+    """CREATE TABLE IF NOT EXISTS hazard_reports (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        lat REAL NOT NULL,
+        lon REAL NOT NULL,
+        hazard_type TEXT NOT NULL,
+        severity INTEGER NOT NULL,
+        description TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY(user_id) REFERENCES users(id)
+    )""",
+    """CREATE TABLE IF NOT EXISTS password_reset_tokens (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        token_hash TEXT UNIQUE NOT NULL,
+        expires_at TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY(user_id) REFERENCES users(id)
+    )""",
+]
+
+
 def init_db() -> None:
     conn = _connect()
     try:
-        conn.executescript(
-            """
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                email TEXT UNIQUE NOT NULL,
-                created_at TEXT NOT NULL
-            );
-
-            CREATE TABLE IF NOT EXISTS auth_codes (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                email TEXT NOT NULL,
-                code TEXT NOT NULL,
-                expires_at TEXT NOT NULL,
-                created_at TEXT NOT NULL
-            );
-
-            CREATE TABLE IF NOT EXISTS sessions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                token_hash TEXT UNIQUE NOT NULL,
-                expires_at TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                FOREIGN KEY(user_id) REFERENCES users(id)
-            );
-
-            CREATE TABLE IF NOT EXISTS alert_prefs (
-                user_id INTEGER PRIMARY KEY,
-                enabled INTEGER NOT NULL DEFAULT 1,
-                email_alerts_enabled INTEGER NOT NULL DEFAULT 1,
-                email_alert_wind INTEGER NOT NULL DEFAULT 1,
-                email_alert_rain INTEGER NOT NULL DEFAULT 1,
-                email_alert_rain_probability INTEGER NOT NULL DEFAULT 1,
-                email_alert_score INTEGER NOT NULL DEFAULT 1,
-                email_alert_temp_low INTEGER NOT NULL DEFAULT 1,
-                email_alert_temp_high INTEGER NOT NULL DEFAULT 1,
-                email_alert_frost INTEGER NOT NULL DEFAULT 1,
-                min_score INTEGER NOT NULL DEFAULT 45,
-                max_wind_gust REAL NOT NULL DEFAULT 50,
-                max_precip REAL NOT NULL DEFAULT 2,
-                frost_risk_enabled INTEGER NOT NULL DEFAULT 1,
-                home_lat REAL,
-                home_lon REAL,
-                city TEXT,
-                updated_at TEXT NOT NULL,
-                FOREIGN KEY(user_id) REFERENCES users(id)
-            );
-
-            CREATE TABLE IF NOT EXISTS push_subscriptions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                endpoint TEXT UNIQUE NOT NULL,
-                p256dh TEXT NOT NULL,
-                auth TEXT NOT NULL,
-                last_seen TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                FOREIGN KEY(user_id) REFERENCES users(id)
-            );
-
-            CREATE TABLE IF NOT EXISTS alert_events (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                event_key TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                UNIQUE(user_id, event_key)
-            );
-
-            CREATE TABLE IF NOT EXISTS saved_routes (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                name TEXT NOT NULL,
-                stops_json TEXT NOT NULL,
-                total_distance_km REAL,
-                created_at TEXT NOT NULL,
-                FOREIGN KEY(user_id) REFERENCES users(id)
-            );
-
-            CREATE TABLE IF NOT EXISTS ride_logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                route_name TEXT,
-                start_city TEXT NOT NULL,
-                end_city TEXT NOT NULL,
-                distance_km REAL NOT NULL,
-                duration_min INTEGER NOT NULL,
-                avg_moto_score INTEGER,
-                max_wind_gust REAL,
-                max_precip REAL,
-                created_at TEXT NOT NULL,
-                FOREIGN KEY(user_id) REFERENCES users(id)
-            );
-
-            CREATE TABLE IF NOT EXISTS hazard_reports (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                lat REAL NOT NULL,
-                lon REAL NOT NULL,
-                hazard_type TEXT NOT NULL,
-                severity INTEGER NOT NULL,
-                description TEXT NOT NULL,
-                expires_at TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                FOREIGN KEY(user_id) REFERENCES users(id)
-            );
-            """
-        )
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS password_reset_tokens (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                token_hash TEXT UNIQUE NOT NULL,
-                expires_at TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                FOREIGN KEY(user_id) REFERENCES users(id)
-            )
-            """
-        )
+        for stmt in _INIT_TABLES:
+            conn.execute(stmt)
+        conn.commit()
         _ensure_column(conn, "users", "display_name", "ALTER TABLE users ADD COLUMN display_name TEXT")
         _ensure_column(conn, "users", "password_hash", "ALTER TABLE users ADD COLUMN password_hash TEXT")
         _ensure_column(
