@@ -4077,10 +4077,11 @@
     // Auto-use GPS on load if user previously granted permission
     (function() {
       try {
+        if (window._resetMode) return;
         if (localStorage.getItem('motoUseGPS') !== '1' || !navigator.geolocation) return;
         if (navigator.permissions) {
           navigator.permissions.query({ name: 'geolocation' }).then(function(p) {
-            if (p.state === 'granted') geolocate(true);
+            if (p.state === 'granted' && !window._resetMode) geolocate(true);
           }).catch(function() {});
         }
       } catch(_) {}
