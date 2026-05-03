@@ -687,11 +687,36 @@
         <!-- Notifications -->
         <div class="border border-border rounded-xl p-4 mb-3">
           <div class="font-display text-xs font-bold tracking-widest text-muted uppercase mb-3">🔔 Notificări</div>
-          <div class="space-y-2">
-            <button id="push-account-btn" onclick="togglePushAlerts()"
-              class="w-full border border-border text-gray-200 hover:border-ok hover:text-ok py-2 rounded-xl text-sm transition-colors">Alerte push: OFF</button>
-            <button onclick="unsubscribeEmailAlerts()" data-i18n="acc_unsub_email"
-              class="w-full border border-warn/40 text-warn hover:border-warn py-2 rounded-xl text-sm transition-colors">Dezabonare alerte email</button>
+          <div class="space-y-3">
+
+            <!-- Push row -->
+            <div class="flex items-center justify-between gap-3">
+              <div class="min-w-0">
+                <div class="text-sm text-gray-200 font-medium">Notificări push</div>
+                <div class="text-xs text-muted leading-snug">Alerte instant în browser / telefon</div>
+              </div>
+              <button id="push-account-btn" onclick="togglePushAlerts()"
+                class="flex-shrink-0 min-w-[64px] px-3 py-1.5 rounded-lg text-xs font-bold border border-border text-muted transition-colors">OFF</button>
+            </div>
+            <div id="push-permission-msg" class="hidden text-xs text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">
+              ⚠ Notificările sunt blocate în browser. Dă click pe iconița de lacăt din bara de adrese și permite notificările pentru acest site, apoi încearcă din nou.
+            </div>
+
+            <div class="border-t border-border/50 pt-3">
+              <!-- Email alerts row -->
+              <div class="flex items-center justify-between gap-3 mb-2">
+                <div class="min-w-0">
+                  <div class="text-sm text-gray-200 font-medium">Alerte email</div>
+                  <div class="text-xs text-muted leading-snug" id="email-alerts-status-desc">Email când condițiile ating pragurile tale</div>
+                </div>
+                <span id="email-alerts-badge" class="flex-shrink-0 text-xs font-bold px-2 py-0.5 rounded border border-ok/40 text-ok hidden">ACTIV</span>
+              </div>
+              <button onclick="unsubscribeEmailAlerts()"
+                class="w-full border border-warn/30 text-warn/80 hover:border-warn hover:text-warn py-1.5 rounded-lg text-xs transition-colors">
+                Dezactivează alertele email
+              </button>
+            </div>
+
           </div>
         </div>
 
