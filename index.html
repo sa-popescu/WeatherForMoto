@@ -721,8 +721,10 @@
                 <div class="text-sm text-gray-200 font-medium">Notificări push</div>
                 <div class="text-xs text-muted leading-snug">Alerte instant în browser / telefon</div>
               </div>
-              <button id="push-account-btn" onclick="togglePushAlerts()"
-                class="flex-shrink-0 w-16 py-1.5 rounded-lg text-xs font-bold border border-border text-muted transition-colors">OFF</button>
+              <label class="toggle-switch" title="Toggle notificări push">
+                <input type="checkbox" id="push-account-btn" onchange="togglePushAlerts()">
+                <span class="toggle-track"></span>
+              </label>
             </div>
             <div id="push-permission-msg" class="hidden text-xs text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">
               ⚠ Notificările sunt blocate în browser. Dă click pe iconița de lacăt din bara de adrese și permite notificările pentru acest site, apoi încearcă din nou.
