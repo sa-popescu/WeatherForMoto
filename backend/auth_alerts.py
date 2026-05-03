@@ -741,7 +741,7 @@ async def auth_request_reset(payload: RequestResetPayload, request: Request) -> 
             (user_id, token_hash, expires, now.isoformat()),
         )
         conn.commit()
-        base_url = os.getenv("APP_BASE_URL") or str(request.base_url).rstrip("/")
+        base_url = os.getenv("APP_BASE_URL", "https://weatherformoto.bluemouse.cc").rstrip("/")
         reset_link = f"{base_url}/?reset_token={raw_token}"
         await _send_email(
             email,
