@@ -1658,6 +1658,16 @@
         return;
       }
 
+      var permMsg = document.getElementById('push-permission-msg');
+      if (permMsg) permMsg.classList.add('hidden');
+
+      // If browser already denied permission, show guidance instead of trying
+      if ('Notification' in window && Notification.permission === 'denied') {
+        if (permMsg) permMsg.classList.remove('hidden');
+        _updatePushButton(false, true);
+        return;
+      }
+
       try {
         await _uploadLocalSettingsToServer();
         var reg = await navigator.serviceWorker.ready;
@@ -1700,7 +1710,11 @@
           headers: { 'Authorization': 'Bearer ' + token }
         }).catch(function() {});
       } catch (e) {
-        console.warn('Push registration error:', e && e.message || e);
+        var msg = e && e.message || String(e);
+        console.warn('Push registration error:', msg);
+        if (msg.toLowerCase().indexOf('denied') > -1 || msg.toLowerCase().indexOf('permission') > -1) {
+          if (permMsg) permMsg.classList.remove('hidden');
+        }
         _updatePushButton(false, true);
       }
     }
