@@ -156,7 +156,11 @@ def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _connect() -> sqlite3.Connection:
+def _connect():
+    if TURSO_URL and TURSO_TOKEN:
+        import libsql_experimental as libsql  # type: ignore
+        conn = libsql.connect(TURSO_URL, auth_token=TURSO_TOKEN)
+        return conn
     os.makedirs(os.path.dirname(os.path.abspath(DB_PATH)), exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
