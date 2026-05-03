@@ -1332,10 +1332,8 @@
     }
 
     async function signupAccount() {
-      var nameEl = document.getElementById('acc-name');
       var emailEl = document.getElementById('acc-email');
       var passEl = document.getElementById('acc-pass');
-      var displayName = (nameEl && nameEl.value || '').trim();
       var email = (emailEl && emailEl.value || '').trim().toLowerCase();
       var password = (passEl && passEl.value || '').trim();
 
