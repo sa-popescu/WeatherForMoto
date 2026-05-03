@@ -1780,13 +1780,7 @@
           ? 'Vei primi email când condițiile ating pragurile alese'
           : 'Email când condițiile ating pragurile tale';
       }
-      if (btn) {
-        btn.textContent = active ? 'ON' : 'OFF';
-        btn.classList.toggle('border-ok', !!active);
-        btn.classList.toggle('text-ok', !!active);
-        btn.classList.toggle('border-border', !active);
-        btn.classList.toggle('text-muted', !active);
-      }
+      if (btn) btn.checked = !!active;
     }
 
     async function toggleEmailAlerts() {
