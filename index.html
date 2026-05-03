@@ -4230,19 +4230,29 @@
       if (!el) return;
       var favs = _getFavs();
       if (!favs.length) { el.innerHTML = ""; return; }
-      var html = '<div class="flex gap-2 flex-wrap items-center">';
-      html += '<span class="text-xs text-muted tracking-widest mr-1">★</span>';
+      var html = '<div class="flex gap-1.5 flex-wrap items-center py-1">';
       favs.forEach(function (f) {
         var encName = encodeURIComponent(f.name);
-        html += '<span class="flex items-center gap-0.5 bg-card border border-border rounded-lg text-xs">';
+        var isActive = (f.name === CITY);
+        var pillCls = isActive
+          ? 'border-accent/60 text-accent bg-accent/10'
+          : 'border-border text-muted hover:border-accent/40 hover:text-gray-200';
+        html += '<span class="fav-pill group relative inline-flex">';
         html += '<button type="button" data-fav-load="1" data-fav-name="' + encName + '" data-fav-lat="' + f.lat + '" data-fav-lon="' + f.lon + '"'
-          + ' class="px-2 py-1 text-gray-300 hover:text-accent transition-colors">' + f.name + '</button>';
+          + ' class="flex items-center gap-1 text-xs px-3 py-1 rounded-full border bg-card transition-all ' + pillCls + '">'
+          + '<i data-lucide="map-pin" style="width:11px;height:11px;flex-shrink:0"></i>'
+          + f.name
+          + '</button>';
         html += '<button type="button" data-fav-remove="1" data-fav-name="' + encName + '"'
-          + ' class="pr-2 text-muted hover:text-danger transition-colors text-sm leading-none">&times;</button>';
+          + ' class="absolute -top-1.5 -right-1.5 w-4 h-4 bg-surface border border-border rounded-full'
+          + ' text-muted hover:text-danger hover:border-danger text-[10px] leading-none'
+          + ' items-center justify-center hidden group-hover:flex transition-colors z-10"'
+          + ' title="Șterge din favorite">&times;</button>';
         html += '</span>';
       });
       html += '</div>';
       el.innerHTML = html;
+      if (window.lucide) lucide.createIcons({ nodes: el.querySelectorAll('[data-lucide]') });
 
       el.querySelectorAll('[data-fav-load="1"]').forEach(function (btn) {
         btn.addEventListener('click', function (e) {
