@@ -162,12 +162,14 @@ def _utc_now() -> datetime:
 
 
 def _connect():
-    if not TURSO_URL or not TURSO_TOKEN:
-        raise RuntimeError(
-            "Turso database is not configured. Set TURSO_DATABASE_URL and TURSO_AUTH_TOKEN."
-        )
-    import libsql_experimental as libsql  # type: ignore
-    return libsql.connect(TURSO_URL, auth_token=TURSO_TOKEN)
+    if TURSO_URL and TURSO_TOKEN:
+        import libsql_experimental as libsql  # type: ignore
+        return libsql.connect(TURSO_URL, auth_token=TURSO_TOKEN)
+    # Fallback: local SQLite (works when a persistent volume is mounted)
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
 
 
 def _row(row) -> dict:
