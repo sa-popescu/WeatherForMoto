@@ -1472,6 +1472,7 @@
         msg.className = 'text-xs text-ok';
         msg.classList.remove('hidden');
         setTimeout(function() {
+          window._resetMode = false;
           var planner = document.getElementById('route-planner-section');
           if (planner) planner.style.display = '';
           loadWeather();
