@@ -37,6 +37,7 @@ SMTP_FROM = os.getenv("SMTP_FROM", SMTP_USER or "weatherformoto@bluemouse.cc")
 BREVO_API_KEY = os.getenv("BREVO_API_KEY", "")
 OWM_API_KEY = os.getenv("OPENWEATHERMAP_API_KEY", "")
 PBKDF2_ITERATIONS = int(os.getenv("PBKDF2_ITERATIONS", "210000"))
+APP_BASE_URL = os.getenv("APP_BASE_URL", "https://weatherformoto.bluemouse.cc").rstrip("/")
 
 VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY", "")
 VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY", "")
