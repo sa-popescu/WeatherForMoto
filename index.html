@@ -1629,9 +1629,8 @@
             headers: { 'Authorization': 'Bearer ' + token }
           });
           _updatePushButton(false, true);
-          alert('Browserul nu suportă push. Am activat alertele pe email pentru contul tău.');
         } catch (e) {
-          alert('Push indisponibil și nu am putut activa fallback email: ' + (e && e.message || e));
+          console.warn('Push fallback error:', e);
         }
         return;
       }
