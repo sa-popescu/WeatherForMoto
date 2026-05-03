@@ -1580,7 +1580,7 @@
       } catch (_) { }
       _resetAuth();
       _showAuthView();
-      _updatePushButton(false, true);
+      _updatePushButton(false);
     }
 
     async function unsubscribeEmailAlerts() {
@@ -1677,7 +1677,7 @@
 
     async function togglePushAlerts() {
       var token = _authToken();
-      if (!token) { return; }
+      if (!token) { _updatePushButton(false); return; }
       if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
         try {
           await _uploadLocalSettingsToServer();
@@ -1685,7 +1685,7 @@
             method: 'POST',
             headers: { 'Authorization': 'Bearer ' + token }
           });
-          _updatePushButton(false, true);
+          _updatePushButton(false);
         } catch (e) {
           console.warn('Push fallback error:', e);
         }
@@ -1698,7 +1698,7 @@
       // If browser already denied permission, show guidance instead of trying
       if ('Notification' in window && Notification.permission === 'denied') {
         if (permMsg) permMsg.classList.remove('hidden');
-        _updatePushButton(false, true);
+        _updatePushButton(false);
         return;
       }
 
@@ -1713,7 +1713,7 @@
             headers: { 'Authorization': 'Bearer ' + token }
           });
           await existing.unsubscribe();
-          _updatePushButton(false, true);
+          _updatePushButton(false);
           return;
         }
 
@@ -1738,7 +1738,7 @@
         var saveData = await saveResp.json();
         if (!saveResp.ok) throw new Error(saveData.detail || 'Nu am putut salva abonarea push.');
 
-        _updatePushButton(true, true);
+        _updatePushButton(true);
         fetch(_api('/alerts/check-now'), {
           method: 'POST',
           headers: { 'Authorization': 'Bearer ' + token }
@@ -1749,19 +1749,19 @@
         if (msg.toLowerCase().indexOf('denied') > -1 || msg.toLowerCase().indexOf('permission') > -1) {
           if (permMsg) permMsg.classList.remove('hidden');
         }
-        _updatePushButton(false, true);
+        _updatePushButton(false);
       }
     }
 
     async function _refreshPushStatus() {
       if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-        _updatePushButton(false, true);
+        _updatePushButton(false);
         return;
       }
       try {
         var reg = await navigator.serviceWorker.ready;
         var sub = await reg.pushManager.getSubscription();
-        _updatePushButton(!!sub, true);
+        _updatePushButton(!!sub);
       } catch (_) { }
     }
 
