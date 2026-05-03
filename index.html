@@ -1344,7 +1344,7 @@
         var resp = await fetch(_api('/auth/signup'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: email, password: password, display_name: displayName || null })
+          body: JSON.stringify({ email: email, password: password, display_name: null })
         });
         var data = await resp.json();
         if (!resp.ok) throw new Error(data.detail || t('acc_err_signup'));
