@@ -4235,6 +4235,7 @@
     document.getElementById("city-in").addEventListener("keydown", function (e) { if (e.key === "Enter") searchCity(); });
 
     async function loadWeather() {
+      if (window._resetMode) return;
       document.getElementById("app").innerHTML = skeletonHtml();
       try {
         var d;
