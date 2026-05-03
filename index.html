@@ -1765,14 +1765,10 @@
       } catch (_) { }
     }
 
-    function _updatePushButton(enabled, updateLabel) {
+    function _updatePushButton(enabled) {
       var btn = document.getElementById('push-account-btn');
       if (!btn) return;
-      if (updateLabel) btn.textContent = enabled ? 'ON' : 'OFF';
-      btn.classList.toggle('border-ok', !!enabled);
-      btn.classList.toggle('text-ok', !!enabled);
-      btn.classList.toggle('border-border', !enabled);
-      btn.classList.toggle('text-muted', !enabled);
+      btn.checked = !!enabled;
     }
 
     function _updateEmailAlertsBadge(active) {
