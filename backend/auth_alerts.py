@@ -40,7 +40,7 @@ PBKDF2_ITERATIONS = int(os.getenv("PBKDF2_ITERATIONS", "210000"))
 
 VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY", "")
 VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY", "")
-VAPID_SUBJECT = os.getenv("VAPID_SUBJECT", "mailto:admin@motometeo.local")
+VAPID_SUBJECT = os.getenv("VAPID_SUBJECT", "mailto:weatherformoto@bluemouse.cc")
 
 
 @dataclass
