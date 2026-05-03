@@ -3946,6 +3946,7 @@
       if (omEcmwf) addSrc('open-meteo-ecmwf');
       if (omGfs) addSrc('open-meteo-gfs');
       if (omIcon) addSrc('open-meteo-icon');
+      // weatherxm comes from backend sources list — already in c.sources if station was found
       c.sources = src;
       data.current = c;
       return data;
