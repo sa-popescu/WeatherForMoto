@@ -975,6 +975,35 @@ async def update_prefs(payload: AlertPrefsPayload, user: SessionUser = Depends(g
             ),
         )
         conn.commit()
+
+        if email_alerts_newly_enabled:
+            city_label = payload.city or "locația ta"
+            unsub_url = f"{APP_BASE_URL}/?unsub=1"
+            body = (
+                f"Bună ziua,\n\n"
+                f"Alertele email WeatherForMoto au fost activate pentru contul tău ({user.email}).\n\n"
+                f"Vei primi notificări când condițiile meteo la {city_label} ating pragurile pe care le-ai configurat:\n"
+                f"  • Scor moto sub {payload.min_score}/100\n"
+                f"  • Rafale vânt peste {payload.max_wind_gust} km/h\n"
+                f"  • Precipitații peste {payload.max_precip} mm/h\n"
+                f"  • Probabilitate ploaie peste {payload.max_rain_probability}%\n"
+            )
+            if payload.min_temp is not None:
+                body += f"  • Temperatură sub {payload.min_temp}°C\n"
+            if payload.max_temp is not None:
+                body += f"  • Temperatură peste {payload.max_temp}°C\n"
+            body += (
+                f"\nAlertele sunt trimise o singură dată per eveniment, fără spam.\n"
+                f"Poți modifica sau dezactiva alertele oricând din contul tău.\n"
+                f"Link dezabonare rapidă: {unsub_url}\n\n"
+                f"Drum bun și condiții ideale!\n"
+                f"Echipa WeatherForMoto"
+            )
+            try:
+                await _send_email(user.email, "WeatherForMoto — alerte email activate", body)
+            except Exception as exc:
+                logger.warning("Could not send email alerts confirmation to %s: %s", user.email, exc)
+
         return {"ok": True}
     finally:
         conn.close()
