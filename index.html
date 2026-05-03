@@ -1594,10 +1594,9 @@
         var data = await resp.json();
         if (!resp.ok) throw new Error(data.detail || t('acc_err_unsub'));
         _updateEmailAlertsBadge(false);
-        var desc = document.getElementById('email-alerts-status-desc');
-        if (desc) { desc.textContent = 'Alertele email sunt dezactivate.'; desc.classList.add('text-muted'); }
       } catch (e) {
         console.warn('Unsubscribe email alerts error:', e && e.message || e);
+        _updateEmailAlertsBadge(true); // revert toggle back to ON on failure
         var desc = document.getElementById('email-alerts-status-desc');
         if (desc) { desc.textContent = 'Eroare: ' + (e && e.message || 'încearcă din nou.'); desc.classList.add('text-danger'); }
       }
