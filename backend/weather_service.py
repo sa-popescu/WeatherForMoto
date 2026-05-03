@@ -666,26 +666,30 @@ async def geocode_city(city: str, client: httpx.AsyncClient) -> dict[str, Any]:
     NOMINATIM = "https://nominatim.openstreetmap.org/search"
     HEADERS = {"User-Agent": "WeatherForMoto/1.0 (weatherformoto@bluemouse.cc)"}
 
-    # 1. Try Open-Meteo first (GeoNames — fast, good for known cities)
-    try:
-        resp = await client.get(
-            GEOCODING_OPENMETEO,
-            params={"name": city, "count": 1, "language": "ro"},
-            timeout=8,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        if data.get("results"):
-            r = data["results"][0]
-            return {
-                "lat": r["latitude"],
-                "lon": r["longitude"],
-                "name": r.get("name", city),
-                "country": r.get("country_code", ""),
-                "timezone": r.get("timezone", "auto"),
-            }
-    except Exception:
-        pass
+    # 1. Try Open-Meteo first (GeoNames — fast, good for known cities).
+    # Skip when query has a comma (user specified county hint) — Open-Meteo
+    # ignores county context and will return the first alphabetical match,
+    # which may be in the wrong county.
+    if "," not in city:
+        try:
+            resp = await client.get(
+                GEOCODING_OPENMETEO,
+                params={"name": city, "count": 1, "language": "ro"},
+                timeout=8,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            if data.get("results"):
+                r = data["results"][0]
+                return {
+                    "lat": r["latitude"],
+                    "lon": r["longitude"],
+                    "name": r.get("name", city),
+                    "country": r.get("country_code", ""),
+                    "timezone": r.get("timezone", "auto"),
+                }
+        except Exception:
+            pass
 
     # 2. Nominatim — structured for "village, county" queries
     if "," in city:
