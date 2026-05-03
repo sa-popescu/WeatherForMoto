@@ -1674,11 +1674,10 @@
         if (!saveResp.ok) throw new Error(saveData.detail || 'Nu am putut salva abonarea push.');
 
         _updatePushButton(true, true);
-        alert('Notificările push sunt active. Testez acum alertele pe 24h...');
-        await fetch(_api('/alerts/check-now'), {
+        fetch(_api('/alerts/check-now'), {
           method: 'POST',
           headers: { 'Authorization': 'Bearer ' + token }
-        });
+        }).catch(function() {});
       } catch (e) {
         alert(t('acc_err_push') + (e && e.message || e));
       }
