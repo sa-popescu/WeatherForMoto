@@ -1350,6 +1350,9 @@
           var initials = src.split(/[\s@.]+/).filter(Boolean).slice(0, 2).map(function(s) { return s[0].toUpperCase(); }).join('');
           meAvatar.textContent = initials || '?';
         }
+        var emailAlertsActive = data.prefs && data.prefs.email_alerts_enabled !== false;
+        _updateEmailAlertsBadge(emailAlertsActive);
+        _refreshPushStatus();
       } catch (_) {
         _resetAuth();
         _showAuthView();
