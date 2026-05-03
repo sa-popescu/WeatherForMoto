@@ -2326,7 +2326,7 @@
         email_alert_frost: !!((document.getElementById('email-alert-frost') || {}).checked),
         min_temp: ((document.getElementById('alert-min-temp') || {}).value || '').trim(),
         max_temp: ((document.getElementById('alert-max-temp') || {}).value || '').trim(),
-        frost_risk_enabled: !!((document.getElementById('alert-frost-enabled') || {}).checked),
+        frost_risk_enabled: !!((document.getElementById('email-alert-frost') || {}).checked),
         quiet_hours_enabled: !!((document.getElementById('alert-quiet-enabled') || {}).checked),
         quiet_start_hour: Math.max(0, Math.min(23, parseInt((document.getElementById('alert-quiet-start') || {}).value || 22, 10))),
         quiet_end_hour: Math.max(0, Math.min(23, parseInt((document.getElementById('alert-quiet-end') || {}).value || 7, 10))),
