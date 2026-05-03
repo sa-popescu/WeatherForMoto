@@ -1023,9 +1023,18 @@ def _merge_current(
     wxm_temp = wxm_norm.get("temp") if wxm_norm else None
     wxm_feel = wxm_norm.get("feels_like") if wxm_norm else None
 
-    # WeatherXM is a physical station — highest weight for measured values
-    temp = _weighted_avg([om_temp, owm_temp, met_temp, pw_temp, wxm_temp], [1.2, 1.0, 1.1, 0.8, 1.5])
-    feels = _weighted_avg([om_feel, owm_feel, pw_feel, wxm_feel], [1.0, 1.0, 0.8, 1.5])
+    # When a physical WeatherXM station is available it is measuring the actual
+    # air at that point — numerical models average over km² grid cells and can
+    # be several degrees off for current conditions (urban heat island, terrain,
+    # etc.).  Use the station reading directly; fall back to model blend only
+    # when the station value is absent.
+    def _wxm_or_blend(wxm_val, model_vals, model_weights):
+        if wxm_val is not None:
+            return round(float(wxm_val), 2)
+        return _weighted_avg(model_vals, model_weights)
+
+    temp = _wxm_or_blend(wxm_temp, [om_temp, owm_temp, met_temp, pw_temp], [1.2, 1.0, 1.1, 0.8])
+    feels = _wxm_or_blend(wxm_feel, [om_feel, owm_feel, pw_feel], [1.0, 1.0, 0.8])
 
     # --- humidity
     om_hum = c.get("relative_humidity_2m")
@@ -1033,7 +1042,7 @@ def _merge_current(
     met_hum = met_norm.get("humidity") if met_norm else None
     pw_hum = pw_norm.get("humidity") if pw_norm else None
     wxm_hum = wxm_norm.get("humidity") if wxm_norm else None
-    humidity = _weighted_avg([om_hum, owm_hum, met_hum, pw_hum, wxm_hum], [1.2, 1.0, 1.1, 0.8, 1.5])
+    humidity = _wxm_or_blend(wxm_hum, [om_hum, owm_hum, met_hum, pw_hum], [1.2, 1.0, 1.1, 0.8])
 
     # --- wind speed (km/h) and gusts
     om_wind = c.get("wind_speed_10m")
@@ -1041,7 +1050,7 @@ def _merge_current(
     met_wind = met_norm.get("wind_speed_kmh") if met_norm else None
     pw_wind = pw_norm.get("wind_speed_kmh") if pw_norm else None
     wxm_wind = wxm_norm.get("wind_speed_kmh") if wxm_norm else None
-    wind_speed = _weighted_avg([om_wind, owm_wind, met_wind, pw_wind, wxm_wind], [1.2, 1.0, 1.1, 0.8, 1.5])
+    wind_speed = _wxm_or_blend(wxm_wind, [om_wind, owm_wind, met_wind, pw_wind], [1.2, 1.0, 1.1, 0.8])
 
     om_gusts = c.get("wind_gusts_10m")
     owm_gusts = (
@@ -1051,7 +1060,7 @@ def _merge_current(
     )
     pw_gusts = pw_norm.get("wind_gusts_kmh") if pw_norm else None
     wxm_gusts = wxm_norm.get("wind_gusts_kmh") if wxm_norm else None
-    wind_gusts = _weighted_avg([om_gusts, owm_gusts, pw_gusts, wxm_gusts], [1.2, 0.8, 1.0, 1.5])
+    wind_gusts = _wxm_or_blend(wxm_gusts, [om_gusts, owm_gusts, pw_gusts], [1.2, 0.8, 1.0])
 
     wind_dir = c.get("wind_direction_10m")
 
@@ -1065,7 +1074,7 @@ def _merge_current(
     met_prec = met_norm.get("precipitation") if met_norm else None
     pw_prec = pw_norm.get("precipitation") if pw_norm else None
     wxm_prec = wxm_norm.get("precipitation") if wxm_norm else None
-    precipitation = _weighted_avg([om_prec, owm_prec, met_prec, pw_prec, wxm_prec], [1.0, 1.0, 1.1, 0.8, 1.5])
+    precipitation = _wxm_or_blend(wxm_prec, [om_prec, owm_prec, met_prec, pw_prec], [1.0, 1.0, 1.1, 0.8])
 
     # --- weather code / description
     om_code = c.get("weather_code")
