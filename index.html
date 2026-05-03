@@ -3784,6 +3784,7 @@
       if (omEcmwf) sources.push('open-meteo-ecmwf');
       if (omGfs) sources.push('open-meteo-gfs');
       if (omIcon) sources.push('open-meteo-icon');
+      if (d.current && (d.current.sources || []).indexOf('weatherxm') >= 0) sources.push('weatherxm');
       var current = {
         temperature: temp, feels_like: feels, humidity: humidity,
         wind_speed_kmh: windSpeed, wind_gusts_kmh: windGusts,
