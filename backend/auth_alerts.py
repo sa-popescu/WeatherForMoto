@@ -745,8 +745,8 @@ async def auth_request_reset(payload: RequestResetPayload, request: Request) -> 
         reset_link = f"{base_url}/?reset_token={raw_token}"
         await _send_email(
             email,
-            "MotoMeteo — resetare parolă",
-            f"Salut,\n\nAi solicitat resetarea parolei.\n\nAccesează linkul de mai jos (valabil 30 de minute):\n{reset_link}\n\nDacă nu ai solicitat resetarea, ignoră acest email.\n\nEchipa MotoMeteo",
+            "WeatherForMoto — resetare parolă",
+            f"Salut,\n\nAi solicitat resetarea parolei.\n\nAccesează linkul de mai jos (valabil 30 de minute):\n{reset_link}\n\nDacă nu ai solicitat resetarea, ignoră acest email.\n\nEchipa WeatherForMoto",
         )
         return {"ok": True}
     finally:
