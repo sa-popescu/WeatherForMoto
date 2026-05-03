@@ -1094,9 +1094,12 @@ def _merge_current(
         icon_emoji = _wmo_icon(effective_code)
 
     # --- pressure, visibility
+    wxm_pressure = wxm_norm.get("pressure") if wxm_norm else None
     pressure = (
-        owm_current["main"].get("pressure") if owm_current
-        else (met_norm.get("pressure") if met_norm else c.get("surface_pressure"))
+        wxm_pressure
+        or (owm_current["main"].get("pressure") if owm_current else None)
+        or (met_norm.get("pressure") if met_norm else None)
+        or c.get("surface_pressure")
     )
     visibility_m = owm_current.get("visibility") if owm_current else c.get("visibility")
     pw_vis = pw_norm.get("visibility_km") if pw_norm else None
