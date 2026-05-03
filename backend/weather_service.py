@@ -655,24 +655,91 @@ def _pw_icon_to_wmo(icon: str) -> int:
 # ---------------------------------------------------------------------------
 
 async def geocode_city(city: str, client: httpx.AsyncClient) -> dict[str, Any]:
-    """Return {lat, lon, name, country} for a city name using Open-Meteo geocoding."""
-    resp = await client.get(
-        GEOCODING_OPENMETEO,
-        params={"name": city, "count": 1, "language": "ro"},
-        timeout=10,
-    )
-    resp.raise_for_status()
-    data = resp.json()
-    if not data.get("results"):
-        raise ValueError(f"Orașul '{city}' nu a fost găsit.")
-    r = data["results"][0]
-    return {
-        "lat": r["latitude"],
-        "lon": r["longitude"],
-        "name": r.get("name", city),
-        "country": r.get("country_code", ""),
-        "timezone": r.get("timezone", "auto"),
-    }
+    """Return {lat, lon, name, country} for a city name.
+
+    Strategy:
+    1. Open-Meteo geocoding (fast, good for cities)
+    2. Nominatim structured search (city= + county=) for comma queries
+    3. Nominatim free-text search with countrycodes=ro (villages, all RO places)
+    4. Nominatim free-text search without country filter (international fallback)
+    """
+    NOMINATIM = "https://nominatim.openstreetmap.org/search"
+    HEADERS = {"User-Agent": "WeatherForMoto/1.0 (weatherformoto@bluemouse.cc)"}
+
+    # 1. Try Open-Meteo first (GeoNames — fast, good for known cities)
+    try:
+        resp = await client.get(
+            GEOCODING_OPENMETEO,
+            params={"name": city, "count": 1, "language": "ro"},
+            timeout=8,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if data.get("results"):
+            r = data["results"][0]
+            return {
+                "lat": r["latitude"],
+                "lon": r["longitude"],
+                "name": r.get("name", city),
+                "country": r.get("country_code", ""),
+                "timezone": r.get("timezone", "auto"),
+            }
+    except Exception:
+        pass
+
+    # 2. Nominatim — structured for "village, county" queries
+    if "," in city:
+        parts = [p.strip() for p in city.split(",", 1)]
+        try:
+            resp = await client.get(
+                NOMINATIM,
+                params={"city": parts[0], "county": parts[1], "countrycodes": "ro",
+                        "format": "json", "limit": 1, "addressdetails": 0},
+                headers=HEADERS, timeout=8,
+            )
+            data = resp.json() if resp.status_code == 200 else []
+            if data:
+                r = data[0]
+                display = r.get("display_name", city).split(",")[0].strip()
+                return {"lat": float(r["lat"]), "lon": float(r["lon"]),
+                        "name": display, "country": "RO", "timezone": "auto"}
+        except Exception:
+            pass
+
+    # 3. Nominatim free-text, Romania only
+    try:
+        resp = await client.get(
+            NOMINATIM,
+            params={"q": city, "countrycodes": "ro", "format": "json", "limit": 1, "addressdetails": 0},
+            headers=HEADERS, timeout=8,
+        )
+        data = resp.json() if resp.status_code == 200 else []
+        if data:
+            r = data[0]
+            display = r.get("display_name", city).split(",")[0].strip()
+            return {"lat": float(r["lat"]), "lon": float(r["lon"]),
+                    "name": display, "country": "RO", "timezone": "auto"}
+    except Exception:
+        pass
+
+    # 4. Nominatim free-text, worldwide
+    try:
+        resp = await client.get(
+            NOMINATIM,
+            params={"q": city, "format": "json", "limit": 1, "addressdetails": 0},
+            headers=HEADERS, timeout=8,
+        )
+        data = resp.json() if resp.status_code == 200 else []
+        if data:
+            r = data[0]
+            display = r.get("display_name", city).split(",")[0].strip()
+            country = r.get("display_name", "").split(",")[-1].strip()
+            return {"lat": float(r["lat"]), "lon": float(r["lon"]),
+                    "name": display, "country": country, "timezone": "auto"}
+    except Exception:
+        pass
+
+    raise ValueError(f"Locația '{city}' nu a fost găsită.")
 
 
 # ---------------------------------------------------------------------------
