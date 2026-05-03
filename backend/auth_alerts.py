@@ -479,6 +479,7 @@ async def _send_email(email: str, subject: str, text: str) -> None:
 
     # Prefer Brevo Email API when configured (more reliable in cloud runtimes).
     if BREVO_API_KEY:
+        logger.info("_send_email: using Brevo API, sender=%s, to=%s", SMTP_FROM, email)
         payload = {
             "sender": {"email": SMTP_FROM},
             "to": [{"email": email}],
@@ -494,11 +495,14 @@ async def _send_email(email: str, subject: str, text: str) -> None:
             resp = await client.post("https://api.brevo.com/v3/smtp/email", json=payload, headers=headers)
             if resp.status_code >= 400:
                 raise RuntimeError(f"Brevo API error: HTTP {resp.status_code} - {resp.text[:180]}")
+        logger.info("_send_email: Brevo OK (HTTP %s)", resp.status_code)
         return
 
     if not SMTP_HOST:
+        logger.warning("_send_email: no BREVO_API_KEY and no SMTP_HOST — email not sent")
         return
 
+    logger.info("_send_email: using SMTP host=%s user=%s from=%s to=%s", SMTP_HOST, SMTP_USER, SMTP_FROM, email)
     msg = EmailMessage()
     msg["Subject"] = subject
     msg["From"] = SMTP_FROM
