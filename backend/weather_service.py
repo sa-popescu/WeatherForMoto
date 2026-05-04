@@ -654,14 +654,59 @@ def _pw_icon_to_wmo(icon: str) -> int:
 # Geocoding
 # ---------------------------------------------------------------------------
 
+async def _geocode_wikidata(village: str, county: str, client: httpx.AsyncClient) -> dict[str, Any] | None:
+    """Last-resort geocoder using Wikidata's fuzzy entity search.
+
+    Handles Romanian village names where OSM spelling differs from what the
+    user typed (e.g. 'razmiresti' → 'Răsmirești'). Wikidata search tolerates
+    diacritics and minor spelling variants.
+    """
+    import unicodedata
+
+    def _norm(s: str) -> str:
+        return unicodedata.normalize("NFD", s.lower()).encode("ascii", "ignore").decode()
+
+    try:
+        resp = await client.get(
+            "https://www.wikidata.org/w/api.php",
+            params={"action": "wbsearchentities", "search": f"{village} {county}",
+                    "language": "ro", "format": "json", "limit": 10},
+            timeout=10,
+        )
+        items = resp.json().get("search", [])
+        cf = _norm(county)
+        for item in items:
+            if cf not in _norm(item.get("description", "")):
+                continue
+            qid = item["id"]
+            ent_resp = await client.get(
+                "https://www.wikidata.org/w/api.php",
+                params={"action": "wbgetentities", "ids": qid,
+                        "props": "claims|labels", "format": "json"},
+                timeout=10,
+            )
+            ent = ent_resp.json()["entities"][qid]
+            coords = ent.get("claims", {}).get("P625", [])
+            if not coords:
+                continue
+            val = coords[0]["mainsnak"]["datavalue"]["value"]
+            name = ent.get("labels", {}).get("ro", {}).get("value", village)
+            return {"lat": val["latitude"], "lon": val["longitude"],
+                    "name": name, "country": "RO", "timezone": "auto"}
+    except Exception:
+        pass
+    return None
+
+
 async def geocode_city(city: str, client: httpx.AsyncClient) -> dict[str, Any]:
     """Return {lat, lon, name, country} for a city name.
 
     Strategy:
     1. Open-Meteo geocoding (fast, good for cities)
-    2. Nominatim structured search (city= + county=) for comma queries
-    3. Nominatim free-text search with countrycodes=ro (villages, all RO places)
-    4. Nominatim free-text search without country filter (international fallback)
+    2. Nominatim free-text + county filter for "village, county" queries
+    3. Wikidata fallback for fuzzy village name matching (county queries only)
+    4. Nominatim free-text, Romania only
+    5. Nominatim free-text, worldwide
     """
     NOMINATIM = "https://nominatim.openstreetmap.org/search"
     HEADERS = {"User-Agent": "WeatherForMoto/1.0 (weatherformoto@bluemouse.cc)"}
