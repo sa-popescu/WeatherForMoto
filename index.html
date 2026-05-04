@@ -3881,29 +3881,29 @@
         return { lat: parseFloat(n.lat), lon: parseFloat(n.lon), name: nName, country: (n.address && n.address.country_code) || "", timezone: "auto" };
       }
 
-      // For comma queries: use structured geocoding (city= + county=) first — more accurate than free-text
+      // For comma queries: free-text Nominatim + county filter, then Wikidata fallback
       if (hasComma) {
+        var commaIdx2 = city.indexOf(',');
+        var cityPart2 = city.slice(0, commaIdx2).trim();
+        var countyPart2 = city.slice(commaIdx2 + 1).trim();
+        var norm2 = function(s){ return (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); };
+        var cf2 = norm2(countyPart2);
         try {
-          var commaIdx = city.indexOf(',');
-          var cityPart = city.slice(0, commaIdx).trim();
-          var countyPart = city.slice(commaIdx + 1).trim();
-          var nRespStruct = await fetch("https://nominatim.openstreetmap.org/search?city=" + encodeURIComponent(cityPart)
-            + "&county=" + encodeURIComponent(countyPart)
-            + "&format=json&limit=1&addressdetails=1&accept-language=" + _lang + "&countrycodes=ro");
-          if (nRespStruct.ok) {
-            var nDataStruct = await nRespStruct.json();
-            if (nDataStruct && nDataStruct.length) return _parseNominatim(nDataStruct[0]);
-          }
-        } catch (_) {}
-        // Fallback: free-text with countrycodes=ro
-        try {
-          var nRespRo = await fetch("https://nominatim.openstreetmap.org/search?q=" + encodeURIComponent(city)
-            + "&format=json&limit=1&addressdetails=1&accept-language=" + _lang + "&countrycodes=ro");
+          var nRespRo = await fetch("https://nominatim.openstreetmap.org/search?q=" + encodeURIComponent(cityPart2 + ' ' + countyPart2)
+            + "&format=json&limit=20&addressdetails=1&accept-language=" + _lang + "&countrycodes=ro");
           if (nRespRo.ok) {
             var nDataRo = await nRespRo.json();
-            if (nDataRo && nDataRo.length) return _parseNominatim(nDataRo[0]);
+            var matched2 = (nDataRo||[]).filter(function(r){
+              var addr = r.address||{};
+              return norm2(addr.county).includes(cf2) || norm2(addr.state).includes(cf2);
+            });
+            if (matched2.length) return _parseNominatim(matched2[0]);
           }
         } catch (_) {}
+        // Wikidata fallback: handles spelling variants OSM can't fuzzy-match
+        var wdFallback = await _wikidataGeocode(cityPart2, countyPart2);
+        if (wdFallback) return { lat: wdFallback.lat, lon: wdFallback.lon, name: wdFallback.name, country: 'RO', timezone: 'auto' };
+        throw new Error(_gt('geocode_not_found', { city: city }));
       }
 
       // Global Nominatim search (also handles comma queries that aren't RO-specific)
