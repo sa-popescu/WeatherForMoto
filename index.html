@@ -2669,7 +2669,22 @@
             if (filtered.length) {
               data = filtered;
             } else {
-              // Nothing in that county — tell the user instead of showing wrong results
+              // Nominatim can't find it in that county (often due to spelling variants,
+              // e.g. 'razmiresti' vs OSM's 'Răsmirești'). Try Wikidata which has
+              // better fuzzy/diacritic-tolerant search.
+              var wdResult = await _wikidataGeocode(cityPart, countyFilter);
+              if (wdResult) {
+                var wdSafe = wdResult.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+                var wdFull = (wdResult.name + ', ' + wdResult.county).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+                drop.innerHTML = '<div class="geo-suggestion px-3 py-2 text-sm text-gray-200 cursor-pointer hover:bg-accent/10"'
+                  + ' onclick="selectGeoSuggestion(\'' + inputId + '\',\'' + dropId + '\',\'' + wdFull + '\')">'
+                  + '<div class="flex items-baseline gap-2">'
+                  + '<span class="font-medium">' + wdResult.name + '</span>'
+                  + '<span class="text-xs text-accent/80 font-semibold">' + wdResult.county + '</span>'
+                  + '</div></div>';
+                drop.classList.remove('hidden');
+                return;
+              }
               drop.innerHTML = '<div class="px-3 py-2 text-sm text-muted italic">'
                 + (t('geocode_not_in_county') || 'Locația nu a fost găsită în județul specificat.') + '</div>';
               drop.classList.remove('hidden');
