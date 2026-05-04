@@ -997,12 +997,17 @@ async def _fetch_weatherxm(
         return None
 
     import time
+    global _wxm_backoff_until
     cache_key = (round(lat, 2), round(lon, 2))
     now = time.monotonic()
     if cache_key in _wxm_cache:
         ts, cached = _wxm_cache[cache_key]
         if now - ts < _WXM_CACHE_TTL:
             return cached
+
+    # Respect global rate-limit backoff: if we got 429 recently, skip until window expires.
+    if now < _wxm_backoff_until:
+        return None
 
     try:
         headers = {"X-API-KEY": api_key}
@@ -1012,6 +1017,10 @@ async def _fetch_weatherxm(
             headers=headers,
             timeout=10,
         )
+        if resp.status_code == 429:
+            _wxm_backoff_until = now + _WXM_BACKOFF_SECS
+            _wxm_cache[cache_key] = (now, None)
+            return None
         if not resp.is_success:
             _wxm_cache[cache_key] = (now, None)
             return None
@@ -1030,6 +1039,10 @@ async def _fetch_weatherxm(
             headers=headers,
             timeout=10,
         )
+        if obs_resp.status_code == 429:
+            _wxm_backoff_until = now + _WXM_BACKOFF_SECS
+            _wxm_cache[cache_key] = (now, None)
+            return None
         if not obs_resp.is_success:
             _wxm_cache[cache_key] = (now, None)
             return None
