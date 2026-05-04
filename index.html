@@ -346,6 +346,18 @@
       .geo-suggestion:hover { background: rgba(249,115,22,0.12); }
       .stop-wrap { position: relative; flex: 1; min-width: 0; }
 
+      /* Mobile nav buttons: visible border + slightly elevated bg */
+      @media (max-width: 767px) {
+        .mob-nav-btn {
+          background: #1e2130;
+          border: 1px solid #3a3f52;
+        }
+        .mob-nav-btn:hover {
+          border-color: #f97316;
+          color: #f97316;
+        }
+      }
+
       .hourly-main-card {
         width: 5rem;
         padding: 0.55rem;
