@@ -346,16 +346,18 @@
       .geo-suggestion:hover { background: rgba(249,115,22,0.12); }
       .stop-wrap { position: relative; flex: 1; min-width: 0; }
 
-      /* Mobile nav buttons: visible border + slightly elevated bg */
+      /* Mobile nav buttons */
       @media (max-width: 767px) {
         .mob-nav-btn {
-          background: #1e2130;
-          border: 1px solid #3a3f52;
+          background: #1e2130 !important;
+          border: 1px solid #3a3f52 !important;
+          color: #e2e8f0 !important;
         }
-        .mob-nav-btn:hover {
-          background: rgba(249,115,22,0.15);
-          border-color: #f97316;
-          color: #f97316;
+        .mob-nav-btn:hover,
+        .mob-nav-btn:active {
+          background: rgba(249,115,22,0.18) !important;
+          border-color: #f97316 !important;
+          color: #f97316 !important;
         }
       }
 
