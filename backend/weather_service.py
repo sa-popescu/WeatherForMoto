@@ -765,17 +765,19 @@ async def geocode_city(city: str, client: httpx.AsyncClient) -> dict[str, Any]:
                 display = r.get("display_name", city).split(",")[0].strip()
                 return {"lat": float(r["lat"]), "lon": float(r["lon"]),
                         "name": display, "country": "RO", "timezone": "auto"}
-            elif rows:
-                # Results exist but none are in the requested county
-                raise ValueError(
-                    f"Locația '{village_part}' nu a fost găsită în județul '{county_part}'."
-                )
-        except ValueError:
-            raise
         except Exception:
             pass
 
-    # 3. Nominatim free-text, Romania only
+        # 3. Wikidata fallback — handles spelling variants OSM can't match
+        # (e.g. 'razmiresti' → 'Răsmirești', diacritics, z/s differences)
+        wd = await _geocode_wikidata(village_part, county_part, client)
+        if wd:
+            return wd
+        raise ValueError(
+            f"Locația '{village_part}' nu a fost găsită în județul '{county_part}'."
+        )
+
+    # 4. Nominatim free-text, Romania only
     try:
         resp = await client.get(
             NOMINATIM,
