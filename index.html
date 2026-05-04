@@ -486,34 +486,34 @@
             class="bg-accent hover:bg-orange-400 text-black font-display font-bold text-sm tracking-wider px-4 py-2 rounded-lg transition-colors h-9 flex-shrink-0" data-i18n="btn_search">CAUTĂ</button>
         </div>
 
-        <!-- Nav buttons: full-width bordered on mobile, compact icon squares on desktop -->
+        <!-- Nav buttons: full-width on mobile, compact icon squares on desktop -->
         <button onclick="geolocate();closeMobileMenu()" data-i18n-title="nav_location" title="Locația mea"
-          class="w-full md:w-9 h-11 md:h-9 bg-card border border-border hover:text-accent hover:border-accent text-muted rounded-lg transition-colors flex items-center gap-3 md:gap-0 md:justify-center px-4 md:px-0">
+          class="mob-nav-btn w-full md:w-9 h-11 md:h-9 rounded-lg transition-colors flex items-center gap-3 md:gap-0 md:justify-center px-4 md:px-0 text-gray-100 md:text-muted hover:text-accent md:bg-card md:border md:border-border md:hover:border-accent">
           <i data-lucide="map-pin" style="width:18px;height:18px;flex-shrink:0"></i>
           <span class="md:hidden text-sm font-body" data-i18n="nav_location">Locația mea</span>
         </button>
         <button onclick="loadWeather();closeMobileMenu()" data-i18n-title="nav_reload" title="Reîncarcă"
-          class="w-full md:w-9 h-11 md:h-9 bg-card border border-border hover:text-gray-200 hover:border-gray-500 text-muted rounded-lg transition-colors flex items-center gap-3 md:gap-0 md:justify-center px-4 md:px-0">
+          class="mob-nav-btn w-full md:w-9 h-11 md:h-9 rounded-lg transition-colors flex items-center gap-3 md:gap-0 md:justify-center px-4 md:px-0 text-gray-100 md:text-muted hover:text-gray-200 md:bg-card md:border md:border-border md:hover:border-gray-500">
           <i data-lucide="refresh-cw" style="width:18px;height:18px;flex-shrink:0"></i>
           <span class="md:hidden text-sm font-body" data-i18n="nav_reload">Reîncarcă</span>
         </button>
         <button onclick="openAccountModal();closeMobileMenu()" data-i18n-title="nav_account" title="Cont" id="account-hdr-btn"
-          class="w-full md:w-9 h-11 md:h-9 bg-card border border-border hover:text-accent hover:border-accent text-muted rounded-lg transition-colors flex items-center gap-3 md:gap-0 md:justify-center px-4 md:px-0">
+          class="mob-nav-btn w-full md:w-9 h-11 md:h-9 rounded-lg transition-colors flex items-center gap-3 md:gap-0 md:justify-center px-4 md:px-0 text-gray-100 md:text-muted hover:text-accent md:bg-card md:border md:border-border md:hover:border-accent">
           <i data-lucide="user" style="width:18px;height:18px;flex-shrink:0"></i>
           <span class="md:hidden text-sm font-body" data-i18n="nav_account">Cont</span>
         </button>
         <button id="theme-toggle-btn" onclick="toggleTheme();closeMobileMenu()" data-i18n-title="nav_theme" title="Temă"
-          class="w-full md:w-9 h-11 md:h-9 bg-card border border-border hover:text-accent hover:border-accent text-muted rounded-lg transition-colors flex items-center gap-3 md:gap-0 md:justify-center px-4 md:px-0">
+          class="mob-nav-btn w-full md:w-9 h-11 md:h-9 rounded-lg transition-colors flex items-center gap-3 md:gap-0 md:justify-center px-4 md:px-0 text-gray-100 md:text-muted hover:text-accent md:bg-card md:border md:border-border md:hover:border-accent">
           <span id="theme-toggle-icon" style="font-size:18px;line-height:1;flex-shrink:0;width:18px;text-align:center">🌙</span>
           <span class="md:hidden text-sm font-body" data-i18n="nav_theme">Temă</span>
         </button>
         <button onclick="openGuideModal();closeMobileMenu()" data-i18n-title="nav_guide" title="Ghid"
-          class="w-full md:w-9 h-11 md:h-9 bg-card border border-border hover:text-accent hover:border-accent text-muted rounded-lg transition-colors flex items-center gap-3 md:gap-0 md:justify-center px-4 md:px-0">
+          class="mob-nav-btn w-full md:w-9 h-11 md:h-9 rounded-lg transition-colors flex items-center gap-3 md:gap-0 md:justify-center px-4 md:px-0 text-gray-100 md:text-muted hover:text-accent md:bg-card md:border md:border-border md:hover:border-accent">
           <i data-lucide="info" style="width:18px;height:18px;flex-shrink:0"></i>
           <span class="md:hidden text-sm font-body" data-i18n="nav_guide">Ghid</span>
         </button>
         <button id="lang-btn" onclick="setLang(_lang==='ro'?'en':'ro')" title="Switch language"
-          class="w-full md:w-9 h-11 md:h-9 bg-card border border-border hover:text-accent hover:border-accent text-muted rounded-lg transition-colors flex items-center gap-3 md:gap-0 md:justify-center px-4 md:px-0 text-xs font-bold font-display tracking-widest">EN</button>
+          class="mob-nav-btn w-full md:w-9 h-11 md:h-9 rounded-lg transition-colors flex items-center gap-3 md:gap-0 md:justify-center px-4 md:px-0 text-gray-100 md:text-muted hover:text-accent md:bg-card md:border md:border-border md:hover:border-accent text-xs font-bold font-display tracking-widest">EN</button>
       </div>
     </div>
     <div id="favs-bar" class="max-w-5xl mx-auto px-3 sm:px-4 pb-2"></div>
