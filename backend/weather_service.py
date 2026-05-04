@@ -979,6 +979,10 @@ async def _fetch_pirate_weather(
 _wxm_cache: dict[tuple, tuple] = {}
 _WXM_CACHE_TTL = 600  # 10 minutes
 
+# Global backoff: when WeatherXM returns 429, pause all calls for 1 hour.
+_wxm_backoff_until: float = 0.0
+_WXM_BACKOFF_SECS = 3600  # 1 hour
+
 
 async def _fetch_weatherxm(
     lat: float, lon: float, api_key: str, client: httpx.AsyncClient,
