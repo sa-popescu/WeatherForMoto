@@ -793,7 +793,7 @@ async def geocode_city(city: str, client: httpx.AsyncClient) -> dict[str, Any]:
     except Exception:
         pass
 
-    # 4. Nominatim free-text, worldwide
+    # 5. Nominatim free-text, worldwide
     try:
         resp = await client.get(
             NOMINATIM,
