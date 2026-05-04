@@ -2292,6 +2292,19 @@
       }
     }
 
+    // Give mob-nav-btn buttons a visible orange flash on touch before action fires
+    document.addEventListener('DOMContentLoaded', function() {
+      document.addEventListener('touchstart', function(e) {
+        var btn = e.target.closest('.mob-nav-btn');
+        if (!btn) return;
+        btn.classList.add('pressed');
+      }, {passive: true});
+      document.addEventListener('touchend', function(e) {
+        var btn = e.target.closest('.mob-nav-btn');
+        if (btn) setTimeout(function(){ btn.classList.remove('pressed'); }, 300);
+      }, {passive: true});
+    });
+
     function activatePremium() {
       showPremiumStatus();
     }
