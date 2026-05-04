@@ -2252,8 +2252,8 @@
       var isHidden = controls.classList.contains('hidden');
       if (isHidden) {
         controls.classList.remove('hidden');
-        controls.classList.add('flex', 'flex-col', 'items-stretch');
-        if (btn) btn.textContent = '✕';
+        controls.classList.add('flex');
+        if (btn) { btn.innerHTML = '<i data-lucide="x" style="width:18px;height:18px;display:block"></i>'; if(window.lucide) lucide.createIcons(); }
       } else {
         closeMobileMenu();
       }
@@ -2265,7 +2265,8 @@
       if (!controls) return;
       if (window.innerWidth < 768) {
         controls.classList.add('hidden');
-        controls.classList.remove('flex', 'flex-col', 'items-stretch');
+        controls.classList.remove('flex');
+        if (btn) { btn.innerHTML = '<i data-lucide="menu" style="width:18px;height:18px;display:block"></i>'; if(window.lucide) lucide.createIcons(); }
       }
       if (btn) btn.textContent = '☰';
     }
