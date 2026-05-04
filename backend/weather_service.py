@@ -691,23 +691,42 @@ async def geocode_city(city: str, client: httpx.AsyncClient) -> dict[str, Any]:
         except Exception:
             pass
 
-    # 2. Nominatim — structured for "village, county" queries
+    def _norm(s: str) -> str:
+        import unicodedata
+        return unicodedata.normalize("NFD", s.lower()).encode("ascii", "ignore").decode()
+
+    # 2. Nominatim free-text with county filter (for "village, county" queries).
+    # Structured params (city=, state=, county=) don't reliably match Romanian
+    # OSM admin levels, so we fetch broadly with addressdetails and filter.
     if "," in city:
         parts = [p.strip() for p in city.split(",", 1)]
+        village_part, county_part = parts[0], parts[1]
         try:
             resp = await client.get(
                 NOMINATIM,
-                # Romanian județe are admin_level=4 in OSM → Nominatim "state", not "county"
-                params={"city": parts[0], "state": parts[1], "countrycodes": "ro",
-                        "format": "json", "limit": 1, "addressdetails": 0},
+                params={"q": f"{village_part} {county_part}", "countrycodes": "ro",
+                        "format": "json", "limit": 20, "addressdetails": 1},
                 headers=HEADERS, timeout=8,
             )
-            data = resp.json() if resp.status_code == 200 else []
-            if data:
-                r = data[0]
+            rows = resp.json() if resp.status_code == 200 else []
+            cf = _norm(county_part)
+            matched = [
+                r for r in rows
+                if cf in _norm(r.get("address", {}).get("county", ""))
+                or cf in _norm(r.get("address", {}).get("state", ""))
+            ]
+            if matched:
+                r = matched[0]
                 display = r.get("display_name", city).split(",")[0].strip()
                 return {"lat": float(r["lat"]), "lon": float(r["lon"]),
                         "name": display, "country": "RO", "timezone": "auto"}
+            elif rows:
+                # Results exist but none are in the requested county
+                raise ValueError(
+                    f"Locația '{village_part}' nu a fost găsită în județul '{county_part}'."
+                )
+        except ValueError:
+            raise
         except Exception:
             pass
 
