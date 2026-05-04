@@ -977,7 +977,7 @@ async def _fetch_pirate_weather(
 # Cache for WeatherXM responses: key=(lat2, lon2), value=(timestamp, data)
 # Rounds coordinates to 2 decimal places (~1 km grid) to merge nearby requests.
 _wxm_cache: dict[tuple, tuple] = {}
-_WXM_CACHE_TTL = 600  # 10 minutes
+_WXM_CACHE_TTL = 1800  # 30 minutes — matches app refresh interval, reduces 429 risk
 
 # Global backoff: when WeatherXM returns 429, pause all calls for 1 hour.
 _wxm_backoff_until: float = 0.0
