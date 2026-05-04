@@ -974,13 +974,32 @@ async def _fetch_pirate_weather(
         return None
 
 
+# Cache for WeatherXM responses: key=(lat2, lon2), value=(timestamp, data)
+# Rounds coordinates to 2 decimal places (~1 km grid) to merge nearby requests.
+_wxm_cache: dict[tuple, tuple] = {}
+_WXM_CACHE_TTL = 600  # 10 minutes
+
+
 async def _fetch_weatherxm(
     lat: float, lon: float, api_key: str, client: httpx.AsyncClient,
     radius_m: int = 20_000,
 ) -> dict | None:
-    """Fetch nearest WeatherXM PRO station and its latest observation."""
+    """Fetch nearest WeatherXM PRO station and its latest observation.
+
+    Results are cached for 10 minutes per ~1km grid cell to avoid 429s
+    when multiple parallel requests hit the same area.
+    """
     if not api_key:
         return None
+
+    import time
+    cache_key = (round(lat, 2), round(lon, 2))
+    now = time.monotonic()
+    if cache_key in _wxm_cache:
+        ts, cached = _wxm_cache[cache_key]
+        if now - ts < _WXM_CACHE_TTL:
+            return cached
+
     try:
         headers = {"X-API-KEY": api_key}
         resp = await client.get(
@@ -990,15 +1009,17 @@ async def _fetch_weatherxm(
             timeout=10,
         )
         if not resp.is_success:
+            _wxm_cache[cache_key] = (now, None)
             return None
         payload = resp.json()
         stations = payload.get("stations", payload) if isinstance(payload, dict) else payload
-        # Filter to stations with recent data (lastDayQod > 0) and pick closest
         active = [s for s in stations if s.get("lastDayQod", 0) > 0]
         if not active:
+            _wxm_cache[cache_key] = (now, None)
             return None
         station_id = active[0].get("id")
         if not station_id:
+            _wxm_cache[cache_key] = (now, None)
             return None
         obs_resp = await client.get(
             f"{WEATHERXM_PRO_BASE}/stations/{station_id}/latest",
@@ -1006,8 +1027,11 @@ async def _fetch_weatherxm(
             timeout=10,
         )
         if not obs_resp.is_success:
+            _wxm_cache[cache_key] = (now, None)
             return None
-        return obs_resp.json()
+        result = obs_resp.json()
+        _wxm_cache[cache_key] = (now, result)
+        return result
     except Exception:
         return None
 
