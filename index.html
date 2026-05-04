@@ -2630,6 +2630,32 @@
       if (addBtn) addBtn.style.display = '';
     }
 
+    async function _wikidataGeocode(village, county) {
+      // Wikidata handles diacritics + spelling variants that Nominatim misses.
+      // Requires origin=* for browser CORS.
+      try {
+        var norm = function(s){ return (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); };
+        var cf = norm(county);
+        var sr = await fetch('https://www.wikidata.org/w/api.php?action=wbsearchentities'
+          + '&search=' + encodeURIComponent(village + ' ' + county)
+          + '&language=ro&format=json&limit=10&origin=*');
+        var sd = await sr.json();
+        for (var i = 0; i < (sd.search||[]).length; i++) {
+          var item = sd.search[i];
+          if (!norm(item.description||'').includes(cf)) continue;
+          var er = await fetch('https://www.wikidata.org/w/api.php?action=wbgetentities'
+            + '&ids=' + item.id + '&props=claims%7Clabels&format=json&origin=*');
+          var ent = (await er.json()).entities[item.id];
+          var coords = ((ent.claims||{}).P625||[])[0];
+          if (!coords) continue;
+          var val = coords.mainsnak.datavalue.value;
+          var name = ((ent.labels||{}).ro||{}).value || village;
+          return { lat: val.latitude, lon: val.longitude, name: name, county: county };
+        }
+      } catch(_) {}
+      return null;
+    }
+
     var _geoTimers = {};
     function onStopInput(inputId, dropId) {
       clearTimeout(_geoTimers[inputId]);
