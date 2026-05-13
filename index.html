@@ -4542,7 +4542,7 @@
       var el = document.getElementById('backend-url-cfg');
       var val = el ? el.value.trim().replace(/\/$/, '') : '';
       if (val) {
-        try { new URL(val); } catch (_) { alert("URL invalid. Introdu o adresă completă, ex: https://your-app.up.railway.app"); return; }
+        try { new URL(val); } catch (_) { alert("URL invalid. Introdu o adresă completă, ex: https://weatherformoto.bluemouse.cc"); return; }
         localStorage.setItem('motoMeteoBackendUrl', val); API_URL = val;
       } else { localStorage.removeItem('motoMeteoBackendUrl'); API_URL = _resolveApiUrl(); }
       loadWeather();
