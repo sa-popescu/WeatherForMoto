@@ -981,7 +981,7 @@ _WXM_CACHE_TTL = 3600  # 1 hour — reduces daily API quota consumption
 
 # Global backoff: when WeatherXM returns 429, pause all calls for 1 hour.
 _wxm_backoff_until: float = 0.0
-_WXM_BACKOFF_SECS = 3600  # 1 hour
+_WXM_BACKOFF_SECS = 86400  # 24 hours — WeatherXM rate limit is daily
 
 
 async def _fetch_weatherxm(
