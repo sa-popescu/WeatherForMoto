@@ -1009,6 +1009,8 @@ async def _fetch_weatherxm(
     if now < _wxm_backoff_until:
         return None
 
+    import logging
+    _wxm_log = logging.getLogger("weatherformoto")
     try:
         headers = {"X-API-KEY": api_key}
         resp = await client.get(
@@ -1017,6 +1019,7 @@ async def _fetch_weatherxm(
             headers=headers,
             timeout=10,
         )
+        _wxm_log.info("WeatherXM stations/near status=%s body=%s", resp.status_code, resp.text[:300])
         if resp.status_code == 429:
             _wxm_backoff_until = now + _WXM_BACKOFF_SECS
             _wxm_cache[cache_key] = (now, None)
@@ -1027,6 +1030,7 @@ async def _fetch_weatherxm(
         payload = resp.json()
         stations = payload.get("stations", payload) if isinstance(payload, dict) else payload
         active = [s for s in stations if s.get("lastDayQod", 0) > 0]
+        _wxm_log.info("WeatherXM stations total=%d active=%d", len(stations), len(active))
         if not active:
             _wxm_cache[cache_key] = (now, None)
             return None
@@ -1039,6 +1043,7 @@ async def _fetch_weatherxm(
             headers=headers,
             timeout=10,
         )
+        _wxm_log.info("WeatherXM latest status=%s body=%s", obs_resp.status_code, obs_resp.text[:300])
         if obs_resp.status_code == 429:
             _wxm_backoff_until = now + _WXM_BACKOFF_SECS
             _wxm_cache[cache_key] = (now, None)
@@ -1049,7 +1054,8 @@ async def _fetch_weatherxm(
         result = obs_resp.json()
         _wxm_cache[cache_key] = (now, result)
         return result
-    except Exception:
+    except Exception as exc:
+        _wxm_log.warning("WeatherXM exception: %s", exc)
         return None
 
 
