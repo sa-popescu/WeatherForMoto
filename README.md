@@ -14,7 +14,7 @@ Stack-ul actual este:
 
 ### Core weather
 
-- Agregare multi-sursă (Open-Meteo + OpenWeatherMap + MET Norway în fallback/enrichment)
+- Agregare multi-sursă (Open-Meteo + OpenWeatherMap + MET Norway + Pirate Weather + WeatherXM)
 - Condiții curente + forecast daily + hourly
 - Moto score (0-100) + etichete de risc (IDEAL/OK/ACCEPTABIL/RISCANT/EVITĂ)
 - Geo lookup după oraș sau coordonate
