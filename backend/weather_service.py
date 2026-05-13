@@ -1022,7 +1022,9 @@ async def _fetch_weatherxm(
         if now - ts < _WXM_CACHE_TTL:
             return cached
 
-    # Respect global rate-limit backoff: if we got 429 recently, skip until window expires.
+    # Respect global rate-limit backoff — also check file so restarts inherit it.
+    if _wxm_backoff_until == 0.0:
+        _wxm_backoff_until = _wxm_backoff_read()
     if now < _wxm_backoff_until:
         return None
 
