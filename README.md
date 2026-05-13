@@ -104,6 +104,9 @@ Deschide `index.html` în browser. Aplicația detectează automat backend-ul loc
 
 - `DEFAULT_CITY` (implicit: `Bucharest`)
 - `PORT` (implicit: `8000`)
+- `PIRATE_WEATHER_API_KEY`
+- `WEATHERXM_API_KEY` (stații fizice WeatherXM PRO — prioritate maximă când există stație în zonă)
+- `APP_BASE_URL` (URL public al aplicației, folosit în email-uri)
 
 **Pentru funcții avansate:**
 
