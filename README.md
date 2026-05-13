@@ -189,12 +189,26 @@ Testele validează funcțiile de agregare/scoring și logica meteo fără depend
 
 ## Deploy
 
-### Render.com (actual)
+### Google Cloud Run (actual)
 
-- **Build**: Dockerfile
-- **Start**: `backend/entrypoint.sh`
-- **Healthcheck**: `GET /health`
-- **Environment variables**: Setează în dashboard-ul Render.com
+```bash
+# Build și push imagine
+docker build -t europe-west1-docker.pkg.dev/weatherformoto/weatherformoto/backend:latest .
+docker push europe-west1-docker.pkg.dev/weatherformoto/weatherformoto/backend:latest
+
+# Deploy
+gcloud run deploy weatherformoto \
+  --image europe-west1-docker.pkg.dev/weatherformoto/weatherformoto/backend:latest \
+  --platform managed \
+  --region europe-west1 \
+  --allow-unauthenticated \
+  --port 8080 \
+  --memory 512Mi \
+  --env-vars-file cloudrun-env.yaml \
+  --project=weatherformoto
+```
+
+Domeniu custom: `weatherformoto.bluemouse.cc` (proxy via Cloudflare Worker).
 
 ### Docker local
 
