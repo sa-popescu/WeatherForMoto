@@ -7,7 +7,8 @@ Stack-ul actual este:
 - Frontend: HTML + Tailwind CSS + JavaScript (PWA)
 - Backend: FastAPI + Turso
 - PWA: Service Worker + Web App Manifest
-- Deploy: Docker/Render
+- Deploy: Docker/Google Cloud Run
+- URL: https://weatherformoto.bluemouse.cc
 
 ## Ce oferă soluția în forma curentă
 
