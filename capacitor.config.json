@@ -20,7 +20,8 @@
             "tile.openstreetmap.org",
             "revenuecat.com",
             "api.revenuecat.com",
-            "weatherformoto-production.up.railway.app"
+            "weatherformoto.bluemouse.cc",
+            "weatherformoto-1056457771445.europe-west1.run.app"
         ]
     },
     "plugins": {
