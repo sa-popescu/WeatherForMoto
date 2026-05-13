@@ -979,9 +979,26 @@ async def _fetch_pirate_weather(
 _wxm_cache: dict[tuple, tuple] = {}
 _WXM_CACHE_TTL = 3600  # 1 hour — reduces daily API quota consumption
 
-# Global backoff: when WeatherXM returns 429, pause all calls for 1 hour.
-_wxm_backoff_until: float = 0.0
+# Global backoff: when WeatherXM returns 429, pause all calls for 24h.
+# Written to /tmp so it survives in-process restarts within the same container.
+_WXM_BACKOFF_FILE = "/tmp/wxm_backoff_until"
 _WXM_BACKOFF_SECS = 86400  # 24 hours — WeatherXM rate limit is daily
+_wxm_backoff_until: float = 0.0
+
+
+def _wxm_backoff_read() -> float:
+    try:
+        return float(open(_WXM_BACKOFF_FILE).read().strip())
+    except Exception:
+        return 0.0
+
+
+def _wxm_backoff_write(until: float) -> None:
+    try:
+        with open(_WXM_BACKOFF_FILE, "w") as f:
+            f.write(str(until))
+    except Exception:
+        pass
 
 
 async def _fetch_weatherxm(
