@@ -36,3 +36,6 @@ android/
 .capacitor/
 
 Thumbs.db
+
+# Google Cloud SDK (installed locally, not part of the project)
+projects/
