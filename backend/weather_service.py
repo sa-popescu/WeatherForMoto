@@ -1039,6 +1039,7 @@ async def _fetch_weatherxm(
         _wxm_log.info("WeatherXM stations/near status=%s body=%s", resp.status_code, resp.text[:300])
         if resp.status_code == 429:
             _wxm_backoff_until = now + _WXM_BACKOFF_SECS
+            _wxm_backoff_write(_wxm_backoff_until)
             _wxm_cache[cache_key] = (now, None)
             return None
         if not resp.is_success:
