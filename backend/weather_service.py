@@ -1444,8 +1444,10 @@ def _merge_current(
     met_norm: dict | None = None,
     pw_norm: dict | None = None,
     wxm_norm: dict | None = None,
+    netatmo_norm: dict | None = None,
 ) -> dict:
     c = om_data.get("current", {})
+    nta = netatmo_norm or {}
 
     # --- temperature & feels-like
     om_temp = c.get("temperature_2m")
