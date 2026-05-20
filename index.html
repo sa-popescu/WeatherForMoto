@@ -1849,6 +1849,16 @@
     }
 
     var LAT = 44.4268, LON = 26.1025, CITY = "București";
+    // Restore the last used location so the app opens on it (instead of the
+    // Bucharest default) while a fresh GPS fix is acquired at startup.
+    (function () {
+      try {
+        var _ll = JSON.parse(localStorage.getItem('motoLastLoc') || 'null');
+        if (_ll && typeof _ll.lat === 'number' && typeof _ll.lon === 'number') {
+          LAT = _ll.lat; LON = _ll.lon; CITY = _ll.name || CITY;
+        }
+      } catch (_) {}
+    })();
     var LAST_ROUTE_CTX = null;
     var _omIsOffline = false, _omOfflineAge = null;
     var ROUTE_MAP = null;
