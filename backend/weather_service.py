@@ -1956,7 +1956,8 @@ async def get_weather(
     netatmo_norm = _normalize_netatmo_current(netatmo_raw)
     met_daily = _aggregate_met_daily(met_raw)
 
-    current = _merge_current(om_data, owm_current, owm_air, om_air, met_norm, pw_norm, wxm_norm)
+    current = _merge_current(om_data, owm_current, owm_air, om_air, met_norm, pw_norm,
+                             wxm_norm, netatmo_norm)
     daily = _merge_daily(om_data, owm_forecast, met_daily)
     hourly = _build_hourly(om_data)
 
