@@ -248,8 +248,11 @@ async def weather(
                                  netatmo_refresh_token=NETATMO_REFRESH_TOKEN)
     except Exception as exc:
         logger.exception("Weather fetch error: %s", exc)
+        # Some exceptions (e.g. httpx.ReadTimeout) have an empty str() — fall
+        # back to the class name so the message is never a bare "error:".
+        detail = str(exc) or type(exc).__name__
         raise HTTPException(
-            status_code=502, detail=f"Weather data error: {exc}"
+            status_code=502, detail=f"Weather data error: {detail}"
         ) from exc
 
     logger.info("Weather data returned successfully")
