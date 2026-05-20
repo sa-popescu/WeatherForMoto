@@ -1623,6 +1623,7 @@ def _merge_current(
             + (["met-norway"] if met_norm else [])
             + (["pirate-weather"] if pw_norm else [])
             + (["weatherxm"] if wxm_norm else [])
+            + (["netatmo"] if netatmo_norm else [])
         ),
     }
 
