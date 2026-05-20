@@ -4318,9 +4318,10 @@
             loadWeather();
           });
       }, function () {
-        try { localStorage.removeItem('motoUseGPS'); } catch(_) {}
         if (btnIcon) { btnIcon.setAttribute('data-lucide', 'map-pin'); if (window.lucide) lucide.createIcons(); }
         if (!silent) alert(_lang === 'en' ? "Could not get location. Check browser permissions." : "Nu am putut obține locația. Verifică permisiunile browserului.");
+        // GPS unavailable/denied — make sure something is shown (last known or default).
+        if (!window._lastWeatherData) loadWeather();
       }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 });
     }
 
