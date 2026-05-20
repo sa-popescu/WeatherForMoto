@@ -4068,9 +4068,16 @@
         ? Math.round(owmCur.visibility / 100) / 10
         : (c.visibility != null ? Math.round(c.visibility / 100) / 10 : null);
       var aqi = owmAir && owmAir.list && owmAir.list.length ? owmAir.list[0].main.aqi : null;
-      var nextHourlyProb = om.hourly && om.hourly.precipitation_probability && om.hourly.precipitation_probability.length
-        ? om.hourly.precipitation_probability[0]
-        : 0;
+      var nextHourlyProb = 0;
+      if (om.hourly && om.hourly.time && om.hourly.precipitation_probability) {
+        var _nowMs = Date.now();
+        for (var _hi = 0; _hi < om.hourly.time.length; _hi++) {
+          if (new Date(om.hourly.time[_hi]).getTime() >= _nowMs) {
+            nextHourlyProb = om.hourly.precipitation_probability[_hi] || 0;
+            break;
+          }
+        }
+      }
       var motoScore = scoreHourly(feels, windGusts, prec, finalCode, nextHourlyProb);
       var sources = ["open-meteo"];
       if (owmCur) sources.push("openweathermap");
