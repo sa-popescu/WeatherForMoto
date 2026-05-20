@@ -53,6 +53,9 @@ OWM_API_KEY: str = os.getenv("OPENWEATHERMAP_API_KEY", "")
 DEFAULT_CITY: str = os.getenv("DEFAULT_CITY", "Bucharest")
 PIRATE_WEATHER_API_KEY: str = os.getenv("PIRATE_WEATHER_API_KEY", "")
 WEATHERXM_API_KEY: str = os.getenv("WEATHERXM_API_KEY", "")
+NETATMO_CLIENT_ID: str = os.getenv("NETATMO_CLIENT_ID", "")
+NETATMO_CLIENT_SECRET: str = os.getenv("NETATMO_CLIENT_SECRET", "")
+NETATMO_REFRESH_TOKEN: str = os.getenv("NETATMO_REFRESH_TOKEN", "")
 MET_NORWAY_USER_AGENT: str = os.getenv(
     "MET_NORWAY_USER_AGENT",
     "WeatherForMoto/1.0 github.com/user/WeatherForMoto",
