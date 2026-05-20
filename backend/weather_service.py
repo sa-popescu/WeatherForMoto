@@ -980,23 +980,31 @@ _wxm_cache: dict[tuple, tuple] = {}
 _WXM_CACHE_TTL = 3600  # 1 hour — reduces daily API quota consumption
 
 # Global backoff: when WeatherXM returns 429, pause all calls for 24h.
-# Written to /tmp so it survives in-process restarts within the same container.
-_WXM_BACKOFF_FILE = "/tmp/wxm_backoff_until"
+# Persisted in the Turso DB (app_state table) so it survives Cloud Run cold
+# starts and is shared across instances — a per-instance /tmp file would not.
+# Note: the stored value is a wall-clock Unix timestamp (time.time()), NOT a
+# monotonic one, since monotonic clocks are not comparable across processes.
+_WXM_BACKOFF_KEY = "wxm_backoff_until"
 _WXM_BACKOFF_SECS = 86400  # 24 hours — WeatherXM rate limit is daily
-_wxm_backoff_until: float = 0.0
+_wxm_backoff_until: float = 0.0       # cached wall-clock expiry for this process
+_wxm_backoff_loaded: bool = False     # whether persisted state was read this process
 
 
 def _wxm_backoff_read() -> float:
+    """Read the persisted backoff expiry (Unix timestamp) from Turso."""
     try:
-        return float(open(_WXM_BACKOFF_FILE).read().strip())
+        from auth_alerts import get_app_state
+        val = get_app_state(_WXM_BACKOFF_KEY)
+        return float(val) if val else 0.0
     except Exception:
         return 0.0
 
 
 def _wxm_backoff_write(until: float) -> None:
+    """Persist the backoff expiry (Unix timestamp) to Turso."""
     try:
-        with open(_WXM_BACKOFF_FILE, "w") as f:
-            f.write(str(until))
+        from auth_alerts import set_app_state
+        set_app_state(_WXM_BACKOFF_KEY, str(until))
     except Exception:
         pass
 
