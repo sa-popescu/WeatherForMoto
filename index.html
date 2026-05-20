@@ -4325,18 +4325,7 @@
       }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 });
     }
 
-    // Auto-use GPS on load if user previously granted permission
-    (function() {
-      try {
-        if (window._resetMode) return;
-        if (localStorage.getItem('motoUseGPS') !== '1' || !navigator.geolocation) return;
-        if (navigator.permissions) {
-          navigator.permissions.query({ name: 'geolocation' }).then(function(p) {
-            if (p.state === 'granted' && !window._resetMode) geolocate(true);
-          }).catch(function() {});
-        }
-      } catch(_) {}
-    })();
+    // GPS-on-startup is handled by the bootstrap IIFE at the end of this script.
 
     // -----------------------------------------------------------------------
     // Favourite / recent cities (localStorage)
