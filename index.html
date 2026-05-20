@@ -4238,7 +4238,17 @@
         c.icon = wmoIcon(c.weather_code);
         c.description = wmoDesc(c.weather_code);
       }
-      c.moto_score = scoreHourly(c.feels_like, c.wind_gusts_kmh, c.precipitation_mm, c.weather_code, 0);
+      var _curProb = 0;
+      if (data.hourly && data.hourly.length) {
+        var _nowMs = Date.now();
+        for (var _hi = 0; _hi < data.hourly.length; _hi++) {
+          if (new Date(data.hourly[_hi].time).getTime() >= _nowMs) {
+            _curProb = data.hourly[_hi].precipitation_probability || 0;
+            break;
+          }
+        }
+      }
+      c.moto_score = scoreHourly(c.feels_like, c.wind_gusts_kmh, c.precipitation_mm, c.weather_code, _curProb);
       c.moto_label = motoLabel(c.moto_score);
 
       var src = (c.sources || []).slice();
