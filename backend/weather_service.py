@@ -1505,7 +1505,8 @@ def _merge_current(
     )
     pw_gusts = pw_norm.get("wind_gusts_kmh") if pw_norm else None
     wxm_gusts = wxm_norm.get("wind_gusts_kmh") if wxm_norm else None
-    wind_gusts = _wxm_or_blend(wxm_gusts, [om_gusts, owm_gusts, pw_gusts], [1.2, 0.8, 1.0])
+    wind_gusts = _wxm_or_blend(wxm_gusts, [om_gusts, owm_gusts, pw_gusts], [1.2, 0.8, 1.0],
+                               nta_val=nta.get("wind_gusts_kmh"))
 
     wind_dir = c.get("wind_direction_10m")
 
