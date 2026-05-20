@@ -1034,7 +1034,7 @@ async def _fetch_weatherxm(
     # once per process so a cold-started instance inherits an active backoff
     # instead of immediately re-hitting the (likely still rate-limited) API.
     if not _wxm_backoff_loaded:
-        _wxm_backoff_until = await asyncio.to_thread(_wxm_backoff_read)
+        _wxm_backoff_until = await asyncio.to_thread(_backoff_read, _WXM_BACKOFF_KEY)
         _wxm_backoff_loaded = True
     if time.time() < _wxm_backoff_until:
         return None
