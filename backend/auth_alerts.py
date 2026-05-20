@@ -353,6 +353,11 @@ _INIT_TABLES = [
         created_at TEXT NOT NULL,
         FOREIGN KEY(user_id) REFERENCES users(id)
     )""",
+    """CREATE TABLE IF NOT EXISTS app_state (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )""",
 ]
 
 
