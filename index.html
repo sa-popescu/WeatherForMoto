@@ -4296,15 +4296,19 @@
         try { localStorage.setItem('motoUseGPS', '1'); } catch(_) {}
         CITY = _lang === 'en' ? "My location" : "Locația mea";
 
-        // Reverse geocode: prefer suburb/neighbourhood for large cities (more precise)
-        fetch("https://nominatim.openstreetmap.org/reverse?lat=" + LAT + "&lon=" + LON + "&format=json&zoom=14")
+        // Reverse geocode at street/neighbourhood zoom so the label reflects
+        // the precise GPS spot, not just the city.
+        fetch("https://nominatim.openstreetmap.org/reverse?lat=" + LAT + "&lon=" + LON + "&format=json&zoom=16")
           .then(function (r) { return r.json(); })
           .then(function (d) {
             var a = d.address || {};
-            // For a big city, use suburb/neighbourhood + city for context
-            var sub = a.suburb || a.neighbourhood || a.quarter || a.residential;
-            var city = a.city || a.town || a.village || a.county || '';
-            CITY = sub ? (sub + (city ? ', ' + city : '')) : (city || (_lang === 'en' ? "My location" : "Locația mea"));
+            // Most specific place name first: neighbourhood/quarter, then
+            // suburb, then street, falling back to the city.
+            var spot = a.neighbourhood || a.quarter || a.suburb || a.residential || a.road || a.hamlet;
+            var city = a.city || a.town || a.village || a.municipality || a.county || '';
+            CITY = spot
+              ? (spot + (city && city !== spot ? ', ' + city : ''))
+              : (city || (_lang === 'en' ? "My location" : "Locația mea"));
             var inp = document.getElementById("city-in");
             if (inp) inp.value = CITY;
             if (btnIcon) { btnIcon.setAttribute('data-lucide', 'map-pin'); if (window.lucide) lucide.createIcons(); }
