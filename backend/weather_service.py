@@ -1463,14 +1463,20 @@ def _merge_current(
     # When a physical WeatherXM station is available it is measuring the actual
     # air at that point — numerical models average over km² grid cells and can
     # be several degrees off for current conditions (urban heat island, terrain,
-    # etc.).  Use the station reading directly; fall back to model blend only
-    # when the station value is absent.
-    def _wxm_or_blend(wxm_val, model_vals, model_weights):
+    # etc.).  Use the WeatherXM reading directly; otherwise blend the models, and
+    # when a Netatmo public station is present add it to that blend with a high
+    # weight.  Netatmo is *blended* rather than used as ground truth because
+    # public stations vary in siting quality (rooftops, sun-exposed) — blending
+    # keeps a poorly-sited station from dominating.
+    def _wxm_or_blend(wxm_val, model_vals, model_weights, nta_val=None):
         if wxm_val is not None:
             return round(float(wxm_val), 2)
+        if nta_val is not None:
+            return _weighted_avg(list(model_vals) + [nta_val], list(model_weights) + [1.3])
         return _weighted_avg(model_vals, model_weights)
 
-    temp = _wxm_or_blend(wxm_temp, [om_temp, owm_temp, met_temp, pw_temp], [1.2, 1.0, 1.1, 0.8])
+    temp = _wxm_or_blend(wxm_temp, [om_temp, owm_temp, met_temp, pw_temp], [1.2, 1.0, 1.1, 0.8],
+                         nta_val=nta.get("temp"))
     feels = _wxm_or_blend(wxm_feel, [om_feel, owm_feel, pw_feel], [1.0, 1.0, 0.8])
 
     # --- humidity
