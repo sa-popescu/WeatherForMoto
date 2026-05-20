@@ -4341,6 +4341,12 @@
       try { return JSON.parse(localStorage.getItem("motoFavs") || "[]"); } catch (_) { return []; }
     }
     function _saveFavs(list) { localStorage.setItem("motoFavs", JSON.stringify(list)); }
+    // Remember the last location used so the next app launch opens on it.
+    function _saveLastLocation() {
+      try {
+        localStorage.setItem('motoLastLoc', JSON.stringify({ lat: LAT, lon: LON, name: CITY }));
+      } catch (_) {}
+    }
     function saveCity() {
       if (!CITY || CITY === "Locația mea") return;
       var favs = _getFavs().filter(function (f) { return f.name !== CITY; });
