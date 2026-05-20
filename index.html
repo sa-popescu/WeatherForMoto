@@ -1216,13 +1216,17 @@
               <div class="text-sm font-bold text-gray-200 mb-1">🏴‍☠️ Pirate Weather</div>
               <div class="text-xs text-muted leading-relaxed">Sursă suplimentară (pondere 0.8). Compatible Dark Sky, modele NOAA GFS/HRRR. Rafale de vânt incluse.</div>
             </div>
-            <div class="bg-bg border border-border rounded-xl p-4 sm:col-span-2 border-accent/30">
+            <div class="bg-bg border border-border rounded-xl p-4 border-accent/30">
               <div class="text-sm font-bold text-gray-200 mb-1">📡 WeatherXM <span class="text-xs font-normal text-accent ml-1">stație fizică</span></div>
-              <div class="text-xs text-muted leading-relaxed">Cea mai mare pondere (1.5). Rețea de stații meteo fizice IoT instalate de utilizatori. Date real-time direct din teren — nu modele numerice. Disponibil automat când există o stație activă în raza de 20 km.</div>
+              <div class="text-xs text-muted leading-relaxed">Rețea de stații meteo fizice IoT instalate de utilizatori. Date real-time direct din teren — nu modele numerice. Folosit automat când există o stație activă în apropiere.</div>
+            </div>
+            <div class="bg-bg border border-border rounded-xl p-4 border-accent/30">
+              <div class="text-sm font-bold text-gray-200 mb-1">🏠 Netatmo <span class="text-xs font-normal text-accent ml-1">stație fizică</span></div>
+              <div class="text-xs text-muted leading-relaxed">Pondere mare (1.3). Rețea de stații meteo personale Netatmo. Măsurători reale din teren, combinate în media ponderată cu modelele numerice.</div>
             </div>
           </div>
           <div class="mt-3 text-xs text-muted bg-bg border border-border rounded-lg px-4 py-2.5 leading-relaxed">
-            <strong class="text-gray-300">Medie ponderată:</strong> Valorile surselor sunt combinate inteligent — dacă o sursă lipsește, celelalte preiau controlul. WeatherXM (stație fizică) primește ponderea cea mai mare (1.5), urmat de Open-Meteo (1.2) și MET Norway (1.1).
+            <strong class="text-gray-300">Medie ponderată:</strong> Valorile surselor sunt combinate inteligent — dacă o sursă lipsește, celelalte preiau controlul. Stațiile fizice (WeatherXM, Netatmo) primesc ponderea cea mai mare, urmate de Open-Meteo (1.2) și MET Norway (1.1).
           </div>
         </section>
 
