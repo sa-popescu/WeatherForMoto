@@ -1922,16 +1922,20 @@ async def get_weather(
     pirate_weather_key: str = "",
     met_user_agent: str = "WeatherForMoto/1.0 github.com/user/WeatherForMoto",
     weatherxm_api_key: str = "",
+    netatmo_client_id: str = "",
+    netatmo_client_secret: str = "",
+    netatmo_refresh_token: str = "",
 ) -> dict[str, Any]:
     """
-    Fetch and aggregate weather data from Open-Meteo, OpenWeatherMap,
-    MET Norway, Pirate Weather, and WeatherXM (physical station).
+    Fetch and aggregate weather data from Open-Meteo, OpenWeatherMap, MET Norway,
+    Pirate Weather, WeatherXM and Netatmo (physical stations).
     Returns a unified JSON-serialisable dict.
     forecast_days: 7 (free) or 14 (premium — Open-Meteo supports up to 16).
     """
     async with httpx.AsyncClient() as client:
         # Launch all requests concurrently
-        om_data, owm_current, owm_forecast, owm_air, om_air, met_raw, pw_raw, wxm_raw = (
+        (om_data, owm_current, owm_forecast, owm_air, om_air, met_raw, pw_raw,
+         wxm_raw, netatmo_raw) = (
             await asyncio.gather(
                 _fetch_openmeteo(lat, lon, client, forecast_days=forecast_days),
                 _fetch_owm_current(lat, lon, owm_api_key, client),
@@ -1941,12 +1945,15 @@ async def get_weather(
                 _fetch_met_norway(lat, lon, client, met_user_agent),
                 _fetch_pirate_weather(lat, lon, pirate_weather_key, client),
                 _fetch_weatherxm(lat, lon, weatherxm_api_key, client),
+                _fetch_netatmo(lat, lon, netatmo_client_id, netatmo_client_secret,
+                               netatmo_refresh_token, client),
             )
         )
 
     met_norm = _normalize_met_current(met_raw)
     pw_norm = _normalize_pw_current(pw_raw)
     wxm_norm = _normalize_wxm_current(wxm_raw)
+    netatmo_norm = _normalize_netatmo_current(netatmo_raw)
     met_daily = _aggregate_met_daily(met_raw)
 
     current = _merge_current(om_data, owm_current, owm_air, om_air, met_norm, pw_norm, wxm_norm)
