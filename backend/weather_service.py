@@ -1130,6 +1130,220 @@ def _normalize_wxm_current(wxm_data: dict | None) -> dict | None:
         return None
 
 
+# ---------------------------------------------------------------------------
+# Netatmo — public personal-weather-station network (physical stations)
+# ---------------------------------------------------------------------------
+# Cache for Netatmo getpublicdata responses: key=(lat2, lon2) ~1km grid.
+_netatmo_cache: dict[tuple, tuple] = {}
+_NETATMO_CACHE_TTL = 3600  # 1 hour
+
+# Rate-limit backoff (Netatmo allows ~500 req/hour — short window, so 1h backoff).
+_NETATMO_BACKOFF_KEY = "netatmo_backoff_until"
+_NETATMO_BACKOFF_SECS = 3600
+_netatmo_backoff_until: float = 0.0
+_netatmo_backoff_loaded: bool = False
+
+# OAuth access token cache (Netatmo access tokens live ~3h). The refresh token
+# is long-lived; the persisted copy in app_state covers the case where Netatmo
+# ever rotates it (it currently returns the same one).
+_netatmo_token: str | None = None
+_netatmo_token_expiry: float = 0.0  # wall-clock
+_NETATMO_REFRESH_KEY = "netatmo_refresh_token"
+
+# Reject station readings older than this (seconds) — stale data is not "current".
+_NETATMO_MAX_AGE = 3600
+
+
+async def _netatmo_access_token(
+    client_id: str, client_secret: str, refresh_token: str, client: httpx.AsyncClient,
+) -> str | None:
+    """Return a valid Netatmo OAuth access token, refreshing it when expired."""
+    import time
+    global _netatmo_token, _netatmo_token_expiry
+    if _netatmo_token and time.time() < _netatmo_token_expiry - 120:
+        return _netatmo_token
+
+    import logging
+    _log = logging.getLogger("weatherformoto")
+    # Prefer a persisted refresh token (handles rotation); fall back to env seed.
+    persisted = await asyncio.to_thread(_backoff_read_str, _NETATMO_REFRESH_KEY)
+    rt = persisted or refresh_token
+    try:
+        resp = await client.post(
+            NETATMO_TOKEN_URL,
+            data={
+                "grant_type": "refresh_token",
+                "refresh_token": rt,
+                "client_id": client_id,
+                "client_secret": client_secret,
+            },
+            timeout=10,
+        )
+        if not resp.is_success:
+            _log.warning("Netatmo token refresh status=%s body=%s", resp.status_code, resp.text[:200])
+            return None
+        data = resp.json()
+        _netatmo_token = data.get("access_token")
+        _netatmo_token_expiry = time.time() + float(data.get("expires_in", 10800))
+        new_rt = data.get("refresh_token")
+        if new_rt and new_rt != rt:
+            await asyncio.to_thread(_backoff_write, _NETATMO_REFRESH_KEY, new_rt)
+        return _netatmo_token
+    except Exception as exc:
+        _log.warning("Netatmo token exception: %s", exc)
+        return None
+
+
+def _backoff_read_str(key: str) -> str | None:
+    """Read a raw string value from Turso app_state (for non-numeric state)."""
+    try:
+        from auth_alerts import get_app_state
+        return get_app_state(key)
+    except Exception:
+        return None
+
+
+async def _fetch_netatmo(
+    lat: float, lon: float, client_id: str, client_secret: str, refresh_token: str,
+    client: httpx.AsyncClient, radius_deg: float = 0.06,
+) -> dict | None:
+    """Fetch public Netatmo weather stations around (lat, lon).
+
+    Returns {"stations": [...], "ref_lat": lat, "ref_lon": lon} or None.
+    Cached per ~1km grid cell for an hour; backs off on HTTP 429.
+    """
+    if not (client_id and client_secret and refresh_token):
+        return None
+
+    import time
+    global _netatmo_backoff_until, _netatmo_backoff_loaded
+    cache_key = (round(lat, 2), round(lon, 2))
+    mono = time.monotonic()
+    if cache_key in _netatmo_cache:
+        ts, cached = _netatmo_cache[cache_key]
+        if mono - ts < _NETATMO_CACHE_TTL:
+            return cached
+
+    if not _netatmo_backoff_loaded:
+        _netatmo_backoff_until = await asyncio.to_thread(_backoff_read, _NETATMO_BACKOFF_KEY)
+        _netatmo_backoff_loaded = True
+    if time.time() < _netatmo_backoff_until:
+        return None
+
+    import logging
+    _log = logging.getLogger("weatherformoto")
+    try:
+        token = await _netatmo_access_token(client_id, client_secret, refresh_token, client)
+        if not token:
+            _netatmo_cache[cache_key] = (mono, None)
+            return None
+        resp = await client.get(
+            NETATMO_PUBLICDATA_URL,
+            params={
+                "lat_ne": round(lat + radius_deg, 4),
+                "lon_ne": round(lon + radius_deg, 4),
+                "lat_sw": round(lat - radius_deg, 4),
+                "lon_sw": round(lon - radius_deg, 4),
+                "filter": "true",
+            },
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=10,
+        )
+        if resp.status_code == 429:
+            _netatmo_backoff_until = time.time() + _NETATMO_BACKOFF_SECS
+            await asyncio.to_thread(_backoff_write, _NETATMO_BACKOFF_KEY, _netatmo_backoff_until)
+            _log.info("Netatmo rate-limited — backing off for %dm", _NETATMO_BACKOFF_SECS // 60)
+            _netatmo_cache[cache_key] = (mono, None)
+            return None
+        if not resp.is_success:
+            _log.warning("Netatmo getpublicdata status=%s body=%s", resp.status_code, resp.text[:200])
+            _netatmo_cache[cache_key] = (mono, None)
+            return None
+        body = resp.json().get("body", [])
+        _log.info("Netatmo getpublicdata stations=%d", len(body))
+        result = {"stations": body, "ref_lat": lat, "ref_lon": lon} if body else None
+        _netatmo_cache[cache_key] = (mono, result)
+        return result
+    except Exception as exc:
+        _log.warning("Netatmo exception: %s", exc)
+        return None
+
+
+def _normalize_netatmo_current(payload: dict | None) -> dict | None:
+    """Normalise Netatmo public-station data to the common current-conditions dict.
+
+    Each Netatmo station carries separate modules (temp/humidity, pressure, rain,
+    wind) and most stations lack rain/wind add-ons. For every measurement we keep
+    the value from the *closest* station that reports it fresh — so temperature
+    may come from one station and wind from another, both within the search box.
+    """
+    if not payload or not payload.get("stations"):
+        return None
+    import time
+    ref_lat = payload["ref_lat"]
+    ref_lon = payload["ref_lon"]
+    now = time.time()
+
+    # field -> (distance_km, value); keep the nearest fresh reading per field.
+    best: dict[str, tuple[float, float]] = {}
+
+    def consider(field: str, dist: float, value) -> None:
+        if value is None:
+            return
+        if field not in best or dist < best[field][0]:
+            best[field] = (dist, value)
+
+    for st in payload["stations"]:
+        loc = (st.get("place") or {}).get("location")
+        if not loc or len(loc) != 2:
+            continue
+        dist = _haversine_km(ref_lat, ref_lon, loc[1], loc[0])
+        for module in (st.get("measures") or {}).values():
+            # temperature / humidity / pressure modules: timestamp-keyed `res`
+            if "res" in module and "type" in module:
+                res = module.get("res") or {}
+                if not res:
+                    continue
+                latest_ts = max(res.keys(), key=lambda k: int(k))
+                if now - int(latest_ts) > _NETATMO_MAX_AGE:
+                    continue
+                for typ, val in zip(module["type"], res[latest_ts]):
+                    if typ == "temperature":
+                        consider("temp", dist, val)
+                    elif typ == "humidity":
+                        consider("humidity", dist, val)
+                    elif typ == "pressure":
+                        consider("pressure", dist, val)
+            # rain module
+            if "rain_60min" in module:
+                if now - module.get("rain_timeutc", 0) <= _NETATMO_MAX_AGE:
+                    consider("rain", dist, module.get("rain_60min"))
+            # wind module (wind_strength / gust_strength already in km/h)
+            if "wind_strength" in module:
+                if now - module.get("wind_timeutc", 0) <= _NETATMO_MAX_AGE:
+                    consider("wind", dist, module.get("wind_strength"))
+                    consider("gust", dist, module.get("gust_strength"))
+                    consider("wind_dir", dist, module.get("wind_angle"))
+
+    if "temp" not in best:
+        return None  # without a temperature reading the station data is not useful
+
+    def value(field: str):
+        return best[field][1] if field in best else None
+
+    return {
+        "temp": value("temp"),
+        "feels_like": None,            # Netatmo public data has no feels-like
+        "humidity": value("humidity"),
+        "wind_speed_kmh": value("wind"),
+        "wind_gusts_kmh": value("gust"),
+        "wind_dir": value("wind_dir"),
+        "pressure": value("pressure"),
+        "precipitation": value("rain"),
+        "wmo_code": None,              # stations report no weather condition/icon
+    }
+
+
 def _normalize_met_current(met_data: dict | None) -> dict | None:
     """Extract current conditions from MET Norway timeseries."""
     if not met_data:
