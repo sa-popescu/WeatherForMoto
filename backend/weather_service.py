@@ -1022,7 +1022,7 @@ async def _fetch_weatherxm(
         return None
 
     import time
-    global _wxm_backoff_until
+    global _wxm_backoff_until, _wxm_backoff_loaded
     cache_key = (round(lat, 2), round(lon, 2))
     now = time.monotonic()
     if cache_key in _wxm_cache:
@@ -1030,10 +1030,13 @@ async def _fetch_weatherxm(
         if now - ts < _WXM_CACHE_TTL:
             return cached
 
-    # Respect global rate-limit backoff — also check file so restarts inherit it.
-    if _wxm_backoff_until == 0.0:
-        _wxm_backoff_until = _wxm_backoff_read()
-    if now < _wxm_backoff_until:
+    # Respect global rate-limit backoff. Load the persisted expiry from Turso
+    # once per process so a cold-started instance inherits an active backoff
+    # instead of immediately re-hitting the (likely still rate-limited) API.
+    if not _wxm_backoff_loaded:
+        _wxm_backoff_until = await asyncio.to_thread(_wxm_backoff_read)
+        _wxm_backoff_loaded = True
+    if time.time() < _wxm_backoff_until:
         return None
 
     import logging
