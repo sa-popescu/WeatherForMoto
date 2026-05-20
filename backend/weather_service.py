@@ -30,6 +30,8 @@ OWM_GEO_URL = f"{OWM_BASE}/geo/1.0/direct"
 MET_NO_BASE = "https://api.met.no/weatherapi/locationforecast/2.0/complete"
 PIRATE_WEATHER_BASE = "https://api.pirateweather.net/forecast"
 WEATHERXM_PRO_BASE = "https://pro.weatherxm.com/api/v1"
+NETATMO_TOKEN_URL = "https://api.netatmo.com/oauth2/token"
+NETATMO_PUBLICDATA_URL = "https://api.netatmo.com/api/getpublicdata"
 
 
 # ---------------------------------------------------------------------------
@@ -1052,7 +1054,7 @@ async def _fetch_weatherxm(
         _wxm_log.info("WeatherXM stations/near status=%s body=%s", resp.status_code, resp.text[:300])
         if resp.status_code == 429:
             _wxm_backoff_until = time.time() + _WXM_BACKOFF_SECS
-            await asyncio.to_thread(_wxm_backoff_write, _wxm_backoff_until)
+            await asyncio.to_thread(_backoff_write, _WXM_BACKOFF_KEY, _wxm_backoff_until)
             _wxm_log.info("WeatherXM rate-limited — backing off for %dh", _WXM_BACKOFF_SECS // 3600)
             _wxm_cache[cache_key] = (now, None)
             return None
@@ -1078,7 +1080,7 @@ async def _fetch_weatherxm(
         _wxm_log.info("WeatherXM latest status=%s body=%s", obs_resp.status_code, obs_resp.text[:300])
         if obs_resp.status_code == 429:
             _wxm_backoff_until = time.time() + _WXM_BACKOFF_SECS
-            await asyncio.to_thread(_wxm_backoff_write, _wxm_backoff_until)
+            await asyncio.to_thread(_backoff_write, _WXM_BACKOFF_KEY, _wxm_backoff_until)
             _wxm_log.info("WeatherXM rate-limited — backing off for %dh", _WXM_BACKOFF_SECS // 3600)
             _wxm_cache[cache_key] = (now, None)
             return None
