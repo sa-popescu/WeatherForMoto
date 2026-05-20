@@ -242,7 +242,10 @@ async def weather(
         data = await get_weather(lat, lon, resolved_city, OWM_API_KEY, forecast_days=days,
                                  pirate_weather_key=PIRATE_WEATHER_API_KEY,
                                  met_user_agent=MET_NORWAY_USER_AGENT,
-                                 weatherxm_api_key=WEATHERXM_API_KEY)
+                                 weatherxm_api_key=WEATHERXM_API_KEY,
+                                 netatmo_client_id=NETATMO_CLIENT_ID,
+                                 netatmo_client_secret=NETATMO_CLIENT_SECRET,
+                                 netatmo_refresh_token=NETATMO_REFRESH_TOKEN)
     except Exception as exc:
         logger.exception("Weather fetch error: %s", exc)
         raise HTTPException(
