@@ -845,18 +845,39 @@ async def _fetch_openmeteo(
         "forecast_days": min(max(int(forecast_days), 1), 16),
         "wind_speed_unit": "kmh",
     }
-    resp = await client.get(OPENMETEO_BASE, params=params, timeout=15)
-    if not resp.is_success:
-        reason: str = resp.text[:200]
+    # Open-Meteo is the primary source — every other part of the response
+    # (hourly, daily, the current block) is built on it. A transient timeout
+    # or network blip would otherwise fail the whole /weather request, so
+    # retry a few times before giving up. Real API errors (4xx / error body)
+    # are raised immediately since a retry would not help.
+    last_exc: Exception | None = None
+    for attempt in range(3):
         try:
-            reason = resp.json().get("reason", reason)
-        except Exception:
-            pass
-        raise ValueError(f"Open-Meteo error {resp.status_code}: {reason}")
-    data = resp.json()
-    if data.get("error"):
-        raise ValueError(f"Open-Meteo error: {data.get('reason', 'unknown error')}")
-    return data
+            resp = await client.get(OPENMETEO_BASE, params=params, timeout=15)
+            if resp.status_code >= 500:
+                raise httpx.HTTPStatusError(
+                    f"Open-Meteo {resp.status_code}", request=resp.request, response=resp
+                )
+            if not resp.is_success:
+                reason: str = resp.text[:200]
+                try:
+                    reason = resp.json().get("reason", reason)
+                except Exception:
+                    pass
+                raise ValueError(f"Open-Meteo error {resp.status_code}: {reason}")
+            data = resp.json()
+            if data.get("error"):
+                raise ValueError(f"Open-Meteo error: {data.get('reason', 'unknown error')}")
+            return data
+        except (httpx.TransportError, httpx.HTTPStatusError) as exc:
+            last_exc = exc
+            if attempt < 2:
+                await asyncio.sleep(0.5 * (attempt + 1))
+                continue
+            raise ValueError(
+                f"Open-Meteo unreachable after 3 attempts: {type(exc).__name__}"
+            ) from exc
+    raise last_exc if last_exc else RuntimeError("Open-Meteo fetch failed")
 
 
 # ---------------------------------------------------------------------------
