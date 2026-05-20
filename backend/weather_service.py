@@ -1077,7 +1077,9 @@ async def _fetch_weatherxm(
         )
         _wxm_log.info("WeatherXM latest status=%s body=%s", obs_resp.status_code, obs_resp.text[:300])
         if obs_resp.status_code == 429:
-            _wxm_backoff_until = now + _WXM_BACKOFF_SECS
+            _wxm_backoff_until = time.time() + _WXM_BACKOFF_SECS
+            await asyncio.to_thread(_wxm_backoff_write, _wxm_backoff_until)
+            _wxm_log.info("WeatherXM rate-limited — backing off for %dh", _WXM_BACKOFF_SECS // 3600)
             _wxm_cache[cache_key] = (now, None)
             return None
         if not obs_resp.is_success:
