@@ -4524,7 +4524,7 @@
         }
         d = await enrichCurrentWithExtraSources(d);
         render(d);
-        saveCity(); renderFavsBar();
+        saveCity(); renderFavsBar(); _saveLastLocation();
         // Sync route planner origin with current city
         var routeStop0 = document.getElementById('route-stop-0');
         if (routeStop0 && !routeStop0.value) routeStop0.value = CITY;
