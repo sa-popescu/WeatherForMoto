@@ -1494,7 +1494,8 @@ def _merge_current(
     met_wind = met_norm.get("wind_speed_kmh") if met_norm else None
     pw_wind = pw_norm.get("wind_speed_kmh") if pw_norm else None
     wxm_wind = wxm_norm.get("wind_speed_kmh") if wxm_norm else None
-    wind_speed = _wxm_or_blend(wxm_wind, [om_wind, owm_wind, met_wind, pw_wind], [1.2, 1.0, 1.1, 0.8])
+    wind_speed = _wxm_or_blend(wxm_wind, [om_wind, owm_wind, met_wind, pw_wind], [1.2, 1.0, 1.1, 0.8],
+                               nta_val=nta.get("wind_speed_kmh"))
 
     om_gusts = c.get("wind_gusts_10m")
     owm_gusts = (
