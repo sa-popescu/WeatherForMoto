@@ -494,6 +494,37 @@ def init_db() -> None:
         conn.close()
 
 
+# ---------------------------------------------------------------------------
+# Generic key/value app state (persists across Cloud Run cold starts & instances)
+# ---------------------------------------------------------------------------
+
+def get_app_state(key: str) -> str | None:
+    """Return the stored value for ``key``, or None if absent."""
+    conn = _connect()
+    try:
+        row = conn.execute(
+            "SELECT value FROM app_state WHERE key = ?", (key,)
+        ).fetchone()
+        return row["value"] if row else None
+    finally:
+        conn.close()
+
+
+def set_app_state(key: str, value: str) -> None:
+    """Insert or update ``key`` with ``value``."""
+    conn = _connect()
+    try:
+        conn.execute(
+            "INSERT INTO app_state (key, value, updated_at) VALUES (?, ?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value, "
+            "updated_at = excluded.updated_at",
+            (key, value, _utc_now().isoformat()),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 _distance_km = _haversine_km
 
 
