@@ -1544,6 +1544,7 @@ def _merge_current(
     wxm_pressure = wxm_norm.get("pressure") if wxm_norm else None
     pressure = (
         wxm_pressure
+        or nta.get("pressure")
         or (owm_current["main"].get("pressure") if owm_current else None)
         or (met_norm.get("pressure") if met_norm else None)
         or c.get("surface_pressure")
