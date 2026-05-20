@@ -1520,7 +1520,8 @@ def _merge_current(
     met_prec = met_norm.get("precipitation") if met_norm else None
     pw_prec = pw_norm.get("precipitation") if pw_norm else None
     wxm_prec = wxm_norm.get("precipitation") if wxm_norm else None
-    precipitation = _wxm_or_blend(wxm_prec, [om_prec, owm_prec, met_prec, pw_prec], [1.0, 1.0, 1.1, 0.8])
+    precipitation = _wxm_or_blend(wxm_prec, [om_prec, owm_prec, met_prec, pw_prec], [1.0, 1.0, 1.1, 0.8],
+                                  nta_val=nta.get("precipitation"))
 
     # --- weather code / description
     om_code = c.get("weather_code")
