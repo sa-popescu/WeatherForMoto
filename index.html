@@ -5623,7 +5623,23 @@
         searchCity();
         return;
       }
-      loadWeather();
+      // Default: open on the user's precise GPS location. Show a skeleton
+      // while the fix is acquired; fall back to the last known location
+      // (or Bucharest) if GPS is denied or unavailable.
+      var cityInp = document.getElementById('city-in');
+      if (cityInp) cityInp.value = CITY;
+      document.getElementById('app').innerHTML = skeletonHtml();
+      function _startGps() {
+        if (navigator.geolocation) geolocate(true);
+        else loadWeather();
+      }
+      if (navigator.permissions && navigator.permissions.query) {
+        navigator.permissions.query({ name: 'geolocation' })
+          .then(function (p) { if (p.state === 'denied') loadWeather(); else _startGps(); })
+          .catch(_startGps);
+      } else {
+        _startGps();
+      }
     })();
 
     if (window.lucide) lucide.createIcons();
