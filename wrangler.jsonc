@@ -1,0 +1,13 @@
+{
+  // Cloudflare Worker that serves the WeatherForMoto static frontend from the
+  // edge (built into ./dist by scripts/build-pages.sh). There is NO server code:
+  // the API stays on Cloud Run and the frontend calls it via CONFIGURED_BACKEND_URL.
+  // This replaces the old reverse-proxy Worker so the HTML loads instantly even
+  // when the Cloud Run backend is cold.
+  "name": "weatherformoto",
+  "compatibility_date": "2026-07-01",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  }
+}
