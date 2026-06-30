@@ -13,11 +13,14 @@ giving more accurate results than any single source alone.
 """
 
 import asyncio
+import logging
 import math
 from datetime import datetime, timedelta
 from typing import Any
 
 import httpx
+
+logger = logging.getLogger("weatherformoto.weather")
 
 # ---------------------------------------------------------------------------
 # Source URLs
@@ -243,6 +246,24 @@ def _moto_score(
         daily=False,
     ))
     return max(0, min(100, round(score)))
+
+
+def _effective_display_code(
+    code: int | None,
+    precipitation_mm: float | None,
+    precipitation_probability: int | None = 0,
+) -> int | None:
+    """Keep the displayed weather code consistent with the score's de-weight.
+
+    A precipitation/storm code that isn't actually precipitating (probability
+    < 20% AND no measured precip) is downgraded to overcast (3), so the icon and
+    description never show a storm next to a high (green) score. This mirrors the
+    de-weight applied inside ``_moto_score``.
+    """
+    if code is None:
+        return code
+    deweighted = (precipitation_probability or 0) < 20 and (precipitation_mm or 0) < 0.1
+    return 3 if (deweighted and code >= 51) else code
 
 
 def _moto_score_daily(
@@ -713,6 +734,10 @@ async def geocode_city(city: str, client: httpx.AsyncClient) -> dict[str, Any]:
     NOMINATIM = "https://nominatim.openstreetmap.org/search"
     HEADERS = {"User-Agent": "WeatherForMoto/1.0 (weatherformoto@bluemouse.cc)"}
 
+    # Track the last upstream transport error so a genuine service outage maps to
+    # a 502 (via RuntimeError) instead of masquerading as a 404 "city not found".
+    last_error: Exception | None = None
+
     # 1. Try Open-Meteo first (GeoNames — fast, good for known cities).
     # Skip when query has a comma (user specified county hint) — Open-Meteo
     # ignores county context and will return the first alphabetical match,
@@ -735,8 +760,9 @@ async def geocode_city(city: str, client: httpx.AsyncClient) -> dict[str, Any]:
                     "country": r.get("country_code", ""),
                     "timezone": r.get("timezone", "auto"),
                 }
-        except Exception:
-            pass
+        except Exception as exc:
+            last_error = exc
+            logger.warning("geocode: Open-Meteo lookup failed: %s", exc)
 
     def _norm(s: str) -> str:
         import unicodedata
@@ -767,14 +793,17 @@ async def geocode_city(city: str, client: httpx.AsyncClient) -> dict[str, Any]:
                 display = r.get("display_name", city).split(",")[0].strip()
                 return {"lat": float(r["lat"]), "lon": float(r["lon"]),
                         "name": display, "country": "RO", "timezone": "auto"}
-        except Exception:
-            pass
+        except Exception as exc:
+            last_error = exc
+            logger.warning("geocode: Nominatim county lookup failed: %s", exc)
 
         # 3. Wikidata fallback — handles spelling variants OSM can't match
         # (e.g. 'razmiresti' → 'Răsmirești', diacritics, z/s differences)
         wd = await _geocode_wikidata(village_part, county_part, client)
         if wd:
             return wd
+        if last_error is not None:
+            raise RuntimeError("Geocoding service temporarily unavailable") from last_error
         raise ValueError(
             f"Locația '{village_part}' nu a fost găsită în județul '{county_part}'."
         )
@@ -792,8 +821,9 @@ async def geocode_city(city: str, client: httpx.AsyncClient) -> dict[str, Any]:
             display = r.get("display_name", city).split(",")[0].strip()
             return {"lat": float(r["lat"]), "lon": float(r["lon"]),
                     "name": display, "country": "RO", "timezone": "auto"}
-    except Exception:
-        pass
+    except Exception as exc:
+        last_error = exc
+        logger.warning("geocode: Nominatim RO lookup failed: %s", exc)
 
     # 5. Nominatim free-text, worldwide
     try:
@@ -809,9 +839,12 @@ async def geocode_city(city: str, client: httpx.AsyncClient) -> dict[str, Any]:
             country = r.get("display_name", "").split(",")[-1].strip()
             return {"lat": float(r["lat"]), "lon": float(r["lon"]),
                     "name": display, "country": country, "timezone": "auto"}
-    except Exception:
-        pass
+    except Exception as exc:
+        last_error = exc
+        logger.warning("geocode: Nominatim worldwide lookup failed: %s", exc)
 
+    if last_error is not None:
+        raise RuntimeError("Geocoding service temporarily unavailable") from last_error
     raise ValueError(f"Locația '{city}' nu a fost găsită.")
 
 
@@ -1554,12 +1587,15 @@ def _merge_current(
     # decide the icon (keeps visual in sync with measured conditions).
     # Use OWM Romanian description for text since WXM has no localization.
     effective_code = wxm_code if wxm_code is not None else (owm_code or om_code)
-    if owm_current:
-        description = owm_current["weather"][0].get("description", _wmo_desc(effective_code)).capitalize()
-        icon_emoji = _wmo_icon(effective_code)
+    # Downgrade a precip/storm code to overcast for DISPLAY when it isn't actually
+    # precipitating, so the icon and description stay consistent with the score.
+    display_code = _effective_display_code(effective_code, precipitation)
+    _downgraded = display_code != effective_code
+    if owm_current and not _downgraded:
+        description = owm_current["weather"][0].get("description", _wmo_desc(display_code)).capitalize()
     else:
-        description = _wmo_desc(effective_code)
-        icon_emoji = _wmo_icon(effective_code)
+        description = _wmo_desc(display_code)
+    icon_emoji = _wmo_icon(display_code)
 
     # --- pressure, visibility
     wxm_pressure = wxm_norm.get("pressure") if wxm_norm else None
@@ -1610,7 +1646,10 @@ def _merge_current(
             pollen_index = max(float(v) for v in pollen_vals)
 
     # --- moto score
-    score = _moto_score(feels, wind_gusts, precipitation, om_code)
+    # Score and gear must use the same code that drives the displayed icon and
+    # description (effective_code). Using the raw Open-Meteo code (om_code) here
+    # let the score describe different conditions than the icon shown.
+    score = _moto_score(feels, wind_gusts, precipitation, effective_code)
 
     return {
         "temperature": temp,
@@ -1622,7 +1661,7 @@ def _merge_current(
         "wind_direction": _wind_direction_label(wind_dir),
         "beaufort": _beaufort(wind_speed),
         "precipitation_mm": precipitation,
-        "weather_code": om_code,
+        "weather_code": display_code,
         "description": description,
         "icon": icon_emoji,
         "pressure_hpa": pressure,
@@ -1636,7 +1675,7 @@ def _merge_current(
         "pollen_index": round(float(pollen_index), 1) if pollen_index is not None else None,
         "moto_score": score,
         "moto_label": _moto_label(score),
-        "gear_recommendation": _gear_recommendation(feels, wind_gusts, precipitation, om_code),
+        "gear_recommendation": _gear_recommendation(feels, wind_gusts, precipitation, effective_code),
         "road_surface_temp": _road_surface_temp(temp, humidity, om_code, precipitation),
         "sources": (
             ["open-meteo"]
@@ -1825,10 +1864,19 @@ async def _fetch_waypoint_weather(
         # Find the first hour >= ETA (truncated to the hour)
         eta_prefix = eta_iso[:13]  # "YYYY-MM-DDTHH"
         best_idx = 0
+        matched = False
         for j, t in enumerate(times):
             if t[:13] >= eta_prefix:
                 best_idx = j
+                matched = True
                 break
+
+        # ETA is past the forecast horizon: fall back to the furthest available
+        # hour (not "now", index 0) and flag it so the UI can say "beyond forecast"
+        # instead of silently showing current weather for a far-future waypoint.
+        beyond_horizon = bool(times) and not matched
+        if beyond_horizon:
+            best_idx = len(times) - 1
 
         code = _safe(hourly.get("weather_code"), best_idx)
         feels = _safe(hourly.get("apparent_temperature"), best_idx)
@@ -1850,6 +1898,7 @@ async def _fetch_waypoint_weather(
             "description": _wmo_desc(code),
             "moto_score": score,
             "moto_label": _moto_label(score),
+            "beyond_forecast_horizon": beyond_horizon,
         }
     except Exception:
         return {}

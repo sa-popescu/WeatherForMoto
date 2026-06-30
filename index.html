@@ -1253,7 +1253,7 @@
     //
     //   Example:  var CONFIGURED_BACKEND_URL = "https://weatherformoto.bluemouse.cc";
     var CONFIGURED_BACKEND_URL = "https://weatherformoto-1056457771445.europe-west1.run.app";
-    var OWM_API_KEY = "3e17019022d624b5b3d26b54f7c6b8a5"; // default key; overridable via GH Actions secret OWM_API_KEY
+    var OWM_API_KEY = ""; // SECURITY: never ship an API key in client JS. OpenWeatherMap is aggregated server-side by the backend; the browser-direct fallback simply runs without it.
 
     function _resolveApiUrl() {
       // Capacitor native (iOS/Android) — app runs at capacitor://localhost or http://localhost
@@ -1290,6 +1290,21 @@
 
     function _api(path) {
       return (API_URL === null || API_URL === '') ? path : (API_URL + path);
+    }
+    // fetch() with an abort timeout so a cold/slow backend never blocks the UI.
+    function _fetchWithTimeout(url, ms, opts) {
+      opts = opts || {};
+      if (typeof AbortController === 'undefined') return fetch(url, opts);
+      var ctrl = new AbortController();
+      var id = setTimeout(function () { ctrl.abort(); }, ms);
+      opts.signal = ctrl.signal;
+      return fetch(url, opts).finally(function () { clearTimeout(id); });
+    }
+    // HTML-escape untrusted text before interpolating it into innerHTML/attributes.
+    function _escHtml(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
     function _authToken() {
       try { return localStorage.getItem(AUTH_TOKEN_KEY) || ''; } catch (_) { return ''; }
@@ -2787,13 +2802,14 @@
             var typeMap = { village: 'Comună', hamlet: 'Cătun', town: 'Oraș', city: 'Municipiu', suburb: 'Cartier' };
             var typeLabel = typeMap[addr.village ? 'village' : addr.hamlet ? 'hamlet' : addr.town ? 'town' : addr.city ? 'city' : ''] || '';
             var countryLabel = (addr.country_code && addr.country_code.toUpperCase() !== 'RO') ? ' · ' + addr.country_code.toUpperCase() : '';
-            var safe = name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+            // JS-string-escape for the onclick arg, then HTML-escape for the attribute context.
             var fullSafe = (name + (county ? ', ' + county : '')).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+            var attrSafe = _escHtml(fullSafe);
             return '<div class="geo-suggestion px-3 py-2 text-sm text-gray-200 border-b border-border/40 last:border-0 cursor-pointer hover:bg-accent/10"'
-              + ' onclick="selectGeoSuggestion(\'' + inputId + '\',\'' + dropId + '\',\'' + fullSafe + '\')">'
+              + ' onclick="selectGeoSuggestion(\'' + inputId + '\',\'' + dropId + '\',\'' + attrSafe + '\')">'
               + '<div class="flex items-baseline gap-2">'
-              + '<span class="font-medium">' + name + '</span>'
-              + (county ? '<span class="text-xs text-accent/80 font-semibold">' + county + '</span>' : '')
+              + '<span class="font-medium">' + _escHtml(name) + '</span>'
+              + (county ? '<span class="text-xs text-accent/80 font-semibold">' + _escHtml(county) + '</span>' : '')
               + (typeLabel ? '<span class="text-xs text-muted/60">' + typeLabel + '</span>' : '')
               + countryLabel
               + '</div>'
@@ -3810,6 +3826,15 @@
       return ((WMO_MAP[c] || [])[0]) || "—";
     }
     function wmoIcon(c) { return ((WMO_MAP[c] || [])[1]) || "🌡️"; }
+    // Keep the displayed weather code consistent with the score's de-weight: when
+    // it isn't actually precipitating (probability < 20% AND no measured precip),
+    // a rain/storm code must not drive a dramatic icon next to a high (green) score.
+    // Downgrade such a code to "overcast" so the icon always matches the score.
+    function effectiveDisplayCode(code, prec, precipProb) {
+      if (code == null) return code;
+      var deweighted = (precipProb || 0) < 20 && (prec || 0) < 0.1;
+      return (deweighted && code >= 51) ? 3 : code;
+    }
 
     var _BMIL = 'https://cdn.jsdelivr.net/gh/basmilius/weather-icons@v2.0.0/production/fill/all/';
     var WMO_BMIL = {
@@ -4093,13 +4118,16 @@
         }
       }
       var motoScore = scoreHourly(feels, windGusts, prec, finalCode, nextHourlyProb);
+      // Display code consistent with the score (see effectiveDisplayCode).
+      finalCode = effectiveDisplayCode(finalCode, prec, nextHourlyProb);
+      description = wmoDesc(finalCode);
       var sources = ["open-meteo"];
       if (owmCur) sources.push("openweathermap");
       if (met0) sources.push("met-norway");
       if (omEcmwf) sources.push('open-meteo-ecmwf');
       if (omGfs) sources.push('open-meteo-gfs');
       if (omIcon) sources.push('open-meteo-icon');
-      if (d.current && (d.current.sources || []).indexOf('weatherxm') >= 0) sources.push('weatherxm');
+      // (weatherxm is a backend-only PRO source; it never appears in the browser-direct path)
       var current = {
         temperature: temp, feels_like: feels, humidity: humidity,
         wind_speed_kmh: windSpeed, wind_gusts_kmh: windGusts,
@@ -4264,6 +4292,10 @@
       }
       c.moto_score = scoreHourly(c.feels_like, c.wind_gusts_kmh, c.precipitation_mm, c.weather_code, _curProb);
       c.moto_label = motoLabel(c.moto_score);
+      // Keep the icon/description consistent with the score (no storm icon on a green score).
+      c.weather_code = effectiveDisplayCode(c.weather_code, c.precipitation_mm, _curProb);
+      c.icon = wmoIcon(c.weather_code);
+      c.description = wmoDesc(c.weather_code);
 
       var src = (c.sources || []).slice();
       function addSrc(v) { if (v && src.indexOf(v) < 0) src.push(v); }
@@ -4506,17 +4538,19 @@
         } else {
           var days = 14;
           var url = API_URL + "/weather?lat=" + LAT + "&lon=" + LON + "&city=" + encodeURIComponent(CITY) + "&days=" + days;
-          var res;
-          try { res = await fetch(url); }
-          catch (_) { throw new Error(BACKEND_UNAVAILABLE_MSG); }
-          if (!res.ok) {
-            var errMsg = "HTTP " + res.status;
-            try { var ed = await res.json(); errMsg = ed.detail || errMsg; } catch (_) { }
-            throw new Error(errMsg);
+          try {
+            // Time out a cold/slow backend after ~9s and fall back to the
+            // browser-direct path so the user sees data fast instead of staring
+            // at a blank skeleton while the Cloud Run container wakes up.
+            var res = await _fetchWithTimeout(url, 9000);
+            if (!res.ok) throw new Error("HTTP " + res.status);
+            d = await res.json();
+          } catch (_) {
+            d = await fetchDirect(LAT, LON, CITY);
           }
-          d = await res.json();
         }
-        d = await enrichCurrentWithExtraSources(d);
+        // Paint immediately, then enrich with extra sources in the background so
+        // the first render never waits on additional network round trips.
         render(d);
         saveCity(); renderFavsBar(); _saveLastLocation();
         // Sync route planner origin with current city
@@ -4528,6 +4562,8 @@
           t('updated') + ': ' + new Date().toLocaleTimeString(_lang === 'en' ? 'en-GB' : 'ro-RO', { hour: "2-digit", minute: "2-digit" })
           + ' &nbsp;<span id="refresh-pill" class="refresh-pill text-muted cursor-pointer" onclick="loadWeather()" title="Refresh">' + t('auto_refresh') + '</span>';
         startAutoRefresh();
+        // Background refinement with MET + extra models; re-render when ready.
+        enrichCurrentWithExtraSources(d).then(function (ed) { if (ed) render(ed); }).catch(function () { });
       } catch (e) {
         document.getElementById("app").innerHTML =
           '<div class="mt-4 p-5 rounded-xl border border-danger bg-danger/10 text-danger text-base font-semibold">'
@@ -5142,14 +5178,17 @@
         var slotGusts = idx === 0 ? c.wind_gusts_kmh : h.wind_gusts_kmh;
         var slotWind = idx === 0 ? c.wind_speed_kmh : h.wind_speed_kmh;
         var slotCode = idx === 0 ? c.weather_code : h.weather_code;
-        var hs = scoreHourly(slotFeels, slotGusts, h.precipitation_mm, slotCode, h.precipitation_probability);
+        // NOW slot must equal the hero score exactly; future hours score from their
+        // own forecast. Icons use the score-consistent (de-weighted) display code.
+        var hs = idx === 0 ? c.moto_score : scoreHourly(slotFeels, slotGusts, h.precipitation_mm, slotCode, h.precipitation_probability);
+        var slotDispCode = idx === 0 ? c.weather_code : effectiveDisplayCode(slotCode, h.precipitation_mm, h.precipitation_probability);
         var scoreColor = hs >= 85 ? '#22c55e' : hs >= 60 ? '#eab308' : hs >= 40 ? '#f97316' : '#ef4444';
         var borderCol = hs < 40 ? "border-danger" : rp > 40 ? "border-warn" : idx === 0 ? "border-accent" : "border-border";
         var nowClass = idx === 0 ? "hourly-now border-accent" : "";
         // Cache all data for the detail modal
         _hourlyDetailCache.push({
           isNow: idx === 0, timeLabel: hh, temp: slotTemp, feels: slotFeels,
-          gusts: slotGusts, wind: slotWind, code: slotCode, score: hs,
+          gusts: slotGusts, wind: slotWind, code: slotDispCode, score: hs,
           precipProb: rp, precip: h.precipitation_mm || 0,
           humidity: idx === 0 ? c.humidity : h.relative_humidity,
           visibility: idx === 0 ? c.visibility_km : (h.visibility != null ? h.visibility / 1000 : null),
@@ -5159,7 +5198,7 @@
         });
         html += '<div class="hourly-main-card flex-shrink-0 bg-card border ' + borderCol + ' ' + nowClass + ' rounded-xl p-3 w-24 text-center flex flex-col items-center gap-1 cursor-pointer active:scale-95 transition-transform" onclick="showHourDetail(' + idx + ')">';
         html += '<div class="text-xs font-semibold tracking-widest ' + (idx === 0 ? 'text-accent' : 'text-muted') + '">' + (idx === 0 ? t('now_lbl') : hh) + '</div>';
-        html += '<div class="text-gray-100">' + wmoWeatherIcon(slotCode, 38) + '</div>';
+        html += '<div class="text-gray-100">' + wmoWeatherIcon(slotDispCode, 38) + '</div>';
         html += '<div class="hour-temp font-display text-3xl font-bold leading-none text-gray-100">' + Math.round(slotTemp) + '°</div>';
         html += '<div class="text-xs ' + rainCls(rp) + '">' + rp + '% 💧</div>';
         html += '<div class="text-xs text-muted">' + Math.round(slotWind) + ' km/h</div>';
@@ -5255,7 +5294,7 @@
             var hCol = hsc >= 85 ? '#22c55e' : hsc >= 60 ? '#eab308' : hsc >= 40 ? '#f97316' : '#ef4444';
             html += '<div class="daily-mini-card flex-shrink-0 bg-card border border-border rounded-xl p-2 w-16 text-center flex flex-col items-center gap-0.5">';
             html += '<div class="text-xs text-muted font-semibold">' + ht + '</div>';
-            html += '<div class="text-gray-100">' + wmoWeatherIcon(h.weather_code, 22) + '</div>';
+            html += '<div class="text-gray-100">' + wmoWeatherIcon(effectiveDisplayCode(h.weather_code, h.precipitation_mm, h.precipitation_probability), 22) + '</div>';
             html += '<div class="font-display text-lg font-bold leading-none text-gray-100">' + Math.round(h.temperature) + '°</div>';
             if (h.feels_like != null) html += '<div class="text-xs text-muted">res ' + Math.round(h.feels_like) + '°</div>';
             html += '<div class="text-xs ' + rainCls(hrp) + '">' + hrp + '%💧</div>';
@@ -5628,17 +5667,16 @@
       // (or Bucharest) if GPS is denied or unavailable.
       var cityInp = document.getElementById('city-in');
       if (cityInp) cityInp.value = CITY;
-      document.getElementById('app').innerHTML = skeletonHtml();
-      function _startGps() {
-        if (navigator.geolocation) geolocate(true);
-        else loadWeather();
-      }
-      if (navigator.permissions && navigator.permissions.query) {
+      // Paint immediately with the last known / default location so the first
+      // render never waits on the GPS fix (up to ~12s), then refine the location
+      // via geolocation in the background.
+      loadWeather();
+      if (navigator.geolocation && navigator.permissions && navigator.permissions.query) {
         navigator.permissions.query({ name: 'geolocation' })
-          .then(function (p) { if (p.state === 'denied') loadWeather(); else _startGps(); })
-          .catch(_startGps);
-      } else {
-        _startGps();
+          .then(function (p) { if (p.state !== 'denied') geolocate(true); })
+          .catch(function () { geolocate(true); });
+      } else if (navigator.geolocation) {
+        geolocate(true);
       }
     })();
 

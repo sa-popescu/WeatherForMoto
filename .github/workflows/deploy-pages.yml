@@ -28,22 +28,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Inject backend URL and OWM API key
+      - name: Inject backend URL
         env:
           BACKEND_URL: ${{ vars.BACKEND_URL }}
-          OWM_API_KEY: ${{ secrets.OWM_API_KEY }}
         run: |
           if [ -n "$BACKEND_URL" ]; then
             BACKEND_URL="${BACKEND_URL%/}"
             sed -i "s|var CONFIGURED_BACKEND_URL = \"\";|var CONFIGURED_BACKEND_URL = \"${BACKEND_URL}\";|" index.html
             echo "Backend URL injected: ${BACKEND_URL}"
           fi
-          if [ -n "$OWM_API_KEY" ]; then
-            sed -i "s|var OWM_API_KEY = \"[^\"]*\";|var OWM_API_KEY = \"${OWM_API_KEY}\";|" index.html
-            echo "OWM API key injected"
-          else
-            echo "OWM_API_KEY secret not set — only Open-Meteo will be used"
-          fi
+          # SECURITY: the OpenWeatherMap key is intentionally NOT injected into the
+          # client any more. OWM is aggregated server-side by the backend only, so
+          # the key never reaches the browser. Do not re-add a client-side key here.
 
       - name: Prepare static files
         run: |

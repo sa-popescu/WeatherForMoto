@@ -1,5 +1,5 @@
 // MotoMeteo Service Worker — cache-first strategy for offline support
-var CACHE = 'motometeo-v7';
+var CACHE = 'motometeo-v8';
 var WEATHER_CACHE = 'motometeo-weather-v2';
 var WEATHER_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 var SNOOZED_UNTIL = 0;
@@ -69,19 +69,28 @@ self.addEventListener('activate', function (e) {
 self.addEventListener('fetch', function (e) {
     var url = new URL(e.request.url);
 
-    // Always try network first for HTML navigation so users get latest JS/logic.
-    // Use cache:'no-store' so the SW's internal fetch bypasses the HTTP cache entirely.
+    // App-shell navigation: serve the precached shell INSTANTLY (cache-first /
+    // stale-while-revalidate) so the UI paints immediately even when the backend
+    // is cold, then refresh the cached copy in the background for the next load.
+    // The page's own JS fetches data afterwards, so a stale shell is fine; the
+    // CACHE version bump on each release pulls in shell changes.
     if (e.request.mode === 'navigate') {
         e.respondWith(
-            fetch(e.request, { cache: 'no-store' }).then(function (resp) {
-                if (resp && resp.status === 200) {
-                    var clone = resp.clone();
-                    caches.open(CACHE).then(function (c) { c.put(e.request, clone); });
-                }
-                return resp;
-            }).catch(function () {
-                return caches.match(e.request).then(function (cached) {
-                    return cached || new Response(OFFLINE_HTML, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+            caches.open(CACHE).then(function (c) {
+                return c.match('/index.html').then(function (cached) {
+                    var network = fetch(e.request, { cache: 'no-store' }).then(function (resp) {
+                        if (resp && resp.status === 200) {
+                            return c.put('/index.html', resp.clone()).then(function () { return resp; });
+                        }
+                        return resp;
+                    }).catch(function () { return null; });
+                    if (cached) {
+                        e.waitUntil(network);
+                        return cached;
+                    }
+                    return network.then(function (resp) {
+                        return resp || new Response(OFFLINE_HTML, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+                    });
                 });
             })
         );

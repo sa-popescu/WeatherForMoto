@@ -166,7 +166,7 @@ Deschide `index.html` în browser. Aplicația detectează automat backend-ul loc
 - `POST /me/push-subscriptions` - Abonare push
 - `DELETE /me/push-subscriptions` - Dezabonare push
 - `POST /alerts/check-now` - Verificare alertă manuală
-- `POST /alerts/dispatch-all?secret=...` - Dispatch batch
+- `POST /alerts/dispatch-all` - Dispatch batch (secret în header-ul `X-Dispatch-Secret`, nu în query string)
 
 ### Route & ride data
 
@@ -208,7 +208,36 @@ gcloud run deploy weatherformoto \
   --project=weatherformoto
 ```
 
-Domeniu custom: `weatherformoto.bluemouse.cc` (proxy via Cloudflare Worker).
+**Migrare schemă (important):** schema nu mai rulează la fiecare pornire (era cauza principală a cold-start-ului lent). Rulează migrarea o singură dată după schimbări de schemă sau pe o bază nouă, setând `RUN_DB_MIGRATIONS=true` la un deploy, apoi scoate variabila:
+
+```bash
+gcloud run services update weatherformoto --region europe-west1 \
+  --set-env-vars RUN_DB_MIGRATIONS=true
+# după ce a pornit o dată cu succes:
+gcloud run services update weatherformoto --region europe-west1 \
+  --remove-env-vars RUN_DB_MIGRATIONS
+```
+
+### Frontend static pe Cloudflare Pages (zero-cost)
+
+Arhitectura recomandată: frontend-ul static servit de la edge prin Cloudflare Pages (instant, fără cold start), iar backend-ul FastAPI rămâne pe Cloud Run doar pentru API. `index.html` cheamă deja API-ul la URL-ul Cloud Run (`CONFIGURED_BACKEND_URL`), iar CORS-ul backend-ului permite originea Pages.
+
+Setup în dashboard-ul Cloudflare Pages (Connect to Git):
+
+- Build command: `sh scripts/build-pages.sh`
+- Build output directory: `dist`
+- Custom domain: `weatherformoto.bluemouse.cc` (mută CNAME-ul de pe vechiul Worker pe proiectul Pages)
+
+Pe backend (Cloud Run) setează `ALLOWED_ORIGINS` ca să includă originea frontend-ului:
+
+```bash
+gcloud run services update weatherformoto --region europe-west1 \
+  --set-env-vars ALLOWED_ORIGINS=https://weatherformoto.bluemouse.cc
+```
+
+Domeniile `*.weatherformoto.pages.dev` (preview-uri Pages) sunt permise automat de backend.
+
+> Cheia OpenWeatherMap nu mai este expusă în client. Este folosită doar server-side de backend; calea browser-direct (fallback când backend-ul nu răspunde) rulează fără ea, pe Open-Meteo.
 
 ### Docker local
 
