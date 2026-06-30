@@ -75,7 +75,13 @@ APPLE_TOUCH_ICON = ICONS_DIR / "motometeo-touch-180.png"
 
 @asynccontextmanager
 async def lifespan(fastapi_app: FastAPI):
-    init_db()
+    # Schema migration opens a remote Turso connection and issues ~35 serial
+    # round trips; running it on every cold start is the main cause of the slow
+    # first load. Run it only when RUN_DB_MIGRATIONS=true (one-off migration
+    # deploy / Cloud Run Job), and off the event loop so it never blocks readiness.
+    if os.getenv("RUN_DB_MIGRATIONS", "false").lower() == "true":
+        logger.info("RUN_DB_MIGRATIONS=true — running schema migration at startup")
+        await asyncio.to_thread(init_db)
     logger.info("WeatherForMoto backend starting up")
     logger.info("INDEX_HTML path: %s (exists=%s)", INDEX_HTML, INDEX_HTML.is_file())
     logger.info("DEFAULT_CITY: %s", DEFAULT_CITY)
@@ -100,11 +106,23 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# CORS: restrict to known frontend origins instead of a wildcard. Set
+# ALLOWED_ORIGINS (comma-separated) to override; the regex also permits the
+# Cloudflare Pages domains used for the static frontend deployment.
+ALLOWED_ORIGINS = [
+    o.strip()
+    for o in os.getenv(
+        "ALLOWED_ORIGINS", "https://weatherformoto.bluemouse.cc"
+    ).split(",")
+    if o.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_origin_regex=r"https://([a-z0-9-]+\.)*weatherformoto\.pages\.dev",
     allow_credentials=False,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -187,7 +205,9 @@ async def geocode(
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except Exception as exc:
             logger.exception("Geocoding error: %s", exc)
-            raise HTTPException(status_code=502, detail=f"Geocoding error: {exc}") from exc
+            raise HTTPException(
+                status_code=502, detail="Geocoding service temporarily unavailable"
+            ) from exc
     return result
 
 
@@ -217,6 +237,10 @@ async def weather(
     When neither is given the default city (Bucharest) is used.
     """
     # Resolve location
+    if (lat is None) != (lon is None):
+        raise HTTPException(
+            status_code=422, detail="Provide both lat and lon, or neither."
+        )
     if lat is not None and lon is not None:
         resolved_city = city or f"{lat:.4f}, {lon:.4f}"
         logger.info("Weather request by coordinates (lat/lon provided)")
@@ -232,7 +256,7 @@ async def weather(
             except Exception as exc:
                 logger.exception("Geocoding error: %s", exc)
                 raise HTTPException(
-                    status_code=502, detail=f"Geocoding error: {exc}"
+                    status_code=502, detail="Geocoding service temporarily unavailable"
                 ) from exc
         lat = geo["lat"]
         lon = geo["lon"]
@@ -248,11 +272,8 @@ async def weather(
                                  netatmo_refresh_token=NETATMO_REFRESH_TOKEN)
     except Exception as exc:
         logger.exception("Weather fetch error: %s", exc)
-        # Some exceptions (e.g. httpx.ReadTimeout) have an empty str() — fall
-        # back to the class name so the message is never a bare "error:".
-        detail = str(exc) or type(exc).__name__
         raise HTTPException(
-            status_code=502, detail=f"Weather data error: {detail}"
+            status_code=502, detail="Weather data temporarily unavailable"
         ) from exc
 
     logger.info("Weather data returned successfully")
@@ -298,7 +319,9 @@ async def route_weather(
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except Exception as exc:
             logger.exception("Route geocoding error: %s", exc)
-            raise HTTPException(status_code=502, detail=f"Geocoding error: {exc}") from exc
+            raise HTTPException(
+                status_code=502, detail="Geocoding service temporarily unavailable"
+            ) from exc
 
     origin_name = origin_geo["name"] + (
         f", {origin_geo['country']}" if origin_geo.get("country") else ""
@@ -316,7 +339,7 @@ async def route_weather(
     except Exception as exc:
         logger.exception("Route weather error: %s", exc)
         raise HTTPException(
-            status_code=502, detail=f"Route weather error: {exc}"
+            status_code=502, detail="Route weather temporarily unavailable"
         ) from exc
 
     logger.info("Route weather data returned successfully")
@@ -351,7 +374,9 @@ async def route_multi(
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except Exception as exc:
             logger.exception("Multi-route geocoding error: %s", exc)
-            raise HTTPException(status_code=502, detail=f"Geocoding error: {exc}") from exc
+            raise HTTPException(
+                status_code=502, detail="Geocoding service temporarily unavailable"
+            ) from exc
 
     geocoded: list[dict] = []
     for name, result in zip(stop_names, geo_results):
@@ -365,7 +390,9 @@ async def route_multi(
         data = await get_multi_route_weather(geocoded, departure_str, avg_speed, OWM_API_KEY)
     except Exception as exc:
         logger.exception("Multi-route weather error: %s", exc)
-        raise HTTPException(status_code=502, detail=f"Route weather error: {exc}") from exc
+        raise HTTPException(
+            status_code=502, detail="Route weather temporarily unavailable"
+        ) from exc
 
     return data
 

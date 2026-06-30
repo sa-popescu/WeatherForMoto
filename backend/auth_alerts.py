@@ -39,6 +39,20 @@ OWM_API_KEY = os.getenv("OPENWEATHERMAP_API_KEY", "")
 PBKDF2_ITERATIONS = int(os.getenv("PBKDF2_ITERATIONS", "210000"))
 APP_BASE_URL = os.getenv("APP_BASE_URL", "https://weatherformoto.bluemouse.cc").rstrip("/")
 
+# Environment marker. ALLOW_INSECURE_AUTH_CODE (dev fallback that returns the
+# login code in the HTTP response) is honoured ONLY when this is not "production".
+APP_ENV = os.getenv("APP_ENV", "production").lower()
+
+# Brute-force protection thresholds (fixed-window counters persisted in Turso).
+LOGIN_RATE_MAX = int(os.getenv("LOGIN_RATE_MAX", "8"))             # failed logins per email / window
+LOGIN_RATE_MAX_IP = int(os.getenv("LOGIN_RATE_MAX_IP", "40"))     # logins per IP / window
+LOGIN_RATE_WINDOW_SEC = int(os.getenv("LOGIN_RATE_WINDOW_SEC", "900"))  # 15 min
+CODE_MAX_ATTEMPTS = int(os.getenv("CODE_MAX_ATTEMPTS", "5"))       # verify-code guesses per code
+VERIFY_RATE_MAX_IP = int(os.getenv("VERIFY_RATE_MAX_IP", "30"))    # verify-code per IP / TTL window
+REQCODE_RATE_MAX = int(os.getenv("REQCODE_RATE_MAX", "5"))         # request-code per email / window
+REQCODE_RATE_MAX_IP = int(os.getenv("REQCODE_RATE_MAX_IP", "15"))  # request-code per IP / window
+REQCODE_RATE_WINDOW_SEC = int(os.getenv("REQCODE_RATE_WINDOW_SEC", "900"))  # 15 min
+
 VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY", "")
 VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY", "")
 VAPID_SUBJECT = os.getenv("VAPID_SUBJECT", "mailto:weatherformoto@bluemouse.cc")
@@ -358,6 +372,11 @@ _INIT_TABLES = [
         value TEXT NOT NULL,
         updated_at TEXT NOT NULL
     )""",
+    """CREATE TABLE IF NOT EXISTS rate_limits (
+        bucket TEXT PRIMARY KEY,
+        count INTEGER NOT NULL,
+        window_start TEXT NOT NULL
+    )""",
 ]
 
 
@@ -566,6 +585,107 @@ def _issue_session(conn: sqlite3.Connection, user_id: int) -> str:
     return token
 
 
+# ---------------------------------------------------------------------------
+# Brute-force rate limiting. Fixed-window counters persisted in Turso so they
+# survive Cloud Run cold starts and span multiple instances.
+# ---------------------------------------------------------------------------
+
+_RATE_TABLE_READY = False
+
+
+def _ensure_rate_table(conn) -> None:
+    """Create the rate_limits table on first use (no migration dependency)."""
+    global _RATE_TABLE_READY
+    if _RATE_TABLE_READY:
+        return
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS rate_limits ("
+        "bucket TEXT PRIMARY KEY, count INTEGER NOT NULL, window_start TEXT NOT NULL)"
+    )
+    conn.commit()
+    _RATE_TABLE_READY = True
+
+
+def _rate_hit(conn, bucket: str, max_count: int, window_sec: int) -> bool:
+    """Register one hit on ``bucket``; return True when the caller is now OVER the
+    limit and should be rejected. Fails open (returns False) on storage errors so
+    a database hiccup never locks every user out — but logs the failure loudly.
+    """
+    try:
+        _ensure_rate_table(conn)
+        now = _utc_now()
+        row = conn.execute(
+            "SELECT count, window_start FROM rate_limits WHERE bucket = ?", (bucket,)
+        ).fetchone()
+        count = 0
+        window_start = now
+        if row:
+            try:
+                window_start = datetime.fromisoformat(row["window_start"])
+            except Exception:
+                window_start = now
+            if (now - window_start).total_seconds() > window_sec:
+                count, window_start = 0, now
+            else:
+                count = int(row["count"])
+        count += 1
+        conn.execute(
+            "INSERT INTO rate_limits(bucket, count, window_start) VALUES (?, ?, ?) "
+            "ON CONFLICT(bucket) DO UPDATE SET count = excluded.count, "
+            "window_start = excluded.window_start",
+            (bucket, count, window_start.isoformat()),
+        )
+        conn.commit()
+        return count > max_count
+    except Exception as exc:
+        logger.error("rate-limit storage error on %s (failing open): %s", bucket, exc)
+        return False
+
+
+def _rate_reset(conn, bucket: str) -> None:
+    try:
+        conn.execute("DELETE FROM rate_limits WHERE bucket = ?", (bucket,))
+        conn.commit()
+    except Exception as exc:
+        logger.warning("rate-limit reset error on %s: %s", bucket, exc)
+
+
+def _client_ip(request: Request) -> str:
+    """Best-effort real client IP behind Cloudflare + Cloud Run."""
+    cf = request.headers.get("cf-connecting-ip")
+    if cf:
+        return cf.strip()
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+# Known Web Push service hosts. A subscription endpoint must be HTTPS on one of
+# these, to avoid storing/sending to an attacker-controlled SSRF target.
+_PUSH_ENDPOINT_HOSTS = (
+    "fcm.googleapis.com",
+    "android.googleapis.com",
+    ".push.services.mozilla.com",
+    ".notify.windows.com",
+    ".push.apple.com",
+    ".push.microsoft.com",
+    ".push.cn.miui.com",
+)
+
+
+def _is_valid_push_endpoint(endpoint: str) -> bool:
+    try:
+        from urllib.parse import urlparse
+        u = urlparse(endpoint or "")
+        if u.scheme != "https" or not u.hostname:
+            return False
+        host = u.hostname.lower()
+        return any(host == h or host.endswith(h) for h in _PUSH_ENDPOINT_HOSTS)
+    except Exception:
+        return False
+
+
 import re as _re
 
 def _text_to_html(text: str) -> str:
@@ -725,17 +845,25 @@ async def push_public_key() -> dict[str, str]:
 
 
 @router.post("/auth/request-code")
-async def auth_request_code(payload: RequestCodePayload) -> dict[str, Any]:
+async def auth_request_code(payload: RequestCodePayload, request: Request) -> dict[str, Any]:
+    email = payload.email.lower()
     code = f"{secrets.randbelow(1000000):06d}"
     now = _utc_now()
     expires = now + timedelta(minutes=AUTH_CODE_TTL_MIN)
 
     conn = _connect()
     try:
-        conn.execute("DELETE FROM auth_codes WHERE email = ?", (payload.email.lower(),))
+        ip = _client_ip(request)
+        # Throttle code requests to curb email bombing and account enumeration.
+        if (_rate_hit(conn, f"reqcode:ip:{ip}", REQCODE_RATE_MAX_IP, REQCODE_RATE_WINDOW_SEC)
+                or _rate_hit(conn, f"reqcode:email:{email}", REQCODE_RATE_MAX, REQCODE_RATE_WINDOW_SEC)):
+            raise HTTPException(status_code=429, detail="Prea multe cereri. Încearcă din nou mai târziu.")
+
+        conn.execute("DELETE FROM auth_codes WHERE email = ?", (email,))
+        # Store only a hash of the code at rest — a DB leak must not yield live codes.
         conn.execute(
             "INSERT INTO auth_codes(email, code, expires_at, created_at) VALUES (?, ?, ?, ?)",
-            (payload.email.lower(), code, expires.isoformat(), now.isoformat()),
+            (email, _hash_token(code), expires.isoformat(), now.isoformat()),
         )
         conn.commit()
     finally:
@@ -743,25 +871,36 @@ async def auth_request_code(payload: RequestCodePayload) -> dict[str, Any]:
 
     email_sent = False
     try:
-        await _send_auth_email(payload.email.lower(), code)
+        await _send_auth_email(email, code)
         email_sent = True
     except Exception as exc:
         logger.warning("Could not send auth email: %s", exc)
 
     response: dict[str, Any] = {"ok": True, "message": "Cod trimis. Verifică emailul."}
-    if (not SMTP_HOST or not email_sent) and ALLOW_INSECURE_AUTH_CODE:
+    # Dev-only fallback: NEVER expose the code in production, regardless of email state.
+    if ALLOW_INSECURE_AUTH_CODE and APP_ENV != "production" and (not SMTP_HOST or not email_sent):
         response["dev_code"] = code
         response["message"] = "Cod generat (fallback development)."
     return response
 
 
 @router.post("/auth/verify-code")
-async def auth_verify_code(payload: VerifyCodePayload) -> dict[str, Any]:
+async def auth_verify_code(payload: VerifyCodePayload, request: Request) -> dict[str, Any]:
+    email = payload.email.lower()
     conn = _connect()
     try:
+        ip = _client_ip(request)
+        if _rate_hit(conn, f"verify:ip:{ip}", VERIFY_RATE_MAX_IP, AUTH_CODE_TTL_MIN * 60):
+            raise HTTPException(status_code=429, detail="Prea multe încercări. Încearcă din nou mai târziu.")
+        # Cap guesses per code; on exhaustion invalidate the code so a new one is required.
+        if _rate_hit(conn, f"verify:email:{email}", CODE_MAX_ATTEMPTS, AUTH_CODE_TTL_MIN * 60):
+            conn.execute("DELETE FROM auth_codes WHERE email = ?", (email,))
+            conn.commit()
+            raise HTTPException(status_code=429, detail="Prea multe încercări. Solicită un cod nou.")
+
         row = conn.execute(
             "SELECT code, expires_at FROM auth_codes WHERE email = ? ORDER BY id DESC LIMIT 1",
-            (payload.email.lower(),),
+            (email,),
         ).fetchone()
         if not row:
             raise HTTPException(status_code=400, detail="No code requested")
@@ -770,19 +909,21 @@ async def auth_verify_code(payload: VerifyCodePayload) -> dict[str, Any]:
         if expires_at < _utc_now():
             raise HTTPException(status_code=400, detail="Code expired")
 
-        if not hmac.compare_digest(str(row["code"]), payload.code.strip()):
+        # Codes are stored hashed — compare hash to hash, timing-safe.
+        if not hmac.compare_digest(str(row["code"]), _hash_token(payload.code.strip())):
             raise HTTPException(status_code=400, detail="Invalid code")
 
-        user_id = _get_or_create_user(conn, payload.email.lower())
+        user_id = _get_or_create_user(conn, email)
         _upsert_default_prefs(conn, user_id)
         token = _issue_session(conn, user_id)
 
-        conn.execute("DELETE FROM auth_codes WHERE email = ?", (payload.email.lower(),))
+        conn.execute("DELETE FROM auth_codes WHERE email = ?", (email,))
+        _rate_reset(conn, f"verify:email:{email}")
         conn.commit()
 
         return {
             "token": token,
-            "user": {"email": payload.email.lower()},
+            "user": {"email": email},
             "expiresInDays": SESSION_TTL_DAYS,
         }
     finally:
@@ -790,10 +931,13 @@ async def auth_verify_code(payload: VerifyCodePayload) -> dict[str, Any]:
 
 
 @router.post("/auth/signup")
-async def auth_signup(payload: SignupPayload) -> dict[str, Any]:
+async def auth_signup(payload: SignupPayload, request: Request) -> dict[str, Any]:
     conn = _connect()
     try:
         email = payload.email.lower()
+        # Throttle to curb signup spam and account enumeration via signup.
+        if _rate_hit(conn, f"signup:ip:{_client_ip(request)}", 10, 3600):
+            raise HTTPException(status_code=429, detail="Prea multe încercări. Încearcă din nou mai târziu.")
         exists = conn.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
         if exists:
             raise HTTPException(status_code=409, detail="Account already exists")
@@ -817,10 +961,15 @@ async def auth_signup(payload: SignupPayload) -> dict[str, Any]:
 
 
 @router.post("/auth/login")
-async def auth_login(payload: LoginPayload) -> dict[str, Any]:
+async def auth_login(payload: LoginPayload, request: Request) -> dict[str, Any]:
     conn = _connect()
     try:
         email = payload.email.lower()
+        ip = _client_ip(request)
+        if (_rate_hit(conn, f"login:ip:{ip}", LOGIN_RATE_MAX_IP, LOGIN_RATE_WINDOW_SEC)
+                or _rate_hit(conn, f"login:email:{email}", LOGIN_RATE_MAX, LOGIN_RATE_WINDOW_SEC)):
+            raise HTTPException(status_code=429, detail="Prea multe încercări. Încearcă din nou mai târziu.")
+
         row = conn.execute(
             "SELECT id, email, display_name, password_hash FROM users WHERE email = ?",
             (email,),
@@ -831,6 +980,7 @@ async def auth_login(payload: LoginPayload) -> dict[str, Any]:
         user_id = int(row["id"])
         _upsert_default_prefs(conn, user_id)
         token = _issue_session(conn, user_id)
+        _rate_reset(conn, f"login:email:{email}")
         return {
             "token": token,
             "user": {"email": row["email"], "display_name": row["display_name"] or ""},
@@ -863,6 +1013,10 @@ async def auth_request_reset(payload: RequestResetPayload, request: Request) -> 
     conn = _connect()
     try:
         email = payload.email.lower()
+        # Throttle to prevent reset-email bombing.
+        if (_rate_hit(conn, f"reqreset:ip:{_client_ip(request)}", REQCODE_RATE_MAX_IP, REQCODE_RATE_WINDOW_SEC)
+                or _rate_hit(conn, f"reqreset:email:{email}", REQCODE_RATE_MAX, REQCODE_RATE_WINDOW_SEC)):
+            raise HTTPException(status_code=429, detail="Prea multe cereri. Încearcă din nou mai târziu.")
         row = conn.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
         if not row:
             return {"ok": True}
@@ -910,6 +1064,8 @@ async def auth_reset_password(payload: ResetPasswordPayload) -> dict[str, bool]:
         new_hash = _hash_password(payload.new_password)
         conn.execute("UPDATE users SET password_hash = ? WHERE id = ?", (new_hash, row["user_id"]))
         conn.execute("DELETE FROM password_reset_tokens WHERE token_hash = ?", (token_hash,))
+        # Invalidate every existing session so a stolen token dies on reset.
+        conn.execute("DELETE FROM sessions WHERE user_id = ?", (row["user_id"],))
         conn.commit()
         return {"ok": True}
     finally:
@@ -917,7 +1073,7 @@ async def auth_reset_password(payload: ResetPasswordPayload) -> dict[str, bool]:
 
 
 @router.post("/auth/change-password")
-async def auth_change_password(payload: ChangePasswordPayload, user: SessionUser = Depends(get_current_user)) -> dict[str, bool]:
+async def auth_change_password(payload: ChangePasswordPayload, authorization: str | None = Header(default=None), user: SessionUser = Depends(get_current_user)) -> dict[str, bool]:
     conn = _connect()
     try:
         row = conn.execute(
@@ -931,6 +1087,18 @@ async def auth_change_password(payload: ChangePasswordPayload, user: SessionUser
             "UPDATE users SET password_hash = ? WHERE id = ?",
             (new_hash, user.user_id),
         )
+        # Invalidate all OTHER sessions (keep the current one) so a stolen token
+        # dies when the user changes their password.
+        current_hash = None
+        if authorization and authorization.lower().startswith("bearer "):
+            current_hash = _hash_token(authorization.split(" ", 1)[1].strip())
+        if current_hash:
+            conn.execute(
+                "DELETE FROM sessions WHERE user_id = ? AND token_hash != ?",
+                (user.user_id, current_hash),
+            )
+        else:
+            conn.execute("DELETE FROM sessions WHERE user_id = ?", (user.user_id,))
         conn.commit()
         return {"ok": True}
     finally:
@@ -1095,6 +1263,8 @@ async def upsert_subscription(payload: PushSubscriptionPayload, user: SessionUse
     auth = payload.keys.get("auth")
     if not p256dh or not auth:
         raise HTTPException(status_code=400, detail="Invalid push keys")
+    if not _is_valid_push_endpoint(payload.endpoint):
+        raise HTTPException(status_code=400, detail="Invalid push endpoint")
 
     conn = _connect()
     try:
@@ -1143,7 +1313,7 @@ async def update_profile(payload: ProfilePayload, user: SessionUser = Depends(ge
 
 
 @router.put("/me/email")
-async def change_email(payload: ChangeEmailPayload, user: SessionUser = Depends(get_current_user)) -> dict[str, Any]:
+async def change_email(payload: ChangeEmailPayload, authorization: str | None = Header(default=None), user: SessionUser = Depends(get_current_user)) -> dict[str, Any]:
     conn = _connect()
     try:
         row = _row(conn.execute("SELECT password_hash FROM users WHERE id = ?", (user.user_id,)).fetchone())
@@ -1154,6 +1324,15 @@ async def change_email(payload: ChangeEmailPayload, user: SessionUser = Depends(
         if existing:
             raise HTTPException(status_code=409, detail="Adresa de email este deja folosită.")
         conn.execute("UPDATE users SET email = ? WHERE id = ?", (new_email, user.user_id))
+        # Identity changed: drop all other sessions, keep the current one.
+        current_hash = None
+        if authorization and authorization.lower().startswith("bearer "):
+            current_hash = _hash_token(authorization.split(" ", 1)[1].strip())
+        if current_hash:
+            conn.execute(
+                "DELETE FROM sessions WHERE user_id = ? AND token_hash != ?",
+                (user.user_id, current_hash),
+            )
         conn.commit()
         return {"ok": True, "email": new_email}
     finally:
@@ -1636,9 +1815,24 @@ async def alerts_check_now(user: SessionUser = Depends(get_current_user)) -> dic
 
 
 @router.post("/alerts/dispatch-all")
-async def alerts_dispatch_all(secret: str) -> dict[str, Any]:
+async def alerts_dispatch_all(
+    request: Request,
+    x_dispatch_secret: str | None = Header(default=None, alias="X-Dispatch-Secret"),
+    secret: str | None = None,
+) -> dict[str, Any]:
+    # Prefer the X-Dispatch-Secret header. The ?secret= query param is still
+    # accepted for backward compatibility but is DEPRECATED (it can leak into
+    # access logs / proxies) — migrate callers to the header and then drop it.
+    # Rate-limit per IP so the secret cannot be brute-forced.
+    _rl = _connect()
+    try:
+        if _rate_hit(_rl, f"dispatch:ip:{_client_ip(request)}", 10, 3600):
+            raise HTTPException(status_code=429, detail="Too many requests")
+    finally:
+        _rl.close()
     expected = os.getenv("ALERT_DISPATCH_SECRET", "")
-    if not expected or not hmac.compare_digest(secret, expected):
+    provided = x_dispatch_secret or secret
+    if not expected or not provided or not hmac.compare_digest(provided, expected):
         raise HTTPException(status_code=401, detail="Invalid secret")
 
     conn = _connect()
