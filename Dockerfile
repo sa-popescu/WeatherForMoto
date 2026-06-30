@@ -26,8 +26,11 @@ COPY icons/ ./icons/
 # Copy the backend source code
 COPY backend/ ./backend/
 
-# Fix permissions BEFORE switching to non-root user
-RUN chmod +x /app/backend/entrypoint.sh \
+# Normalise line endings (Windows checkouts may introduce CRLF, which breaks the
+# shebang -> "no such file or directory") and fix permissions BEFORE switching
+# to the non-root user.
+RUN sed -i 's/\r$//' /app/backend/entrypoint.sh \
+    && chmod +x /app/backend/entrypoint.sh \
     && chown -R appuser:appuser /app
 
 ENV PORT=8000
