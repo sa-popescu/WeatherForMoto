@@ -4531,10 +4531,26 @@
       if (window._resetMode) return;
       document.getElementById("app").innerHTML = skeletonHtml();
       try {
-        // Fast first paint: render browser-direct data (Open-Meteo + MET + models,
-        // ~1s) so weather appears almost immediately, independent of the Cloud Run
-        // backend's cold-start state.
-        var d = await fetchDirect(LAT, LON, CITY);
+        // Load the authoritative multi-source data and merge the extra sources
+        // BEFORE the first paint, so the numbers shown are FINAL. We deliberately
+        // do not paint provisional values that silently change a moment later.
+        var d;
+        if (API_URL !== null) {
+          var days = 14;
+          var url = API_URL + "/weather?lat=" + LAT + "&lon=" + LON + "&city=" + encodeURIComponent(CITY) + "&days=" + days;
+          try {
+            var res = await _fetchWithTimeout(url, 12000);
+            if (!res.ok) throw new Error("HTTP " + res.status);
+            d = await res.json();
+          } catch (_) {
+            // Last resort only (backend very cold / unavailable): browser-direct
+            // so the user still gets data instead of an error.
+            d = await fetchDirect(LAT, LON, CITY);
+          }
+        } else {
+          d = await fetchDirect(LAT, LON, CITY);
+        }
+        d = await enrichCurrentWithExtraSources(d);
         render(d);
         saveCity(); renderFavsBar(); _saveLastLocation();
         // Sync route planner origin with current city
@@ -4546,21 +4562,6 @@
           t('updated') + ': ' + new Date().toLocaleTimeString(_lang === 'en' ? 'en-GB' : 'ro-RO', { hour: "2-digit", minute: "2-digit" })
           + ' &nbsp;<span id="refresh-pill" class="refresh-pill text-muted cursor-pointer" onclick="loadWeather()" title="Refresh">' + t('auto_refresh') + '</span>';
         startAutoRefresh();
-        // Upgrade in the background to the richer multi-source backend data (adds
-        // OpenWeatherMap / Pirate / WeatherXM / Netatmo). Replaces the view when it
-        // arrives; if the backend is cold or unavailable we keep the fast direct
-        // data. With no backend configured, just enrich the direct data.
-        if (API_URL !== null) {
-          var days = 14;
-          var url = API_URL + "/weather?lat=" + LAT + "&lon=" + LON + "&city=" + encodeURIComponent(CITY) + "&days=" + days;
-          _fetchWithTimeout(url, 15000)
-            .then(function (res) { if (!res.ok) throw new Error("HTTP " + res.status); return res.json(); })
-            .then(function (bd) { return enrichCurrentWithExtraSources(bd); })
-            .then(function (bd) { if (bd && bd.current) render(bd); })
-            .catch(function () { /* keep the fast direct data */ });
-        } else {
-          enrichCurrentWithExtraSources(d).then(function (ed) { if (ed) render(ed); }).catch(function () { });
-        }
       } catch (e) {
         document.getElementById("app").innerHTML =
           '<div class="mt-4 p-5 rounded-xl border border-danger bg-danger/10 text-danger text-base font-semibold">'
