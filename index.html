@@ -4354,7 +4354,9 @@
         if (!silent) alert(_lang === 'en' ? "Could not get location. Check browser permissions." : "Nu am putut obține locația. Verifică permisiunile browserului.");
         // GPS unavailable/denied — make sure something is shown (last known or default).
         if (!window._lastWeatherData) loadWeather();
-      }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 });
+        // maximumAge 10 min: reuse a recent GPS fix instantly on repeat opens
+        // instead of waiting for a fresh one every time.
+      }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 600000 });
     }
 
     // GPS-on-startup is handled by the bootstrap IIFE at the end of this script.
@@ -5665,16 +5667,21 @@
       // (or Bucharest) if GPS is denied or unavailable.
       var cityInp = document.getElementById('city-in');
       if (cityInp) cityInp.value = CITY;
-      // Paint immediately with the last known / default location so the first
-      // render never waits on the GPS fix (up to ~12s), then refine the location
-      // via geolocation in the background.
-      loadWeather();
-      if (navigator.geolocation && navigator.permissions && navigator.permissions.query) {
+      document.getElementById('app').innerHTML = skeletonHtml();
+      // Resolve the location first, then load weather exactly ONCE — either from
+      // the GPS fix (geolocate calls loadWeather on success) or from the last
+      // known / default location when GPS is denied. This avoids doing a second
+      // full reload right after the first.
+      function _startGps() {
+        if (navigator.geolocation) geolocate(true);
+        else loadWeather();
+      }
+      if (navigator.permissions && navigator.permissions.query) {
         navigator.permissions.query({ name: 'geolocation' })
-          .then(function (p) { if (p.state !== 'denied') geolocate(true); })
-          .catch(function () { geolocate(true); });
-      } else if (navigator.geolocation) {
-        geolocate(true);
+          .then(function (p) { if (p.state === 'denied') loadWeather(); else _startGps(); })
+          .catch(_startGps);
+      } else {
+        _startGps();
       }
     })();
 
