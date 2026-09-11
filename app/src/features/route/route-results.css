@@ -1,0 +1,566 @@
+/* "Traseu" results: departure sweep, map, weather timeline, hazards,
+   actions, ride stats and sheet contents. Theme tokens only. */
+
+/* ---- Când pleci ---- */
+
+.route-sweep__title {
+  margin-top: 8px;
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--accent);
+}
+
+.route-sweep__title--calm {
+  font-size: 22px;
+  color: var(--ink);
+}
+
+.route-sweep__body {
+  margin-top: 4px;
+  font-size: 15px;
+  color: var(--muted);
+  text-wrap: pretty;
+}
+
+.route-sweep__skeleton {
+  margin-top: 16px;
+}
+
+.route-sweep__chart,
+.route-sweep__axis {
+  display: grid;
+  grid-template-columns: repeat(var(--bars, 31), minmax(0, 1fr));
+  gap: 3px;
+}
+
+.route-sweep__chart {
+  align-items: end;
+  height: 96px;
+  margin-top: 16px;
+  padding: 0 2px;
+}
+
+.route-sweep__bar {
+  display: block;
+  min-height: 4px;
+  border-radius: 3px;
+}
+
+.route-sweep__bar--partial {
+  opacity: 0.5;
+}
+
+.route-sweep__bar--past {
+  opacity: 0.22;
+}
+
+.route-sweep__bar--best {
+  outline: 2px dashed var(--accent);
+  outline-offset: 2px;
+}
+
+.route-sweep__bar--chosen {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.route-sweep__axis {
+  margin-top: 8px;
+  padding: 0 2px;
+}
+
+.route-sweep__tick {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted-2);
+  white-space: nowrap;
+}
+
+.route-sweep__legend {
+  display: flex;
+  gap: 16px;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--muted-2);
+}
+
+.route-sweep__key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.route-sweep__key::before {
+  content: '';
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.route-sweep__key--best::before {
+  border: 2px dashed var(--accent);
+}
+
+.route-sweep__key--chosen::before {
+  border: 2px solid var(--ink);
+}
+
+.route-sweep__actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.route-sweep__actions .btn {
+  min-height: 52px;
+  padding: 0 10px;
+}
+
+/* ---- Map ---- */
+
+.route-map {
+  position: relative;
+  height: 262px;
+  margin: 0;
+  overflow: hidden;
+  isolation: isolate;
+  border-radius: var(--r-xl);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+}
+
+.route-map__canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.route-map .leaflet-container {
+  background: var(--surface-2);
+  font-family: var(--font-body);
+}
+
+.route-map .leaflet-bar {
+  border: 1px solid var(--line-2);
+  box-shadow: none;
+}
+
+.route-map .leaflet-bar a,
+.route-map .leaflet-touch .leaflet-bar a {
+  width: var(--tap);
+  height: var(--tap);
+  line-height: var(--tap);
+  background: var(--surface);
+  color: var(--ink);
+  border-bottom-color: var(--line);
+}
+
+.route-map .leaflet-control-attribution {
+  background: color-mix(in srgb, var(--bg) 80%, transparent);
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.route-map .leaflet-control-attribution a {
+  color: var(--muted);
+}
+
+.route-map__summary,
+.route-map__legend {
+  position: absolute;
+  z-index: 500;
+  padding: 6px 10px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg) 86%, transparent);
+  pointer-events: none;
+}
+
+.route-map__summary {
+  top: 12px;
+  right: 12px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.route-map__legend {
+  left: 12px;
+  bottom: 22px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.route-map__legend-label {
+  margin-right: 2px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted-2);
+}
+
+.route-map__swatch {
+  width: 16px;
+  height: 4px;
+  border-radius: 2px;
+}
+
+.route-map__swatch--ideal { background: var(--t-ideal); }
+.route-map__swatch--ok { background: var(--t-ok); }
+.route-map__swatch--atentie { background: var(--t-atentie); }
+.route-map__swatch--evita { background: var(--t-evita); }
+
+/* Leaflet sets stroke/fill as SVG attributes; CSS wins over attributes. */
+/* OSM tiles are light: the dark theme darkens only the base layer (same values as the Map tab). */
+[data-theme='dark'] .route-map__base { filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9) saturate(0.6); }
+
+.route-map__casing { stroke: var(--bg); stroke-opacity: 0.9; }
+.route-map__seg { stroke-linecap: round; stroke-opacity: 1; }
+.route-map__seg--ideal { stroke: var(--t-ideal); }
+.route-map__seg--ok { stroke: var(--t-ok); }
+.route-map__seg--atentie { stroke: var(--t-atentie); }
+.route-map__seg--evita { stroke: var(--t-evita); }
+.route-map__seg--none { stroke: var(--dim); }
+
+.route-map__pt { fill: var(--bg); fill-opacity: 1; stroke: var(--ink); stroke-opacity: 1; }
+.route-map__pt--origin { stroke: var(--accent); }
+.route-map__pt--destination { fill: var(--ink); stroke: var(--bg); }
+.route-map__pt--sample.route-map__pt--ideal { stroke: var(--t-ideal); }
+.route-map__pt--sample.route-map__pt--ok { stroke: var(--t-ok); }
+.route-map__pt--sample.route-map__pt--atentie { stroke: var(--t-atentie); }
+.route-map__pt--sample.route-map__pt--evita { stroke: var(--t-evita); }
+.route-map__pt--sample.route-map__pt--none { stroke: var(--dim); }
+
+.route-map__hz {
+  color: var(--t-atentie);
+  background: none;
+  border: 0;
+}
+
+.route-map__hz--sev4,
+.route-map__hz--sev5 {
+  color: var(--t-evita);
+}
+
+/* ---- Vremea pe drum ---- */
+
+.route-wp__list {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.route-wp__row {
+  display: grid;
+  grid-template-columns: 50px 16px minmax(0, 1fr) 44px;
+  gap: 10px;
+  min-height: 74px;
+}
+
+.route-wp__time {
+  padding-top: 12px;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.route-wp__rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 17px;
+}
+
+.route-wp__dot {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+
+.route-wp__line {
+  flex: 1;
+  width: 2px;
+  margin-top: 4px;
+  background: var(--line-2);
+}
+
+.route-wp__body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding: 10px 0 12px;
+}
+
+.route-wp__name {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.route-wp__name--between {
+  color: var(--ink-2);
+}
+
+.route-wp__meta {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.route-wp__rain {
+  font-size: 13px;
+  color: var(--muted-2);
+}
+
+.route-wp__rain--wet {
+  color: var(--rain-ink);
+}
+
+.route-wp__score {
+  padding-top: 10px;
+  font-size: 24px;
+  font-weight: 700;
+  text-align: right;
+}
+
+/* ---- Hazards ---- */
+
+.route-hz__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.route-hz__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--warn-line);
+  background: var(--warn-bg);
+}
+
+.route-hz__icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.route-hz__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.route-hz__title {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.route-hz__meta {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.route-hz__desc {
+  margin-top: 2px;
+  font-size: 14px;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+/* ---- Actions ---- */
+
+.route-actions-wrap {
+  margin-top: 4px;
+}
+
+.route-actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.route-action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 64px;
+  padding: 0 4px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.route-action--warn svg {
+  color: var(--t-atentie);
+}
+
+/* ---- Ride stats ---- */
+
+.route-stats__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 10px 0 0;
+}
+
+.route-stat {
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+}
+
+.route-stat dt {
+  font-size: 12px;
+  color: var(--muted-2);
+}
+
+.route-stat dd {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.route-stats__sub {
+  margin-top: 14px;
+}
+
+.route-rides {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.route-rides__row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+
+.route-rides__name {
+  font-weight: 500;
+}
+
+.route-rides__meta {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* ---- Sheet contents ---- */
+
+.route-fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.route-fieldset > legend,
+.route-fieldset__legend {
+  margin-bottom: 8px;
+  padding: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.route-fieldset__legend {
+  margin-bottom: 0;
+}
+
+.route-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.route-textarea {
+  min-height: 96px;
+  padding: 12px 14px;
+  resize: vertical;
+  line-height: 1.4;
+}
+
+.route-dl {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+
+.route-dl__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.route-dl__row dt {
+  color: var(--muted);
+}
+
+.route-dl__row dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: right;
+}
+
+.route-saved {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.route-saved__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.route-saved__load {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: var(--tap-lg);
+  padding: 8px 14px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line-2);
+  background: var(--surface-2);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.route-saved__name {
+  font-weight: 600;
+}
+
+.route-saved__meta {
+  overflow: hidden;
+  font-size: 13px;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

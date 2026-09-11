@@ -338,6 +338,12 @@
   pointer-events: none;
 }
 
+/* With a bottom sheet open, toasts move to the top so they never cover it. */
+body.sheet-open .toasts {
+  top: calc(var(--safe-top) + 12px);
+  bottom: auto;
+}
+
 .toast {
   pointer-events: auto;
   display: flex;
