@@ -107,12 +107,16 @@ export default function App() {
         </div>
       )}
       <main className="shell__main" id="main">
-        <Suspense fallback={<div className="screen-fallback">{s.loading}</div>}>
-          {TABS.filter((t) => visited.has(t)).map((t) => {
-            const Screen = SCREENS[t];
-            return <Screen key={t} active={t === tab} />;
-          })}
-        </Suspense>
+        {/* One Suspense boundary per tab: loading a new tab must not hide (and
+            disconnect the effects of) the tabs already mounted. */}
+        {TABS.filter((t) => visited.has(t)).map((t) => {
+          const Screen = SCREENS[t];
+          return (
+            <Suspense key={t} fallback={t === tab ? <div className="screen-fallback">{s.loading}</div> : null}>
+              <Screen active={t === tab} />
+            </Suspense>
+          );
+        })}
       </main>
       <nav className="bottom-nav" aria-label={s.navLabel}>
         {navItems.map((item) => (

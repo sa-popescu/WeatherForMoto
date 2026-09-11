@@ -1,0 +1,138 @@
+/* Hartă tab: range inputs (radar scrubber and opacity) with a 28 px thumb on a
+   48 px touch row, plus the scrubber's own rail, ticks and time labels. */
+
+.map-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: var(--tap);
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.map-range::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface-3);
+}
+
+.map-range::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface-3);
+}
+
+.map-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 28px;
+  height: 28px;
+  margin-top: -11px;
+  border: 3px solid var(--surface);
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 1.5px var(--accent);
+}
+
+.map-range::-moz-range-thumb {
+  box-sizing: border-box;
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--surface);
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 1.5px var(--accent);
+}
+
+/* ---- Scrubber: own rail and ticks under a transparent native track ---- */
+
+.map-scrub {
+  position: relative;
+  margin-top: 6px;
+}
+
+.map-scrub .map-range {
+  position: relative;
+  z-index: 1;
+}
+
+.map-scrub .map-range::-webkit-slider-runnable-track {
+  background: transparent;
+}
+
+.map-scrub .map-range::-moz-range-track {
+  background: transparent;
+}
+
+/* Inset by half the thumb, so tick i sits exactly under thumb position i. */
+.map-scrub__rail {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  top: 21px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface-3);
+}
+
+.map-scrub__forecast {
+  position: absolute;
+  top: -10px;
+  bottom: -6px;
+  right: 0;
+  border-left: 1.5px dashed var(--rain);
+  border-radius: 0 6px 6px 0;
+  background: color-mix(in srgb, var(--rain) 16%, transparent);
+}
+
+/* Anchored to the rail end: the forecast zone can be narrower than the word. */
+.map-scrub__forecast-label {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  white-space: nowrap;
+  color: var(--rain-ink);
+  font-family: var(--font-num);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+
+.map-scrub__tick {
+  position: absolute;
+  top: -4px;
+  width: 2px;
+  height: 14px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--line-2);
+}
+
+.map-scrub__tick--forecast {
+  background: var(--rain);
+}
+
+.map-scrub__tick--on {
+  background: var(--ink);
+}
+
+.map-scrub__labels {
+  position: relative;
+  height: 16px;
+  margin: -6px 14px 2px;
+}
+
+.map-scrub__label {
+  position: absolute;
+  transform: translateX(-50%);
+  color: var(--muted-2);
+  font-family: var(--font-num);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.map-scrub__label--on {
+  color: var(--ink);
+}

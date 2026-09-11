@@ -1,0 +1,170 @@
+/* Hartă tab: pick bar, hazard detail sheet and the report form. */
+
+/* ---- Pick bar ---- */
+
+.map-pickbar {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.map-pickbar__hint {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.map-pickbar__sub {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.map-pickbar__actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* ---- Hazard detail sheet ---- */
+
+.map-hz {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.map-hz__badge {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border: 2px solid currentColor;
+  border-radius: var(--r-md);
+}
+
+.map-hz__sev {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.map-hz__sev-word {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.map-hz__desc {
+  font-size: 16px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.map-facts {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  border-top: 1px solid var(--line);
+}
+
+.map-facts__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 15px;
+}
+
+.map-facts dt {
+  color: var(--muted);
+}
+
+.map-facts dd {
+  margin: 0;
+  text-align: right;
+}
+
+/* ---- Report form ---- */
+
+.map-report-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.map-where {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  font-size: 14px;
+}
+
+.map-where > svg {
+  color: var(--accent);
+}
+
+.map-fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.map-fieldset > legend {
+  margin-bottom: 8px;
+  padding: 0;
+}
+
+.map-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.map-choice.chip {
+  min-height: var(--tap);
+}
+
+.map-choice__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.map-textarea {
+  min-height: 96px;
+  padding: 12px 14px;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.map-desc-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.map-counter {
+  flex-shrink: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.map-counter--near {
+  color: var(--t-atentie);
+}
+
+.map-signed-out {
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}

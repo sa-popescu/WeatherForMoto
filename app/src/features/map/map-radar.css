@@ -1,0 +1,109 @@
+/* Hartă tab: radar panel (play button, time readout, tag), messages and the
+   colour legend. The scrubber is in map-scrubber.css. */
+
+.map-radar {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.map-radar__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.map-radar__play {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: var(--tap);
+  height: var(--tap);
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-ink);
+  cursor: pointer;
+}
+
+.map-radar__readout {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.map-radar__time {
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.05;
+}
+
+.map-radar__rel {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.map-radar__tag {
+  padding: 3px 9px;
+  border: 1.5px solid currentColor;
+  border-radius: 999px;
+  color: var(--muted-2);
+  font-family: var(--font-num);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+
+.map-radar__tag--forecast {
+  color: var(--rain-ink);
+}
+
+.map-radar__note {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.map-radar-msg {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 72px;
+  font-size: 14px;
+}
+
+.map-radar-msg > svg {
+  flex-shrink: 0;
+  color: var(--muted-2);
+}
+
+.map-radar-msg__text {
+  flex: 1;
+}
+
+/* ---- Legend ---- */
+
+.map-legend {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 3px;
+}
+
+.map-legend__band {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.map-legend__bar {
+  height: 8px;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.map-legend__label {
+  font-size: 12px;
+  color: var(--muted);
+}

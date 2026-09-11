@@ -1,0 +1,88 @@
+/* Hartă tab: markers (current place, hazards, picked spot) and the severity
+   colours shared by markers, the detail sheet and the report form. */
+
+.map-place {
+  pointer-events: none;
+}
+
+.map-place__halo {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+  animation: map-pulse 2.4s ease-out infinite;
+}
+
+.map-place__dot {
+  position: absolute;
+  left: 5px;
+  top: 5px;
+  width: 18px;
+  height: 18px;
+  border: 3px solid var(--bg);
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+@keyframes map-pulse {
+  from {
+    transform: scale(0.6);
+    opacity: 1;
+  }
+  to {
+    transform: scale(1.7);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .map-place__halo {
+    animation: none;
+  }
+}
+
+.map-hazard {
+  border-radius: 14px;
+}
+
+.map-hazard:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.map-hazard__pin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  margin: 2px;
+  border: 2px solid currentColor;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 0 0 2px var(--bg);
+}
+
+.map-pick__pin {
+  position: absolute;
+  left: 4px;
+  top: 2px;
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--bg);
+  border-radius: 50% 50% 50% 0;
+  background: var(--accent);
+  transform: rotate(-45deg);
+}
+
+.map-tone--low {
+  color: var(--t-ok);
+}
+
+.map-tone--mid {
+  color: var(--t-atentie);
+}
+
+.map-tone--high {
+  color: var(--t-evita);
+}
