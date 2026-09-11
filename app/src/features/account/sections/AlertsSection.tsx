@@ -6,7 +6,6 @@ import { ALERTS } from '../strings/alerts';
 import { Choices, Group } from '../ui/controls';
 import { AlertLocation } from './AlertLocation';
 import { AlertThresholds } from './AlertThresholds';
-import { EmailCategories } from './EmailCategories';
 import { QuietHours } from './QuietHours';
 
 /** Props every alert sub-card gets: the merged prefs and the shared editor. */
@@ -18,7 +17,7 @@ export interface AlertCardProps {
 /** Sliders wait this long after the last move before saving. */
 export const SLIDER_DEBOUNCE_MS = 700;
 
-export function AlertsSection({ verified }: { verified: boolean }) {
+export function AlertsSection() {
   const s = useStrings(ALERTS);
   const { prefs, update } = usePrefsEditor();
   if (!prefs) return null;
@@ -38,7 +37,6 @@ export function AlertsSection({ verified }: { verified: boolean }) {
       </Card>
       <AlertThresholds prefs={prefs} update={update} />
       <QuietHours prefs={prefs} update={update} />
-      <EmailCategories prefs={prefs} update={update} verified={verified} />
     </Group>
   );
 }

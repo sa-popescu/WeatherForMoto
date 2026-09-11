@@ -149,13 +149,6 @@ export interface AuthResponse {
 /** Alert preferences as the UI uses them (booleans normalized). */
 export interface AlertPrefs {
   enabled: boolean;
-  email_alerts_enabled: boolean;
-  email_alert_wind: boolean;
-  email_alert_rain: boolean;
-  email_alert_score: boolean;
-  email_alert_temp_low: boolean;
-  email_alert_temp_high: boolean;
-  email_alert_frost: boolean;
   min_score: number;
   max_wind_gust: number;
   min_temp: number | null;
@@ -232,7 +225,6 @@ export interface Hazard {
 export interface CheckNowResponse {
   delivered?: number;
   sent?: number;
-  email_sent?: number;
   events?: unknown[];
   reason?: string;
   [key: string]: unknown;

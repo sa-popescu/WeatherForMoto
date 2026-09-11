@@ -192,7 +192,6 @@ export const api = {
   changeEmail: (token: string, newEmail: string, password: string): Promise<unknown> =>
     json('/me/email', { method: 'PUT', token, body: { new_email: newEmail, password } }),
   resendVerification: (token: string): Promise<unknown> => json('/me/resend-verification', { method: 'POST', token }),
-  unsubscribeEmailAlerts: (token: string): Promise<unknown> => json('/me/unsubscribe-email-alerts', { method: 'POST', token }),
   deleteAccount: (token: string): Promise<unknown> => json('/me', { method: 'DELETE', token }),
 
   pushPublicKey: (): Promise<Record<string, string>> => json('/push/public-key'),

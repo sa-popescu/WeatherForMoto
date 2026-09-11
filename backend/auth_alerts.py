@@ -65,8 +65,8 @@ PBKDF2_ITERATIONS = int(os.getenv("PBKDF2_ITERATIONS", "600000"))
 AUTH_CODE_PEPPER = os.getenv("AUTH_CODE_PEPPER", "")
 # Public URL of the static frontend (Cloudflare), used for links back to the app.
 APP_BASE_URL = os.getenv("APP_BASE_URL", "https://weatherformoto.bluemouse.cc").rstrip("/")
-# Public URL of THIS backend. Links that must hit the API (email verification,
-# one-click unsubscribe) are built from it, because APP_BASE_URL is static hosting.
+# Public URL of THIS backend. Links that must hit the API (email verification)
+# are built from it, because APP_BASE_URL is static hosting.
 API_BASE_URL = os.getenv(
     "API_BASE_URL", "https://weatherformoto-1056457771445.europe-west1.run.app"
 ).rstrip("/")
@@ -141,8 +141,8 @@ class SessionUser:
 # Input validation helpers
 # ---------------------------------------------------------------------------
 
-# Anything that looks like a link. City names end up in alert emails, so a
-# URL there would be a phishing vector ("click here to keep your alerts").
+# Anything that looks like a link. City names end up in push notifications, so
+# a URL there would be a phishing vector ("click here to keep your alerts").
 # Rejects schemes, "www.", anything shaped like a domain ("word.tld" with any
 # 2+ letter TLD) and dotted IPv4 addresses. Trade-off: a name typed without a
 # space after an abbreviation ("Sf.Gheorghe") is rejected too; "Sf. Gheorghe"
@@ -216,15 +216,9 @@ class ChangeEmailPayload(BaseModel):
 
 
 class AlertPrefsPayload(BaseModel):
+    # Alerts go out by web push only. Fields that older clients still send
+    # (the retired email_alert_* toggles) are ignored by pydantic.
     enabled: bool = True
-    email_alerts_enabled: bool = True
-    email_alert_wind: bool = True
-    email_alert_rain: bool = True
-    email_alert_rain_probability: bool = True
-    email_alert_score: bool = True
-    email_alert_temp_low: bool = True
-    email_alert_temp_high: bool = True
-    email_alert_frost: bool = True
     min_score: int = Field(default=45, ge=0, le=100)
     max_wind_gust: float = Field(default=50, ge=10, le=200)
     max_precip: float = Field(default=2, ge=0, le=50)
@@ -488,14 +482,6 @@ _INIT_TABLES = [
     """CREATE TABLE IF NOT EXISTS alert_prefs (
         user_id INTEGER PRIMARY KEY,
         enabled INTEGER NOT NULL DEFAULT 1,
-        email_alerts_enabled INTEGER NOT NULL DEFAULT 1,
-        email_alert_wind INTEGER NOT NULL DEFAULT 1,
-        email_alert_rain INTEGER NOT NULL DEFAULT 1,
-        email_alert_rain_probability INTEGER NOT NULL DEFAULT 1,
-        email_alert_score INTEGER NOT NULL DEFAULT 1,
-        email_alert_temp_low INTEGER NOT NULL DEFAULT 1,
-        email_alert_temp_high INTEGER NOT NULL DEFAULT 1,
-        email_alert_frost INTEGER NOT NULL DEFAULT 1,
         min_score INTEGER NOT NULL DEFAULT 45,
         max_wind_gust REAL NOT NULL DEFAULT 50,
         max_precip REAL NOT NULL DEFAULT 2,
@@ -613,62 +599,13 @@ def init_db() -> None:
             "email_verified",
             "ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 1",
         )
-        _ensure_column(conn, "users", "unsubscribe_token", "ALTER TABLE users ADD COLUMN unsubscribe_token TEXT")
-        conn.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_unsubscribe_token ON users(unsubscribe_token)"
-        )
+        # Email alerts were retired: older databases still carry
+        # users.unsubscribe_token and the alert_prefs.email_alert* columns. They
+        # have defaults, nothing reads or writes them, and they are left in place.
         if _ensure_column(conn, "alert_events", "delivered_at", "ALTER TABLE alert_events ADD COLUMN delivered_at TEXT"):
             # Rows written before this column existed were recorded after a send
             # attempt, so treat them as delivered (keeps their dedupe effect).
             conn.execute("UPDATE alert_events SET delivered_at = created_at WHERE delivered_at IS NULL")
-        _ensure_column(
-            conn,
-            "alert_prefs",
-            "email_alerts_enabled",
-            "ALTER TABLE alert_prefs ADD COLUMN email_alerts_enabled INTEGER NOT NULL DEFAULT 1",
-        )
-        _ensure_column(
-            conn,
-            "alert_prefs",
-            "email_alert_wind",
-            "ALTER TABLE alert_prefs ADD COLUMN email_alert_wind INTEGER NOT NULL DEFAULT 1",
-        )
-        _ensure_column(
-            conn,
-            "alert_prefs",
-            "email_alert_rain",
-            "ALTER TABLE alert_prefs ADD COLUMN email_alert_rain INTEGER NOT NULL DEFAULT 1",
-        )
-        _ensure_column(
-            conn,
-            "alert_prefs",
-            "email_alert_rain_probability",
-            "ALTER TABLE alert_prefs ADD COLUMN email_alert_rain_probability INTEGER NOT NULL DEFAULT 1",
-        )
-        _ensure_column(
-            conn,
-            "alert_prefs",
-            "email_alert_score",
-            "ALTER TABLE alert_prefs ADD COLUMN email_alert_score INTEGER NOT NULL DEFAULT 1",
-        )
-        _ensure_column(
-            conn,
-            "alert_prefs",
-            "email_alert_temp_low",
-            "ALTER TABLE alert_prefs ADD COLUMN email_alert_temp_low INTEGER NOT NULL DEFAULT 1",
-        )
-        _ensure_column(
-            conn,
-            "alert_prefs",
-            "email_alert_temp_high",
-            "ALTER TABLE alert_prefs ADD COLUMN email_alert_temp_high INTEGER NOT NULL DEFAULT 1",
-        )
-        _ensure_column(
-            conn,
-            "alert_prefs",
-            "email_alert_frost",
-            "ALTER TABLE alert_prefs ADD COLUMN email_alert_frost INTEGER NOT NULL DEFAULT 1",
-        )
         _ensure_column(
             conn,
             "alert_prefs",
@@ -1127,7 +1064,7 @@ def _html_link(url: str, label: str | None = None) -> str:
     return f'<a href="{safe_url}" style="color:#f97316;text-decoration:underline;">{safe_label}</a>'
 
 
-def _text_to_html(text: str, trusted_links: Sequence[str] = (), unsubscribe_url: str | None = None) -> str:
+def _text_to_html(text: str, trusted_links: Sequence[str] = ()) -> str:
     """Convert a plain-text email body to a simple branded HTML email.
 
     Every character of ``text`` is HTML-escaped and nothing in it is turned into
@@ -1147,9 +1084,6 @@ def _text_to_html(text: str, trusted_links: Sequence[str] = (), unsubscribe_url:
             lines_html.append("<br>")
 
     body_inner = "\n".join(lines_html)
-    footer_unsub = ""
-    if unsubscribe_url and _is_trusted_link(unsubscribe_url):
-        footer_unsub = f" &nbsp;·&nbsp; {_html_link(unsubscribe_url, 'Dezabonare alerte email')}"
     app_link = _html_link(APP_BASE_URL)
     return f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8"></head>
@@ -1165,7 +1099,7 @@ def _text_to_html(text: str, trusted_links: Sequence[str] = (), unsubscribe_url:
           {body_inner}
         </td></tr>
         <tr><td style="padding:16px 32px;background:#111827;font-size:11px;color:#6b7280;border-top:1px solid #374151;">
-          Echipa WeatherForMoto &nbsp;·&nbsp; {app_link}{footer_unsub}
+          Echipa WeatherForMoto &nbsp;·&nbsp; {app_link}
         </td></tr>
       </table>
     </td></tr>
@@ -1173,27 +1107,11 @@ def _text_to_html(text: str, trusted_links: Sequence[str] = (), unsubscribe_url:
 </body></html>"""
 
 
-def _unsubscribe_headers(unsubscribe_url: str | None) -> dict[str, str]:
-    """RFC 2369 / RFC 8058 one-click unsubscribe headers."""
-    if not unsubscribe_url:
-        return {}
-    return {
-        "List-Unsubscribe": f"<{unsubscribe_url}>",
-        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-    }
-
-
-def _send_email(
-    email: str,
-    subject: str,
-    text: str,
-    links: Sequence[str] = (),
-    unsubscribe_url: str | None = None,
-) -> None:
-    """Send one email (blocking). Raises on delivery errors; callers decide
-    whether that is fatal. Run it from a threadpool, never on the event loop."""
-    html_body = _text_to_html(text, links, unsubscribe_url)
-    extra_headers = _unsubscribe_headers(unsubscribe_url)
+def _send_email(email: str, subject: str, text: str, links: Sequence[str] = ()) -> None:
+    """Send one account email (codes, verification, password reset), blocking.
+    Raises on delivery errors; callers decide whether that is fatal. Run it
+    from a threadpool, never on the event loop."""
+    html_body = _text_to_html(text, links)
 
     # Prefer Brevo Email API when configured (more reliable in cloud runtimes).
     if BREVO_API_KEY:
@@ -1205,8 +1123,6 @@ def _send_email(
             "textContent": text,
             "htmlContent": html_body,
         }
-        if extra_headers:
-            payload["headers"] = extra_headers
         headers = {
             "accept": "application/json",
             "content-type": "application/json",
@@ -1228,8 +1144,6 @@ def _send_email(
     msg["Subject"] = subject
     msg["From"] = SMTP_FROM
     msg["To"] = email
-    for name, value in extra_headers.items():
-        msg[name] = value
     msg.set_content(text)
     msg.add_alternative(html_body, subtype="html")
 
@@ -1240,18 +1154,11 @@ def _send_email(
         server.send_message(msg)
 
 
-def _send_email_safely(
-    email: str,
-    subject: str,
-    text: str,
-    purpose: str,
-    links: Sequence[str] = (),
-    unsubscribe_url: str | None = None,
-) -> bool:
+def _send_email_safely(email: str, subject: str, text: str, purpose: str, links: Sequence[str] = ()) -> bool:
     """_send_email for non-critical mail (background tasks, confirmations):
     failures are logged with context and reported as False, never raised."""
     try:
-        _send_email(email, subject, text, links=links, unsubscribe_url=unsubscribe_url)
+        _send_email(email, subject, text, links=links)
         return True
     except Exception as exc:
         logger.warning("Could not send %s email to %s: %s", purpose, _mask_email(email), exc)
@@ -1272,7 +1179,6 @@ def _send_verification_email(email: str, raw_token: str) -> None:
         "Salut,\n\n"
         "Confirmă adresa de email a contului tău WeatherForMoto accesând linkul de mai jos "
         f"(valabil {EMAIL_VERIFY_TTL_HOURS} de ore):\n{link}\n\n"
-        "Până la confirmare nu îți trimitem alerte pe email.\n"
         "Dacă nu tu ai creat contul, ignoră acest mesaj.\n\n"
         "Echipa WeatherForMoto"
     )
@@ -1333,7 +1239,7 @@ def _html_page(
 
 
 # ---------------------------------------------------------------------------
-# User helpers: verification state, tokens, unsubscribe links
+# User helpers: verification state, tokens
 # ---------------------------------------------------------------------------
 
 def _email_verification_supported(conn: _TursoConn) -> bool:
@@ -1364,31 +1270,6 @@ def _create_verification_token(conn: _TursoConn, user_id: int, email: str) -> st
     )
     conn.commit()
     return raw
-
-
-def _get_unsubscribe_url(conn: _TursoConn, user_id: int) -> str | None:
-    """One-click unsubscribe URL for the user, creating the token lazily.
-    Returns None before the migration or on storage errors (logged)."""
-    if not _has_column(conn, "users", "unsubscribe_token"):
-        return None
-    try:
-        row = conn.execute("SELECT unsubscribe_token FROM users WHERE id = ?", (user_id,)).fetchone()
-        if not row:
-            return None
-        token = row["unsubscribe_token"]
-        if not token:
-            conn.execute(
-                "UPDATE users SET unsubscribe_token = ? WHERE id = ? AND unsubscribe_token IS NULL",
-                (secrets.token_urlsafe(24), user_id),
-            )
-            conn.commit()
-            # Re-read: a concurrent request may have won the race.
-            row = conn.execute("SELECT unsubscribe_token FROM users WHERE id = ?", (user_id,)).fetchone()
-            token = row["unsubscribe_token"] if row else None
-        return f"{API_BASE_URL}/alerts/unsubscribe?token={token}" if token else None
-    except Exception as exc:
-        logger.warning("could not prepare unsubscribe link for user %s: %s", user_id, exc)
-        return None
 
 
 def _evict_other_holders(conn: _TursoConn, user_id: int) -> None:
@@ -1428,13 +1309,11 @@ def _upsert_default_prefs(conn: _TursoConn, user_id: int) -> None:
     conn.execute(
         """
         INSERT INTO alert_prefs(
-            user_id, enabled, email_alerts_enabled,
-            email_alert_wind, email_alert_rain, email_alert_rain_probability,
-            email_alert_score, email_alert_temp_low, email_alert_temp_high, email_alert_frost,
+            user_id, enabled,
             min_score, max_wind_gust, max_precip, max_rain_probability, min_temp, max_temp,
             frost_risk_enabled, quiet_hours_enabled, quiet_start_hour, quiet_end_hour, severity, updated_at
         )
-        VALUES (?, 1, 1, 1, 1, 1, 1, 1, 1, 1, 45, 50, 2, 70, NULL, NULL, 1, 0, 22, 7, 'medium', ?)
+        VALUES (?, 1, 45, 50, 2, 70, NULL, NULL, 1, 0, 22, 7, 'medium', ?)
         ON CONFLICT(user_id) DO NOTHING
         """,
         (user_id, now),
@@ -1686,8 +1565,8 @@ def auth_signup(payload: SignupPayload, request: Request, background_tasks: Back
             raise
         user_id = int(cur.lastrowid)
         _upsert_default_prefs(conn, user_id)
-        # The legacy frontend expects a session right away; the account simply
-        # gets no alert emails until the address is confirmed.
+        # The app expects a session right away; the address is confirmed later
+        # through the emailed link.
         token = _issue_session(conn, user_id)
         if verification:
             raw_token = _create_verification_token(conn, user_id, email)
@@ -1854,7 +1733,7 @@ def auth_verify_email(token: str = Query(default="", max_length=256)) -> HTMLRes
                 ("DELETE FROM push_subscriptions WHERE user_id = ?", (row["user_id"],)),
             ]
         _execute_atomically(conn, statements)
-        message = f"Adresa {row['email']} a fost confirmată. De acum poți primi alerte meteo pe email."
+        message = f"Adresa {row['email']} a fost confirmată."
         if signed_out:
             message += " Din motive de securitate te-am deconectat de pe toate dispozitivele: autentifică-te din nou."
         return _html_page("Adresă confirmată", message)
@@ -2027,7 +1906,7 @@ def me(user: SessionUser = Depends(get_current_user)) -> dict[str, Any]:
             (user.user_id,),
         ).fetchone()
         prefs = conn.execute(
-            "SELECT enabled, email_alerts_enabled, email_alert_wind, email_alert_rain, email_alert_rain_probability, email_alert_score, email_alert_temp_low, email_alert_temp_high, email_alert_frost, min_score, max_wind_gust, max_precip, max_rain_probability, min_temp, max_temp, frost_risk_enabled, quiet_hours_enabled, quiet_start_hour, quiet_end_hour, severity, home_lat, home_lon, city, alert_states, moto_type, comfort_temp, wind_tolerance, rain_tolerance FROM alert_prefs WHERE user_id = ?",
+            "SELECT enabled, min_score, max_wind_gust, max_precip, max_rain_probability, min_temp, max_temp, frost_risk_enabled, quiet_hours_enabled, quiet_start_hour, quiet_end_hour, severity, home_lat, home_lon, city, alert_states, moto_type, comfort_temp, wind_tolerance, rain_tolerance FROM alert_prefs WHERE user_id = ?",
             (user.user_id,),
         ).fetchone()
         sub_count = conn.execute(
@@ -2046,70 +1925,23 @@ def me(user: SessionUser = Depends(get_current_user)) -> dict[str, Any]:
         conn.close()
 
 
-def _alerts_enabled_email_text(user_email: str, payload: AlertPrefsPayload, unsub_url: str | None) -> str:
-    city_label = payload.city or "locația ta"
-    severity_label = _SEVERITY_DESCRIPTIONS.get(payload.severity, _SEVERITY_DESCRIPTIONS["medium"])
-    body = (
-        f"Bună ziua,\n\n"
-        f"Alertele email WeatherForMoto au fost activate pentru contul tău ({user_email}).\n\n"
-        f"Vei primi notificări când condițiile meteo la {city_label} ating pragurile pe care le-ai configurat:\n"
-        f"  • Scor moto sub {payload.min_score}/100\n"
-        f"  • Rafale vânt peste {payload.max_wind_gust:g} km/h\n"
-        f"  • Ploaie cu impact mediu sau ridicat (probabilitate și intensitate combinate)\n"
-    )
-    if payload.min_temp is not None:
-        body += f"  • Temperatură sub {payload.min_temp:g}°C\n"
-    if payload.max_temp is not None:
-        body += f"  • Temperatură peste {payload.max_temp:g}°C\n"
-    body += (
-        f"\nNivel alerte: {severity_label}.\n"
-        f"Alertele sunt trimise o singură dată per eveniment, fără spam.\n"
-        f"Poți modifica sau dezactiva alertele oricând din contul tău.\n"
-    )
-    if unsub_url:
-        body += f"Dezabonare rapidă: {unsub_url}\n"
-    body += "\nDrum bun și condiții ideale!\nEchipa WeatherForMoto"
-    return body
-
-
 @router.put("/me/prefs")
-def update_prefs(
-    payload: AlertPrefsPayload, background_tasks: BackgroundTasks, user: SessionUser = Depends(get_current_user)
-) -> dict[str, Any]:
+def update_prefs(payload: AlertPrefsPayload, user: SessionUser = Depends(get_current_user)) -> dict[str, Any]:
     conn = _connect()
     try:
         now = _utc_now().isoformat()
-
-        # Check previous email_alerts_enabled to detect first-time activation
-        prev = conn.execute(
-            "SELECT email_alerts_enabled FROM alert_prefs WHERE user_id = ?",
-            (user.user_id,),
-        ).fetchone()
-        was_email_enabled = bool(prev["email_alerts_enabled"]) if prev else False
-        email_alerts_newly_enabled = payload.email_alerts_enabled and not was_email_enabled
-
         conn.execute(
             """
             INSERT INTO alert_prefs(
-                user_id, enabled, email_alerts_enabled,
-                email_alert_wind, email_alert_rain, email_alert_rain_probability,
-                email_alert_score, email_alert_temp_low, email_alert_temp_high, email_alert_frost,
+                user_id, enabled,
                 min_score, max_wind_gust, max_precip, max_rain_probability, min_temp, max_temp,
                 frost_risk_enabled, quiet_hours_enabled, quiet_start_hour, quiet_end_hour,
                 severity, home_lat, home_lon, city, alert_states,
                 moto_type, comfort_temp, wind_tolerance, rain_tolerance, updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(user_id) DO UPDATE SET
                 enabled = excluded.enabled,
-                email_alerts_enabled = excluded.email_alerts_enabled,
-                email_alert_wind = excluded.email_alert_wind,
-                email_alert_rain = excluded.email_alert_rain,
-                email_alert_rain_probability = excluded.email_alert_rain_probability,
-                email_alert_score = excluded.email_alert_score,
-                email_alert_temp_low = excluded.email_alert_temp_low,
-                email_alert_temp_high = excluded.email_alert_temp_high,
-                email_alert_frost = excluded.email_alert_frost,
                 min_score = excluded.min_score,
                 max_wind_gust = excluded.max_wind_gust,
                 max_precip = excluded.max_precip,
@@ -2134,14 +1966,6 @@ def update_prefs(
             (
                 user.user_id,
                 int(payload.enabled),
-                int(payload.email_alerts_enabled),
-                int(payload.email_alert_wind),
-                int(payload.email_alert_rain),
-                int(payload.email_alert_rain_probability),
-                int(payload.email_alert_score),
-                int(payload.email_alert_temp_low),
-                int(payload.email_alert_temp_high),
-                int(payload.email_alert_frost),
                 payload.min_score,
                 payload.max_wind_gust,
                 payload.max_precip,
@@ -2165,21 +1989,6 @@ def update_prefs(
             ),
         )
         conn.commit()
-
-        # Unverified addresses only ever receive the verification email.
-        if email_alerts_newly_enabled and _is_email_verified(conn, user.user_id):
-            unsub_url = _get_unsubscribe_url(conn, user.user_id)
-            body = _alerts_enabled_email_text(user.email, payload, unsub_url)
-            background_tasks.add_task(
-                _send_email_safely,
-                user.email,
-                "WeatherForMoto — alerte email activate",
-                body,
-                "alerts confirmation",
-                [unsub_url] if unsub_url else [],
-                unsub_url,
-            )
-
         return {"ok": True}
     finally:
         conn.close()
@@ -2277,9 +2086,6 @@ def change_email(
             ("DELETE FROM password_reset_tokens WHERE user_id = ?", (user.user_id,)),
             ("DELETE FROM auth_codes WHERE email = ?", (old_email,)),
         ]
-        if _has_column(conn, "users", "unsubscribe_token"):
-            # Old unsubscribe links live in the old mailbox: rotate lazily.
-            statements.append(("UPDATE users SET unsubscribe_token = NULL WHERE id = ?", (user.user_id,)))
         try:
             _execute_atomically(conn, statements)
         except Exception as exc:
@@ -2295,116 +2101,6 @@ def change_email(
         return {"ok": True, "email": new_email, "email_verified": not verification}
     finally:
         conn.close()
-
-
-def _disable_email_alerts(conn: _TursoConn, user_id: int) -> bool:
-    """Turn email alerts off; returns whether they were on before."""
-    now = _utc_now().isoformat()
-    prev = conn.execute(
-        "SELECT email_alerts_enabled FROM alert_prefs WHERE user_id = ?",
-        (user_id,),
-    ).fetchone()
-    was_enabled = bool(prev["email_alerts_enabled"]) if prev else False
-    conn.execute(
-        """
-        INSERT INTO alert_prefs(
-            user_id, enabled, email_alerts_enabled,
-            email_alert_wind, email_alert_rain, email_alert_rain_probability,
-            email_alert_score, email_alert_temp_low, email_alert_temp_high, email_alert_frost,
-            min_score, max_wind_gust, max_precip, max_rain_probability, min_temp, max_temp,
-            frost_risk_enabled, quiet_hours_enabled, quiet_start_hour, quiet_end_hour, severity, updated_at
-        )
-        VALUES (?, 1, 0, 0, 0, 0, 0, 0, 0, 0, 45, 50, 2, 70, NULL, NULL, 1, 0, 22, 7, 'medium', ?)
-        ON CONFLICT(user_id) DO UPDATE SET email_alerts_enabled = 0, updated_at = excluded.updated_at
-        """,
-        (user_id, now),
-    )
-    conn.commit()
-    return was_enabled
-
-
-@router.post("/me/unsubscribe-email-alerts")
-def unsubscribe_email_alerts(
-    background_tasks: BackgroundTasks, user: SessionUser = Depends(get_current_user)
-) -> dict[str, bool]:
-    conn = _connect()
-    try:
-        was_enabled = _disable_email_alerts(conn, user.user_id)
-        verified = _is_email_verified(conn, user.user_id)
-    finally:
-        conn.close()
-
-    if was_enabled and verified:
-        body = (
-            f"Bună ziua,\n\n"
-            f"Alertele email WeatherForMoto au fost dezactivate pentru contul tău ({user.email}).\n\n"
-            f"Nu vei mai primi notificări email despre condițiile meteo.\n"
-            f"Notificările push (dacă erau active) rămân funcționale.\n\n"
-            f"Poți reactiva alertele email oricând din secțiunea Notificări a contului tău.\n\n"
-            f"Drum bun!\n"
-            f"Echipa WeatherForMoto"
-        )
-        background_tasks.add_task(
-            _send_email_safely, user.email, "WeatherForMoto — alerte email dezactivate", body, "unsubscribe confirmation"
-        )
-
-    return {"ok": True}
-
-
-_UNSUBSCRIBE_DONE_TITLE = "Dezabonare confirmată"
-_UNSUBSCRIBE_DONE_MESSAGE = (
-    "Nu vei mai primi alerte meteo pe email la această adresă. Notificările push (dacă sunt active) "
-    "rămân funcționale. Poți reactiva alertele email oricând din contul tău."
-)
-
-
-def _unsubscribe_by_token(token: str) -> bool:
-    """Unsubscribe via an email link (no login). True when the token matched a user."""
-    if not _is_well_formed_token(token):
-        return False
-    conn = _connect()
-    try:
-        if not _has_column(conn, "users", "unsubscribe_token"):
-            return False
-        row = conn.execute("SELECT id FROM users WHERE unsubscribe_token = ?", (token,)).fetchone()
-        if not row:
-            return False
-        _disable_email_alerts(conn, int(row["id"]))
-        logger.info("unsubscribe via email link for user %s", row["id"])
-        return True
-    finally:
-        conn.close()
-
-
-@router.get("/alerts/unsubscribe", include_in_schema=False)
-def alerts_unsubscribe_page(token: str = Query(default="", max_length=256)) -> HTMLResponse:
-    """Confirmation page only. RFC 8058: a GET must never change state, because
-    mail security scanners (Outlook Safe Links and similar) open every link.
-    The token is not looked up here, so the page is identical for known and
-    unknown tokens; its button POSTs back to this same URL."""
-    if not _is_well_formed_token(token):
-        return _html_page(
-            "Link invalid",
-            "Linkul de dezabonare nu poate fi folosit. Poți gestiona alertele email din contul tău WeatherForMoto.",
-            400,
-        )
-    return _html_page(
-        "Dezabonare alerte email",
-        "Confirmă că nu mai vrei să primești alerte meteo pe email. "
-        "Notificările push (dacă sunt active) nu sunt afectate.",
-        form_action=f"/alerts/unsubscribe?token={token}",
-        button_label="Dezabonează-mă",
-    )
-
-
-@router.post("/alerts/unsubscribe", include_in_schema=False)
-def alerts_unsubscribe(token: str = Query(default="", max_length=256)) -> HTMLResponse:
-    """Performs the unsubscribe. Both the confirmation button and RFC 8058
-    one-click POSTs from mail clients (body 'List-Unsubscribe=One-Click', token
-    in the List-Unsubscribe URL) land here. The reply is the same whether or not
-    the token matched, so this endpoint cannot be used to probe tokens."""
-    _unsubscribe_by_token(token)
-    return _html_page(_UNSUBSCRIBE_DONE_TITLE, _UNSUBSCRIBE_DONE_MESSAGE)
 
 
 @router.delete("/me")
@@ -2721,11 +2417,6 @@ def list_hazards(
 
 _LEVEL_RANK = {"INFO": 1, "ATENȚIE": 2, "EVITĂ": 3}
 _SEVERITY_MIN_RANK = {"low": 3, "medium": 2, "high": 1}
-_SEVERITY_DESCRIPTIONS = {
-    "low": "doar situațiile de evitat (EVITĂ)",
-    "medium": "situațiile de atenție și cele de evitat (ATENȚIE și EVITĂ)",
-    "high": "toate alertele, inclusiv cele informative",
-}
 MOTO_SCORE_EVITA_BELOW = 40
 MOTO_SCORE_ATENTIE_BELOW = 60
 WIND_GUST_EVITA_KMH = 70.0
@@ -3035,46 +2726,26 @@ def _send_push(subscription: Mapping[str, Any], title: str, body: str, data: dic
     )
 
 
-def _is_email_event_enabled(prefs: Mapping[str, Any], event_type: str) -> bool:
-    # Rain alerts combine probability and intensity now, so the old separate
-    # "rain probability" toggle no longer maps to its own event type.
-    column_by_event = {
-        "wind": "email_alert_wind",
-        "rain": "email_alert_rain",
-        "score": "email_alert_score",
-        "temp_low": "email_alert_temp_low",
-        "temp_high": "email_alert_temp_high",
-        "frost": "email_alert_frost",
-    }
-    col = column_by_event.get(event_type)
-    if not col:
-        return True
-    return bool(_pref(prefs, col, True))
-
-
 # ---------------------------------------------------------------------------
-# Alert dispatch
+# Alert dispatch (web push only; email alerts were retired)
 # ---------------------------------------------------------------------------
 
 _DISPATCH_PREF_COLUMNS = (
-    "enabled, email_alerts_enabled, email_alert_wind, email_alert_rain, email_alert_rain_probability, "
-    "email_alert_score, email_alert_temp_low, email_alert_temp_high, email_alert_frost, min_score, "
-    "max_wind_gust, max_precip, max_rain_probability, min_temp, max_temp, frost_risk_enabled, "
-    "quiet_hours_enabled, quiet_start_hour, quiet_end_hour, severity, home_lat, home_lon, city"
+    "enabled, min_score, max_wind_gust, max_precip, max_rain_probability, min_temp, max_temp, "
+    "frost_risk_enabled, quiet_hours_enabled, quiet_start_hour, quiet_end_hour, severity, "
+    "home_lat, home_lon, city"
 )
 
 
 @dataclass
 class _DispatchContext:
     user_id: int
-    email: str
+    email: str                   # only for (masked) log lines
     prefs: dict[str, Any]
     lat: float
     lon: float
     city: str
     subscriptions: list[dict[str, Any]]
-    email_allowed: bool          # alerts on AND address verified
-    unsubscribe_url: str | None
 
 
 def _load_dispatch_context(user_id: int, email: str) -> tuple[_DispatchContext | None, str | None]:
@@ -3092,7 +2763,6 @@ def _load_dispatch_context(user_id: int, email: str) -> tuple[_DispatchContext |
             "SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ?",
             (user_id,),
         ).fetchall()
-        email_allowed = bool(_pref(prefs, "email_alerts_enabled", True)) and _is_email_verified(conn, user_id)
         return _DispatchContext(
             user_id=user_id,
             email=email,
@@ -3101,24 +2771,9 @@ def _load_dispatch_context(user_id: int, email: str) -> tuple[_DispatchContext |
             lon=float(prefs["home_lon"]),
             city=prefs["city"] or "Locația mea",
             subscriptions=list(subscriptions),
-            email_allowed=email_allowed,
-            unsubscribe_url=_get_unsubscribe_url(conn, user_id) if email_allowed else None,
         ), None
     finally:
         conn.close()
-
-
-def _alert_email_text(ev: Mapping[str, Any], city: str, unsubscribe_url: str | None) -> str:
-    text = (
-        f"{ev['body']}\n"
-        f"Locație: {city}\n"
-        f"Interval: {ev['when']}\n"
-        f"Nivel: {ev.get('level', 'INFO')}\n\n"
-        "Poți dezactiva alertele email din contul tău WeatherForMoto."
-    )
-    if unsubscribe_url:
-        text += f"\nDezabonare alerte email: {unsubscribe_url}"
-    return text
 
 
 def _claim_event(conn: _TursoConn, user_id: int, event_type: str, event_key: str) -> bool:
@@ -3144,7 +2799,7 @@ def _claim_event(conn: _TursoConn, user_id: int, event_type: str, event_key: str
 
 def _finish_event_claim(conn: _TursoConn, user_id: int, event_key: str, delivered: bool) -> None:
     """Mark a claimed event delivered, or release the claim so a later run
-    retries it when every channel failed."""
+    retries it when every device failed."""
     try:
         if delivered:
             if _has_column(conn, "alert_events", "delivered_at"):
@@ -3182,34 +2837,21 @@ def _push_to_all(conn: _TursoConn, ctx: _DispatchContext, ev: dict[str, Any]) ->
 
 
 def _deliver_event(ctx: _DispatchContext, ev: dict[str, Any]) -> dict[str, Any]:
-    """Blocking: claim, send on every channel, then mark delivered or release."""
-    wants_email = ctx.email_allowed and _is_email_event_enabled(ctx.prefs, ev["type"])
-    if not ctx.subscriptions and not wants_email:
-        return {"status": "no_channel", "push": 0, "email": 0}
+    """Blocking: claim, push to every device, then mark delivered or release.
+    Without a device nothing is claimed, so the event can still go out once
+    the user turns push on."""
+    if not ctx.subscriptions:
+        return {"status": "no_channel", "push": 0}
     event_key = f"{ev['type']}:{ev['when'][:13]}"
     conn = _connect()
     try:
         if not _claim_event(conn, ctx.user_id, ev["type"], event_key):
-            return {"status": "duplicate", "push": 0, "email": 0}
+            return {"status": "duplicate", "push": 0}
 
         push_sent = _push_to_all(conn, ctx, ev)
-        email_sent = 0
-        if wants_email:
-            try:
-                _send_email(
-                    ctx.email,
-                    f"WeatherForMoto alertă: {ev['title']}",
-                    _alert_email_text(ev, ctx.city, ctx.unsubscribe_url),
-                    links=[ctx.unsubscribe_url] if ctx.unsubscribe_url else [],
-                    unsubscribe_url=ctx.unsubscribe_url,
-                )
-                email_sent = 1
-            except Exception as exc:
-                logger.warning("Email alert dispatch error for %s: %s", _mask_email(ctx.email), exc)
-
-        delivered = bool(push_sent or email_sent)
+        delivered = push_sent > 0
         _finish_event_claim(conn, ctx.user_id, event_key, delivered)
-        return {"status": "delivered" if delivered else "failed", "push": push_sent, "email": email_sent}
+        return {"status": "delivered" if delivered else "failed", "push": push_sent}
     finally:
         conn.close()
 
@@ -3217,7 +2859,7 @@ def _deliver_event(ctx: _DispatchContext, ev: dict[str, Any]) -> dict[str, Any]:
 async def _dispatch_for_user(user_id: int, email: str, owm_api_key: str) -> dict[str, Any]:
     ctx, reason = await asyncio.to_thread(_load_dispatch_context, user_id, email)
     if ctx is None:
-        return {"sent": 0, "email_sent": 0, "delivered": 0, "events": [], "reason": reason}
+        return {"sent": 0, "delivered": 0, "events": [], "reason": reason}
 
     weather = await get_weather(ctx.lat, ctx.lon, ctx.city, owm_api_key, forecast_days=2)
     now_local = _local_now(weather)
@@ -3225,7 +2867,7 @@ async def _dispatch_for_user(user_id: int, email: str, owm_api_key: str) -> dict
         _build_risk_events(weather.get("hourly", []), ctx.prefs, now_local),
         ctx.prefs.get("severity"),
     )
-    result: dict[str, Any] = {"sent": 0, "email_sent": 0, "delivered": 0, "events": events}
+    result: dict[str, Any] = {"sent": 0, "delivered": 0, "events": events}
     if _in_quiet_hours(now_local.hour, ctx.prefs):
         # Nothing is recorded, so still-relevant events go out after quiet hours.
         result["reason"] = "quiet_hours"
@@ -3234,7 +2876,6 @@ async def _dispatch_for_user(user_id: int, email: str, owm_api_key: str) -> dict
     for ev in events:
         outcome = await asyncio.to_thread(_deliver_event, ctx, ev)
         result["sent"] += outcome["push"]
-        result["email_sent"] += outcome["email"]
         result["delivered"] += int(outcome["status"] == "delivered")
     return result
 
@@ -3318,12 +2959,14 @@ def _purge_stale_rows() -> dict[str, int]:
 
 
 def _list_alert_users() -> list[dict[str, Any]]:
-    """Blocking: only users who can actually receive something."""
+    """Blocking: only users who can actually receive something, meaning alerts
+    on, a home location and at least one push device."""
     conn = _connect()
     try:
         return conn.execute(
             "SELECT u.id, u.email FROM users u JOIN alert_prefs p ON p.user_id = u.id "
-            "WHERE p.enabled = 1 AND p.home_lat IS NOT NULL AND p.home_lon IS NOT NULL"
+            "WHERE p.enabled = 1 AND p.home_lat IS NOT NULL AND p.home_lon IS NOT NULL "
+            "AND EXISTS (SELECT 1 FROM push_subscriptions s WHERE s.user_id = u.id)"
         ).fetchall()
     finally:
         conn.close()
@@ -3347,20 +2990,18 @@ async def alerts_dispatch_all(
             return await _dispatch_for_user(int(u["id"]), u["email"], OWM_API_KEY)
 
     results = await asyncio.gather(*[_run(u) for u in users], return_exceptions=True)
-    total_sent = total_email = total_events = failed = 0
+    total_sent = total_events = failed = 0
     for u, r in zip(users, results):
         if isinstance(r, BaseException):
             failed += 1
             logger.warning("dispatch_for_user error for user %s: %s", u["id"], r)
             continue
         total_sent += int(r.get("sent", 0))
-        total_email += int(r.get("email_sent", 0))
         total_events += int(r.get("delivered", 0))
     return {
         "ok": True,
         "users": len(users),
         "sent": total_sent,
-        "email_sent": total_email,
         "events": total_events,
         "failed_users": failed,
         "purged": purged,

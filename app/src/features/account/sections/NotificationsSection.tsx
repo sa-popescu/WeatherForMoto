@@ -34,6 +34,7 @@ function outcomeText(outcome: CheckOutcome, s: AlertStrings): string {
   }
 }
 
+/** Alerts reach the rider only as web push, so this is the one channel to manage. */
 export function NotificationsSection({ me, active }: { me: MeResponse; active: boolean }) {
   const s = useStrings(ALERTS);
   const { token, handleAuthError } = useAuth();
@@ -42,8 +43,6 @@ export function NotificationsSection({ me, active }: { me: MeResponse; active: b
   const errorText = useErrorText();
   const push = usePushState(active);
   const [testing, setTesting] = useState(false);
-
-  const emailOn = Boolean(prefs?.email_alerts_enabled) && me.email_verified;
 
   const reportError = (err: unknown, fallback: string): void => {
     console.warn('[account] notification action failed', err);
@@ -71,17 +70,11 @@ export function NotificationsSection({ me, active }: { me: MeResponse; active: b
     }
   };
 
-  const onEmail = (next: boolean): void => {
-    update(next ? { email_alerts_enabled: true, enabled: true } : { email_alerts_enabled: false }, {
-      successMessage: next ? s.emailEnabled : s.emailDisabled,
-    });
-  };
-
   const onTest = async (): Promise<void> => {
     if (!token) return;
     setTesting(true);
     try {
-      const outcome = describeCheckNow(await api.checkNow(token), { push: me.pushSubscriptions, email: emailOn });
+      const outcome = describeCheckNow(await api.checkNow(token), me.pushSubscriptions);
       const enableAction = outcome.kind === 'disabled' ? { actionLabel: s.enableAlerts, onAction: () => update({ enabled: true }) } : {};
       toast(outcomeText(outcome, s), { tone: outcome.kind === 'delivered' ? 'success' : 'info', durationMs: 7000, ...enableAction });
     } catch (err) {
@@ -92,7 +85,6 @@ export function NotificationsSection({ me, active }: { me: MeResponse; active: b
   };
 
   const pushDescription = push.on ? fmt(s.pushOn, { count: Math.max(1, me.pushSubscriptions) }) : s.pushOff;
-  const emailDescription = !me.email_verified ? s.emailUnverified : emailOn ? fmt(s.emailOn, { email: me.email }) : s.emailOff;
 
   return (
     <Group title={s.notifSection}>
@@ -115,8 +107,6 @@ export function NotificationsSection({ me, active }: { me: MeResponse; active: b
           </Banner>
         )}
         {push.availability === 'unsupported' && <Note>{s.pushUnsupported}</Note>}
-        <div className="acct-divider" />
-        <Toggle checked={emailOn} onChange={onEmail} disabled={!me.email_verified || !prefs} label={s.emailLabel} description={emailDescription} />
         <div className="acct-divider" />
         <Button full icon="bell" busy={testing} onClick={() => void onTest()}>
           {s.test}

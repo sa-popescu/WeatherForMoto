@@ -126,12 +126,10 @@ class _Base(unittest.TestCase):
 
     # -- fakes ---------------------------------------------------------------
 
-    def _fake_send_email(self, email: str, subject: str, text: str, links: Any = (),
-                         unsubscribe_url: str | None = None) -> None:
+    def _fake_send_email(self, email: str, subject: str, text: str, links: Any = ()) -> None:
         if self.email_error:
             raise self.email_error
-        self.emails.append({"to": email, "subject": subject, "text": text,
-                            "links": list(links), "unsubscribe_url": unsubscribe_url})
+        self.emails.append({"to": email, "subject": subject, "text": text, "links": list(links)})
 
     def _fake_send_push(self, sub: Any, title: str, body: str, data: dict[str, Any]) -> None:
         if self.push_error:
@@ -185,8 +183,8 @@ class _Base(unittest.TestCase):
         return login.json()["token"]
 
     def put_prefs(self, token: str, **overrides: Any) -> Any:
-        payload: dict[str, Any] = {"enabled": True, "email_alerts_enabled": True, "home_lat": 44.43,
-                                   "home_lon": 26.10, "city": "Bucuresti", "severity": "medium"}
+        payload: dict[str, Any] = {"enabled": True, "home_lat": 44.43, "home_lon": 26.10,
+                                   "city": "Bucuresti", "severity": "medium"}
         payload.update(overrides)
         return self.client.put("/me/prefs", json=payload, headers=_auth(token))
 
@@ -200,7 +198,10 @@ class _Base(unittest.TestCase):
         return token, self.user_id(email)
 
     def alert_emails(self) -> list[dict[str, Any]]:
-        return [m for m in self.emails if m["subject"].startswith("WeatherForMoto alertă")]
+        """Anything that is not an account email (code, verification, reset,
+        security warning) would be an alert email, which no longer exists."""
+        account_subjects = ("cod", "confirm", "parol", "resetare", "securitate", "autentificare")
+        return [m for m in self.emails if not any(word in m["subject"].lower() for word in account_subjects)]
 
 
 # ---------------------------------------------------------------------------
@@ -264,12 +265,11 @@ class EmailVerificationTests(_Base):
         link = self.verification_link("new@example.com")
         self.assertTrue(link.startswith(f"{aa.API_BASE_URL}/auth/verify-email?token="))
 
-    def test_unverified_address_gets_push_but_no_alert_email(self) -> None:
+    def test_unverified_address_still_gets_push_alerts(self) -> None:
         token, _ = self.alert_ready_user("unverified@example.com", verified=False)
         self.weather = self.make_weather({1: {"wind_gusts_kmh": 80}})
         result = self.client.post("/alerts/check-now", headers=_auth(token)).json()
         self.assertEqual(result["sent"], 1)
-        self.assertEqual(result["email_sent"], 0)
         self.assertEqual(self.alert_emails(), [])
         self.assertEqual(len(self.pushes), 1)
 
@@ -297,14 +297,13 @@ class EmailVerificationTests(_Base):
         self.assertTrue(me["email_verified"])
         self.assertEqual(me["pushSubscriptions"], 0)
 
-    def test_verified_address_receives_alert_email_with_unsubscribe(self) -> None:
+    def test_verified_address_gets_push_and_never_an_alert_email(self) -> None:
         token, _ = self.alert_ready_user("mail@example.com")
         self.weather = self.make_weather({1: {"wind_gusts_kmh": 80}})
         result = self.client.post("/alerts/check-now", headers=_auth(token)).json()
-        self.assertEqual(result["email_sent"], 1)
-        mail = self.alert_emails()[0]
-        self.assertTrue(mail["unsubscribe_url"].startswith(f"{aa.API_BASE_URL}/alerts/unsubscribe?token="))
-        self.assertIn(mail["unsubscribe_url"], mail["text"])
+        self.assertEqual((result["sent"], result["delivered"]), (1, 1))
+        self.assertNotIn("email_sent", result)
+        self.assertEqual(self.alert_emails(), [])
 
     def test_expired_link_is_rejected(self) -> None:
         self.signup("late@example.com")
@@ -639,7 +638,7 @@ class HazardTests(_Base):
 
 
 # ---------------------------------------------------------------------------
-# 7. Account deletion, 8. unsubscribe, 9. passwords
+# 7. Account deletion, 8. retired email alerts, 9. passwords
 # ---------------------------------------------------------------------------
 
 class AccountLifecycleTests(_Base):
@@ -670,61 +669,36 @@ class AccountLifecycleTests(_Base):
                                 (f"%{key}%", f"%:user:{uid}")).fetchall()
         self.assertEqual([r["bucket"] for r in leftover], [])
 
-    def _email_alerts_enabled(self, uid: int) -> int:
-        return self.db().execute("SELECT email_alerts_enabled FROM alert_prefs WHERE user_id = ?",
-                                 (uid,)).fetchone()["email_alerts_enabled"]
+    def test_email_alert_endpoints_are_gone(self) -> None:
+        token, _ = self.alert_ready_user("unsub@example.com")
+        self.assertEqual(self.client.get("/alerts/unsubscribe?token=" + "x" * 32).status_code, 404)
+        self.assertEqual(self.client.post("/alerts/unsubscribe?token=" + "x" * 32).status_code, 404)
+        self.assertEqual(self.client.post("/me/unsubscribe-email-alerts", headers=_auth(token)).status_code, 404)
 
-    def _unsubscribe_path(self, uid: int) -> str:
-        conn = aa._connect()
-        self.addCleanup(conn.close)
-        return aa._get_unsubscribe_url(conn, uid).replace(aa.API_BASE_URL, "")
+    def test_prefs_from_an_old_client_are_accepted_without_email(self) -> None:
+        # A cached older app still sends the retired toggles; they are ignored.
+        token, _ = self.alert_ready_user("cached@example.com")
+        sent_before = len(self.emails)
+        resp = self.put_prefs(token, email_alerts_enabled=True, email_alert_wind=False)
+        self.assertEqual(resp.status_code, 200, resp.text)
+        self.assertEqual(len(self.emails), sent_before)
+        prefs = self.client.get("/me", headers=_auth(token)).json()["prefs"]
+        self.assertFalse(any(key.startswith("email_alert") for key in prefs))
 
-    def test_unsubscribe_get_only_confirms_and_post_unsubscribes(self) -> None:
-        token, uid = self.alert_ready_user("unsub@example.com")
-        path = self._unsubscribe_path(uid)
-
-        page = self.client.get(path)
-        self.assertEqual(page.status_code, 200)
-        self.assertIn(f'<form method="post" action="{html.escape(path, quote=True)}">', page.text)
-        self.assertIn("form-action 'self'", page.headers["content-security-policy"])
-        self.assertEqual(self._email_alerts_enabled(uid), 1)   # a link scanner's GET changes nothing
-
-        confirmed = self.client.post(path, headers={"Content-Type": "application/x-www-form-urlencoded"})
-        self.assertEqual(confirmed.status_code, 200)
-        self.assertIn(aa._UNSUBSCRIBE_DONE_TITLE, confirmed.text)
-        self.assertEqual(self._email_alerts_enabled(uid), 0)
-
-        self.put_prefs(token, email_alerts_enabled=True)
-        self.assertEqual(self._email_alerts_enabled(uid), 1)
-        one_click = self.client.post(path, content="List-Unsubscribe=One-Click",
-                                     headers={"Content-Type": "application/x-www-form-urlencoded"})
-        self.assertEqual(one_click.status_code, 200)
-        self.assertEqual(self._email_alerts_enabled(uid), 0)
-
-    def test_unknown_unsubscribe_token_is_indistinguishable(self) -> None:
-        _, uid = self.alert_ready_user("probe@example.com")
-        real_path = self._unsubscribe_path(uid)
-        real_token = real_path.split("token=", 1)[1]
-        fake_token = "x" * len(real_token)
-        fake_path = f"/alerts/unsubscribe?token={fake_token}"
-
-        real_get, fake_get = self.client.get(real_path), self.client.get(fake_path)
-        self.assertEqual(real_get.status_code, fake_get.status_code)
-        self.assertEqual(real_get.text.replace(real_token, "T"), fake_get.text.replace(fake_token, "T"))
-
-        real_post, fake_post = self.client.post(real_path), self.client.post(fake_path)
-        self.assertEqual((real_post.status_code, real_post.text), (fake_post.status_code, fake_post.text))
-
-        malformed = self.client.get("/alerts/unsubscribe?token=bad")
-        self.assertEqual(malformed.status_code, 400)
-        self.assertNotIn("<form", malformed.text)
-        bad_post = self.client.post("/alerts/unsubscribe?token=bad")
-        self.assertEqual((bad_post.status_code, bad_post.text), (real_post.status_code, real_post.text))
-
-    def test_alert_email_keeps_unsubscribe_headers(self) -> None:
-        headers = aa._unsubscribe_headers("https://api.example/alerts/unsubscribe?token=abc")
-        self.assertEqual(headers["List-Unsubscribe"], "<https://api.example/alerts/unsubscribe?token=abc>")
-        self.assertEqual(headers["List-Unsubscribe-Post"], "List-Unsubscribe=One-Click")
+    def test_no_push_device_means_nothing_is_claimed(self) -> None:
+        token = self.verify("nodevice@example.com") if self.signup("nodevice@example.com") else ""
+        self.assertEqual(self.put_prefs(token).status_code, 200)
+        self.weather = self.make_weather({1: {"wind_gusts_kmh": 80}})
+        first = self.client.post("/alerts/check-now", headers=_auth(token)).json()
+        self.assertEqual((first["sent"], first["delivered"], len(first["events"])), (0, 0, 1))
+        uid = self.user_id("nodevice@example.com")
+        self.assertEqual(self.db().execute("SELECT COUNT(*) AS c FROM alert_events WHERE user_id = ?",
+                                           (uid,)).fetchone()["c"], 0)
+        # The event was not burnt: once push is on, it goes out.
+        self.client.post("/me/push-subscriptions", json=PUSH_SUB, headers=_auth(token))
+        second = self.client.post("/alerts/check-now", headers=_auth(token)).json()
+        self.assertEqual((second["sent"], second["delivered"]), (1, 1))
+        self.assertEqual(self.alert_emails(), [])
 
     def test_pbkdf2_rehash_on_login(self) -> None:
         self.signup("legacy@example.com")
@@ -960,9 +934,7 @@ class UnmigratedSchemaTests(_Base):
         super().setUp()
         conn = self.db()
         conn.executescript(
-            "DROP INDEX idx_users_unsubscribe_token;"
             "ALTER TABLE users DROP COLUMN email_verified;"
-            "ALTER TABLE users DROP COLUMN unsubscribe_token;"
             "DROP TABLE email_verification_tokens;"
             "ALTER TABLE alert_events DROP COLUMN delivered_at;"
         )
@@ -979,15 +951,42 @@ class UnmigratedSchemaTests(_Base):
         self.client.post("/me/push-subscriptions", json=PUSH_SUB, headers=_auth(token))
         self.weather = self.make_weather({1: {"wind_gusts_kmh": 80}})
         first = self.client.post("/alerts/check-now", headers=_auth(token)).json()
-        self.assertEqual((first["sent"], first["email_sent"]), (1, 1))
-        self.assertIsNone(self.alert_emails()[0]["unsubscribe_url"])
+        self.assertEqual(first["sent"], 1)
+        self.assertEqual(self.alert_emails(), [])
         self.assertEqual(self.client.post("/alerts/check-now", headers=_auth(token)).json()["delivered"], 0)
-        self.assertEqual(self.client.post("/alerts/unsubscribe?token=" + "w" * 32).status_code, 200)
         self.assertEqual(self.client.post("/auth/verify-email?token=whatever-token-123").status_code, 400)
         changed = self.client.put("/me/email", json={"new_email": "new@example.com", "password": PASSWORD},
                                   headers=_auth(token))
         self.assertTrue(changed.json()["email_verified"])
         self.assertEqual(self.client.delete("/me", headers=_auth(token)).status_code, 200)
+
+
+class RetiredEmailColumnsTests(_Base):
+    """Production databases keep the columns of the retired email alerts
+    (NOT NULL with defaults). Writes that no longer name them must still work."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        conn = self.db()
+        legacy = ["email_alerts_enabled", "email_alert_wind", "email_alert_rain", "email_alert_rain_probability",
+                  "email_alert_score", "email_alert_temp_low", "email_alert_temp_high", "email_alert_frost"]
+        for column in legacy:
+            conn.execute(f"ALTER TABLE alert_prefs ADD COLUMN {column} INTEGER NOT NULL DEFAULT 1")
+        conn.execute("ALTER TABLE users ADD COLUMN unsubscribe_token TEXT")
+        conn.commit()
+        aa._SCHEMA_CACHE.clear()
+
+    def test_prefs_and_alerts_work_on_a_database_with_the_old_columns(self) -> None:
+        token, _ = self.alert_ready_user("legacy-cols@example.com")
+        self.assertEqual(self.put_prefs(token, min_score=55).status_code, 200)
+        self.assertEqual(self.client.get("/me", headers=_auth(token)).json()["prefs"]["min_score"], 55)
+        self.weather = self.make_weather({1: {"wind_gusts_kmh": 80}})
+        result = self.client.post("/alerts/check-now", headers=_auth(token)).json()
+        self.assertEqual(result["sent"], 1)
+        self.assertEqual(self.alert_emails(), [])
+        changed = self.client.put("/me/email", json={"new_email": "moved@example.com", "password": PASSWORD},
+                                  headers=_auth(token))
+        self.assertEqual(changed.status_code, 200, changed.text)
 
 
 # ---------------------------------------------------------------------------

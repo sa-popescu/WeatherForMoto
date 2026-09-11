@@ -19,8 +19,8 @@ interface SignupFormProps {
 }
 
 /**
- * The backend signs the new account in right away; alert emails wait for the
- * address to be confirmed (the signed-in header keeps reminding).
+ * The backend signs the new account in right away; the address is confirmed
+ * later through the emailed link (the signed-in header keeps reminding).
  */
 export function SignupForm({ email, onEmail, onMode }: SignupFormProps) {
   const s = useStrings(AUTH);

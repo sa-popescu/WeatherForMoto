@@ -50,7 +50,7 @@ function SignedIn({ active }: { active: boolean }) {
       {loadError && <LoadErrorCard />}
       <ProfileHeader me={me} />
       <NotificationsSection me={me} active={active} />
-      <AlertsSection verified={me.email_verified} />
+      <AlertsSection />
     </>
   );
 }

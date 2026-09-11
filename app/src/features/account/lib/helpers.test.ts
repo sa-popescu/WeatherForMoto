@@ -25,23 +25,23 @@ describe('prefs overlay', () => {
 });
 
 describe('describeCheckNow', () => {
-  const both = { push: 1, email: true };
+  const oneDevice = 1;
 
   it('explains skipped checks', () => {
-    expect(describeCheckNow({ reason: 'alerts_disabled' }, both)).toEqual({ kind: 'disabled' });
-    expect(describeCheckNow({ reason: 'missing_home_location' }, both)).toEqual({ kind: 'noLocation' });
-    expect(describeCheckNow({ reason: 'quiet_hours', events: [{}] }, both)).toEqual({ kind: 'quiet' });
+    expect(describeCheckNow({ reason: 'alerts_disabled' }, oneDevice)).toEqual({ kind: 'disabled' });
+    expect(describeCheckNow({ reason: 'missing_home_location' }, oneDevice)).toEqual({ kind: 'noLocation' });
+    expect(describeCheckNow({ reason: 'quiet_hours', events: [{}] }, oneDevice)).toEqual({ kind: 'quiet' });
   });
 
-  // The backend sends `delivered` as a count, while the shared type says boolean.
+  // Older backends sent `delivered` as a boolean; both shapes must work.
   const res = (body: Record<string, unknown>): CheckNowResponse => body as CheckNowResponse;
 
   it('counts deliveries and separates the empty cases', () => {
-    expect(describeCheckNow(res({ ok: true, delivered: 2, events: [{}, {}] }), both)).toEqual({ kind: 'delivered', count: 2 });
-    expect(describeCheckNow(res({ ok: true, delivered: 0, events: [] }), both)).toEqual({ kind: 'nothing' });
-    expect(describeCheckNow(res({ ok: true, delivered: 0, events: [{}] }), { push: 0, email: false })).toEqual({ kind: 'noChannel' });
-    expect(describeCheckNow(res({ ok: true, delivered: 0, events: [{}] }), both)).toEqual({ kind: 'alreadySent', count: 1 });
-    expect(describeCheckNow(res({ ok: true, delivered: true, events: [{}] }), both)).toEqual({ kind: 'delivered', count: 1 });
+    expect(describeCheckNow(res({ ok: true, delivered: 2, events: [{}, {}] }), oneDevice)).toEqual({ kind: 'delivered', count: 2 });
+    expect(describeCheckNow(res({ ok: true, delivered: 0, events: [] }), oneDevice)).toEqual({ kind: 'nothing' });
+    expect(describeCheckNow(res({ ok: true, delivered: 0, events: [{}] }), 0)).toEqual({ kind: 'noChannel' });
+    expect(describeCheckNow(res({ ok: true, delivered: 0, events: [{}] }), oneDevice)).toEqual({ kind: 'alreadySent', count: 1 });
+    expect(describeCheckNow(res({ ok: true, delivered: true, events: [{}] }), oneDevice)).toEqual({ kind: 'delivered', count: 1 });
   });
 });
 

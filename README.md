@@ -1,6 +1,6 @@
 # WeatherForMoto
 
-WeatherForMoto este o aplicație meteo pentru motocicliști, cu scoring de risc, recomandări de echipament, rutare pre-ride și alerte personalizate (push/email).
+WeatherForMoto este o aplicație meteo pentru motocicliști, cu scoring de risc, recomandări de echipament, rutare pre-ride și alerte personalizate (notificări push).
 
 Stack-ul actual este:
 
@@ -26,7 +26,7 @@ Vechiul frontend dintr-un singur fișier a fost retras: `index.html` și `sw.js`
 
 ### Phase A (cont + alerting + PWA)
 
-- Cont clasic: signup/login/logout + profil, cu verificarea adresei de email (link de confirmare; alertele pe email pleacă doar către adrese confirmate)
+- Cont clasic: signup/login/logout + profil, cu verificarea adresei de email (link de confirmare)
 - Preferințe avansate de alertă:
 	- prag scor minim
 	- rafale maxime
@@ -35,8 +35,8 @@ Vechiul frontend dintr-un singur fișier a fost retras: `index.html` și `sw.js`
 	- frost risk on/off (nu mai cere precipitații)
 	- quiet hours aplicate la livrare, în ora locală a locației
 	- severitate: low (doar EVITĂ), medium (ATENȚIE și EVITĂ), high (tot)
-- Dezabonare de la emailuri cu confirmare (RFC 8058, `List-Unsubscribe`)
-- Push notifications (VAPID) cu fallback email
+- Alertele pleacă doar ca push notifications (VAPID), pe toate dispozitivele abonate; alertele pe email au fost retrase
+- Emailul rămâne doar pentru cont: cod de autentificare, confirmarea adresei, resetarea parolei
 - Verificare alertă manuală (`/alerts/check-now`) și dispatch batch (`/alerts/dispatch-all`)
 - PWA install prompt + service worker cu acțiuni notificare (open/snooze)
 
@@ -115,8 +115,8 @@ Organizare: `src/lib` (API tipizat, format, scor, geo), `src/state` (sesiune, lo
 - `PORT` (implicit: `8000`)
 - `PIRATE_WEATHER_API_KEY`
 - `WEATHERXM_API_KEY` (stații fizice WeatherXM PRO — prioritate maximă când există stație în zonă)
-- `APP_BASE_URL` (URL public al aplicației, folosit în email-uri)
-- `API_BASE_URL` (URL public al backend-ului, pentru linkurile de confirmare și dezabonare; implicit URL-ul run.app)
+- `APP_BASE_URL` (URL public al aplicației, folosit în emailurile de cont)
+- `API_BASE_URL` (URL public al backend-ului, pentru linkurile de confirmare a adresei; implicit URL-ul run.app)
 - `MET_NORWAY_USER_AGENT` (identificator cerut de MET Norway; are o valoare implicită reală)
 
 **Pentru funcții avansate:**
@@ -134,7 +134,7 @@ Organizare: `src/lib` (API tipizat, format, scor, geo), `src/state` (sesiune, lo
 - `CODE_MAX_FAILURES`, `CODE_FAILURES_PER_EMAIL_DAY`, `PASSWORD_FAILURE_ALERT_DAY`
 - `HAZARD_RATE_MAX`, `CHECK_NOW_RATE_MAX`, `DISPATCH_CONCURRENCY`, `ALERT_COOLDOWN_HOURS`
 
-**Email alerts:**
+**Email de cont** (cod de autentificare, confirmarea adresei, resetarea parolei):
 
 - SMTP: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`
 - sau Brevo API: `BREVO_API_KEY`
@@ -189,8 +189,6 @@ Organizare: `src/lib` (API tipizat, format, scor, geo), `src/state` (sesiune, lo
 - `DELETE /me/push-subscriptions` - Dezabonare push
 - `POST /alerts/check-now` - Verificare alertă manuală
 - `POST /alerts/dispatch-all` - Dispatch batch (secret doar în header-ul `X-Dispatch-Secret`)
-- `GET /alerts/unsubscribe?token=...` - Pagina de dezabonare cu buton de confirmare
-- `POST /alerts/unsubscribe?token=...` - Dezabonare (butonul și one-click din clientul de email)
 
 ### Route & ride data
 
@@ -273,5 +271,5 @@ docker run --rm -p 8000:8000 --env-file backend/.env weatherformoto
 ## Observații practice
 
 - Pentru push notifications reale, trebuie configurat VAPID pe backend
-- Pentru email alerts reale, trebuie configurat SMTP sau Brevo
+- Emailurile de cont au nevoie de SMTP sau Brevo; dacă contul Brevo are restricție de IP („Authorized IPs”), trebuie să accepte ieșirea Cloud Run, altfel Brevo răspunde 401
 - Directorul `www/` conține asset-uri statice pentru PWA, copiate automat de Capacitor

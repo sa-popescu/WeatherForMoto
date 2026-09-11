@@ -9,13 +9,6 @@ import type { AlertPrefs, AuthResponse, MeResponse } from '../lib/types';
 
 export const PREF_DEFAULTS: AlertPrefs = {
   enabled: true,
-  email_alerts_enabled: true,
-  email_alert_wind: true,
-  email_alert_rain: true,
-  email_alert_score: true,
-  email_alert_temp_low: true,
-  email_alert_temp_high: true,
-  email_alert_frost: true,
   min_score: 45,
   max_wind_gust: 50,
   min_temp: null,
