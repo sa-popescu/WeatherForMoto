@@ -14,6 +14,10 @@ GET /weather?lat=44.43&lon=26.10
 
 GET /geocode?city=Cluj-Napoca
     Returns geocoding results (lat/lon/name) for a city query.
+
+GET /meta/scoring
+    The moto score model (label thresholds, rain intensity bands, impact
+    matrix, caps) exactly as the backend applies it.
 """
 
 import logging
@@ -22,18 +26,33 @@ import asyncio
 from datetime import datetime as _dt
 import pathlib
 from contextlib import asynccontextmanager
-from collections.abc import Awaitable, Callable
-from typing import Annotated
+from collections.abc import AsyncIterator, Awaitable, Callable
+from typing import Annotated, Any
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Query, Request, Response
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
 
-from weather_service import geocode_city, get_weather, get_route_weather, get_multi_route_weather
-from auth_alerts import router as auth_alerts_router, init_db
-import httpx
+# Load .env BEFORE importing modules that read environment variables at import
+# time (auth_alerts, weather_service); otherwise local .env values are ignored.
+load_dotenv()
+
+import httpx  # noqa: E402
+from fastapi import FastAPI, HTTPException, Query, Request, Response  # noqa: E402
+from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
+from fastapi.middleware.gzip import GZipMiddleware  # noqa: E402
+from fastapi.responses import FileResponse  # noqa: E402
+from fastapi.staticfiles import StaticFiles  # noqa: E402
+
+from weather_service import (  # noqa: E402
+    DEFAULT_MET_USER_AGENT,
+    geocode_city,
+    get_multi_route_weather,
+    get_route_weather,
+    get_weather,
+    http_client_scope,
+    scoring_metadata,
+    set_http_client,
+)
+from auth_alerts import router as auth_alerts_router, init_db  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -51,8 +70,6 @@ logging.getLogger("httpcore").setLevel(logging.WARNING)
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-load_dotenv()
-
 # API key must be supplied via the OPENWEATHERMAP_API_KEY environment variable.
 OWM_API_KEY: str = os.getenv("OPENWEATHERMAP_API_KEY", "")
 DEFAULT_CITY: str = os.getenv("DEFAULT_CITY", "Bucharest")
@@ -61,10 +78,16 @@ WEATHERXM_API_KEY: str = os.getenv("WEATHERXM_API_KEY", "")
 NETATMO_CLIENT_ID: str = os.getenv("NETATMO_CLIENT_ID", "")
 NETATMO_CLIENT_SECRET: str = os.getenv("NETATMO_CLIENT_SECRET", "")
 NETATMO_REFRESH_TOKEN: str = os.getenv("NETATMO_REFRESH_TOKEN", "")
-MET_NORWAY_USER_AGENT: str = os.getenv(
-    "MET_NORWAY_USER_AGENT",
-    "WeatherForMoto/1.0 github.com/user/WeatherForMoto",
+# MET Norway's terms require an identifying User-Agent (app name + contact URL).
+MET_NORWAY_USER_AGENT: str = os.getenv("MET_NORWAY_USER_AGENT", "") or DEFAULT_MET_USER_AGENT
+
+# Shared outbound HTTP client settings: pooled keep-alive connections instead
+# of a new TLS handshake per provider per request. Per-call timeouts in
+# weather_service still apply on top of these defaults.
+HTTP_CLIENT_LIMITS = httpx.Limits(
+    max_connections=100, max_keepalive_connections=20, keepalive_expiry=30.0
 )
+HTTP_CLIENT_TIMEOUT = httpx.Timeout(10.0, connect=5.0)
 
 # Path to the frontend index.html (one level above the backend/ directory)
 _REPO_ROOT = pathlib.Path(__file__).parent.parent
@@ -79,7 +102,7 @@ APPLE_TOUCH_ICON = ICONS_DIR / "motometeo-touch-180.png"
 # ---------------------------------------------------------------------------
 
 @asynccontextmanager
-async def lifespan(fastapi_app: FastAPI):
+async def lifespan(fastapi_app: FastAPI) -> AsyncIterator[None]:
     # Schema migration opens a remote Turso connection and issues ~35 serial
     # round trips; running it on every cold start is the main cause of the slow
     # first load. Run it only when RUN_DB_MIGRATIONS=true (one-off migration
@@ -95,7 +118,15 @@ async def lifespan(fastapi_app: FastAPI):
         "yes" if OWM_API_KEY else "no (set OPENWEATHERMAP_API_KEY for better data quality)",
     )
     logger.info("Expected port: %d", int(os.getenv("PORT", 8000)))
-    yield
+
+    http_client = httpx.AsyncClient(limits=HTTP_CLIENT_LIMITS, timeout=HTTP_CLIENT_TIMEOUT)
+    set_http_client(http_client)
+    try:
+        yield
+    finally:
+        set_http_client(None)
+        await http_client.aclose()
+        logger.info("Shared HTTP client closed")
 
 
 # ---------------------------------------------------------------------------
@@ -131,6 +162,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Compress JSON and the frontend HTML (a 14-day /weather payload is ~150 KB
+# uncompressed and shrinks roughly 10x). Small bodies are left alone.
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
 # Baseline security headers on every response, including the copy of the
 # frontend served from "/". Mirrors _headers on Cloudflare. A strict script-src
 # CSP is not possible yet (inline handlers); it comes with the new frontend.
@@ -157,6 +192,30 @@ app.include_router(auth_alerts_router)
 
 
 # ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _validated_departure(departure: str | None) -> str | None:
+    """Return the trimmed departure, or None when absent.
+
+    An unparseable value is rejected with 422 instead of silently falling
+    back to "now", so the user knows the route was not computed for the time
+    they asked for.
+    """
+    if departure is None or not departure.strip():
+        return None
+    value = departure.strip()
+    try:
+        _dt.fromisoformat(value)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail="Invalid departure: use ISO format, e.g. 2024-06-15T08:00",
+        ) from exc
+    return value
+
+
+# ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
 
@@ -164,6 +223,13 @@ app.include_router(auth_alerts_router)
 async def health() -> dict:
     """Returns API status."""
     return {"status": "ok", "version": "1.0.0"}
+
+
+@app.get("/meta/scoring", tags=["meta"])
+async def meta_scoring(response: Response) -> dict[str, Any]:
+    """Score model used by the backend: labels, rain bands, impact matrix, caps."""
+    response.headers["Cache-Control"] = "public, max-age=3600"
+    return scoring_metadata()
 
 
 @app.get("/", include_in_schema=False)
@@ -224,7 +290,7 @@ async def geocode(
 ):
     """Resolve a city name to coordinates."""
     logger.info("Geocode request received")
-    async with httpx.AsyncClient() as client:
+    async with http_client_scope() as client:
         try:
             result = await geocode_city(city, client)
         except ValueError as exc:
@@ -274,7 +340,7 @@ async def weather(
     else:
         city_query = city or DEFAULT_CITY
         logger.info("Weather request by city name lookup")
-        async with httpx.AsyncClient() as client:
+        async with http_client_scope() as client:
             try:
                 geo = await geocode_city(city_query, client)
             except ValueError as exc:
@@ -317,7 +383,8 @@ async def route_weather(
     ] = "Cluj-Napoca",
     departure: Annotated[
         str | None,
-        Query(description="Departure datetime in ISO format, e.g. 2024-06-15T08:00"),
+        Query(description="Departure datetime in ISO format, e.g. 2024-06-15T08:00 "
+                          "(local time of the origin; default: now at the origin)"),
     ] = None,
     avg_speed: Annotated[
         float,
@@ -332,11 +399,10 @@ async def route_weather(
     spaced by linear (great-circle) interpolation; actual road distance may
     differ.
     """
-    if departure is None:
-        departure = _dt.now().isoformat()[:16]
+    departure_iso = _validated_departure(departure)
 
-    # Geocode both cities concurrently
-    async with httpx.AsyncClient() as client:
+    # Geocode both cities (Nominatim calls are serialised inside geocode_city)
+    async with http_client_scope() as client:
         try:
             origin_geo, dest_geo = await asyncio.gather(
                 geocode_city(origin, client),
@@ -361,7 +427,7 @@ async def route_weather(
         data = await get_route_weather(
             origin_geo["lat"], origin_geo["lon"], origin_name,
             dest_geo["lat"], dest_geo["lon"], dest_name,
-            departure, avg_speed, OWM_API_KEY,
+            departure_iso, avg_speed, OWM_API_KEY,
         )
     except Exception as exc:
         logger.exception("Route weather error: %s", exc)
@@ -390,12 +456,14 @@ async def route_multi(
     if len(stop_names) > 5:
         raise HTTPException(status_code=422, detail="Maximum 5 stops allowed")
 
-    departure_str = departure or _dt.now().isoformat()[:16]
+    departure_iso = _validated_departure(departure)
 
-    async with httpx.AsyncClient() as _client:
+    # geocode_city caches results and spaces Nominatim calls to respect its
+    # 1 request/second policy, so gathering here does not burst the service.
+    async with http_client_scope() as client:
         try:
             geo_results = await asyncio.gather(
-                *[geocode_city(name, _client) for name in stop_names]
+                *[geocode_city(name, client) for name in stop_names]
             )
         except ValueError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -414,7 +482,7 @@ async def route_multi(
         })
 
     try:
-        data = await get_multi_route_weather(geocoded, departure_str, avg_speed, OWM_API_KEY)
+        data = await get_multi_route_weather(geocoded, departure_iso, avg_speed, OWM_API_KEY)
     except Exception as exc:
         logger.exception("Multi-route weather error: %s", exc)
         raise HTTPException(

@@ -842,21 +842,8 @@
               <input id="email-alert-rain" type="checkbox" class="accent-accent shrink-0 w-4 h-4" checked>
               <div class="flex-1 min-w-0">
                 <div class="text-sm text-gray-200 leading-tight" data-i18n="acc_al_rain">Precipitații</div>
-                <div class="text-xs text-muted">alertă peste prag</div>
+                <div class="text-xs text-muted">după șanse și cantitate (mm/h), nu doar după procent</div>
               </div>
-              <input id="alert-max-precip" type="number" min="0" max="50" step="0.1" value="2"
-                class="w-14 bg-bg border border-border/60 text-gray-100 text-xs px-2 py-1 rounded-lg focus:outline-none focus:border-accent text-center" />
-              <span class="text-xs text-muted w-6 shrink-0">mm/h</span>
-            </div>
-            <div class="flex items-center gap-2 px-3 py-2 rounded-xl bg-bg border border-border">
-              <input id="email-alert-rain-prob" type="checkbox" class="accent-accent shrink-0 w-4 h-4" checked>
-              <div class="flex-1 min-w-0">
-                <div class="text-sm text-gray-200 leading-tight" data-i18n="acc_al_rain_prob">Probabilitate ploaie</div>
-                <div class="text-xs text-muted">alertă peste prag</div>
-              </div>
-              <input id="alert-max-rain-prob" type="number" min="0" max="100" value="70"
-                class="w-14 bg-bg border border-border/60 text-gray-100 text-xs px-2 py-1 rounded-lg focus:outline-none focus:border-accent text-center" />
-              <span class="text-xs text-muted w-6 shrink-0">%</span>
             </div>
             <div class="flex items-center gap-2 px-3 py-2 rounded-xl bg-bg border border-border">
               <input id="email-alert-temp-low" type="checkbox" class="accent-accent shrink-0 w-4 h-4" checked>
@@ -1687,22 +1674,19 @@
             email_alerts_enabled: s.email_alerts_enabled !== false,
             email_alert_wind: s.email_alert_wind !== false,
             email_alert_rain: s.email_alert_rain !== false,
-            email_alert_rain_probability: s.email_alert_rain_probability !== false,
             email_alert_score: s.email_alert_score !== false,
             email_alert_temp_low: s.email_alert_temp_low !== false,
             email_alert_temp_high: s.email_alert_temp_high !== false,
             email_alert_frost: s.email_alert_frost !== false,
             min_score: s.min_score != null ? s.min_score : 45,
             max_wind_gust: s.max_wind_gust != null ? s.max_wind_gust : 50,
-            max_precip: s.max_precip != null ? s.max_precip : 2,
-            max_rain_probability: s.max_rain_probability != null ? s.max_rain_probability : 70,
             min_temp: s.min_temp != null ? s.min_temp : null,
             max_temp: s.max_temp != null ? s.max_temp : null,
             frost_risk_enabled: s.frost_risk_enabled !== false,
             quiet_hours_enabled: !!s.quiet_hours_enabled,
             quiet_start_hour: s.quiet_start_hour != null ? s.quiet_start_hour : 22,
             quiet_end_hour: s.quiet_end_hour != null ? s.quiet_end_hour : 7,
-            severity: 'medium',
+            severity: s.severity || 'medium',
             home_lat: LAT,
             home_lon: LON,
             city: CITY,
@@ -1852,7 +1836,7 @@
         try {
           var s = _getAlertSettings();
           s.email_alerts_enabled = true;
-          localStorage.setItem('alertSettings', JSON.stringify(s));
+          _saveAlertSettings(s);
           await _uploadLocalSettingsToServer();
           _updateEmailAlertsBadge(true);
         } catch (e) {
@@ -2058,7 +2042,7 @@
         auth_req_generic:'Autentifică-te mai întâi din butonul Cont.',
         al_score_low:'Scor Moto < {T}', al_score_low_d:'Condiții periculoase',
         al_wind_high:'Rafale > {T} km/h', al_wind_high_d:'Vânt puternic',
-        al_rain_heavy:'Precipitații > {T} mm/h', al_rain_heavy_d:'Ploaie torențială',
+        al_rain_heavy:'Ploaie care contează', al_rain_heavy_d:'șanse și cantitate peste pragul de risc',
         al_temp_cold:'Temperatură < {T}°C', al_temp_cold_d:'Temperatură sub pragul ales — condiții dificile',
         al_temp_hot:'Temperatură > {T}°C', al_temp_hot_d:'Caniculă — hidratare obligatorie',
         al_rain_prob:'Probabilitate ploaie > {T}%', al_rain_prob_d:'Ploaie probabilă',
@@ -2238,7 +2222,7 @@
         auth_req_generic:'Please log in first using the Account button.',
         al_score_low:'Moto Score < {T}', al_score_low_d:'Dangerous conditions',
         al_wind_high:'Gusts > {T} km/h', al_wind_high_d:'Strong wind',
-        al_rain_heavy:'Precipitation > {T} mm/h', al_rain_heavy_d:'Heavy rain',
+        al_rain_heavy:'Rain that matters', al_rain_heavy_d:'likely and heavy enough to count',
         al_temp_cold:'Temperature < {T}°C', al_temp_cold_d:'Temperature below your threshold — challenging conditions',
         al_temp_hot:'Temperature > {T}°C', al_temp_hot_d:'Heatwave — hydration required',
         al_rain_prob:'Rain probability > {T}%', al_rain_prob_d:'Rain likely',
@@ -2348,11 +2332,27 @@
     var ALERT_DEF_TEMPLATES = [
       { id: 'score_low',  labelKey: 'al_score_low',  descKey: 'al_score_low_d',  field: 'moto_score',               op: '<', threshold: 40 },
       { id: 'wind_high',  labelKey: 'al_wind_high',  descKey: 'al_wind_high_d',  field: 'wind_gusts_kmh',            op: '>', threshold: 50 },
-      { id: 'rain_heavy', labelKey: 'al_rain_heavy', descKey: 'al_rain_heavy_d', field: 'precipitation_mm',          op: '>', threshold: 5  },
+      // Rain is judged on probability AND amount together (see _rainImpactRank), never on the percentage alone.
+      { id: 'rain_heavy', labelKey: 'al_rain_heavy', descKey: 'al_rain_heavy_d', field: 'precipitation_mm',          op: 'rain_matrix', threshold: null },
       { id: 'temp_cold',  labelKey: 'al_temp_cold',  descKey: 'al_temp_cold_d',  field: 'temperature',               op: '<', threshold: 5  },
       { id: 'temp_hot',   labelKey: 'al_temp_hot',   descKey: 'al_temp_hot_d',   field: 'temperature',               op: '>', threshold: 35 },
-      { id: 'rain_prob',  labelKey: 'al_rain_prob',  descKey: 'al_rain_prob_d',  field: 'precipitation_probability', op: '>', threshold: 70 },
     ];
+    // Mirrors the backend rain matrix (GET /meta/scoring). Rank: 0 none, 1 low, 2 medium, 3 high.
+    // Columns are intensity bands in mm/h: traces < 0.5, light < 2.5, moderate < 7.5, heavy >= 7.5.
+    var RAIN_IMPACT_MATRIX = {
+      low:  [0, 0, 1, 2],   // probability under 30%
+      mid:  [0, 1, 2, 3],   // 30-60%
+      high: [1, 2, 3, 3],   // over 60%
+    };
+    function _rainImpactRank(probability, mmPerHour) {
+      var mm = mmPerHour == null ? 0 : mmPerHour;
+      // Unknown probability with a measurable amount counts as certain rain.
+      var prob = probability == null ? (mm > 0 ? 100 : 0) : probability;
+      if (mm <= 0 && prob <= 60) return 0;
+      var col = mm < 0.5 ? 0 : mm < 2.5 ? 1 : mm < 7.5 ? 2 : 3;
+      var row = prob < 30 ? RAIN_IMPACT_MATRIX.low : prob <= 60 ? RAIN_IMPACT_MATRIX.mid : RAIN_IMPACT_MATRIX.high;
+      return row[col];
+    }
     function _alertDefs() {
       return ALERT_DEF_TEMPLATES.map(function(d) {
         return Object.assign({}, d, { label: t(d.labelKey), desc: t(d.descKey) });
@@ -2366,11 +2366,10 @@
       var defaults = {
         min_score: 45,
         max_wind_gust: 50,
-        max_precip: 2,
-        max_rain_probability: 70,
+        email_alerts_enabled: true,
+        severity: 'medium',
         email_alert_wind: true,
         email_alert_rain: true,
-        email_alert_rain_probability: true,
         email_alert_score: true,
         email_alert_temp_low: true,
         email_alert_temp_high: true,
@@ -2395,13 +2394,10 @@
       var byId = function (id) { return document.getElementById(id); };
       if (byId('alert-min-score')) byId('alert-min-score').value = s.min_score;
       if (byId('alert-max-wind')) byId('alert-max-wind').value = s.max_wind_gust;
-      if (byId('alert-max-precip')) byId('alert-max-precip').value = s.max_precip;
-      if (byId('alert-max-rain-prob')) byId('alert-max-rain-prob').value = s.max_rain_probability;
       if (byId('alert-min-temp')) byId('alert-min-temp').value = s.min_temp == null ? '' : s.min_temp;
       if (byId('alert-max-temp')) byId('alert-max-temp').value = s.max_temp == null ? '' : s.max_temp;
       if (byId('email-alert-wind')) byId('email-alert-wind').checked = !!s.email_alert_wind;
       if (byId('email-alert-rain')) byId('email-alert-rain').checked = !!s.email_alert_rain;
-      if (byId('email-alert-rain-prob')) byId('email-alert-rain-prob').checked = !!s.email_alert_rain_probability;
       if (byId('email-alert-score')) byId('email-alert-score').checked = !!s.email_alert_score;
       if (byId('email-alert-temp-low')) byId('email-alert-temp-low').checked = !!s.email_alert_temp_low;
       if (byId('email-alert-temp-high')) byId('email-alert-temp-high').checked = !!s.email_alert_temp_high;
@@ -2427,8 +2423,8 @@
         // Smart merge: server wins only when it has a non-factory-default value.
         // If server still has the factory default but local was customized, keep local.
         var factoryDefaults = {
-          min_score: 45, max_wind_gust: 50, max_precip: 2, max_rain_probability: 70,
-          email_alert_wind: true, email_alert_rain: true, email_alert_rain_probability: true,
+          min_score: 45, max_wind_gust: 50,
+          email_alert_wind: true, email_alert_rain: true,
           email_alert_score: true, email_alert_temp_low: true, email_alert_temp_high: true,
           email_alert_frost: true, min_temp: null, max_temp: null,
           frost_risk_enabled: true, quiet_hours_enabled: false, quiet_start_hour: 22, quiet_end_hour: 7,
@@ -2491,14 +2487,15 @@
       try { localStorage.setItem('motoAlerts', JSON.stringify(state)); } catch (_) { }
       var alertStatesJson = JSON.stringify(state);
 
+      // Not editable in this form: keep what the server (or an unsubscribe link) last set.
+      var previous = _getAlertSettings();
       var settings = {
+        email_alerts_enabled: previous.email_alerts_enabled !== false,
+        severity: previous.severity || 'medium',
         min_score: Math.max(0, Math.min(100, parseInt((document.getElementById('alert-min-score') || {}).value || 45, 10))),
         max_wind_gust: Math.max(10, Math.min(200, parseFloat((document.getElementById('alert-max-wind') || {}).value || 50))),
-        max_precip: Math.max(0, Math.min(50, parseFloat((document.getElementById('alert-max-precip') || {}).value || 2))),
-        max_rain_probability: Math.max(0, Math.min(100, parseInt((document.getElementById('alert-max-rain-prob') || {}).value || 70, 10))),
         email_alert_wind: !!((document.getElementById('email-alert-wind') || {}).checked),
         email_alert_rain: !!((document.getElementById('email-alert-rain') || {}).checked),
-        email_alert_rain_probability: !!((document.getElementById('email-alert-rain-prob') || {}).checked),
         email_alert_score: !!((document.getElementById('email-alert-score') || {}).checked),
         email_alert_temp_low: !!((document.getElementById('email-alert-temp-low') || {}).checked),
         email_alert_temp_high: !!((document.getElementById('email-alert-temp-high') || {}).checked),
@@ -2527,25 +2524,22 @@
               var p = getProfile();
               return {
                 enabled: true,
-                email_alerts_enabled: true,
+                email_alerts_enabled: settings.email_alerts_enabled,
                 email_alert_wind: settings.email_alert_wind,
                 email_alert_rain: settings.email_alert_rain,
-                email_alert_rain_probability: settings.email_alert_rain_probability,
                 email_alert_score: settings.email_alert_score,
                 email_alert_temp_low: settings.email_alert_temp_low,
                 email_alert_temp_high: settings.email_alert_temp_high,
                 email_alert_frost: settings.email_alert_frost,
                 min_score: settings.min_score,
                 max_wind_gust: settings.max_wind_gust,
-                max_precip: settings.max_precip,
-                max_rain_probability: settings.max_rain_probability,
                 min_temp: settings.min_temp,
                 max_temp: settings.max_temp,
                 frost_risk_enabled: settings.frost_risk_enabled,
                 quiet_hours_enabled: settings.quiet_hours_enabled,
                 quiet_start_hour: settings.quiet_start_hour,
                 quiet_end_hour: settings.quiet_end_hour,
-                severity: 'medium',
+                severity: settings.severity,
                 home_lat: LAT,
                 home_lon: LON,
                 city: CITY,
@@ -2577,8 +2571,6 @@
       var c = cfg || _getAlertSettings();
       if (alertId === 'score_low')  return c.min_score;
       if (alertId === 'wind_high')  return c.max_wind_gust;
-      if (alertId === 'rain_heavy') return c.max_precip;
-      if (alertId === 'rain_prob')  return c.max_rain_probability;
       if (alertId === 'temp_cold' && c.min_temp != null) return c.min_temp;
       if (alertId === 'temp_hot'  && c.max_temp != null) return c.max_temp;
       return null;
@@ -2596,15 +2588,23 @@
         if (state[a.id] === false) return;
         var val = current[a.field];
         if (val == null) return;
-        var threshold = _resolveAlertThreshold(a.id, cfg);
-        if (threshold == null) threshold = a.threshold;
-        var triggered = a.op === '<' ? val < threshold : val > threshold;
+        var triggered;
+        var shown = Math.round(val * 10) / 10;
+        if (a.op === 'rain_matrix') {
+          var prob = current.precipitation_probability;
+          triggered = _rainImpactRank(prob, val) >= 2;
+          shown = (prob != null ? Math.round(prob) + '% · ' : '') + shown + ' mm/h';
+        } else {
+          var threshold = _resolveAlertThreshold(a.id, cfg);
+          if (threshold == null) threshold = a.threshold;
+          triggered = a.op === '<' ? val < threshold : val > threshold;
+        }
         if (!triggered) return;
         var label = _alertLabel(a, cfg);
         banners += '<div class="alert-banner mb-3 p-4 rounded-xl border border-warn/40 bg-warn/10 text-warn text-sm flex items-center gap-4">'
           + '<span class="flex-shrink-0 w-10 text-center text-2xl">🔔</span>'
           + '<div class="flex-1"><div class="font-semibold">' + label + '</div>'
-          + '<div class="text-xs text-muted/80 mt-0.5">' + a.desc + ' &nbsp;·&nbsp; valoare: <strong class="text-warn">' + (Math.round(val * 10) / 10) + '</strong></div>'
+          + '<div class="text-xs text-muted/80 mt-0.5">' + a.desc + ' &nbsp;·&nbsp; valoare: <strong class="text-warn">' + shown + '</strong></div>'
           + '</div></div>';
       });
       return banners;
@@ -3142,7 +3142,7 @@
         var extraKm = i > 0 ? ' <span class="text-xs text-muted">(+' + Math.round(r.distanceKm - routes[0].distanceKm) + ' km)</span>' : '';
         var extraTime = i > 0 ? ' <span class="text-xs text-muted">(+' + Math.round((r.durationH - routes[0].durationH) * 60) + ' min)</span>' : '';
         var score = scorePreviews ? scorePreviews[i] : null;
-        var scoreColor = score == null ? '#6b7280' : score >= 80 ? '#22c55e' : score >= 60 ? '#eab308' : score >= 40 ? '#f97316' : '#ef4444';
+        var scoreColor = score == null ? '#6b7280' : score >= SCORE_IDEAL_MIN ? '#22c55e' : score >= 60 ? '#eab308' : score >= 40 ? '#f97316' : '#ef4444';
         var arrivalEta = new Date(depDt.getTime() + r.durationH * 3600000);
         var arrivalStr = arrivalEta.getHours().toString().padStart(2,'0') + ':' + arrivalEta.getMinutes().toString().padStart(2,'0');
         html += '<div onclick="selectRouteAlt(' + i + ')" class="cursor-pointer bg-bg border border-border hover:border-accent rounded-xl px-4 py-3 flex items-center gap-3 transition-colors group">';
@@ -3865,9 +3865,12 @@
       for (var i = 0; i < sc.length; i++) if (mps < sc[i]) return String(i);
       return "12";
     }
+    // Same bands as the backend (GET /meta/scoring): IDEAL >= 85, OK 60-84,
+    // ATENȚIE 40-59, EVITĂ < 40.
+    var SCORE_IDEAL_MIN = 85;
     function motoLabel(s) {
-      if (s >= 80) return "IDEAL"; if (s >= 60) return "OK";
-      if (s >= 40) return "ACCEPTABIL"; if (s >= 20) return "RISCANT"; return "EVITĂ";
+      if (s >= SCORE_IDEAL_MIN) return "IDEAL"; if (s >= 60) return "OK";
+      if (s >= 40) return "ATENȚIE"; return "EVITĂ";
     }
     function omSafe(lst, i) { return (lst && i < lst.length) ? lst[i] : null; }
 
@@ -3907,7 +3910,7 @@
     }
 
     function gaugeGlowCls(score) {
-      if (score >= 80) return 'gauge-glow-ok';
+      if (score >= SCORE_IDEAL_MIN) return 'gauge-glow-ok';
       if (score >= 60) return 'gauge-glow-warn';
       if (score >= 40) return 'gauge-glow-caution';
       return 'gauge-glow-danger';
@@ -4250,7 +4253,8 @@
 
       return {
         city: cityName, latitude: lat, longitude: lon,
-        timezone: om.timezone || "UTC", current: current, daily: daily, hourly: hourly
+        timezone: om.timezone || "UTC", utc_offset_seconds: om.utc_offset_seconds,
+        current: current, daily: daily, hourly: hourly
       };
     }
 
@@ -4444,17 +4448,56 @@
     // -----------------------------------------------------------------------
     // Best riding window finder
     // -----------------------------------------------------------------------
-    function _findWindowForSlice(slice) {
+    // True while the rendered data came from the backend: its hourly items
+    // carry the authoritative moto_score (same as alerts), so the client
+    // engine is only used for the browser-direct Open-Meteo fallback.
+    var _scoreFromBackend = false;
+    function hourScore(h) {
+      if (_scoreFromBackend) return h.moto_score != null ? h.moto_score : null;
+      return scoreHourly(h.feels_like, h.wind_gusts_kmh, h.precipitation_mm, h.weather_code, h.precipitation_probability);
+    }
+    // Wall-clock "now" at the forecast location ("YYYY-MM-DDTHH:MM"), from the
+    // location's UTC offset. Plain toISOString() is UTC and shifts the date.
+    function _locNowIso(d) {
+      var offMs = (d && d.utc_offset_seconds != null)
+        ? d.utc_offset_seconds * 1000
+        : -new Date().getTimezoneOffset() * 60000;
+      return new Date(Date.now() + offMs).toISOString().slice(0, 16);
+    }
+    function _addDaysIso(dateStr, n) {
+      var dt = new Date(dateStr + 'T12:00:00Z');
+      dt.setUTCDate(dt.getUTCDate() + n);
+      return dt.toISOString().slice(0, 10);
+    }
+    function _sunForDate(date, daily) {
+      for (var i = 0; i < (daily || []).length; i++) {
+        if (daily[i].date === date && daily[i].sunrise && daily[i].sunset) {
+          return { rise: daily[i].sunrise.slice(11, 16), set: daily[i].sunset.slice(11, 16) };
+        }
+      }
+      return null;
+    }
+    // Daylight (sunrise to sunset) check for one hourly item.
+    function _isDaylightHour(h, daily) {
+      if (h.is_day != null) return !!h.is_day;
+      var sun = _sunForDate(h.time.slice(0, 10), daily);
+      var hm = h.time.slice(11, 16);
+      if (sun) return hm >= sun.rise && hm < sun.set;
+      var hr = parseInt(h.time.slice(11, 13), 10);
+      return hr >= 7 && hr < 20;
+    }
+    function _findWindowForSlice(slice, daily) {
       if (!slice || slice.length < 1) return null;
-      var scores = slice.map(function (h) {
-        return scoreHourly(h.feels_like, h.wind_gusts_kmh, h.precipitation_mm, h.weather_code, h.precipitation_probability);
-      });
+      // Night hours (sunset to sunrise) are never a riding window.
+      slice = slice.filter(function (h) { return _isDaylightHour(h, daily); });
+      if (!slice.length) return null;
+      var scores = slice.map(hourScore);
       var bestAvg = -1, bestStart = -1, bestLen = 0;
       for (var i = 0; i < scores.length; i++) {
-        if (scores[i] < 80) continue;
+        if (scores[i] == null || scores[i] < SCORE_IDEAL_MIN) continue;
         var j = i;
         var sum = 0;
-        while (j < scores.length && scores[j] >= 80) {
+        while (j < scores.length && scores[j] != null && scores[j] >= SCORE_IDEAL_MIN) {
           sum += scores[j];
           j++;
         }
@@ -4476,25 +4519,32 @@
       var to = slice[Math.min(bestStart + bestLen - 1, slice.length - 1)];
       var toDt = new Date(to.time);
       toDt.setHours(toDt.getHours() + 1);
+      var toH = toDt.getHours().toString().padStart(2, "0") + ":00";
+      // The last daylight hour ends at sunset, not at the next full hour.
+      var sun = _sunForDate(to.time.slice(0, 10), daily);
+      if (sun && sun.set > to.time.slice(11, 16) && sun.set < toH) toH = sun.set;
       return {
         avg: Math.round(bestAvg), len: bestLen,
         fromH: new Date(from.time).getHours().toString().padStart(2, "0") + ":00",
-        toH: toDt.getHours().toString().padStart(2, "0") + ":00",
+        toH: toH,
       };
     }
-    function findBestWindow(hourly) {
+    // "Today" and "tomorrow" are dates at the forecast location (hourly times
+    // are local there), never the UTC date from toISOString().
+    function findBestWindow(hourly, d) {
       if (!hourly || hourly.length < 2) return null;
-      var now = new Date();
-      var today = now.toISOString().slice(0, 10);
-      var todayH = hourly.filter(function (h) { return h.time.startsWith(today) && new Date(h.time) >= now; });
-      return _findWindowForSlice(todayH);
+      var nowIso = _locNowIso(d);
+      var today = nowIso.slice(0, 10);
+      var todayH = hourly.filter(function (h) {
+        return h.time.slice(0, 10) === today && h.time.slice(0, 13) >= nowIso.slice(0, 13);
+      });
+      return _findWindowForSlice(todayH, d && d.daily);
     }
-    function findTomorrowWindow(hourly) {
+    function findTomorrowWindow(hourly, d) {
       if (!hourly || hourly.length < 2) return null;
-      var tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
-      var tomorrowStr = tomorrow.toISOString().slice(0, 10);
-      var slice = hourly.filter(function (h) { return h.time.startsWith(tomorrowStr); });
-      return _findWindowForSlice(slice);
+      var tomorrowStr = _addDaysIso(_locNowIso(d).slice(0, 10), 1);
+      var slice = hourly.filter(function (h) { return h.time.slice(0, 10) === tomorrowStr; });
+      return _findWindowForSlice(slice, d && d.daily);
     }
 
     // -----------------------------------------------------------------------
@@ -4545,6 +4595,8 @@
             var res = await _fetchWithTimeout(url, 12000);
             if (!res.ok) throw new Error("HTTP " + res.status);
             d = await res.json();
+            // Backend scores are authoritative (the same numbers drive alerts).
+            d._fromBackend = true;
           } catch (_) {
             // Last resort only (backend very cold / unavailable): browser-direct
             // so the user still gets data instead of an error.
@@ -4553,7 +4605,9 @@
         } else {
           d = await fetchDirect(LAT, LON, CITY);
         }
-        d = await enrichCurrentWithExtraSources(d);
+        // Extra browser-side sources and re-scoring only for the direct
+        // Open-Meteo fallback; backend data already merged its sources.
+        if (!d._fromBackend) d = await enrichCurrentWithExtraSources(d);
         render(d);
         saveCity(); renderFavsBar(); _saveLastLocation();
         // Sync route planner origin with current city
@@ -4920,7 +4974,7 @@
     function getDepartureAdvisor(hourly) {
       if (!hourly || !hourly.length) return [];
       var next = hourly.slice(0, 6).map(function (h) {
-        var score = scoreHourly(h.feels_like, h.wind_gusts_kmh, h.precipitation_mm, h.weather_code, h.precipitation_probability);
+        var score = hourScore(h);
         return {
           time: new Date(h.time).getHours().toString().padStart(2, '0') + ':00',
           score: score,
@@ -4928,7 +4982,7 @@
           rain: h.precipitation_mm || 0,
           icon: h.icon || '🌤️'
         };
-      });
+      }).filter(function (slot) { return slot.score != null; });
       next.sort(function (a, b) { return b.score - a.score; });
       return next.slice(0, 2);
     }
@@ -4941,7 +4995,7 @@
         html += '<div class="text-sm text-muted">Nu exista suficiente date orare pentru recomandare.</div>';
       } else {
         best.forEach(function (slot, idx) {
-          var col = slot.score >= 80 ? 'text-ok' : slot.score >= 60 ? 'text-accent' : 'text-warn';
+          var col = slot.score >= SCORE_IDEAL_MIN ? 'text-ok' : slot.score >= 60 ? 'text-accent' : 'text-warn';
           html += '<div class="mb-2 last:mb-0 p-3 rounded-lg border border-border bg-bg/40">';
           html += '<div class="flex items-center gap-2">';
           html += '<span class="text-xl">' + slot.icon + '</span>';
@@ -4975,6 +5029,8 @@
     function render(d) {
       var c = d.current;
       var now = new Date();
+      // Backend data: show its current/hourly/daily scores as-is (no re-scoring).
+      _scoreFromBackend = !!d._fromBackend;
       var si = scoreInfo(c.moto_score);
       var hourly = d.hourly.filter(function (h) { return new Date(h.time) >= now; }).slice(0, 24);
       var daily = d.daily;
@@ -5053,13 +5109,13 @@
       })();
 
       // Best riding window banners (today + tomorrow)
-      var win = findBestWindow(d.hourly);
-      var winTom = findTomorrowWindow(d.hourly);
+      var win = findBestWindow(d.hourly, d);
+      var winTom = findTomorrowWindow(d.hourly, d);
       if (win || winTom) {
         var _wBanner = function (w, label) {
-          var wBorderCls = w.avg >= 80 ? 'border-ok' : w.avg >= 60 ? 'border-accent' : 'border-warn';
-          var wTextCls = w.avg >= 80 ? 'text-ok' : w.avg >= 60 ? 'text-accent' : 'text-warn';
-          var wBgCls = w.avg >= 80 ? 'bg-ok/5' : w.avg >= 60 ? 'bg-accent/5' : 'bg-warn/5';
+          var wBorderCls = w.avg >= SCORE_IDEAL_MIN ? 'border-ok' : w.avg >= 60 ? 'border-accent' : 'border-warn';
+          var wTextCls = w.avg >= SCORE_IDEAL_MIN ? 'text-ok' : w.avg >= 60 ? 'text-accent' : 'text-warn';
+          var wBgCls = w.avg >= SCORE_IDEAL_MIN ? 'bg-ok/5' : w.avg >= 60 ? 'bg-accent/5' : 'bg-warn/5';
           return '<div class="mb-3 p-4 rounded-xl border ' + wBorderCls + ' ' + wBgCls + ' flex items-center gap-4">'
             + '<span class="flex-shrink-0 w-10 text-center text-2xl">🎯</span>'
             + '<div class="flex-1">'
@@ -5067,7 +5123,7 @@
             + label + ': ' + w.fromH + ' – ' + w.toH + '</div>'
             + '<div class="text-xs text-muted mt-0.5">' + t('avg_score') + ' <strong class="' + wTextCls + '">' + w.avg + '/100</strong>'
             + ' &middot; ' + w.len + t('consec_good')
-            + (w.avg >= 80 ? ' &middot; <span class="text-ok">' + t('cond_ideal') + '</span>' : '') + '</div>'
+            + (w.avg >= SCORE_IDEAL_MIN ? ' &middot; <span class="text-ok">' + t('cond_ideal') + '</span>' : '') + '</div>'
             + '</div>'
             + '<div class="flex-shrink-0 font-display text-2xl font-bold ' + wTextCls + '">' + w.avg + '</div>'
             + '</div>';
@@ -5181,10 +5237,12 @@
         var slotCode = idx === 0 ? c.weather_code : h.weather_code;
         // NOW slot must equal the hero score exactly; future hours score from their
         // own forecast. Icons use the score-consistent (de-weighted) display code.
-        var hs = idx === 0 ? c.moto_score : scoreHourly(slotFeels, slotGusts, h.precipitation_mm, slotCode, h.precipitation_probability);
+        // Backend data: each hour's own backend score (hourScore); the client
+        // engine only scores the browser-direct fallback.
+        var hs = idx === 0 ? c.moto_score : hourScore(h);
         var slotDispCode = idx === 0 ? c.weather_code : effectiveDisplayCode(slotCode, h.precipitation_mm, h.precipitation_probability);
-        var scoreColor = hs >= 85 ? '#22c55e' : hs >= 60 ? '#eab308' : hs >= 40 ? '#f97316' : '#ef4444';
-        var borderCol = hs < 40 ? "border-danger" : rp > 40 ? "border-warn" : idx === 0 ? "border-accent" : "border-border";
+        var scoreColor = hs == null ? '#6b7280' : hs >= 85 ? '#22c55e' : hs >= 60 ? '#eab308' : hs >= 40 ? '#f97316' : '#ef4444';
+        var borderCol = (hs != null && hs < 40) ? "border-danger" : rp > 40 ? "border-warn" : idx === 0 ? "border-accent" : "border-border";
         var nowClass = idx === 0 ? "hourly-now border-accent" : "";
         // Cache all data for the detail modal
         _hourlyDetailCache.push({
@@ -5206,9 +5264,9 @@
         if (h.uv_index != null && h.uv_index > 0)
           html += '<div class="text-xs ' + uvCls(h.uv_index) + '">UV ' + h.uv_index.toFixed(0) + '</div>';
         html += '<div class="mt-2 w-full score-bar-track">'
-          + '<div class="score-bar-fill" style="width:' + hs + '%;background:' + scoreColor + '"></div>'
+          + '<div class="score-bar-fill" style="width:' + (hs || 0) + '%;background:' + scoreColor + '"></div>'
           + '</div>';
-        html += '<div class="text-xs font-bold" style="color:' + scoreColor + '">' + hs + '</div>';
+        html += '<div class="text-xs font-bold" style="color:' + scoreColor + '">' + (hs == null ? '—' : hs) + '</div>';
         html += '</div>';
       });
       html += '</div>';
@@ -5241,15 +5299,17 @@
             var _fC = _futH.reduce(function(w, h) {
               return weatherCodePenalty(h.weather_code || 0) > weatherCodePenalty(w) ? (h.weather_code || 0) : w;
             }, 0);
-            ds = scoreDaily(_fFMin, _fFMax, _fG, _fP, _fC, rp);
+            // Backend daily scores already cover only today's remaining riding
+            // hours; re-score on the client only for the direct fallback.
+            if (!_scoreFromBackend) ds = scoreDaily(_fFMin, _fFMax, _fG, _fP, _fC, rp);
           }
         }
-        var scoreColor = ds >= 85 ? '#22c55e' : ds >= 60 ? '#eab308' : ds >= 40 ? '#f97316' : '#ef4444';
-        var borderCol = ds < 40 ? "border-l-danger" : ds < 60 ? "border-l-accent" : ds < 85 ? "border-l-warn" : "border-l-ok";
+        var scoreColor = ds == null ? '#6b7280' : ds >= 85 ? '#22c55e' : ds >= 60 ? '#eab308' : ds >= 40 ? '#f97316' : '#ef4444';
+        var borderCol = ds == null ? "border-l-border" : ds < 40 ? "border-l-danger" : ds < 60 ? "border-l-accent" : ds < 85 ? "border-l-warn" : "border-l-ok";
         var range = allMax - allMin || 1;
         var bL = Math.round(((tMin - allMin) / range) * 100);
         var bW = Math.max(4, Math.round(((tMax - allMin) / range) * 100) - bL);
-        var idealWindow = _findWindowForSlice(dayHourly);
+        var idealWindow = _findWindowForSlice(dayHourly, daily);
 
         html += '<div class="bg-card border border-border border-l-4 ' + borderCol + ' rounded-xl overflow-hidden">';
         html += '<div onclick="toggleDay(' + i + ')" class="px-3 sm:px-4 py-3 flex items-center gap-1.5 sm:gap-3 cursor-pointer select-none">';
@@ -5267,7 +5327,7 @@
           + '<span class="text-xs text-gray-200 flex-shrink-0 w-6">' + tMax + '°</span>'
           + '</div>'
           + (fMin != null ? '<div class="text-xs text-muted mt-0.5 pl-7 hidden sm:block">' + t('feels_like').toLowerCase() + ' ' + fMin + '° – ' + fMax + '°</div>' : '')
-          + ((ds < 80 && idealWindow)
+          + ((ds != null && ds < SCORE_IDEAL_MIN && idealWindow)
             ? '<div class="text-xs text-accent mt-0.5 pl-7 hidden sm:block">🎯 ' + t('ideal_window') + ': ' + idealWindow.fromH + ' – ' + idealWindow.toH + ' · ' + idealWindow.avg + '/100</div>'
             : '')
           + '</div>';
@@ -5291,8 +5351,8 @@
           dayHourly.forEach(function (h) {
             var ht = new Date(h.time).getHours().toString().padStart(2, "0") + ":00";
             var hrp = h.precipitation_probability || 0;
-            var hsc = scoreHourly(h.feels_like, h.wind_gusts_kmh, h.precipitation_mm, h.weather_code, h.precipitation_probability);
-            var hCol = hsc >= 85 ? '#22c55e' : hsc >= 60 ? '#eab308' : hsc >= 40 ? '#f97316' : '#ef4444';
+            var hsc = hourScore(h);
+            var hCol = hsc == null ? '#6b7280' : hsc >= 85 ? '#22c55e' : hsc >= 60 ? '#eab308' : hsc >= 40 ? '#f97316' : '#ef4444';
             html += '<div class="daily-mini-card flex-shrink-0 bg-card border border-border rounded-xl p-2 w-16 text-center flex flex-col items-center gap-0.5">';
             html += '<div class="text-xs text-muted font-semibold">' + ht + '</div>';
             html += '<div class="text-gray-100">' + wmoWeatherIcon(effectiveDisplayCode(h.weather_code, h.precipitation_mm, h.precipitation_probability), 22) + '</div>';
@@ -5302,8 +5362,8 @@
             html += '<div class="text-xs text-muted">' + Math.round(h.wind_speed_kmh) + 'km/h</div>';
             if (h.wind_gusts_kmh != null && h.wind_gusts_kmh > h.wind_speed_kmh + 5)
               html += '<div class="text-xs ' + windCls(h.wind_gusts_kmh) + '">↑' + Math.round(h.wind_gusts_kmh) + '</div>';
-            html += '<div class="mt-1 w-full score-bar-track"><div class="score-bar-fill" style="width:' + hsc + '%;background:' + hCol + '"></div></div>';
-            html += '<div class="text-xs font-bold" style="color:' + hCol + '">' + hsc + '</div>';
+            html += '<div class="mt-1 w-full score-bar-track"><div class="score-bar-fill" style="width:' + (hsc || 0) + '%;background:' + hCol + '"></div></div>';
+            html += '<div class="text-xs font-bold" style="color:' + hCol + '">' + (hsc == null ? '—' : hsc) + '</div>';
             html += '</div>';
           });
           html += '</div>';
@@ -5472,7 +5532,7 @@
     }
 
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js?v=8').catch(function () { });
+      navigator.serviceWorker.register('sw.js?v=9').catch(function () { });
     }
 
     function applyTheme() {

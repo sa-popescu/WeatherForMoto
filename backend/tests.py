@@ -61,6 +61,8 @@ def test_moto_score_ideal():
 
 
 def test_moto_score_rain():
+    # No probability given + a measured amount = it is raining (scored as
+    # certain): 6 mm/h is "moderata" with > 60 % → high impact, cap 39.
     score = _moto_score(feels_like=20, wind_gusts_kmh=10, precipitation_mm=6, weather_code=63)
     assert score < 60
 
@@ -70,7 +72,11 @@ def test_moto_score_thunderstorm():
     assert score == 39
 
 
-def test_moto_score_probability_penalty():
+# The following four tests changed on purpose with scoring model v2 (rain =
+# probability x intensity). Probability alone, or traces of rain, no longer
+# pull the score out of IDEAL: only a small continuous penalty remains.
+
+def test_moto_score_probability_alone_is_small_penalty():
     score = _moto_score(
         feels_like=20,
         wind_gusts_kmh=10,
@@ -78,10 +84,11 @@ def test_moto_score_probability_penalty():
         weather_code=0,
         precipitation_probability=60,
     )
-    assert score == 55
+    # 60 % is in the 30-60 % row; no amount → no cap, 0.1 point per percent.
+    assert score == 94
 
 
-def test_moto_score_probability_penalty_from_five_percent():
+def test_moto_score_five_percent_rain_stays_ideal():
     score = _moto_score(
         feels_like=20,
         wind_gusts_kmh=10,
@@ -89,10 +96,10 @@ def test_moto_score_probability_penalty_from_five_percent():
         weather_code=0,
         precipitation_probability=5,
     )
-    assert score == 79
+    assert score == 100
 
 
-def test_moto_score_twenty_percent_rain_not_green():
+def test_moto_score_twenty_percent_rain_stays_ideal():
     score = _moto_score(
         feels_like=20,
         wind_gusts_kmh=10,
@@ -100,7 +107,7 @@ def test_moto_score_twenty_percent_rain_not_green():
         weather_code=0,
         precipitation_probability=20,
     )
-    assert score == 75
+    assert score == 98
 
 
 def test_moto_score_daily_uses_day_thresholds():
@@ -112,9 +119,10 @@ def test_moto_score_daily_uses_day_thresholds():
         weather_code=3,
         precipitation_probability=15,
     )
-    # 1.9 mm/day should not be treated as heavy hourly rain,
-    # but any rain chance keeps the day out of the green band.
-    assert score == 79
+    # 1.9 mm/day is an estimated peak of ~0.5 mm/h ("urme") at 15 % → no rain
+    # cap. Remaining penalties: cool feels-like (avg 11.5 °C → 5) and the small
+    # continuous rain term (7).
+    assert score == 88
 
 
 def test_moto_score_daily_probability_penalty_from_five_percent():
@@ -126,10 +134,10 @@ def test_moto_score_daily_probability_penalty_from_five_percent():
         weather_code=1,
         precipitation_probability=5,
     )
-    assert score == 79
+    assert score == 100
 
 
-def test_moto_score_daily_twenty_percent_rain_not_green():
+def test_moto_score_daily_twenty_percent_rain_stays_ideal():
     score = _moto_score_daily(
         feels_min=12,
         feels_max=20,
@@ -138,10 +146,10 @@ def test_moto_score_daily_twenty_percent_rain_not_green():
         weather_code=1,
         precipitation_probability=20,
     )
-    assert score == 79
+    assert score == 98
 
 
-def test_moto_score_hourly_actual_precip_not_green():
+def test_moto_score_traces_with_zero_probability_stay_ideal():
     score = _moto_score(
         feels_like=20,
         wind_gusts_kmh=10,
@@ -149,15 +157,20 @@ def test_moto_score_hourly_actual_precip_not_green():
         weather_code=0,
         precipitation_probability=0,
     )
-    assert score == 79
+    assert score == 99
 
 
 def test_moto_label():
+    # Scoring model v2: four labels, IDEAL >= 85, OK 60-84, ATENȚIE 40-59, EVITĂ < 40.
     assert _moto_label(100) == "IDEAL"
-    assert _moto_label(75) == "OK"
-    assert _moto_label(50) == "ACCEPTABIL"
-    assert _moto_label(30) == "RISCANT"
-    assert _moto_label(10) == "EVITĂ"
+    assert _moto_label(85) == "IDEAL"
+    assert _moto_label(84) == "OK"
+    assert _moto_label(60) == "OK"
+    assert _moto_label(59) == "ATENȚIE"
+    assert _moto_label(40) == "ATENȚIE"
+    assert _moto_label(39) == "EVITĂ"
+    assert _moto_label(0) == "EVITĂ"
+    assert _moto_label(None) is None
 
 
 def test_wmo_desc():

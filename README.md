@@ -16,7 +16,8 @@ Stack-ul actual este:
 
 - Agregare multi-sursă (Open-Meteo + OpenWeatherMap + MET Norway + Pirate Weather + WeatherXM)
 - Condiții curente + forecast daily + hourly
-- Moto score (0-100) + etichete de risc (IDEAL/OK/ACCEPTABIL/RISCANT/EVITĂ)
+- Moto score (0-100), calculat pe server pentru fiecare oră, cu etichete IDEAL (≥85), OK (60–84), ATENȚIE (40–59), EVITĂ (<40); constantele sunt publicate la `GET /meta/scoring`
+- Ploaia se punctează după șanse × intensitate (mm/h: urme, slabă, moderată, puternică), niciodată doar după procent: 70% cu 0,1 mm nu e tratat ca ploaie adevărată
 - Geo lookup după oraș sau coordonate
 - Fereastră optimă de mers (azi/mâine)
 - Recomandări de echipament în funcție de ploaie/vânt/temperatură
@@ -24,15 +25,16 @@ Stack-ul actual este:
 
 ### Phase A (cont + alerting + PWA)
 
-- Cont clasic: signup/login/logout + profil
+- Cont clasic: signup/login/logout + profil, cu verificarea adresei de email (link de confirmare; alertele pe email pleacă doar către adrese confirmate)
 - Preferințe avansate de alertă:
 	- prag scor minim
 	- rafale maxime
-	- precipitații maxime
-	- probabilitate ploaie
+	- ploaie după matricea șanse × intensitate (fără praguri manuale de procent sau mm)
 	- praguri min/max temperatură
-	- frost risk on/off
-	- quiet hours + severitate
+	- frost risk on/off (nu mai cere precipitații)
+	- quiet hours aplicate la livrare, în ora locală a locației
+	- severitate: low (doar EVITĂ), medium (ATENȚIE și EVITĂ), high (tot)
+- Dezabonare de la emailuri cu confirmare (RFC 8058, `List-Unsubscribe`)
 - Push notifications (VAPID) cu fallback email
 - Verificare alertă manuală (`/alerts/check-now`) și dispatch batch (`/alerts/dispatch-all`)
 - PWA install prompt + service worker cu acțiuni notificare (open/snooze)
@@ -107,13 +109,23 @@ Deschide `index.html` în browser. Aplicația detectează automat backend-ul loc
 - `PIRATE_WEATHER_API_KEY`
 - `WEATHERXM_API_KEY` (stații fizice WeatherXM PRO — prioritate maximă când există stație în zonă)
 - `APP_BASE_URL` (URL public al aplicației, folosit în email-uri)
+- `API_BASE_URL` (URL public al backend-ului, pentru linkurile de confirmare și dezabonare; implicit URL-ul run.app)
+- `MET_NORWAY_USER_AGENT` (identificator cerut de MET Norway; are o valoare implicită reală)
 
 **Pentru funcții avansate:**
 
 - `AUTH_CODE_TTL_MIN`
 - `SESSION_TTL_DAYS`
 - `ALLOW_INSECURE_AUTH_CODE`
-- `PBKDF2_ITERATIONS`
+- `PBKDF2_ITERATIONS` (implicit 600000; hash-urile vechi se actualizează la următoarea logare)
+- `AUTH_CODE_PEPPER` (opțional; codurile de login se hash-uiesc cu HMAC când e setat)
+
+**Securitate și limite** (toate au valori implicite sigure, vezi `backend/.env.example`):
+
+- `TRUSTED_PROXY_HOPS` (implicit 1: IP-ul clientului e ultima intrare din `X-Forwarded-For`, adăugată de Google)
+- `TRUST_CF_CONNECTING_IP` (implicit false; activează doar dacă tot traficul trece prin Cloudflare)
+- `CODE_MAX_FAILURES`, `CODE_FAILURES_PER_EMAIL_DAY`, `PASSWORD_FAILURE_ALERT_DAY`
+- `HAZARD_RATE_MAX`, `CHECK_NOW_RATE_MAX`, `DISPATCH_CONCURRENCY`, `ALERT_COOLDOWN_HOURS`
 
 **Email alerts:**
 
@@ -135,6 +147,7 @@ Deschide `index.html` în browser. Aplicația detectează automat backend-ul loc
 ### Meta
 
 - `GET /health` - Status server
+- `GET /meta/scoring` - Pragurile scorului, benzile de intensitate a ploii și matricea șanse × intensitate
 - `GET /` - Serve frontend
 - `GET /manifest.json` - Web App Manifest
 - `GET /sw.js` - Service Worker
@@ -155,6 +168,9 @@ Deschide `index.html` în browser. Aplicația detectează automat backend-ul loc
 - `POST /auth/signup` - Înregistrare
 - `POST /auth/login` - Autentificare
 - `POST /auth/logout` - Deconectare
+- `GET /auth/verify-email?token=...` - Pagina de confirmare a adresei (nu modifică nimic)
+- `POST /auth/verify-email?token=...` - Confirmă adresa
+- `POST /me/resend-verification` - Retrimite linkul de confirmare
 - `GET /me` - Profil utilizator
 - `PUT /me/profile` - Actualizează profil
 - `PUT /me/prefs` - Actualizează preferințe
@@ -166,7 +182,9 @@ Deschide `index.html` în browser. Aplicația detectează automat backend-ul loc
 - `POST /me/push-subscriptions` - Abonare push
 - `DELETE /me/push-subscriptions` - Dezabonare push
 - `POST /alerts/check-now` - Verificare alertă manuală
-- `POST /alerts/dispatch-all` - Dispatch batch (secret în header-ul `X-Dispatch-Secret`, nu în query string)
+- `POST /alerts/dispatch-all` - Dispatch batch (secret doar în header-ul `X-Dispatch-Secret`)
+- `GET /alerts/unsubscribe?token=...` - Pagina de dezabonare cu buton de confirmare
+- `POST /alerts/unsubscribe?token=...` - Dezabonare (butonul și one-click din clientul de email)
 
 ### Route & ride data
 
@@ -182,10 +200,12 @@ Deschide `index.html` în browser. Aplicația detectează automat backend-ul loc
 
 ```bash
 cd backend
-python tests.py
+python tests.py                       # agregare și logica meteo de bază
+python -m unittest test_scoring       # scor v2, matricea de ploaie, cache, buget de timp
+python -m unittest test_auth_alerts   # autentificare, limite, alerte (SQLite în locul libsql)
 ```
 
-Testele validează funcțiile de agregare/scoring și logica meteo fără dependență de rețea.
+Testele nu depind de rețea. Pe Windows, `tests.py` are nevoie de `PYTHONIOENCODING=utf-8` ca să poată afișa simbolurile din output.
 
 ## Deploy
 
@@ -208,15 +228,23 @@ gcloud run deploy weatherformoto \
   --project=weatherformoto
 ```
 
-**Migrare schemă (important):** schema nu mai rulează la fiecare pornire (era cauza principală a cold-start-ului lent). Rulează migrarea o singură dată după schimbări de schemă sau pe o bază nouă, setând `RUN_DB_MIGRATIONS=true` la un deploy, apoi scoate variabila:
+În practică serviciul e publicat din sursă (Cloud Build folosește `Dockerfile`), iar variabilele de mediu existente se păstrează:
 
 ```bash
-gcloud run services update weatherformoto --region europe-west1 \
-  --set-env-vars RUN_DB_MIGRATIONS=true
-# după ce a pornit o dată cu succes:
+gcloud run deploy weatherformoto --source . --region europe-west1 --project weatherformoto
+```
+
+**Migrare schemă (important):** schema nu mai rulează la fiecare pornire (era cauza principală a cold-start-ului lent). Când o versiune adaugă coloane sau tabele, noua revizie pornește întâi fără trafic și rulează migrarea la startup, apoi primește traficul, apoi variabila se scoate:
+
+```bash
+gcloud run deploy weatherformoto --source . --region europe-west1 \
+  --no-traffic --update-env-vars RUN_DB_MIGRATIONS=true
+gcloud run services update-traffic weatherformoto --region europe-west1 --to-latest
 gcloud run services update weatherformoto --region europe-west1 \
   --remove-env-vars RUN_DB_MIGRATIONS
 ```
+
+Codul funcționează și pe o bază nemigrată (vechiul comportament), deci ordinea de mai sus doar evită o fereastră în care instanțele noi nu văd încă coloanele noi.
 
 ### Frontend static pe Cloudflare Pages (zero-cost)
 
