@@ -1,0 +1,81 @@
+{
+  "version": 2,
+  "labels": [
+    { "label": "IDEAL", "min_score": 85 },
+    { "label": "OK", "min_score": 60 },
+    { "label": "ATENȚIE", "min_score": 40 },
+    { "label": "EVITĂ", "min_score": 0 }
+  ],
+  "rain": {
+    "intensity_bands": [
+      { "name": "none", "min_mm_h": 0.0, "max_mm_h": 0.05 },
+      { "name": "urme", "min_mm_h": 0.05, "max_mm_h": 0.5 },
+      { "name": "slaba", "min_mm_h": 0.5, "max_mm_h": 2.5 },
+      { "name": "moderata", "min_mm_h": 2.5, "max_mm_h": 7.5 },
+      { "name": "puternica", "min_mm_h": 7.5, "max_mm_h": null }
+    ],
+    "probability_rows": [
+      { "row": 0, "label": "<30%", "min_pct": 0, "max_pct_exclusive": 30 },
+      { "row": 1, "label": "30-60%", "min_pct": 30, "max_pct_inclusive": 60 },
+      { "row": 2, "label": ">60%", "min_pct_exclusive": 60, "max_pct": 100 }
+    ],
+    "impact_matrix": {
+      "columns": ["urme", "slaba", "moderata", "puternica"],
+      "rows": [
+        ["none", "none", "low", "medium"],
+        ["none", "low", "medium", "high"],
+        ["low", "medium", "high", "high"]
+      ]
+    },
+    "impact_caps": { "none": null, "low": 84, "medium": 59, "high": 39 },
+    "amount_penalty": { "formula": "min(max, scale * log2(1 + mm_h))", "scale": 10.0, "max": 35.0 },
+    "probability_penalty_per_pct": 0.1,
+    "high_probability_implies_traces": true,
+    "unknown_probability_with_rain_pct": 100,
+    "code_implied_intensity": { "light": "slaba", "heavy": "moderata" }
+  },
+  "stale_code_rule": { "codes_from": 51, "min_probability_pct": 20, "min_amount_mm": 0.1 },
+  "hazards": {
+    "storm": { "codes": [95, 96, 99], "penalty": 40, "cap": 39 },
+    "snow": { "codes": [71, 73, 75, 77, 85, 86], "penalty": 45, "cap": 30 },
+    "ice": { "codes": [56, 57, 66, 67], "penalty": 50, "cap": 25 },
+    "fog": {
+      "codes": [45, 48],
+      "penalty": 15,
+      "cap": 84,
+      "visibility_tiers": [
+        { "below_m": 200, "penalty": 40, "cap": 39 },
+        { "below_m": 500, "penalty": 30, "cap": 59 },
+        { "below_m": 1000, "penalty": 20, "cap": 74 }
+      ]
+    }
+  },
+  "wind_gust_tiers": [
+    { "above_kmh": 70, "penalty": 30 },
+    { "above_kmh": 50, "penalty": 15 },
+    { "above_kmh": 35, "penalty": 8 }
+  ],
+  "temperature": {
+    "cold_tiers": [
+      { "feels_below_c": -5, "penalty": 50 },
+      { "feels_below_c": 0, "penalty": 40 },
+      { "feels_below_c": 5, "penalty": 28 },
+      { "feels_below_c": 10, "penalty": 15 },
+      { "feels_below_c": 14, "penalty": 5 }
+    ],
+    "subzero_extra_penalty": 15,
+    "heat_tiers": [
+      { "feels_above_c": 40, "penalty": 25 },
+      { "feels_above_c": 38, "penalty": 18 },
+      { "feels_above_c": 35, "penalty": 10 }
+    ],
+    "cold_wet": { "feels_below_c": 5, "min_probability_pct": 30, "penalty": 12 }
+  },
+  "frost": { "surface_max_c": 1.0, "dewpoint_margin_c": 1.0, "cap": 59 },
+  "daily": {
+    "worst_hours_fraction": 0.25,
+    "worst_hours_weight": 0.5,
+    "hazard_factors": ["rain", "storm", "snow", "ice"],
+    "sustained_cap_fraction": 0.25
+  }
+}

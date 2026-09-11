@@ -3,6 +3,8 @@
 .gitignore
 node_modules/
 projects/
+.claude/
+app/
 www/
 __pycache__/
 *.pyc

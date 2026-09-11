@@ -28,3 +28,10 @@ htmlcov/
 # Git metadata
 .git/
 .gitignore
+
+# Agent worktrees and the static frontend app (served by Cloudflare, not Cloud Run)
+.claude/
+app/
+**/node_modules/
+**/.venv/
+**/__pycache__/

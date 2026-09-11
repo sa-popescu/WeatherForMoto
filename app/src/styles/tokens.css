@@ -1,0 +1,91 @@
+/* Direction A "Cockpit": dark instrument-cluster look by default, plus a
+   high-contrast "day" theme for direct sunlight. Components read only these
+   tokens, never literal colours. */
+
+:root {
+  --bg: #0b0c0a;
+  --surface: #141612;
+  --surface-2: #0f110d;
+  --surface-3: #1c1f19;
+  --line: #262a22;
+  --line-2: #30352b;
+  --ink: #eef1e8;
+  --ink-2: #cfd3c7;
+  --muted: #a9ae9f;
+  --muted-2: #8d9386;
+  --dim: #5c6157;
+
+  --t-ideal: #b4f03c;
+  --t-ok: #f2c94c;
+  --t-atentie: #ff8f3a;
+  --t-evita: #ff5252;
+
+  --accent: #b4f03c;
+  --accent-ink: #0b0c0a;
+  --danger: #ff5252;
+
+  --rain: #5aa0ff;
+  --rain-ink: #8fbaff;
+  --rain-1: #3d5a80;
+  --rain-2: #4f7fc0;
+  --rain-3: #6fa3f0;
+  --rain-4: #a8c8ff;
+
+  --warn-bg: #1a130c;
+  --warn-line: #4a2d14;
+  --night: rgba(255, 255, 255, 0.035);
+
+  --font-num: 'Chakra Petch', 'Bahnschrift', 'Arial Narrow', sans-serif;
+  --font-body: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
+
+  --r-xl: 22px;
+  --r-lg: 18px;
+  --r-md: 14px;
+  --r-sm: 10px;
+
+  --tap: 48px;
+  --tap-lg: 56px;
+  --nav-h: 68px;
+  --gutter: 20px;
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  color-scheme: dark;
+}
+
+:root[data-theme='day'] {
+  --bg: #f3f4ee;
+  --surface: #ffffff;
+  --surface-2: #f7f8f3;
+  --surface-3: #e8eae1;
+  --line: #d5d8cc;
+  --line-2: #bfc3b4;
+  --ink: #0b0c0a;
+  --ink-2: #23261f;
+  --muted: #3f443a;
+  --muted-2: #50554a;
+  --dim: #6c7166;
+
+  --t-ideal: #3b7600;
+  --t-ok: #8f6100;
+  --t-atentie: #b9480a;
+  --t-evita: #c01f1f;
+
+  --accent: #3b7600;
+  --accent-ink: #ffffff;
+  --danger: #c01f1f;
+
+  --rain: #1f6fd1;
+  --rain-ink: #1a5cb0;
+  --rain-1: #a9c6ec;
+  --rain-2: #6a9fe0;
+  --rain-3: #2f73cc;
+  --rain-4: #173f80;
+
+  --warn-bg: #fff3e6;
+  --warn-line: #efc59b;
+  --night: rgba(11, 12, 10, 0.05);
+
+  color-scheme: light;
+}
