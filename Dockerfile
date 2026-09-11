@@ -1,5 +1,6 @@
+# Base image pinned by digest for reproducible builds; Dependabot proposes updates.
 # ---- Build stage ----
-FROM python:3.11-slim AS builder
+FROM python:3.11-slim@sha256:9534e5a8e315485d4061ed659af0fd78a284c015f9b73661b41d6bab25604534 AS builder
 
 WORKDIR /app
 
@@ -8,7 +9,7 @@ RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
 # ---- Runtime stage ----
-FROM python:3.11-slim
+FROM python:3.11-slim@sha256:9534e5a8e315485d4061ed659af0fd78a284c015f9b73661b41d6bab25604534
 
 # Create a non-root user for security
 RUN useradd -m -u 1000 appuser

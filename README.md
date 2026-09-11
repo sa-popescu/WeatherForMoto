@@ -53,25 +53,21 @@ Vechiul frontend dintr-un singur fișier a fost retras: `index.html` și `sw.js`
 
 ```text
 WeatherForMoto/
-├── index.html              # Aplicația principală PWA
-├── sw.js                   # Service Worker pentru PWA
-├── manifest.json           # Web App Manifest
-├── privacy-policy.html     # Politică de confidențialitate
-├── capacitor.config.json   # Configurare Capacitor (iOS/Android)
-├── package.json            # Dependencies pentru Capacitor
-├── Dockerfile              # Container pentru deployment
-├── README.md               # Acest fișier
-├── icons/                  # Icon-uri PWA
-├── www/                    # Asset-uri statice pentru PWA
-└── backend/                # Backend FastAPI
-		├── main.py
-		├── auth_alerts.py
-		├── weather_service.py
-		├── tests.py
-		├── requirements.txt
-		├── .env.example
-		├── migrate_to_turso.py
-		└── entrypoint.sh
+├── app/                    # Frontend: Vite + React + TypeScript, PWA (vezi mai jos)
+├── backend/                # API FastAPI (vezi backend/README.md)
+│   ├── main.py, weather_service.py, auth_alerts.py
+│   ├── tests.py, test_scoring.py, test_auth_alerts.py, test_frontend_routes.py
+│   ├── requirements.in     # dependențe directe
+│   ├── requirements.txt    # toate versiunile fixate (Linux, Python 3.11)
+│   └── .env.example, entrypoint.sh, migrate_to_turso.py
+├── scripts/build-pages.sh  # build-ul frontend-ului pentru Cloudflare
+├── .github/                # CI, deploy API, redirect GitHub Pages, Dependabot
+├── Dockerfile              # imaginea API-ului (Cloud Run)
+├── wrangler.jsonc          # Cloudflare static assets (dist/)
+├── capacitor.config.json   # aplicația nativă (webDir: app/dist)
+├── index.html, sw.js       # doar redirecționare + retragerea vechiului service worker
+├── icons/, manifest.json, privacy-policy.html
+└── package.json            # CLI Capacitor
 ```
 
 ## Rulare locală
@@ -159,9 +155,8 @@ Organizare: `src/lib` (API tipizat, format, scor, geo), `src/state` (sesiune, lo
 
 - `GET /health` - Status server
 - `GET /meta/scoring` - Pragurile scorului, benzile de intensitate a ploii și matricea șanse × intensitate
-- `GET /` - Serve frontend
-- `GET /manifest.json` - Web App Manifest
-- `GET /sw.js` - Service Worker
+- `GET /` - Redirecționează către aplicație (`APP_BASE_URL`)
+- `GET /sw.js` - Service worker care îl retrage pe cel vechi de pe acest domeniu
 - `GET /privacy-policy` - Politică de confidențialitate
 
 ### Weather și geocoding
@@ -220,42 +215,32 @@ Testele nu depind de rețea. Pe Windows, `tests.py` are nevoie de `PYTHONIOENCOD
 
 ## Deploy
 
-### Google Cloud Run (actual)
+### CI
+
+`.github/workflows/ci.yml` rulează la fiecare pull request și pe `main`: testele backend (Python 3.11), typecheck + build + testele frontend (`app/`) și build-ul imaginii Docker. Dependabot propune săptămânal actualizări (pip, npm, imaginea Docker, acțiunile GitHub), fiecare trecând prin același CI.
+
+### Google Cloud Run (API)
+
+Deploy-ul e automat: la fiecare push pe `main` care atinge `backend/`, `Dockerfile` sau `.dockerignore`, workflow-ul `.github/workflows/deploy-backend.yml` rulează CI-ul, construiește imaginea în GitHub Actions, o urcă în Artifact Registry (`europe-west1-docker.pkg.dev/weatherformoto/weatherformoto/api`) și o publică pe Cloud Run.
+
+Autentificarea e fără chei: Workload Identity Federation (pool `github`, provider `github-actions`), permisă doar pentru ramura `main` a acestui repo, cu contul `github-deployer@weatherformoto.iam.gserviceaccount.com` (roluri minime: `run.developer`, scriere în Artifact Registry, act-as pe contul de rulare).
+
+**Secrete:** valorile sensibile (token Turso, cheile furnizorilor meteo, parola SMTP, cheia Brevo, cheia privată VAPID, secretele Netatmo, secretul de dispatch) stau în Secret Manager ca `mm-*` și ajung în serviciu ca variabile de mediu; restul sunt variabile obișnuite. Un deploy nou le păstrează pe toate.
+
+**Migrare schemă:** rulează manual workflow-ul „Deploy API” cu opțiunea `run_migrations`. Noua revizie pornește fără trafic, rulează migrarea la startup și abia apoi primește traficul. Codul funcționează și pe o bază nemigrată (vechiul comportament).
+
+**Alerte:** job-ul Cloud Scheduler `mm-dispatch-alerts` apelează `POST /alerts/dispatch-all` în fiecare oră, la minutul 5 (ora României), cu header-ul `X-Dispatch-Secret`. Pornire / oprire:
 
 ```bash
-# Build și push imagine
-docker build -t europe-west1-docker.pkg.dev/weatherformoto/weatherformoto/backend:latest .
-docker push europe-west1-docker.pkg.dev/weatherformoto/weatherformoto/backend:latest
-
-# Deploy
-gcloud run deploy weatherformoto \
-  --image europe-west1-docker.pkg.dev/weatherformoto/weatherformoto/backend:latest \
-  --platform managed \
-  --region europe-west1 \
-  --allow-unauthenticated \
-  --port 8080 \
-  --memory 512Mi \
-  --env-vars-file cloudrun-env.yaml \
-  --project=weatherformoto
+gcloud scheduler jobs resume mm-dispatch-alerts --location europe-west1 --project weatherformoto
+gcloud scheduler jobs pause mm-dispatch-alerts --location europe-west1 --project weatherformoto
 ```
 
-În practică serviciul e publicat din sursă (Cloud Build folosește `Dockerfile`), iar variabilele de mediu existente se păstrează:
+Deploy manual, dacă GitHub Actions nu e disponibil (păstrează variabilele și secretele serviciului):
 
 ```bash
 gcloud run deploy weatherformoto --source . --region europe-west1 --project weatherformoto
 ```
-
-**Migrare schemă (important):** schema nu mai rulează la fiecare pornire (era cauza principală a cold-start-ului lent). Când o versiune adaugă coloane sau tabele, noua revizie pornește întâi fără trafic și rulează migrarea la startup, apoi primește traficul, apoi variabila se scoate:
-
-```bash
-gcloud run deploy weatherformoto --source . --region europe-west1 \
-  --no-traffic --update-env-vars RUN_DB_MIGRATIONS=true
-gcloud run services update-traffic weatherformoto --region europe-west1 --to-latest
-gcloud run services update weatherformoto --region europe-west1 \
-  --remove-env-vars RUN_DB_MIGRATIONS
-```
-
-Codul funcționează și pe o bază nemigrată (vechiul comportament), deci ordinea de mai sus doar evită o fereastră în care instanțele noi nu văd încă coloanele noi.
 
 ### Frontend static pe Cloudflare Pages (zero-cost)
 

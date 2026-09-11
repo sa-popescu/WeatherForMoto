@@ -1,146 +1,69 @@
-# WeatherForMoto – Python Backend
+# MotoMeteo API (backend)
 
-A FastAPI-based backend that **aggregates weather data from multiple sources** (OpenWeatherMap + Open-Meteo) to deliver accurate statistics optimised for motorcyclists.
+FastAPI service behind the MotoMeteo app. It aggregates several weather
+providers, scores riding conditions per hour, and handles accounts, alerts,
+saved routes, ride logs and rider-reported hazards. It runs on Google Cloud Run
+(`weatherformoto`, europe-west1) with a Turso (libSQL) database.
 
----
+## Layout
 
-## Features
-
-| Feature | Detail |
+| File | What it does |
 |---|---|
-| **Multi-source aggregation** | Open-Meteo (free, no key) + OpenWeatherMap (key required) |
-| **Current weather** | Temperature, feels-like, humidity, wind, gusts, pressure, visibility, air quality |
-| **7-day daily forecast** | Min/max temps, precipitation probability & amount, wind gusts |
-| **Hourly forecast** | 7-day hourly breakdown |
-| **Moto suitability score** | 0-100 score + label (IDEAL / OK / ACCEPTABIL / RISCANT / EVITĂ) |
-| **Dynamic city** | Name search **or** lat/lon coordinates |
-| **Default city** | Bucharest (configurable via env var) |
+| `main.py` | app, CORS, security headers, weather / route / geocode / meta routes |
+| `weather_service.py` | provider clients, merge, cache and time budget, moto score |
+| `auth_alerts.py` | accounts, sessions, email verification, prefs, push, alerts, routes, rides, hazards |
+| `migrate_to_turso.py` | one-off copy of a legacy SQLite file into Turso |
+| `entrypoint.sh` | container start (uvicorn, no access log) |
 
----
+## Scoring in one paragraph
 
-## Quick Start
+Every hour gets a 0-100 score: IDEAL >= 85, OK >= 60, ATENȚIE >= 40, EVITĂ below.
+Rain counts by probability x intensity (mm/h bands: traces, light, moderate,
+heavy), never by probability alone, so 70% with 0.1 mm is not treated as real
+rain. Cold, heat, gusts, fog, snow, ice and storms add penalties or caps. The
+constants are published at `GET /meta/scoring`, and the frontend reads them from
+there.
 
-### 1. Install dependencies
-
-```bash
-cd backend
-pip install -r requirements.txt
-```
-
-### 2. Configure environment
-
-```bash
-cp .env.example .env
-# Edit .env – set your OpenWeatherMap API key and Turso variables
-```
-
-### 2.1. Migrate existing local data to Turso
-
-If you have an existing SQLite file (`backend/app.db`), migrate it before starting the backend with Turso-only mode:
+## Run locally
 
 ```bash
 cd backend
-TURSO_DATABASE_URL="<url>" TURSO_AUTH_TOKEN="<token>" python migrate_to_turso.py --source app.db
-```
-
-### 3. Run the server
-
-```bash
-python main.py
-# or
+python -m venv .venv
+. .venv/bin/activate            # Windows: .venv\Scripts\activate
+pip install -r requirements.txt  # libsql-experimental has no Windows wheel
+cp .env.example .env             # fill in Turso and provider keys
 uvicorn main:app --reload --port 8000
 ```
 
-The API will be available at **http://localhost:8000**.  
-Interactive docs: **http://localhost:8000/docs**
+`requirements.txt` pins every package (resolved on Linux for Python 3.11, the
+container runtime). `requirements.in` lists the direct dependencies; update the
+pins from it when upgrading on purpose, otherwise let Dependabot propose them.
 
----
+## Tests
 
-## API Endpoints
-
-### `GET /health`
-Returns server status.
-
-```json
-{"status": "ok", "version": "1.0.0"}
+```bash
+python tests.py
+python -m unittest test_scoring test_auth_alerts test_frontend_routes
 ```
 
-### `GET /weather`
-Returns aggregated weather data.
+No network is needed. `test_auth_alerts` runs the real SQL on SQLite through a
+stub `libsql_experimental` module. On Windows set `PYTHONIOENCODING=utf-8` for
+`tests.py`.
 
-| Parameter | Type | Description |
-|---|---|---|
-| `city` | string | City name (e.g. `Cluj-Napoca`) |
-| `lat` | float | Latitude (use with `lon`) |
-| `lon` | float | Longitude (use with `lat`) |
+## Configuration
 
-When no parameter is given, defaults to **Bucharest**.
+All variables are documented in `.env.example`. In production the sensitive ones
+(Turso token, provider keys, SMTP password, Brevo key, VAPID private key,
+Netatmo secrets, dispatch secret) come from Secret Manager as `mm-*` secrets;
+the rest are plain Cloud Run environment variables.
 
-**Examples:**
-```
-GET /weather
-GET /weather?city=Timisoara
-GET /weather?lat=46.77&lon=23.59
-```
+## Deploy
 
-### `GET /geocode`
-Resolves a city name to coordinates.
+Pushing to `main` with changes under `backend/`, `Dockerfile` or `.dockerignore`
+runs `.github/workflows/deploy-backend.yml`: CI first, then an image built by
+GitHub Actions, pushed to Artifact Registry and deployed to Cloud Run through
+Workload Identity Federation (no stored keys). For schema changes run that
+workflow manually with `run_migrations`.
 
-```
-GET /geocode?city=Brasov
-```
-
----
-
-## Response Schema (abbreviated)
-
-```json
-{
-  "city": "Bucharest, RO",
-  "latitude": 44.43,
-  "longitude": 26.10,
-  "timezone": "Europe/Bucharest",
-  "current": {
-    "temperature": 18.5,
-    "feels_like": 17.2,
-    "humidity": 62,
-    "wind_speed_kmh": 14.4,
-    "wind_gusts_kmh": 22.3,
-    "wind_direction": "NE",
-    "beaufort": "3",
-    "precipitation_mm": 0.0,
-    "description": "Parțial înnorat",
-    "icon": "⛅",
-    "pressure_hpa": 1015,
-    "visibility_km": 10.0,
-    "aqi": 2,
-    "moto_score": 82,
-    "moto_label": "IDEAL",
-    "sources": ["open-meteo", "openweathermap"]
-  },
-  "daily": [ /* 7 days */ ],
-  "hourly": [ /* 168 hours */ ]
-}
-```
-
----
-
-## Environment Variables
-
-| Variable | Default | Description |
-|---|---|---|
-| `TURSO_DATABASE_URL` | **required** | Turso database URL |
-| `TURSO_AUTH_TOKEN` | **required** | Turso auth token |
-| `OPENWEATHERMAP_API_KEY` | *(built-in key)* | Your OWM API key (recommended for better quality) |
-| `DEFAULT_CITY` | `Bucharest` | City used when no location is specified |
-| `PORT` | `8000` | Port to listen on |
-
----
-
-## Deployment
-
-The server exposes a standard ASGI app (`main:app`) and can be deployed on any platform that supports Python:
-
-- **Render / Fly.io** – set `PORT` env var, start command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-- **Docker** – `COPY backend/ /app && pip install -r /app/requirements.txt && uvicorn main:app --host 0.0.0.0 --port 8000`
-- **PythonAnywhere** – upload `backend/` folder, configure WSGI to point at `main:app`
+Alert dispatch runs hourly from the Cloud Scheduler job `mm-dispatch-alerts`,
+which calls `POST /alerts/dispatch-all` with the `X-Dispatch-Secret` header.
