@@ -139,7 +139,7 @@ describe('hazards', () => {
 });
 
 describe('stops', () => {
-  it('moves, adds before the destination and keeps 2 to 5 rows', () => {
+  it('moves, adds before the destination and keeps 2 to 10 rows', () => {
     expect(moveItem(['a', 'b', 'c'], 2, 0)).toEqual(['c', 'a', 'b']);
     expect(moveItem(['a', 'b'], 0, 5)).toEqual(['a', 'b']);
     const two = [newStop({ name: 'A', lat: 1, lon: 1 }), newStop({ name: 'B', lat: 2, lon: 2 })];
@@ -147,7 +147,7 @@ describe('stops', () => {
     expect(three.map((s) => s.text)).toEqual(['A', '', 'B']);
     expect(removeStop(two, two[0].id)).toHaveLength(2);
     let many = two;
-    for (let i = 0; i < 10; i += 1) many = addStop(many);
+    for (let i = 0; i < 20; i += 1) many = addStop(many);
     expect(many).toHaveLength(MAX_STOPS);
     expect(roleOf(0, 3)).toBe('origin');
     expect(roleOf(1, 3)).toBe('via');

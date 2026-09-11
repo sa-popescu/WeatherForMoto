@@ -27,7 +27,7 @@ import { useStopsState } from './useStopsState';
 import './route.css';
 import './route-results.css';
 
-// "Traseu": plan a ride of 2 to 5 stops and see the weather at every point
+// "Traseu": plan a ride of 2 to 10 stops and see the weather at every point
 // at the moment you get there, plus the best time to leave.
 
 type SheetKind = 'none' | 'save' | 'log' | 'hazard' | 'signin' | 'saved';

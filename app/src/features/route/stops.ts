@@ -1,10 +1,10 @@
 import type { Place } from '../../lib/types';
 import type { StopDraft } from './types';
 
-// The stop list: 2 to 5 rows, the first is the origin, the last the destination.
+// The stop list: 2 to 10 rows, the first is the origin, the last the destination.
 
 export const MIN_STOPS = 2;
-export const MAX_STOPS = 5;
+export const MAX_STOPS = 10;
 
 let seq = 0;
 
