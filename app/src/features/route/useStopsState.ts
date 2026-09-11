@@ -62,7 +62,8 @@ export function useStopsState() {
     );
   }, []);
 
-  return { stops, setStops, reorder, setReorder, updateText, pickSuggestion, useMyLocation, locating };
+  // `appPlace` is the reference for an ambiguous name when no row is pinned yet.
+  return { stops, setStops, reorder, setReorder, updateText, pickSuggestion, useMyLocation, locating, appPlace: place };
 }
 
 export type StopsState = ReturnType<typeof useStopsState>;

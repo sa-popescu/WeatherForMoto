@@ -1,5 +1,5 @@
 import { useId, useState, type KeyboardEvent, type ReactNode } from 'react';
-import type { PlaceSuggestion } from '../../lib/geo';
+import type { NearPoint, PlaceSuggestion } from '../../lib/geo';
 import { fmt, useLang, useStrings } from '../../lib/i18n';
 import { cx } from '../../ui/primitives';
 import { RS } from './strings';
@@ -17,19 +17,21 @@ interface StopInputProps {
   role: string;
   placeholder: string;
   dotClass: string;
+  /** Nearby stop used to pick between places with the same name. */
+  near: NearPoint | null;
   onText: (text: string) => void;
   onPick: (hit: PlaceSuggestion) => void;
   trailing?: ReactNode;
 }
 
-export function StopInput({ stop, field, role, placeholder, dotClass, onText, onPick, trailing }: StopInputProps) {
+export function StopInput({ stop, field, role, placeholder, dotClass, near, onText, onPick, trailing }: StopInputProps) {
   const s = useStrings(RS);
   const lang = useLang();
   const id = useId();
   const listId = `${id}-list`;
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
-  const search = usePlaceSearch(stop.text, lang, open && !stop.place);
+  const search = usePlaceSearch(stop.text, lang, open && !stop.place, near);
   const results = search.results;
   const showList = open && !stop.place && search.status !== 'idle';
 

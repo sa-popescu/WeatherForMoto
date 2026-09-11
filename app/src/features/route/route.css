@@ -109,6 +109,10 @@
   font-size: 12px;
   line-height: 1.2;
   color: var(--muted-2);
+  /* The county is appended here, so a long one must not push the row taller. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .route-stop__input {
