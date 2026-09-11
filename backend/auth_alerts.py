@@ -2986,6 +2986,22 @@ def _in_quiet_hours(local_hour: int, prefs: Mapping[str, Any]) -> bool:
     return local_hour >= start or local_hour < end
 
 
+# How long a push service may hold an alert for an offline device. Alerts stay
+# relevant for a few hours, and pywebpush's default TTL of 0 is rejected by
+# Windows push (WNS: "Ttl value conflicts with X-WNS-Cache-Policy", HTTP 400).
+PUSH_TTL_SECONDS = int(os.getenv("PUSH_TTL_SECONDS", str(6 * 3600)))
+
+
+def _push_error_detail(exc: Exception) -> str:
+    """HTTP status plus the push service's own reason (WNS and APNs send it in headers)."""
+    response = getattr(exc, "response", None)
+    if response is None:
+        return str(exc)
+    headers = getattr(response, "headers", None) or {}
+    reason = headers.get("X-WNS-ERROR-DESCRIPTION") or headers.get("apns-reason") or (getattr(response, "text", "") or "")[:200]
+    return f"HTTP {getattr(response, 'status_code', '?')}: {reason}".strip()
+
+
 def _send_push(subscription: Mapping[str, Any], title: str, body: str, data: dict[str, Any]) -> None:
     if not (VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY):
         raise RuntimeError("VAPID keys not configured")
@@ -3014,6 +3030,7 @@ def _send_push(subscription: Mapping[str, Any], title: str, body: str, data: dic
         data=json.dumps(payload),
         vapid_private_key=VAPID_PRIVATE_KEY,
         vapid_claims={"sub": VAPID_SUBJECT},
+        ttl=PUSH_TTL_SECONDS,
         timeout=10,
     )
 
@@ -3160,7 +3177,7 @@ def _push_to_all(conn: _TursoConn, ctx: _DispatchContext, ev: dict[str, Any]) ->
                 except Exception as db_exc:
                     logger.warning("could not remove expired push subscription: %s", db_exc)
             else:
-                logger.warning("Web push failed for %s: %s", _mask_email(ctx.email), exc)
+                logger.warning("Web push failed for %s: %s", _mask_email(ctx.email), _push_error_detail(exc))
     return sent
 
 

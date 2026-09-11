@@ -1047,5 +1047,25 @@ class MiscTests(_Base):
         self.assertEqual(aa._mask_email(None), "***")
 
 
+class PushSendingTests(unittest.TestCase):
+    """The real _send_push (the other tests replace it with a fake)."""
+
+    def test_push_sets_a_positive_ttl(self) -> None:
+        # Windows push (WNS) answers HTTP 400 to TTL 0, pywebpush's default.
+        captured: dict[str, Any] = {}
+        sub = {"endpoint": "https://wns2-par02p.notify.windows.com/w/?token=abc", "p256dh": "key", "auth": "secret"}
+        with mock.patch.object(aa, "VAPID_PUBLIC_KEY", "public"), mock.patch.object(aa, "VAPID_PRIVATE_KEY", "private"), \
+                mock.patch("pywebpush.webpush", side_effect=lambda **kwargs: captured.update(kwargs)):
+            aa._send_push(sub, "Titlu", "Text", {"event": {}})
+        self.assertGreater(captured["ttl"], 0)
+        self.assertEqual(captured["subscription_info"]["endpoint"], sub["endpoint"])
+
+    def test_push_error_detail_reads_the_service_reason(self) -> None:
+        response = mock.Mock(status_code=400, text="", headers={"X-WNS-ERROR-DESCRIPTION": "Ttl value conflicts"})
+        error = Exception("Push failed: 400 Bad Request")
+        error.response = response  # type: ignore[attr-defined]
+        self.assertEqual(aa._push_error_detail(error), "HTTP 400: Ttl value conflicts")
+        self.assertEqual(aa._push_error_detail(Exception("timeout")), "timeout")
+
 if __name__ == "__main__":
     unittest.main()
