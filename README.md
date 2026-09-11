@@ -4,11 +4,12 @@ WeatherForMoto este o aplicație meteo pentru motocicliști, cu scoring de risc,
 
 Stack-ul actual este:
 
-- Frontend: HTML + Tailwind CSS + JavaScript (PWA)
-- Backend: FastAPI + Turso
-- PWA: Service Worker + Web App Manifest
-- Deploy: Docker/Google Cloud Run
-- URL: https://weatherformoto.bluemouse.cc
+- Frontend: `app/` — Vite + React + TypeScript, PWA (service worker Workbox), pregătit pentru Capacitor
+- Backend: FastAPI + Turso, pe Google Cloud Run (doar API)
+- Deploy frontend: Cloudflare (static, din `scripts/build-pages.sh`)
+- URL: https://weatherformoto.bluemouse.cc (adresa run.app redirecționează aici)
+
+Vechiul frontend dintr-un singur fișier (`index.html` din rădăcină) nu mai e servit; rămâne în repo doar ca referință până la curățenia din etapa 4.
 
 ## Ce oferă soluția în forma curentă
 
@@ -90,9 +91,19 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
 Backend-ul va fi la `http://localhost:8000`.
 
-### 2. Frontend
+### 2. Frontend (`app/`)
 
-Deschide `index.html` în browser. Aplicația detectează automat backend-ul local sau folosește fallback Open-Meteo când API-ul nu este disponibil.
+```bash
+cd app
+npm ci
+npm run dev        # http://localhost:5173, /api e proxy către API-ul live
+npm test           # vitest
+npm run build      # typecheck + build în app/dist
+```
+
+Pe rețeaua firmei (TLS interceptat), setează înainte `NODE_EXTRA_CA_CERTS` și `npm_config_cafile` către bundle-ul de certificate. Pentru un backend local: `API_PROXY_TARGET=http://localhost:8000 npm run dev`.
+
+Organizare: `src/lib` (API tipizat, format, scor, geo), `src/state` (sesiune, loc, vreme, setări), `src/ui` (componente de bază, iconițe, gauge, sheet), `src/features/{now,route,map,account,place}` (ecranele), `src/sw.ts` (service worker). Textele sunt în RO și EN, lângă fiecare funcționalitate (`strings.ts`).
 
 ## Variabile de mediu backend
 
@@ -248,7 +259,7 @@ Codul funcționează și pe o bază nemigrată (vechiul comportament), deci ordi
 
 ### Frontend static pe Cloudflare Pages (zero-cost)
 
-Arhitectura recomandată: frontend-ul static servit de la edge prin Cloudflare Pages (instant, fără cold start), iar backend-ul FastAPI rămâne pe Cloud Run doar pentru API. `index.html` cheamă deja API-ul la URL-ul Cloud Run (`CONFIGURED_BACKEND_URL`), iar CORS-ul backend-ului permite originea Pages.
+Frontend-ul static e servit de la edge prin Cloudflare (instant, fără cold start), iar backend-ul FastAPI rămâne pe Cloud Run doar pentru API. Build-ul (`sh scripts/build-pages.sh`) rulează `npm ci` și `npm run build` în `app/` și copiază rezultatul în `dist/`. Aplicația cheamă API-ul la URL-ul Cloud Run, iar CORS-ul backend-ului permite originea aplicației. Pe Cloud Run, `/` redirecționează către `APP_BASE_URL`, iar `/sw.js` retrage service worker-ul vechi. GitHub Pages servește doar o pagină de redirecționare.
 
 Setup în dashboard-ul Cloudflare Pages (Connect to Git):
 

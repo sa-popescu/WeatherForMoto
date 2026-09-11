@@ -39,7 +39,7 @@ import httpx  # noqa: E402
 from fastapi import FastAPI, HTTPException, Query, Request, Response  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.middleware.gzip import GZipMiddleware  # noqa: E402
-from fastapi.responses import FileResponse  # noqa: E402
+from fastapi.responses import FileResponse, RedirectResponse  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 
 from weather_service import (  # noqa: E402
@@ -90,6 +90,9 @@ HTTP_CLIENT_LIMITS = httpx.Limits(
 HTTP_CLIENT_TIMEOUT = httpx.Timeout(10.0, connect=5.0)
 
 # Path to the frontend index.html (one level above the backend/ directory)
+# The frontend lives on the static host; this origin (run.app) serves the API.
+APP_BASE_URL: str = os.getenv("APP_BASE_URL", "https://weatherformoto.bluemouse.cc").rstrip("/")
+
 _REPO_ROOT = pathlib.Path(__file__).parent.parent
 INDEX_HTML = _REPO_ROOT / "index.html"
 SW_JS = _REPO_ROOT / "sw.js"
@@ -233,8 +236,13 @@ async def meta_scoring(response: Response) -> dict[str, Any]:
 
 
 @app.get("/", include_in_schema=False)
-async def serve_frontend():
-    """Serve the frontend single-page application."""
+async def serve_frontend(request: Request):
+    """Send visitors to the app on the static host. The legacy single-file
+    frontend is only served if APP_BASE_URL points back at this same host,
+    which would otherwise be a redirect loop (misconfiguration guard)."""
+    target_host = APP_BASE_URL.split("://", 1)[-1].split("/", 1)[0]
+    if target_host and target_host != request.url.hostname:
+        return RedirectResponse(url=f"{APP_BASE_URL}/", status_code=302)
     if not INDEX_HTML.is_file():
         logger.error("Frontend index.html not found at: %s", INDEX_HTML)
         raise HTTPException(status_code=404, detail=f"Frontend not found at {INDEX_HTML}.")
@@ -245,13 +253,30 @@ async def serve_frontend():
     )
 
 
+# Replaces the old app's service worker on this origin: people who installed
+# the PWA from the run.app URL get their caches cleared and their open windows
+# sent to the new home, instead of a stale cached copy of the old UI.
+_RETIRE_SW_TEMPLATE = """// This origin now serves only the MotoMeteo API.
+const APP_URL = "__APP_URL__";
+self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', (event) => {
+  event.waitUntil((async () => {
+    const names = await caches.keys();
+    await Promise.all(names.map((name) => caches.delete(name)));
+    await self.registration.unregister();
+    const windows = await self.clients.matchAll({ type: 'window' });
+    windows.forEach((client) => client.navigate(APP_URL));
+  })());
+});
+"""
+
+
 @app.get("/sw.js", include_in_schema=False)
-async def serve_sw():
-    """Serve the PWA service worker."""
-    if not SW_JS.is_file():
-        raise HTTPException(status_code=404, detail="sw.js not found.")
-    return FileResponse(
-        SW_JS,
+async def serve_sw() -> Response:
+    """Serve the self-retiring service worker (see _RETIRE_SW_TEMPLATE)."""
+    body = _RETIRE_SW_TEMPLATE.replace("__APP_URL__", f"{APP_BASE_URL}/".replace('"', ""))
+    return Response(
+        content=body,
         media_type="application/javascript",
         headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
     )

@@ -1,10 +1,13 @@
-name: Deploy to GitHub Pages
+name: GitHub Pages redirect
+
+# The app now lives on https://weatherformoto.bluemouse.cc (Cloudflare).
+# GitHub Pages only serves a redirect there, plus a service worker that
+# retires the old app's worker for people who installed it from this URL.
 
 on:
   push:
     branches: [main]
     paths:
-      - index.html
       - .github/workflows/deploy-pages.yml
   workflow_dispatch:
 
@@ -25,28 +28,40 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Inject backend URL
-        env:
-          BACKEND_URL: ${{ vars.BACKEND_URL }}
-        run: |
-          if [ -n "$BACKEND_URL" ]; then
-            BACKEND_URL="${BACKEND_URL%/}"
-            sed -i "s|var CONFIGURED_BACKEND_URL = \"\";|var CONFIGURED_BACKEND_URL = \"${BACKEND_URL}\";|" index.html
-            echo "Backend URL injected: ${BACKEND_URL}"
-          fi
-          # SECURITY: the OpenWeatherMap key is intentionally NOT injected into the
-          # client any more. OWM is aggregated server-side by the backend only, so
-          # the key never reaches the browser. Do not re-add a client-side key here.
-
-      - name: Prepare static files
+      - name: Build redirect site
         run: |
           mkdir -p dist
-          cp index.html dist/
-          cp manifest.json dist/
-          cp sw.js dist/
+          cat > dist/index.html <<'EOF'
+          <!doctype html>
+          <html lang="ro">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>MotoMeteo s-a mutat</title>
+            <meta http-equiv="refresh" content="0; url=https://weatherformoto.bluemouse.cc/">
+            <link rel="canonical" href="https://weatherformoto.bluemouse.cc/">
+            <style>body{font-family:system-ui,sans-serif;background:#0b0c0a;color:#eef1e8;display:grid;place-items:center;min-height:100vh;margin:0;padding:24px;text-align:center}a{color:#b4f03c}</style>
+          </head>
+          <body>
+            <p>MotoMeteo s-a mutat la <a href="https://weatherformoto.bluemouse.cc/">weatherformoto.bluemouse.cc</a>.</p>
+          </body>
+          </html>
+          EOF
+          cp dist/index.html dist/404.html
+          cat > dist/sw.js <<'EOF'
+          // Retire the old app's service worker on this origin and send open windows to the new home.
+          const APP_URL = 'https://weatherformoto.bluemouse.cc/';
+          self.addEventListener('install', () => self.skipWaiting());
+          self.addEventListener('activate', (event) => {
+            event.waitUntil((async () => {
+              const names = await caches.keys();
+              await Promise.all(names.map((name) => caches.delete(name)));
+              await self.registration.unregister();
+              const windows = await self.clients.matchAll({ type: 'window' });
+              windows.forEach((client) => client.navigate(APP_URL));
+            })());
+          });
+          EOF
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
