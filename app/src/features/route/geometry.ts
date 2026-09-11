@@ -5,7 +5,7 @@ import type { LatLon } from './types';
 // weather sampling positions and splitting into coloured segments.
 
 export const SAMPLE_SPACING_KM = 40;
-export const MAX_SAMPLES = 8;
+export const MAX_SAMPLES = 12;
 
 /** Distance along the line at every vertex, km (first is 0). */
 export function cumulativeKm(line: readonly LatLon[]): number[] {

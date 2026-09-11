@@ -50,10 +50,17 @@ describe('planSamples', () => {
 
   it('never exceeds the cap and gives the budget to the longest legs', () => {
     const plan = planSamples([0, 30, 530, 560]);
-    expect(plan).toHaveLength(8);
+    expect(plan).toHaveLength(12);
     expect(plan.filter((p) => p.stopIndex !== null)).toHaveLength(4);
     const between = plan.filter((p) => p.stopIndex === null);
     expect(between.every((p) => p.km > 30 && p.km < 530)).toBe(true);
+  });
+
+  it('still samples between the stops on a full ten-stop route', () => {
+    const stopKm = [0, 90, 180, 270, 360, 450, 540, 630, 720, 810];
+    const plan = planSamples(stopKm);
+    expect(plan.filter((p) => p.stopIndex !== null).map((p) => p.km)).toEqual(stopKm);
+    expect(plan.filter((p) => p.stopIndex === null)).toHaveLength(2);
   });
 
   it('keeps every stop even when there are more stops than the cap allows extras', () => {

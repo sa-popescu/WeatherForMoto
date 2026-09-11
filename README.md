@@ -42,7 +42,7 @@ Vechiul frontend dintr-un singur fișier a fost retras: `index.html` și `sw.js`
 
 ### Phase 3 (route intelligence)
 
-- Route planner cu 2-5 opriri
+- Route planner cu 2-10 opriri, fiecare cu opțiunea „locația mea”
 - Route weather snapshots pe waypoint-uri estimate
 - Harta traseu (Leaflet)
 - Saved routes per user (`/me/routes`)
@@ -165,7 +165,7 @@ Organizare: `src/lib` (API tipizat, format, scor, geo), `src/state` (sesiune, lo
 - `GET /weather?city=Cluj-Napoca&days=14` - Vreme după oraș
 - `GET /weather?lat=46.77&lon=23.59&days=14` - Vreme după coordonate
 - `GET /route?origin=Cluj-Napoca&destination=Sibiu&departure=2026-04-13T09:00&avg_speed=80` - Rută simplă
-- `GET /route/multi?stops=Cluj-Napoca;Alba-Iulia;Sibiu&departure=2026-04-13T09:00&avg_speed=80` - Rută multi-oprire
+- `GET /route/multi?stops=Cluj-Napoca;Alba-Iulia;Sibiu&departure=2026-04-13T09:00&avg_speed=80` - Rută multi-oprire (2-10 opriri)
 
 ### Auth + account
 
@@ -207,6 +207,7 @@ cd backend
 python tests.py                       # agregare și logica meteo de bază
 python -m unittest test_scoring       # scor v2, matricea de ploaie, cache, buget de timp
 python -m unittest test_auth_alerts   # autentificare, limite, alerte (SQLite în locul libsql)
+python -m unittest test_route_limits  # limitele endpointului /route/multi
 ```
 
 Testele nu depind de rețea. Pe Windows, `tests.py` are nevoie de `PYTHONIOENCODING=utf-8` ca să poată afișa simbolurile din output.

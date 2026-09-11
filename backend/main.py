@@ -89,6 +89,9 @@ HTTP_CLIENT_LIMITS = httpx.Limits(
 )
 HTTP_CLIENT_TIMEOUT = httpx.Timeout(10.0, connect=5.0)
 
+# Upper bound of /route/multi, matching the stops editor in the app.
+MAX_ROUTE_STOPS = 10
+
 # Path to the frontend index.html (one level above the backend/ directory)
 # The frontend lives on the static host; this origin (run.app) serves the API.
 APP_BASE_URL: str = os.getenv("APP_BASE_URL", "https://weatherformoto.bluemouse.cc").rstrip("/")
@@ -466,20 +469,22 @@ async def route_weather(
 
 @app.get("/route/multi", tags=["route"])
 async def route_multi(
-    stops: Annotated[str, Query(description="Semicolon-separated city names, e.g. 'Cluj-Napoca;Sibiu;Brașov'")],
+    stops: Annotated[str, Query(description="Semicolon-separated city names (2-10), e.g. 'Cluj-Napoca;Sibiu;Brașov'")],
     departure: str | None = None,
     avg_speed: float = Query(default=80.0, gt=0, le=180),
 ):
     """
     Compute weather along a multi-stop motorcycle route (premium feature).
-    ``stops`` is a semicolon-separated list of city names (2–5 stops).
+    ``stops`` is a semicolon-separated list of city names (2–10 stops).
     Returns per-segment route weather the same way as /route.
     """
     stop_names = [s.strip() for s in stops.split(";") if s.strip()]
     if len(stop_names) < 2:
         raise HTTPException(status_code=422, detail="At least 2 stops required")
-    if len(stop_names) > 5:
-        raise HTTPException(status_code=422, detail="Maximum 5 stops allowed")
+    if len(stop_names) > MAX_ROUTE_STOPS:
+        raise HTTPException(
+            status_code=422, detail=f"Maximum {MAX_ROUTE_STOPS} stops allowed"
+        )
 
     departure_iso = _validated_departure(departure)
 

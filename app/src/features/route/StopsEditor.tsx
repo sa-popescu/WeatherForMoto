@@ -6,7 +6,7 @@ import { addStop, MAX_STOPS, MIN_STOPS, moveItem, removeStop, roleOf, type StopR
 import { RS } from './strings';
 import type { StopsState } from './useStopsState';
 
-// 2 to 5 stops. Normal mode edits the places; "Ordine" mode shows move up,
+// 2 to 10 stops. Normal mode edits the places; "Ordine" mode shows move up,
 // move down and remove buttons (no drag needed, works with gloves and keys).
 
 type Strings = (typeof RS)['en'];
@@ -87,16 +87,14 @@ export function StopsEditor({ state }: { state: StopsState }) {
                 onText={(text) => updateText(stop.id, text)}
                 onPick={(hit) => pickSuggestion(stop.id, hit)}
                 trailing={
-                  index === 0 ? (
-                    <IconButton
-                      icon="locate"
-                      tone={stop.gps ? 'accent' : 'default'}
-                      label={s.useMyLocation}
-                      aria-busy={locating || undefined}
-                      disabled={locating}
-                      onClick={() => void useMyLocation()}
-                    />
-                  ) : undefined
+                  <IconButton
+                    icon="locate"
+                    tone={stop.gps ? 'accent' : 'default'}
+                    label={fmt(s.useMyLocationFor, { field: fieldName(role, index, s) })}
+                    aria-busy={locating || undefined}
+                    disabled={locating}
+                    onClick={() => void useMyLocation(stop.id)}
+                  />
                 }
               />
             </li>
