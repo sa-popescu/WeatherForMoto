@@ -228,8 +228,12 @@ export interface Hazard {
   expires_at: string;
 }
 
+/** POST /alerts/check-now: the backend reports counts, not booleans. */
 export interface CheckNowResponse {
-  delivered?: boolean;
+  delivered?: number;
+  sent?: number;
+  email_sent?: number;
+  events?: unknown[];
   reason?: string;
   [key: string]: unknown;
 }

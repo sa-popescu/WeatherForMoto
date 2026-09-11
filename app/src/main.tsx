@@ -18,6 +18,8 @@ import './styles/tokens.css';
 import './styles/base.css';
 import './ui/ui.css';
 import App from './App';
+// Registers the beforeinstallprompt listener at start-up, before the Eu tab is ever opened.
+import './features/account/installPrompt';
 import { api } from './lib/api';
 import { initServiceWorker } from './lib/pwa';
 import { setScoringMeta } from './lib/scoring';
