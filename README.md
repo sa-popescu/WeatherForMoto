@@ -9,7 +9,7 @@ Stack-ul actual este:
 - Deploy frontend: Cloudflare (static, din `scripts/build-pages.sh`)
 - URL: https://weatherformoto.bluemouse.cc (adresa run.app redirecționează aici)
 
-Vechiul frontend dintr-un singur fișier (`index.html` din rădăcină) nu mai e servit; rămâne în repo doar ca referință până la curățenia din etapa 4.
+Vechiul frontend dintr-un singur fișier a fost retras: `index.html` și `sw.js` din rădăcină sunt acum doar o pagină de redirecționare și un service worker care îl dezinstalează pe cel vechi (GitHub Pages publică rădăcina repo-ului). Codul vechi rămâne în istoricul git.
 
 ## Ce oferă soluția în forma curentă
 
