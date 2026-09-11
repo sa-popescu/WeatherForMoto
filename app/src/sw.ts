@@ -14,6 +14,11 @@ import { CacheFirst, NetworkFirst, StaleWhileRevalidate } from 'workbox-strategi
 
 declare let self: ServiceWorkerGlobalScope;
 
+// Bump on any change that must reach installed workers even when the bundle
+// is unchanged (e.g. new headers such as the CSP served with sw.js): the
+// browser only reinstalls a worker whose script bytes differ.
+const SW_VERSION = '2026-09-11.2';
+
 const WEATHER_CACHE = 'mm-weather-v1';
 const WEATHER_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 const STAMP_HEADER = 'x-sw-cached-at';
@@ -120,7 +125,9 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('message', (event) => {
-  if (event.data && (event.data as { type?: string }).type === 'SKIP_WAITING') void self.skipWaiting();
+  const type = event.data ? (event.data as { type?: string }).type : undefined;
+  if (type === 'SKIP_WAITING') void self.skipWaiting();
+  if (type === 'GET_VERSION') event.ports[0]?.postMessage(SW_VERSION);
 });
 
 // ---- Web push ---------------------------------------------------------------
