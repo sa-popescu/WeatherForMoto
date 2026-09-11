@@ -1,0 +1,145 @@
+/* Rain card: two equal numbers, intensity scale, consequence. */
+
+.now-rain {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.now-rain__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.now-rain__title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.now-rain__title .eyebrow {
+  font-size: 13px;
+}
+
+.now-rain__period {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.now-rain__tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.now-rain__tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+}
+
+.now-rain__label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted-2);
+}
+
+.now-rain__value {
+  font-size: 38px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.now-rain__value--mm {
+  color: var(--rain-ink);
+}
+
+.now-rain__unit {
+  margin-left: 4px;
+  font-size: 16px;
+  color: var(--muted-2);
+}
+
+.now-rain__sub {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.now-rain__consequence {
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+
+.now-scale {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.now-scale__track {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 3px;
+}
+
+.now-scale__seg {
+  height: 8px;
+  border-radius: 4px;
+  opacity: 0.28;
+}
+
+.now-scale__seg--on {
+  opacity: 1;
+}
+
+.now-scale__marker {
+  position: absolute;
+  top: -5px;
+  width: 4px;
+  height: 18px;
+  margin-left: -2px;
+  border-radius: 2px;
+  background: var(--ink);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+.now-scale__labels {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 3px;
+}
+
+.now-scale__name {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted-2);
+}
+
+.now-scale__name--on {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.now-scale__range {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--dim);
+}
