@@ -22,10 +22,11 @@ import asyncio
 from datetime import datetime as _dt
 import pathlib
 from contextlib import asynccontextmanager
+from collections.abc import Awaitable, Callable
 from typing import Annotated
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -42,6 +43,10 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 logger = logging.getLogger("weatherformoto")
+# httpx logs every request URL at INFO, and some provider keys travel in the URL
+# (OWM query string, Pirate Weather path). Keep those URLs out of Cloud Run logs.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -125,6 +130,28 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
+
+# Baseline security headers on every response, including the copy of the
+# frontend served from "/". Mirrors _headers on Cloudflare. A strict script-src
+# CSP is not possible yet (inline handlers); it comes with the new frontend.
+_SECURITY_HEADERS: dict[str, str] = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Permissions-Policy": "geolocation=(self), camera=(), microphone=(), payment=()",
+    "Content-Security-Policy": "object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
+}
+
+
+@app.middleware("http")
+async def add_security_headers(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
+    response = await call_next(request)
+    for name, value in _SECURITY_HEADERS.items():
+        response.headers.setdefault(name, value)
+    return response
+
 
 app.include_router(auth_alerts_router)
 

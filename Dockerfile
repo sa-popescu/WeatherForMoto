@@ -33,6 +33,9 @@ RUN sed -i 's/\r$//' /app/backend/entrypoint.sh \
     && chmod +x /app/backend/entrypoint.sh \
     && chown -R appuser:appuser /app
 
+# Drop root privileges for everything that runs from here on.
+USER appuser
+
 ENV PORT=8000
 EXPOSE 8000
 

@@ -3573,7 +3573,8 @@
         listEl.classList.remove('hidden');
         var html = '<div class="bg-card border border-border rounded-xl p-3"><div class="text-xs text-muted mb-2">Hazarduri pe zonă</div><div class="space-y-2">';
         hazards.slice(0, 8).forEach(function (h) {
-          html += '<div class="text-xs border border-border rounded-lg p-2"><strong class="text-warn">' + (h.hazard_type || 'hazard') + '</strong> · sev ' + h.severity + ' · ' + h.distance_km + ' km<br><span class="text-muted">' + h.description + '</span></div>';
+          // Hazards are user-submitted: escape every field before it reaches innerHTML.
+          html += '<div class="text-xs border border-border rounded-lg p-2"><strong class="text-warn">' + _escHtml(h.hazard_type || 'hazard') + '</strong> · sev ' + _escHtml(h.severity) + ' · ' + _escHtml(h.distance_km) + ' km<br><span class="text-muted">' + _escHtml(h.description) + '</span></div>';
         });
         html += '</div></div>';
         listEl.innerHTML = html;
@@ -5471,7 +5472,7 @@
     }
 
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js?v=7').catch(function () { });
+      navigator.serviceWorker.register('sw.js?v=8').catch(function () { });
     }
 
     function applyTheme() {
@@ -5648,9 +5649,14 @@
           '<div class="mt-8 max-w-sm mx-auto bg-card border border-border rounded-2xl p-6">'
           + '<div class="font-display text-xl font-bold tracking-wide text-gray-100 mb-4">Resetare parolă</div>'
           + '<input id="reset-new-pw" type="password" placeholder="Parola nouă (minim 8 caractere)" class="w-full bg-bg border border-border rounded-xl px-4 py-2 text-sm text-gray-200 mb-3"/>'
-          + '<button onclick="submitResetPassword(\'' + resetToken + '\')" class="w-full bg-accent hover:bg-orange-400 text-black font-display font-bold tracking-wider py-2 rounded-xl text-sm transition-colors">Salvează parola</button>'
+          + '<button id="reset-pw-submit" type="button" class="w-full bg-accent hover:bg-orange-400 text-black font-display font-bold tracking-wider py-2 rounded-xl text-sm transition-colors">Salvează parola</button>'
           + '<div id="reset-pw-msg" class="text-xs mt-3 hidden"></div>'
           + '</div>';
+        // The token comes from the URL, so it must never be written into markup.
+        // Bind it through a closure instead of an inline onclick attribute.
+        document.getElementById('reset-pw-submit').addEventListener('click', function () {
+          submitResetPassword(resetToken);
+        });
         return;
       }
       // Handle shared location link (?q=CityName)

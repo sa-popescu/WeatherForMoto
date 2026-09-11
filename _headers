@@ -1,6 +1,15 @@
 # Cloudflare Pages — cache headers for the static frontend.
 # https://developers.cloudflare.com/pages/configuration/headers/
 
+# Baseline security headers for every response. A strict script-src CSP is not
+# possible yet (inline handlers, Tailwind Play CDN); it comes with the new build.
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(self), camera=(), microphone=(), payment=()
+  Content-Security-Policy: object-src 'none'; base-uri 'self'; frame-ancestors 'none'
+
 # The service worker and app shell must always revalidate so new releases
 # (and the CACHE version bump in sw.js) reach users promptly.
 /sw.js
