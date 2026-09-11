@@ -547,7 +547,8 @@ body.sheet-open .toasts {
 }
 
 .gauge__score {
-  font-size: clamp(64px, 24vw, 96px);
+  /* Sized so a three-digit "100" stays inside the tick ring. */
+  font-size: clamp(56px, 21vw, 82px);
   font-weight: 700;
   line-height: 0.9;
   letter-spacing: -0.02em;
