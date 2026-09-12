@@ -176,6 +176,48 @@
   color: var(--ink-2);
 }
 
+.map-layers__group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 0 2px;
+}
+
+.map-layers__title {
+  font-size: 15px;
+  color: var(--ink);
+}
+
+.map-layers__desc {
+  font-size: 13px;
+  color: var(--muted-2);
+}
+
+.map-layers__choice {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.map-layers__option {
+  flex: 1;
+  min-height: 36px;
+  padding: 6px 4px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.map-layers__option--on {
+  border-color: var(--accent);
+  background: var(--accent-soft, var(--surface));
+  color: var(--accent);
+  font-weight: 600;
+}
+
 /* ---- Bottom: report button, radar panel, pick bar ---- */
 
 .map-bottom {
