@@ -19,14 +19,6 @@ export interface ScoreFactor {
   detail: string;
 }
 
-export interface GearItem {
-  category: string;
-  item: string;
-  reason: string;
-  urgency: string;
-  icon: string;
-}
-
 export interface CurrentWeather {
   temperature: number | null;
   feels_like: number | null;
@@ -58,7 +50,6 @@ export interface CurrentWeather {
   moto_score: number | null;
   moto_label: MotoLabel | null;
   score_breakdown: ScoreFactor[] | null;
-  gear_recommendation: GearItem[] | null;
   road_surface_temp: number | null;
   sources: string[] | null;
 }

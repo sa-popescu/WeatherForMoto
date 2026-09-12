@@ -3,8 +3,6 @@ import { localNowIso } from '../../lib/format';
 import type { Lang } from '../../lib/i18n';
 import type { HourlyWeather, WeatherResponse } from '../../lib/types';
 import { todayAndTomorrow, type RideWindow } from './logic/bestWindow';
-import { hoursOfDate, isDaylight, nextDate, sunTimes } from './logic/daylight';
-import { gearFor, rideConditions, type GearRec } from './logic/gear';
 import { buildHeadline, type Headline } from './logic/headline';
 import { rainOutlook, type RainOutlook } from './logic/rainOutlook';
 import { buildTimeline, type TimelineBar } from './logic/timeline';
@@ -22,7 +20,6 @@ export interface NowModel {
   windows: { today: RideWindow | null; tomorrow: RideWindow | null };
   bars: TimelineBar[];
   rain: RainOutlook;
-  gear: { recs: GearRec[]; date: string; tomorrow: boolean };
 }
 
 function indexForHour(hourly: ReadonlyArray<HourlyWeather>, hourKey: string): number {
@@ -36,18 +33,6 @@ export function buildNowModel(data: WeatherResponse, hourKey: string, lang: Lang
   const { hourly, daily, current } = data;
   const startIndex = indexForHour(hourly, hourKey);
   const nowIso = hourly[startIndex].time;
-  const today = nowIso.slice(0, 10);
-
-  // Gear follows today's remaining daylight, or tomorrow's once today is over.
-  const todayRide = hourly.slice(startIndex).filter((h) => h.time.startsWith(today) && isDaylight(h, daily));
-  const tomorrow = todayRide.length === 0;
-  const rideDate = tomorrow ? nextDate(today) : today;
-  const rideHours = tomorrow ? hoursOfDate(hourly, rideDate).filter((h) => isDaylight(h, daily)) : todayRide;
-  const conditions = rideConditions(rideHours, {
-    night: !tomorrow && !isDaylight(hourly[startIndex], daily),
-    sunset: sunTimes(rideDate, daily).sunset,
-    nowIso,
-  });
 
   return {
     nowIso,
@@ -57,7 +42,6 @@ export function buildNowModel(data: WeatherResponse, hourKey: string, lang: Lang
     windows: todayAndTomorrow(hourly, startIndex, daily),
     bars: buildTimeline(hourly, startIndex, daily),
     rain: rainOutlook(hourly, startIndex),
-    gear: { recs: gearFor(conditions, lang), date: rideDate, tomorrow },
   };
 }
 
