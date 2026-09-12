@@ -45,6 +45,7 @@ Vechiul frontend dintr-un singur fișier a fost retras: `index.html` și `sw.js`
 - Route planner cu 2-10 opriri, fiecare cu opțiunea „locația mea”
 - Route weather snapshots pe waypoint-uri estimate
 - Harta traseu (Leaflet)
+- Prognoză pe hartă: nori sau ploaie pentru următoarele 24 de ore, eșantionate de la Open-Meteo pe o grilă peste zona vizibilă și desenate ca un strat animat, cu scrubber pe ore
 - Saved routes per user (`/me/routes`)
 - Ride logs + stats (`/me/rides/log`, `/me/rides/stats`)
 - Hazard reporting geolocalizat (`/hazards`)

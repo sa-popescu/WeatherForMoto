@@ -8,6 +8,7 @@ import { useSettings } from '../../state/settings';
 import { Icon } from '../../ui/icons';
 import { Button, cx, Spinner } from '../../ui/primitives';
 import type { ScreenProps } from '../types';
+import { ForecastPanel } from './ForecastPanel';
 import { HazardSheet } from './HazardSheet';
 import { hazardLabelKey, severityKey, type LatLon } from './hazards';
 import { useLayerPrefs } from './layerPrefs';
@@ -19,6 +20,9 @@ import { MAP_STRINGS } from './strings';
 import { usePageVisible, usePrefersReducedMotion } from './useEnvironment';
 import { useHazardLayer } from './useHazardLayer';
 import { useLeafletMap } from './useLeafletMap';
+import { useForecastData } from './useForecastData';
+import { useForecastLayer } from './useForecastLayer';
+import { useForecastPlayback } from './useForecastPlayback';
 import { usePickedMarker, usePlaceView } from './usePlaceView';
 import { useRadar } from './useRadar';
 import './map.css';
@@ -27,9 +31,10 @@ import './map-radar.css';
 import './map-scrubber.css';
 import './map-sheets.css';
 
-// "Hartă": full-height map with the animated rain radar and rider-reported
-// hazards. The shell keeps this tab mounted, so the map is created once and
-// every timer and fetch stops while the tab or the page is hidden.
+// "Hartă": full-height map with the animated rain radar, the forecast field
+// for the hours ahead and rider-reported hazards. The shell keeps this tab
+// mounted, so the map is created once and every timer and fetch stops while
+// the tab or the page is hidden.
 
 export default function MapScreen({ active }: ScreenProps) {
   const s = useStrings(MAP_STRINGS);
@@ -44,7 +49,20 @@ export default function MapScreen({ active }: ScreenProps) {
   const { map, baseLoading } = useLeafletMap(containerRef, { center: place, active });
   const recenter = usePlaceView(map, place, reducedMotion);
   const [prefs, setPrefs] = useLayerPrefs();
-  const radar = useRadar(map, { fetching: onScreen && prefs.radar, shown: prefs.radar, opacity: prefs.opacity, autoPlay: !reducedMotion });
+  // The forecast field is its own timeline (the hours ahead), so while it is on
+  // it replaces the radar entirely: one set of tiles, one scrubber, one story.
+  const forecastKind = prefs.forecast === 'off' ? null : prefs.forecast;
+  const radarOn = prefs.radar && forecastKind === null;
+  const radar = useRadar(map, { fetching: onScreen && radarOn, shown: radarOn, opacity: prefs.opacity, autoPlay: !reducedMotion });
+  const forecastGrid = useForecastData(map, onScreen && forecastKind !== null);
+  const forecastPlayback = useForecastPlayback(forecastGrid.data?.times.length ?? 0, onScreen && forecastKind !== null);
+  useForecastLayer(map, {
+    kind: forecastKind,
+    data: forecastGrid.data,
+    bounds: forecastGrid.bounds,
+    index: forecastPlayback.index,
+    opacity: prefs.opacity,
+  });
 
   const [selected, setSelected] = useState<Hazard | null>(null);
   const labelFor = useCallback(
@@ -119,7 +137,11 @@ export default function MapScreen({ active }: ScreenProps) {
             <Button icon="alert" className="map-report" disabled={!map} onClick={startReport}>
               {s.reportHere}
             </Button>
-            {prefs.radar && <RadarPanel radar={radar} />}
+            {forecastKind ? (
+              <ForecastPanel kind={forecastKind} grid={forecastGrid} playback={forecastPlayback} />
+            ) : (
+              radarOn && <RadarPanel radar={radar} />
+            )}
           </>
         )}
       </div>

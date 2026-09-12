@@ -107,3 +107,39 @@
   font-size: 12px;
   color: var(--muted);
 }
+
+
+/* ---- Forecast field ---- */
+
+/* The overlay is a smoothed grid; blending keeps the map readable under it. */
+.map-forecast-overlay {
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+
+.map-screen--dark .map-forecast-overlay {
+  mix-blend-mode: screen;
+}
+
+.map-forecast-legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.map-forecast-legend__scale {
+  display: flex;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.map-forecast-legend__swatch {
+  width: 26px;
+  height: 10px;
+}
+
+.map-forecast-legend__text {
+  font-size: 12px;
+  color: var(--muted-2);
+}
