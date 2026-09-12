@@ -1,6 +1,6 @@
 # WeatherForMoto
 
-WeatherForMoto este o aplicație meteo pentru motocicliști, cu scoring de risc, recomandări de echipament, rutare pre-ride și alerte personalizate (notificări push).
+WeatherForMoto este o aplicație meteo pentru motocicliști, cu scoring de risc, rutare pre-ride și alerte personalizate (notificări push).
 
 Stack-ul actual este:
 
@@ -21,7 +21,6 @@ Vechiul frontend dintr-un singur fișier a fost retras: `index.html` și `sw.js`
 - Ploaia se punctează după șanse × intensitate (mm/h: urme, slabă, moderată, puternică), niciodată doar după procent: 70% cu 0,1 mm nu e tratat ca ploaie adevărată
 - Geo lookup după oraș sau coordonate
 - Fereastră optimă de mers (azi/mâine)
-- Recomandări de echipament în funcție de ploaie/vânt/temperatură
 - Date extinse: UV, presiune, vizibilitate, frost risk, temperatură estimată carosabil
 
 ### Phase A (cont + alerting + PWA)

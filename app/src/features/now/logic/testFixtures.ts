@@ -72,7 +72,7 @@ export function current(over: Partial<CurrentWeather> = {}): CurrentWeather {
     wind_direction: 'E', beaufort: 2, precipitation_mm: 0, precipitation_probability: 0, rain_intensity: 'none',
     weather_code: 1, description: null, icon: null, pressure_hpa: 1016, visibility_km: 20, aqi: null, pm10: null,
     pm2_5: null, ozone: null, eu_aqi: 30, us_aqi: null, pollen_index: null, uv_index: 3, is_day: true, dew_point: 12,
-    frost_risk: false, moto_score: 95, moto_label: 'IDEAL', score_breakdown: [], gear_recommendation: null,
+    frost_risk: false, moto_score: 95, moto_label: 'IDEAL', score_breakdown: [],
     road_surface_temp: 28, sources: ['open-meteo'],
     ...over,
   };

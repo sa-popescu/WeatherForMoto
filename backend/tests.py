@@ -18,7 +18,6 @@ from weather_service import (
     _merge_current,
     _merge_daily,
     _build_hourly,
-    _gear_recommendation,
     _road_surface_temp,
     _haversine_km,
 )
@@ -295,54 +294,6 @@ def test_build_hourly():
 
 
 # ---------------------------------------------------------------------------
-# Gear recommendation
-# ---------------------------------------------------------------------------
-
-def test_gear_recommendation_rain():
-    recs = _gear_recommendation(feels_like=15, wind_gusts_kmh=20, precipitation_mm=2.0, weather_code=63)
-    categories = [r["category"] for r in recs]
-    assert "ploaie" in categories
-    assert "mănuși_ploaie" in categories
-    # Rain should be required urgency (>1mm)
-    rain_rec = next(r for r in recs if r["category"] == "ploaie")
-    assert rain_rec["urgency"] == "required"
-
-
-def test_gear_recommendation_cold():
-    recs = _gear_recommendation(feels_like=-5, wind_gusts_kmh=10, precipitation_mm=0, weather_code=0)
-    categories = [r["category"] for r in recs]
-    assert "geacă" in categories
-    assert "strat_baza" in categories
-    assert "mănuși" in categories
-    assert "anvelope" in categories
-    jacket = next(r for r in recs if r["category"] == "geacă")
-    assert jacket["urgency"] == "required"
-
-
-def test_gear_recommendation_ideal():
-    recs = _gear_recommendation(feels_like=22, wind_gusts_kmh=15, precipitation_mm=0, weather_code=1)
-    # Should still recommend jacket and gloves at info level
-    categories = [r["category"] for r in recs]
-    assert "geacă" in categories
-    jacket = next(r for r in recs if r["category"] == "geacă")
-    assert jacket["urgency"] == "info"
-
-
-def test_gear_recommendation_fog():
-    recs = _gear_recommendation(feels_like=15, wind_gusts_kmh=10, precipitation_mm=0, weather_code=45)
-    categories = [r["category"] for r in recs]
-    assert "vizibilitate" in categories
-
-
-def test_gear_recommendation_strong_wind():
-    recs = _gear_recommendation(feels_like=20, wind_gusts_kmh=60, precipitation_mm=0, weather_code=0)
-    categories = [r["category"] for r in recs]
-    assert "vizor" in categories
-    visor = next(r for r in recs if r["category"] == "vizor")
-    assert visor["urgency"] == "required"
-
-
-# ---------------------------------------------------------------------------
 # Road surface temperature
 # ---------------------------------------------------------------------------
 
@@ -382,12 +333,11 @@ def test_haversine_km_bucharest_cluj():
 # Merge current includes new fields
 # ---------------------------------------------------------------------------
 
-def test_merge_current_includes_gear_and_road_temp():
+def test_merge_current_includes_road_temp():
     om_data = _make_om_data()
     result = _merge_current(om_data, None, None)
-    assert "gear_recommendation" in result
-    assert isinstance(result["gear_recommendation"], list)
     assert "road_surface_temp" in result
+    assert "gear_recommendation" not in result
 
 
 # ---------------------------------------------------------------------------

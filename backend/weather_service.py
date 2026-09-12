@@ -692,197 +692,6 @@ def scoring_metadata() -> dict[str, Any]:
     }
 
 
-def _gear_recommendation(
-    feels_like: float | None,
-    wind_gusts_kmh: float | None,
-    precipitation_mm: float | None,
-    weather_code: int | None,
-) -> list[dict]:
-    """
-    Return gear recommendations based on weather conditions.
-    Each item: {category, item, reason, urgency: 'info'|'warn'|'required', icon}
-    """
-    f = feels_like if feels_like is not None else 20
-    g = wind_gusts_kmh or 0
-    p = precipitation_mm or 0
-    code = weather_code or 0
-    recs: list[dict] = []
-
-    # ── Rain / waterproofing ──────────────────────────────────────────────
-    raining = p > 0.2 or code in (51, 53, 55, 61, 63, 65, 80, 81, 82, 95, 96, 99)
-    if raining:
-        urgency = "required" if p > 1 or code in (63, 65, 81, 82, 95, 96, 99) else "warn"
-        recs.append({
-            "category": "ploaie",
-            "item": "Costum impermeabil / oversuit",
-            "reason": f"Precipitații active ({p:.1f} mm/h) — rămâi uscat și cald",
-            "urgency": urgency,
-            "icon": "🌧️",
-        })
-        recs.append({
-            "category": "mănuși_ploaie",
-            "item": "Mănuși impermeabile",
-            "reason": "Mâinile ude reduc controlul și răspunsul la frână",
-            "urgency": urgency,
-            "icon": "🧤",
-        })
-
-    # ── Jacket ───────────────────────────────────────────────────────────
-    if f < 0:
-        recs.append({
-            "category": "geacă",
-            "item": "Geacă de iarnă cu protecții CE + liner termic",
-            "reason": f"Temperatură resimțită {f:.0f}°C — condiții extreme de frig",
-            "urgency": "required",
-            "icon": "🧥",
-        })
-        recs.append({
-            "category": "strat_baza",
-            "item": "Strat termic de bază (top + pantaloni)",
-            "reason": "Protecție împotriva hipotermiei sub 0°C",
-            "urgency": "required",
-            "icon": "🎿",
-        })
-    elif f < 10:
-        recs.append({
-            "category": "geacă",
-            "item": "Geacă de moto 3 sezoane cu liner termic activ",
-            "reason": f"Temperatură resimțită {f:.0f}°C — vreme rece",
-            "urgency": "required",
-            "icon": "🧥",
-        })
-        recs.append({
-            "category": "strat_baza",
-            "item": "Strat termic de bază",
-            "reason": "Confort termic la temperaturi scăzute",
-            "urgency": "warn",
-            "icon": "🎿",
-        })
-    elif f < 18:
-        recs.append({
-            "category": "geacă",
-            "item": "Geacă de moto 3 sezoane (fără liner sau cu liner subțire)",
-            "reason": f"Temperatură resimțită {f:.0f}°C — vreme răcoroasă",
-            "urgency": "warn",
-            "icon": "🧥",
-        })
-    elif f < 28:
-        recs.append({
-            "category": "geacă",
-            "item": "Geacă de moto din textil / piele cu protecții",
-            "reason": f"Temperatură resimțită {f:.0f}°C — condiții ideale",
-            "urgency": "info",
-            "icon": "🧥",
-        })
-    else:
-        recs.append({
-            "category": "geacă",
-            "item": "Geacă mesh cu ventilație maximă + protecții",
-            "reason": f"Temperatură resimțită {f:.0f}°C — căldură puternică",
-            "urgency": "warn",
-            "icon": "🧥",
-        })
-        recs.append({
-            "category": "hidratare",
-            "item": "Hidratare frecventă (min 500 ml/h)",
-            "reason": "Risc de deshidratare și colaps termic",
-            "urgency": "warn",
-            "icon": "💧",
-        })
-
-    # ── Gloves ───────────────────────────────────────────────────────────
-    if f < 5:
-        recs.append({
-            "category": "mănuși",
-            "item": "Mănuși de iarnă / cu încălzire electrică",
-            "reason": f"Sub {f:.0f}°C degetele amorțesc și pierzi controlul frenei",
-            "urgency": "required",
-            "icon": "🧤",
-        })
-    elif f < 12:
-        recs.append({
-            "category": "mănuși",
-            "item": "Mănuși de moto cu dublură termică",
-            "reason": f"Temperatura mâinilor scade rapid la {f:.0f}°C în mers",
-            "urgency": "warn",
-            "icon": "🧤",
-        })
-    elif not raining:
-        recs.append({
-            "category": "mănuși",
-            "item": "Mănuși de moto standard cu protecții",
-            "reason": "Protecție esențială la orice temperatură",
-            "urgency": "info",
-            "icon": "🧤",
-        })
-
-    # ── Pants ────────────────────────────────────────────────────────────
-    if f < 5:
-        recs.append({
-            "category": "pantaloni",
-            "item": "Pantaloni de moto cu liner termic + protecții CE",
-            "reason": "Protecție termică și impact la temperaturi sub 5°C",
-            "urgency": "required",
-            "icon": "👖",
-        })
-    elif f < 15:
-        recs.append({
-            "category": "pantaloni",
-            "item": "Pantaloni de moto cu protecții (opțional liner)",
-            "reason": "Vreme răcoroasă — protejează genunchii și coapsele",
-            "urgency": "warn",
-            "icon": "👖",
-        })
-    else:
-        recs.append({
-            "category": "pantaloni",
-            "item": "Pantaloni de moto textil / piele cu protecții",
-            "reason": "Protecție la impact — obligatorie",
-            "urgency": "info",
-            "icon": "👖",
-        })
-
-    # ── Wind / visor ─────────────────────────────────────────────────────
-    if g > 50:
-        recs.append({
-            "category": "vizor",
-            "item": "Vizor complet închis + colier gât aerodinamic",
-            "reason": f"Rafale de {g:.0f} km/h — turbulențe puternice, oboseală musculară",
-            "urgency": "required",
-            "icon": "⛑️",
-        })
-    elif g > 35:
-        recs.append({
-            "category": "vizor",
-            "item": "Vizor intermediar sau complet",
-            "reason": f"Rafale de {g:.0f} km/h — confort redus la viteze mari",
-            "urgency": "warn",
-            "icon": "⛑️",
-        })
-
-    # ── Fog / visibility ─────────────────────────────────────────────────
-    if code in (45, 48):
-        recs.append({
-            "category": "vizibilitate",
-            "item": "Vestă reflectorizantă fluorescent-galbenă",
-            "reason": "Ceață densă — fii văzut de ceilalți participanți la trafic",
-            "urgency": "required",
-            "icon": "🦺",
-        })
-
-    # ── Ice / frost risk ─────────────────────────────────────────────────
-    if f < 3:
-        recs.append({
-            "category": "anvelope",
-            "item": "Verifică aderența anvelopelor + presiunea",
-            "reason": f"Risc de gheață / brumă la {f:.0f}°C — aderență redusă drastic",
-            "urgency": "required",
-            "icon": "⚠️",
-        })
-
-    return recs
-
-
 def _road_surface_temp(
     air_temp: float | None,
     humidity: float | None,
@@ -2615,7 +2424,7 @@ def _merge_current(
     frost_risk = _frost_risk(temp, road_temp, dew_point, precipitation, effective_code)
 
     # --- moto score
-    # Score and gear must use the same code that drives the displayed icon and
+    # The score must use the same code that drives the displayed icon and
     # description (effective_code), and the rain probability of the current
     # hour (without it a storm code with 0 mm used to score 100).
     score, breakdown = _score_with_breakdown(
@@ -2655,7 +2464,6 @@ def _merge_current(
         "moto_score": score,
         "moto_label": _moto_label(score),
         "score_breakdown": breakdown,
-        "gear_recommendation": _gear_recommendation(feels, wind_gusts, precipitation, effective_code),
         "road_surface_temp": road_temp,
         "sources": (
             ["open-meteo"]

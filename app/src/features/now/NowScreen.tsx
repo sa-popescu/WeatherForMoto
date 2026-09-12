@@ -12,7 +12,7 @@ import { useClock } from './useClock';
 import { useNowModel } from './useNowModel';
 import './now.css';
 
-// "Acum": can I ride now? Verdict, 24 h timeline, rain, readouts, gear, days.
+// "Acum": can I ride now? Verdict, 24 h timeline, rain, readouts, days.
 // The previous data stays on screen during refreshes (no skeleton flashes).
 
 export default function NowScreen({ active }: ScreenProps) {
