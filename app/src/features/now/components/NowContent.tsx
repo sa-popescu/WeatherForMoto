@@ -36,7 +36,13 @@ export function NowContent({ data, model, selectedTime, onSelectTime, onOpen }: 
 
   return (
     <>
-      <Hero score={score} model={model} onScore={() => onOpen({ kind: 'score' })} />
+      <Hero
+        score={score}
+        model={model}
+        confidence={data.current.forecast_confidence}
+        modelCount={data.current.model_count}
+        onScore={() => onOpen({ kind: 'score' })}
+      />
       <Timeline
         bars={model.bars}
         nowIso={model.nowIso}

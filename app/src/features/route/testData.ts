@@ -29,6 +29,8 @@ export function hour(time: string, score: number | null, extra: Partial<HourlyWe
     frost_risk: false,
     moto_score: score,
     moto_label: null,
+    forecast_confidence: null,
+    model_count: null,
     ...extra,
   };
 }
