@@ -4,10 +4,11 @@ import { useCallback, useState } from 'react';
 // tab switches and remounts; deliberately not persisted, so a fresh start
 // always shows both layers.
 
-/** Which forecast field is painted over the map, if any. */
-export type ForecastLayer = 'off' | 'cloud' | 'rain';
+/** Which field the forecast part of the band paints. */
+export type ForecastLayer = 'cloud' | 'rain';
 
 export interface LayerPrefs {
+  /** Observed radar: the past half of the band. */
   radar: boolean;
   hazards: boolean;
   forecast: ForecastLayer;
@@ -15,7 +16,7 @@ export interface LayerPrefs {
   opacity: number;
 }
 
-let sessionPrefs: LayerPrefs = { radar: true, hazards: true, forecast: 'off', opacity: 0.7 };
+let sessionPrefs: LayerPrefs = { radar: true, hazards: true, forecast: 'rain', opacity: 0.7 };
 
 export function useLayerPrefs(): [LayerPrefs, (change: Partial<LayerPrefs>) => void] {
   const [prefs, setPrefs] = useState<LayerPrefs>(sessionPrefs);
