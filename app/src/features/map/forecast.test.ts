@@ -6,12 +6,16 @@ import {
   forecastUrl,
   frameImageData,
   frameOffsetHours,
+  GRID_COLS,
+  GRID_ROWS,
   gridPoints,
   parseForecast,
   rainRgba,
   utcHourKey,
   type GridBounds,
+  type Rgba,
 } from './forecast';
+import { RADAR_LEGEND } from './radar';
 
 const BOX: GridBounds = { south: 44, west: 25, north: 46, east: 27 };
 const NOW = Date.parse('2026-09-12T09:20:00Z');
@@ -121,6 +125,30 @@ describe('colours', () => {
     expect(pixels).toHaveLength(16);
     expect(pixels[3]).toBe(colorFor('cloud', 100)[3]);
     expect(pixels[7]).toBe(0);
+  });
+});
+
+describe('the forecast field matches the radar it continues', () => {
+  const hex = ([r, g, b]: Rgba): string => `#${[r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+
+  it('paints rain in the radar legend colours', () => {
+    const radarColors = new Set(RADAR_LEGEND.flatMap((band) => band.colors));
+    for (const mm of [0.2, 0.6, 1, 2, 3, 6, 10, 20, 50]) {
+      expect(radarColors.has(hex(rainRgba(mm)))).toBe(true);
+    }
+  });
+
+  it('climbs the scale the same way: blue for light rain, yellow through red for heavy', () => {
+    expect(hex(rainRgba(0.2))).toBe('#88ddee');
+    expect(hex(rainRgba(1))).toBe('#0077aa');
+    expect(hex(rainRgba(3))).toBe('#ffee00');
+    expect(hex(rainRgba(10))).toBe('#ff4400');
+    expect(hex(rainRgba(50))).toBe('#ffaaff');
+  });
+
+  it('samples enough points for the field to have a shape', () => {
+    expect(GRID_COLS * GRID_ROWS).toBe(100);
+    expect(gridPoints(BOX)).toHaveLength(GRID_COLS * GRID_ROWS);
   });
 });
 
