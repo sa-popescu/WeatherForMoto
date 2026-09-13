@@ -689,6 +689,22 @@ def scoring_metadata() -> dict[str, Any]:
             "weather_code": "most severe display code of the scored daylight hours; "
                             "whole day across sources when no daylight hour is scored",
         },
+        "confidence": {
+            "models": list(ENSEMBLE_MODELS),
+            "variables": list(ENSEMBLE_VARIABLES),
+            "min_models": ENSEMBLE_MIN_MODELS,
+            "blend": {
+                "seamless_weight": ENSEMBLE_SEAMLESS_WEIGHT,
+                "model_mean_weight": ENSEMBLE_MODEL_WEIGHT,
+            },
+            "spread_max": {
+                "high": dict(ENSEMBLE_HIGH_SPREAD),
+                "medium": dict(ENSEMBLE_MEDIUM_SPREAD),
+            },
+            "rule": "spread is max - min across the models for that hour; "
+                    "the worst variable decides the level, and anything above "
+                    "the medium limits is low",
+        },
     }
 
 
@@ -1002,6 +1018,7 @@ TTL_MET_DEFAULT_S = 30 * 60
 TTL_MET_MIN_S = 60
 TTL_MET_MAX_S = 2 * 3600
 TTL_PIRATE_S = 30 * 60
+TTL_ENSEMBLE_S = 30 * 60
 TTL_GEOCODE_S = 24 * 3600
 FORECAST_CACHE_MAX_ENTRIES = 400
 GEOCODE_CACHE_MAX_ENTRIES = 1000
@@ -1519,6 +1536,148 @@ async def _fetch_openmeteo(
         f"Open-Meteo unreachable after {OPENMETEO_ATTEMPTS} attempts: "
         f"{_describe_error(last_exc) if last_exc else 'unknown error'}"
     ) from last_exc
+
+
+# ---------------------------------------------------------------------------
+# Model ensemble (Open-Meteo, several national models)
+# ---------------------------------------------------------------------------
+# Open-Meteo's default answer is its "seamless" blend, already curated per
+# region. Asking the same endpoint for the individual national models costs one
+# more request and no API key, and gives two things the blend alone cannot: a
+# mean that does not depend on a single centre, and the spread between the
+# models, which is the honest measure of how sure the forecast is.
+
+ENSEMBLE_MODELS: tuple[str, ...] = (
+    "ecmwf_ifs025",           # ECMWF, Reading
+    "icon_seamless",          # DWD, Offenbach
+    "gfs_seamless",           # NOAA, College Park
+    "meteofrance_seamless",   # Météo-France, Toulouse
+    "ukmo_seamless",          # Met Office, Exeter
+)
+
+ENSEMBLE_VARIABLES: tuple[str, ...] = (
+    "temperature_2m",
+    "apparent_temperature",
+    "precipitation",
+    "wind_gusts_10m",
+)
+
+# The seamless blend keeps twice the weight of the raw model mean: it is a
+# curated product, not just another member.
+ENSEMBLE_SEAMLESS_WEIGHT = 2.0
+ENSEMBLE_MODEL_WEIGHT = 1.0
+
+# An hour needs at least this many models before its spread means anything.
+ENSEMBLE_MIN_MODELS = 2
+
+# Spread (max - min across the models) up to which an hour still counts as
+# agreed. The values are what matters on a bike: 2 °C does not change what you
+# wear, 0.5 mm/h does not change whether the road is wet, 10 km/h of gust does
+# not change how the bike behaves.
+ENSEMBLE_HIGH_SPREAD: dict[str, float] = {
+    "temperature_2m": 2.0,
+    "precipitation": 0.5,
+    "wind_gusts_10m": 10.0,
+}
+ENSEMBLE_MEDIUM_SPREAD: dict[str, float] = {
+    "temperature_2m": 4.0,
+    "precipitation": 1.5,
+    "wind_gusts_10m": 20.0,
+}
+
+
+async def _fetch_openmeteo_ensemble(
+    lat: float, lon: float, client: httpx.AsyncClient, forecast_days: int = 7
+) -> dict[str, Any] | None:
+    """The same hours from every model in ENSEMBLE_MODELS; None on failure."""
+    params = {
+        "latitude": lat,
+        "longitude": lon,
+        "hourly": ",".join(ENSEMBLE_VARIABLES),
+        "models": ",".join(ENSEMBLE_MODELS),
+        "timezone": "auto",
+        "forecast_days": min(max(int(forecast_days), 1), 16),
+        "wind_speed_unit": "kmh",
+    }
+    try:
+        resp = await client.get(OPENMETEO_BASE, params=params,
+                                timeout=OPTIONAL_PROVIDER_HTTP_TIMEOUT_S)
+        resp.raise_for_status()
+        data = resp.json()
+        if not isinstance(data, dict) or data.get("error"):
+            reason = data.get("reason", "unknown error") if isinstance(data, dict) else "not an object"
+            logger.warning("Open-Meteo ensemble error: %s", reason)
+            return None
+        return data
+    except (httpx.HTTPError, ValueError) as exc:
+        logger.warning("Open-Meteo ensemble fetch failed: %s", _describe_error(exc))
+        return None
+
+
+def _ensemble_series(hourly: dict[str, Any], variable: str) -> list[list[Any]]:
+    """One list per model: Open-Meteo suffixes the key with the model name."""
+    series: list[list[Any]] = []
+    for key, values in hourly.items():
+        if isinstance(values, list) and (key == variable or key.startswith(f"{variable}_")):
+            series.append(values)
+    return series
+
+
+def _spread_confidence(spreads: dict[str, float]) -> str:
+    """"high", "medium" or "low" — the worst of the variables decides."""
+    level = "high"
+    for name, spread in spreads.items():
+        if name not in ENSEMBLE_HIGH_SPREAD:
+            continue
+        if spread > ENSEMBLE_MEDIUM_SPREAD[name]:
+            return "low"
+        if spread > ENSEMBLE_HIGH_SPREAD[name]:
+            level = "medium"
+    return level
+
+
+def _ensemble_by_time(ens_data: dict | None) -> dict[str, dict[str, Any]]:
+    """Per local hour: the mean of the models, how many answered, and how much they agree."""
+    if not isinstance(ens_data, dict):
+        return {}
+    hourly = ens_data.get("hourly")
+    if not isinstance(hourly, dict):
+        return {}
+    times = hourly.get("time")
+    if not isinstance(times, list):
+        return {}
+
+    series = {variable: _ensemble_series(hourly, variable) for variable in ENSEMBLE_VARIABLES}
+    out: dict[str, dict[str, Any]] = {}
+    for i, time_value in enumerate(times):
+        means: dict[str, float] = {}
+        spreads: dict[str, float] = {}
+        models = 0
+        for variable, lists in series.items():
+            values = [v for v in (_to_float(_safe(lst, i)) for lst in lists) if v is not None]
+            if not values:
+                continue
+            models = max(models, len(values))
+            means[variable] = sum(values) / len(values)
+            spreads[variable] = max(values) - min(values)
+        if models < ENSEMBLE_MIN_MODELS:
+            continue
+        out[str(time_value)] = {
+            "means": means,
+            "spreads": spreads,
+            "models": models,
+            "confidence": _spread_confidence(spreads),
+        }
+    return out
+
+
+def _blend_with_model_mean(seamless: float | None, model_mean: float | None) -> float | None:
+    """Open-Meteo's own value, pulled toward the mean of the national models."""
+    if model_mean is None:
+        return seamless
+    if seamless is None:
+        return round(model_mean, 2)
+    return _weighted_avg([seamless, model_mean], [ENSEMBLE_SEAMLESS_WEIGHT, ENSEMBLE_MODEL_WEIGHT])
 
 
 # ---------------------------------------------------------------------------
@@ -2465,8 +2624,12 @@ def _merge_current(
         "moto_label": _moto_label(score),
         "score_breakdown": breakdown,
         "road_surface_temp": road_temp,
+        # How much the national models agree on this hour, and how many answered.
+        "forecast_confidence": current_hour.get("forecast_confidence"),
+        "model_count": current_hour.get("model_count"),
         "sources": (
             ["open-meteo"]
+            + (["model-ensemble"] if current_hour.get("model_count") else [])
             + (["openweathermap"] if owm_current else [])
             + (["met-norway"] if met_norm else [])
             + (["pirate-weather"] if pw_norm else [])
@@ -2638,19 +2801,31 @@ def _merge_daily(
     return result
 
 
-def _build_hourly(om_data: dict) -> list[dict]:
-    """Hourly items (Open-Meteo), each with its own moto score and risk flags."""
+def _build_hourly(om_data: dict, ensemble: dict[str, dict[str, Any]] | None = None) -> list[dict]:
+    """
+    Hourly items, each with its own moto score and risk flags.
+
+    Values come from Open-Meteo. When the model ensemble is available they are
+    pulled toward the mean of the national models, and the hour also carries how
+    much those models agree (see ENSEMBLE_* above).
+    """
     hourly = om_data.get("hourly", {})
     times = hourly.get("time", [])
     sun_by_date = _sun_times_by_date(om_data)
     result = []
     for i, t in enumerate(times):
+        ens_hour = ensemble.get(str(t)) if ensemble else None
+        means: dict[str, float] = ens_hour["means"] if ens_hour else {}
         code = _safe(hourly.get("weather_code"), i)
-        temp = _safe(hourly.get("temperature_2m"), i)
-        feels = _safe(hourly.get("apparent_temperature"), i)
-        precipitation = _safe(hourly.get("precipitation"), i)
+        temp = _blend_with_model_mean(_safe(hourly.get("temperature_2m"), i),
+                                      means.get("temperature_2m"))
+        feels = _blend_with_model_mean(_safe(hourly.get("apparent_temperature"), i),
+                                       means.get("apparent_temperature"))
+        precipitation = _blend_with_model_mean(_safe(hourly.get("precipitation"), i),
+                                               means.get("precipitation"))
         probability = _safe(hourly.get("precipitation_probability"), i)
-        gusts = _safe(hourly.get("wind_gusts_10m"), i)
+        gusts = _blend_with_model_mean(_safe(hourly.get("wind_gusts_10m"), i),
+                                       means.get("wind_gusts_10m"))
         humidity = _safe(hourly.get("relative_humidity_2m"), i)
         visibility = _safe(hourly.get("visibility"), i)
         dew_point_raw = _safe(hourly.get("dew_point_2m"), i)
@@ -2685,6 +2860,8 @@ def _build_hourly(om_data: dict) -> list[dict]:
             "frost_risk": frost_risk,
             "moto_score": score,
             "moto_label": _moto_label(score),
+            "forecast_confidence": ens_hour["confidence"] if ens_hour else None,
+            "model_count": ens_hour["models"] if ens_hour else None,
         })
     return result
 
@@ -2988,13 +3165,16 @@ async def _collect_weather(
     days = min(max(int(forecast_days), 1), 16)
     cell = _coord_key(lat, lon)
     async with http_client_scope() as client:
-        (om_data, owm_current, owm_forecast, owm_air, om_air, met_raw, pw_raw,
+        (om_data, ens_raw, owm_current, owm_forecast, owm_air, om_air, met_raw, pw_raw,
          wxm_raw, netatmo_raw) = await asyncio.gather(
             _forecast_cache.get_or_fetch(
                 ("open-meteo", cell, days),
                 _with_ttl(lambda: _fetch_openmeteo(lat, lon, client, forecast_days=days),
                           TTL_OPENMETEO_S),
             ),
+            _cached_optional("Open-Meteo ensemble", ("om-ensemble", cell, days), _with_ttl(
+                lambda: _fetch_openmeteo_ensemble(lat, lon, client, forecast_days=days),
+                TTL_ENSEMBLE_S)),
             _cached_optional("OWM current", ("owm-current", cell), _with_ttl(
                 lambda: _fetch_owm_current(lat, lon, owm_api_key, client), TTL_OWM_S)),
             _cached_optional("OWM forecast", ("owm-forecast", cell), _with_ttl(
@@ -3021,7 +3201,7 @@ async def _collect_weather(
     netatmo_norm = _normalize_netatmo_current(netatmo_raw)
     met_daily = _aggregate_met_daily(met_raw, utc_offset)
 
-    hourly = _build_hourly(om_data)
+    hourly = _build_hourly(om_data, _ensemble_by_time(ens_raw))
     current = _merge_current(om_data, owm_current, owm_air, om_air, met_norm, pw_norm,
                              wxm_norm, netatmo_norm, hourly=hourly)
     daily = _merge_daily(om_data, owm_forecast, met_daily, hourly=hourly)

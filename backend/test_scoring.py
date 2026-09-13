@@ -22,7 +22,9 @@ from weather_service import (  # noqa: E402
     _MET_SYMBOL_TO_WMO,
     _WMO_MAP,
     _aggregate_met_daily,
+    _blend_with_model_mean,
     _build_hourly,
+    _ensemble_by_time,
     _frost_risk,
     _merge_current,
     _merge_daily,
@@ -38,6 +40,7 @@ from weather_service import (  # noqa: E402
     _resolve_departure,
     _road_surface_temp,
     _score_with_breakdown,
+    _spread_confidence,
     _wmo_desc,
 )
 
@@ -45,6 +48,11 @@ OFFSET_S = 3 * 3600  # Europe/Bucharest in summer
 FIXED_NOW = datetime(2024, 6, 1, 10, 15)  # local wall clock used by the merge tests
 CURRENT_HOUR_INDEX = 11  # first hourly slot at or after 10:15 is 11:00
 
+
+
+def is_ensemble_request(request: httpx.Request) -> bool:
+    """The ensemble call is the Open-Meteo forecast asked for several models."""
+    return b"models=" in request.url.query
 
 def make_om_payload(now_local: datetime = FIXED_NOW, hours: int = 48, **hourly_overrides: Any) -> dict:
     """Open-Meteo-shaped payload: dry, mild, breezy; hourly from 00:00 of now_local's day."""
@@ -642,6 +650,8 @@ class NetworkTests(unittest.IsolatedAsyncioTestCase):
 
         async def handler(request: httpx.Request) -> httpx.Response:
             if request.url.host == "api.open-meteo.com":
+                if is_ensemble_request(request):
+                    return httpx.Response(200, json={"hourly": {"time": []}})
                 self.count("om")
                 if self.calls["om"] == 1:
                     return httpx.Response(503, text="busy")
@@ -659,7 +669,7 @@ class NetworkTests(unittest.IsolatedAsyncioTestCase):
 
         async def handler(request: httpx.Request) -> httpx.Response:
             if request.url.host == "api.open-meteo.com":
-                self.count("om")
+                self.count("ensemble" if is_ensemble_request(request) else "om")
                 await asyncio.sleep(0.1)
                 return httpx.Response(200, json=payload)
             return httpx.Response(404, json={})
@@ -672,6 +682,7 @@ class NetworkTests(unittest.IsolatedAsyncioTestCase):
             )
             await ws.get_weather(44.43, 26.10, "C", "", forecast_days=2)
         self.assertEqual(self.calls["om"], 1)
+        self.assertEqual(self.calls["ensemble"], 1)
 
     async def test_cache_single_flight_ttl_and_bound(self) -> None:
         cache = ws._TTLCache("test", max_entries=2)
@@ -844,6 +855,85 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 422)
         resp = self.client.get("/route/multi", params={"stops": "A;B", "departure": "31/12 08:00"})
         self.assertEqual(resp.status_code, 422)
+
+
+
+def make_ensemble_payload(times: list[str], **series: list[list[float]]) -> dict:
+    """Open-Meteo multi-model shape: one suffixed key per model and variable."""
+    hourly: dict[str, Any] = {"time": times}
+    for variable, per_model in series.items():
+        for index, values in enumerate(per_model):
+            hourly[f"{variable}_model{index}"] = values
+    return {"hourly": hourly}
+
+
+class EnsembleTests(unittest.TestCase):
+    def test_models_that_agree_give_high_confidence(self) -> None:
+        times = ["2024-06-01T00:00"]
+        data = make_ensemble_payload(
+            times,
+            temperature_2m=[[18.0], [18.5], [19.0]],
+            precipitation=[[0.0], [0.1], [0.0]],
+            wind_gusts_10m=[[30.0], [33.0], [35.0]],
+        )
+        hour = _ensemble_by_time(data)["2024-06-01T00:00"]
+        self.assertEqual(hour["confidence"], "high")
+        self.assertEqual(hour["models"], 3)
+        self.assertAlmostEqual(hour["means"]["temperature_2m"], 18.5, places=2)
+
+    def test_models_that_disagree_on_rain_give_low_confidence(self) -> None:
+        times = ["2024-06-01T00:00"]
+        data = make_ensemble_payload(
+            times,
+            temperature_2m=[[18.0], [18.5]],
+            precipitation=[[0.0], [4.0]],
+        )
+        self.assertEqual(_ensemble_by_time(data)["2024-06-01T00:00"]["confidence"], "low")
+
+    def test_a_single_model_is_not_an_ensemble(self) -> None:
+        data = make_ensemble_payload(["2024-06-01T00:00"], temperature_2m=[[18.0]])
+        self.assertEqual(_ensemble_by_time(data), {})
+
+    def test_junk_payloads_are_ignored(self) -> None:
+        self.assertEqual(_ensemble_by_time(None), {})
+        self.assertEqual(_ensemble_by_time({}), {})
+        self.assertEqual(_ensemble_by_time({"hourly": {"time": "not a list"}}), {})
+
+    def test_worst_variable_decides_the_level(self) -> None:
+        self.assertEqual(_spread_confidence({"temperature_2m": 1.0, "wind_gusts_10m": 5.0}), "high")
+        self.assertEqual(_spread_confidence({"temperature_2m": 1.0, "wind_gusts_10m": 15.0}), "medium")
+        self.assertEqual(_spread_confidence({"temperature_2m": 5.0, "wind_gusts_10m": 5.0}), "low")
+
+    def test_blend_keeps_the_seamless_value_dominant(self) -> None:
+        # 2 : 1 in favour of Open-Meteo's own blend.
+        self.assertAlmostEqual(_blend_with_model_mean(18.0, 21.0), 19.0, places=2)
+        self.assertEqual(_blend_with_model_mean(18.0, None), 18.0)
+        self.assertEqual(_blend_with_model_mean(None, 21.0), 21.0)
+        self.assertIsNone(_blend_with_model_mean(None, None))
+
+    def test_hourly_carries_the_agreement_and_uses_the_blend(self) -> None:
+        om = make_om_payload()
+        times = om["hourly"]["time"]
+        n = len(times)
+        ensemble = _ensemble_by_time(make_ensemble_payload(
+            times,
+            temperature_2m=[[21.0] * n, [21.0] * n],
+            apparent_temperature=[[21.0] * n, [21.0] * n],
+            precipitation=[[0.0] * n, [0.0] * n],
+            wind_gusts_10m=[[35.0] * n, [35.0] * n],
+        ))
+        hours = _build_hourly(om, ensemble)
+        self.assertEqual(hours[0]["forecast_confidence"], "high")
+        self.assertEqual(hours[0]["model_count"], 2)
+        # Open-Meteo says 18 °C, the models 21 °C, so the hour lands at 19 °C.
+        self.assertAlmostEqual(hours[0]["temperature"], 19.0, places=2)
+
+    def test_hourly_without_an_ensemble_is_unchanged(self) -> None:
+        om = make_om_payload()
+        plain = _build_hourly(om)
+        self.assertIsNone(plain[0]["forecast_confidence"])
+        self.assertIsNone(plain[0]["model_count"])
+        self.assertAlmostEqual(plain[0]["temperature"], 18.0, places=2)
 
 
 if __name__ == "__main__":
