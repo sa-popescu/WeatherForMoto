@@ -41,6 +41,7 @@ from weather_service import (  # noqa: E402
     _road_surface_temp,
     _score_with_breakdown,
     _spread_confidence,
+    _sync_current_hour,
     _wmo_desc,
 )
 
@@ -337,6 +338,30 @@ class CurrentBlockTests(unittest.TestCase):
                "wmo_code": None}
         current = _merge_current(om, None, None, wxm_norm=wxm)
         self.assertEqual(current["precipitation_mm"], 0.0)
+
+    def test_the_hour_you_are_in_says_what_the_gauge_says(self) -> None:
+        # The models put light rain in the current hour; the sources measure more
+        # than that right now. The bar must not read better than the gauge.
+        om = make_om_payload(
+            precipitation=with_value_at([0.0] * 48, CURRENT_HOUR_INDEX, 0.4),
+            precipitation_probability=with_value_at([0] * 48, CURRENT_HOUR_INDEX, 48),
+        )
+        om["current"]["precipitation"] = 1.2
+        hourly = _build_hourly(om)
+        forecast_score = hourly[CURRENT_HOUR_INDEX]["moto_score"]
+        next_score = hourly[CURRENT_HOUR_INDEX + 1]["moto_score"]
+        current = _merge_current(om, None, None, hourly=hourly)
+        self.assertLess(current["moto_score"], forecast_score)
+
+        _sync_current_hour(om, hourly, current)
+        hour = hourly[CURRENT_HOUR_INDEX]
+        self.assertEqual(hour["moto_score"], current["moto_score"])
+        self.assertEqual(hour["moto_label"], current["moto_label"])
+        self.assertEqual(hour["precipitation_mm"], current["precipitation_mm"])
+        self.assertEqual(hour["rain_intensity"], current["rain_intensity"])
+        # Only that hour: the next one stays the model's own forecast.
+        self.assertEqual(hourly[CURRENT_HOUR_INDEX + 1]["precipitation_mm"], 0.0)
+        self.assertEqual(hourly[CURRENT_HOUR_INDEX + 1]["moto_score"], next_score)
 
     def test_current_contract_fields(self) -> None:
         current = _merge_current(make_om_payload(), None, None)

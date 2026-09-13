@@ -369,18 +369,44 @@ function buildDaily(raw: OpenMeteoForecast, hourly: HourlyWeather[], nowLocal: s
   });
 }
 
+/**
+ * Gives the hour being lived the measured conditions, in place: the bar for
+ * "now" and the gauge above it must agree, and for that one hour what the
+ * sources report beats the model's average (same rule as the API).
+ */
+function syncCurrentHour(hour: HourlyWeather | undefined, current: CurrentWeather): void {
+  if (!hour) return;
+  if (current.moto_score != null) {
+    hour.moto_score = current.moto_score;
+    hour.moto_label = current.moto_label;
+  }
+  if (current.precipitation_mm != null) {
+    hour.precipitation_mm = current.precipitation_mm;
+    hour.rain_intensity = current.rain_intensity;
+  }
+  if (current.precipitation_probability != null) hour.precipitation_probability = current.precipitation_probability;
+  if (current.weather_code != null) {
+    hour.weather_code = current.weather_code;
+    hour.description = current.description;
+  }
+}
+
 /** Maps an Open-Meteo forecast to the backend's WeatherResponse shape, scores included. */
 export function mapOpenMeteo(raw: OpenMeteoForecast, place: Place, nowMs: number = Date.now()): WeatherResponse {
   const offset = raw.utc_offset_seconds ?? 0;
   const hourly = buildHourly(raw);
   const nowLocal = localNowIso(offset, nowMs);
+  const nowHour = hourly[currentHourIndex(hourly, offset, nowMs)];
+  const current = buildCurrent(raw, nowHour);
+  // Before the daily scores, so the day counts the hour as it is.
+  syncCurrentHour(nowHour, current);
   return {
     city: place.name,
     latitude: raw.latitude,
     longitude: raw.longitude,
     timezone: raw.timezone,
     utc_offset_seconds: offset,
-    current: buildCurrent(raw, hourly[currentHourIndex(hourly, offset, nowMs)]),
+    current,
     hourly,
     daily: buildDaily(raw, hourly, nowLocal),
   };
