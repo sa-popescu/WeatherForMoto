@@ -2,8 +2,9 @@ import { fmt, useStrings } from '../../lib/i18n';
 import { Icon } from '../../ui/icons';
 import { Card, IconButton } from '../../ui/primitives';
 import { StopInput } from './StopInput';
-import { addStop, MAX_STOPS, MIN_STOPS, moveItem, removeStop, roleOf, type StopRole } from './stops';
+import { addStop, MAX_STOPS, MIN_STOPS, moveItem, nearestKnown, removeStop, roleOf, type StopRole } from './stops';
 import { RS } from './strings';
+import type { StopDraft } from './types';
 import type { StopsState } from './useStopsState';
 
 // 2 to 10 stops. Normal mode edits the places; "Ordine" mode shows move up,
@@ -29,9 +30,16 @@ const PLACEHOLDER: Record<StopRole, 'placeholderOrigin' | 'placeholderVia' | 'pl
   destination: 'placeholderDestination',
 };
 
+/** "oprire", "oprire · Locația mea" or "oprire · Prahova": the county is what tells two homonyms apart. */
+function roleLine(stop: StopDraft, role: StopRole, s: Strings): string {
+  const word = s[ROLE_WORD[role]];
+  if (stop.gps) return `${word} · ${s.myLocation}`;
+  return stop.place && stop.region ? `${word} · ${stop.region}` : word;
+}
+
 export function StopsEditor({ state }: { state: StopsState }) {
   const s = useStrings(RS);
-  const { stops, setStops, reorder, setReorder, updateText, pickSuggestion, useMyLocation, locating } = state;
+  const { stops, setStops, reorder, setReorder, updateText, pickSuggestion, useMyLocation, locating, appPlace } = state;
   const count = stops.length;
 
   return (
@@ -81,9 +89,10 @@ export function StopsEditor({ state }: { state: StopsState }) {
               <StopInput
                 stop={stop}
                 field={fieldName(role, index, s)}
-                role={stop.gps ? `${s[ROLE_WORD[role]]} · ${s.myLocation}` : s[ROLE_WORD[role]]}
+                role={roleLine(stop, role, s)}
                 placeholder={s[PLACEHOLDER[role]]}
                 dotClass={dotClass}
+                near={nearestKnown(stops, index) ?? appPlace}
                 onText={(text) => updateText(stop.id, text)}
                 onPick={(hit) => pickSuggestion(stop.id, hit)}
                 trailing={

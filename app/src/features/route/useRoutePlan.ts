@@ -4,6 +4,7 @@ import { searchPlaces } from '../../lib/geo';
 import type { Lang } from '../../lib/i18n';
 import type { Place } from '../../lib/types';
 import { fetchRoute, RouteError, type RouteErrorKind } from './osrm';
+import { nearestKnown } from './stops';
 import { runPool } from './pool';
 import { buildSamplePoints, type NameBetween } from './samples';
 import type { PointWeather, RouteLine, SamplePoint, StopDraft } from './types';
@@ -28,31 +29,39 @@ export interface PlanState {
 
 const INITIAL: PlanState = { step: 'idle', error: null, route: null, points: [], weather: {}, days: 0 };
 
+/** A stop as it was resolved, with the county that tells homonyms apart. */
+export interface ResolvedStop extends Place {
+  region: string | null;
+}
+
 export interface CalculateInput {
   stops: readonly StopDraft[];
   days: number;
   lang: Lang;
   nameBetween: NameBetween;
   /** Receives the stops as resolved, so the editor can show what was used. */
-  onResolved: (places: Place[]) => void;
+  onResolved: (places: ResolvedStop[]) => void;
 }
 
-async function resolveStops(stops: readonly StopDraft[], lang: Lang, signal: AbortSignal): Promise<Place[]> {
-  const out: Place[] = [];
-  for (const stop of stops) {
+async function resolveStops(stops: readonly StopDraft[], lang: Lang, signal: AbortSignal): Promise<ResolvedStop[]> {
+  const out: ResolvedStop[] = [];
+  for (const [index, stop] of stops.entries()) {
     if (stop.place) {
-      out.push(stop.place);
+      out.push({ ...stop.place, region: stop.region });
       continue;
     }
-    let found: Place | undefined;
+    // A typed name is resolved against the stop before it, so "Cheia" next to
+    // Vălenii de Munte is the one in Prahova and not its homonym in Brașov.
+    const near = out[out.length - 1] ?? nearestKnown(stops, index);
+    let found;
     try {
-      found = (await searchPlaces(stop.text, lang, signal))[0];
+      found = (await searchPlaces(stop.text, lang, signal, near))[0];
     } catch (err) {
       if (isAbort(err)) throw err;
       throw new RouteError('network', err instanceof Error ? err.message : 'geocoding');
     }
     if (!found) throw new RouteError('geocode', stop.text.trim());
-    out.push({ name: found.name, lat: found.lat, lon: found.lon });
+    out.push({ name: found.name, lat: found.lat, lon: found.lon, region: found.region });
   }
   return out;
 }

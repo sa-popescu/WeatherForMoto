@@ -99,11 +99,37 @@ function fold(text: string): string {
   return text.normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 }
 
+/** A point the search can lean on when two places share a name. */
+export interface NearPoint {
+  lat: number;
+  lon: number;
+}
+
+/**
+ * Orders geocoding hits: Romania first, as the API returned them. The one
+ * case where that order says nothing useful is a true homonym: Romania has
+ * several places with exactly the same name (Cheia sits in both Prahova and
+ * Brașov), and the API cannot know which one the rider means. Only then does
+ * this reorder, putting the homonyms first and, when `near` is known (the
+ * neighbouring stop), the closest of them on top. A single exact match is left
+ * where the API put it, so "Cluj" does not jump over "Cluj-Napoca".
+ */
+export function rankSuggestions(list: readonly PlaceSuggestion[], name: string, near?: NearPoint | null): PlaceSuggestion[] {
+  const ranked = [...list.filter((p) => p.countryCode === 'RO'), ...list.filter((p) => p.countryCode !== 'RO')];
+  const wanted = fold(name);
+  const exact = ranked.filter((p) => fold(p.name) === wanted);
+  if (exact.length < 2) return ranked;
+  const rest = ranked.filter((p) => fold(p.name) !== wanted);
+  if (near) exact.sort((a, b) => distanceKm(near, a) - distanceKm(near, b));
+  return [...exact, ...rest];
+}
+
 /**
  * Place suggestions for a search box. Supports the Romanian "village, county"
  * form: "Sâmbăta, Brașov" keeps only results whose region matches the county.
+ * `near` breaks ties between places with the same name.
  */
-export async function searchPlaces(query: string, lang: Lang, signal?: AbortSignal): Promise<PlaceSuggestion[]> {
+export async function searchPlaces(query: string, lang: Lang, signal?: AbortSignal, near?: NearPoint | null): Promise<PlaceSuggestion[]> {
   const [namePart, regionPart] = query.split(',').map((s) => s.trim());
   if (!namePart || namePart.length < 2) return [];
   const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(namePart)}&count=10&language=${lang}&format=json`;
@@ -116,9 +142,7 @@ export async function searchPlaces(query: string, lang: Lang, signal?: AbortSign
     const filtered = results.filter((r) => fold(`${r.admin1 ?? ''} ${r.admin2 ?? ''}`).includes(wanted));
     if (filtered.length) results = filtered;
   }
-  // Romania first, keeping the API's relevance order inside each group.
-  const ranked = [...results.filter((r) => r.country_code === 'RO'), ...results.filter((r) => r.country_code !== 'RO')];
-  return ranked.slice(0, 8).map((r) => ({
+  const suggestions = results.map((r) => ({
     name: r.name,
     lat: r.latitude,
     lon: r.longitude,
@@ -126,6 +150,7 @@ export async function searchPlaces(query: string, lang: Lang, signal?: AbortSign
     country: r.country ?? null,
     countryCode: r.country_code ?? null,
   }));
+  return rankSuggestions(suggestions, namePart, near).slice(0, 8);
 }
 
 /** Great-circle distance in km. */

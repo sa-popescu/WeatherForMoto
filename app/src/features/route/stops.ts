@@ -34,6 +34,21 @@ export function removeStop(list: readonly StopDraft[], id: string): StopDraft[] 
   return list.filter((s) => s.id !== id);
 }
 
+/**
+ * The place a row can lean on when its name is ambiguous: the nearest stop
+ * that is already pinned, looking backwards first (the ride usually grows
+ * forwards), then forwards.
+ */
+export function nearestKnown(list: readonly StopDraft[], index: number): Place | null {
+  for (let step = 1; step < list.length; step += 1) {
+    const before = list[index - step];
+    if (before?.place) return before.place;
+    const after = list[index + step];
+    if (after?.place) return after.place;
+  }
+  return null;
+}
+
 export type StopRole = 'origin' | 'via' | 'destination';
 
 export function roleOf(index: number, count: number): StopRole {

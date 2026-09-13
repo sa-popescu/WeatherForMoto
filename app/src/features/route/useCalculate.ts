@@ -66,7 +66,9 @@ export function useCalculate({ stopsState, calculate, hasRoute, departure, speed
         lang,
         nameBetween,
         onResolved: (places) => {
-          const resolved = filled.map((st, i) => (st.place ? st : { ...st, text: places[i].name, place: places[i] }));
+          const resolved = filled.map((st, i) =>
+            st.place ? st : { ...st, text: places[i].name, place: { name: places[i].name, lat: places[i].lat, lon: places[i].lon }, region: places[i].region },
+          );
           setStops(resolved);
           setCalcKey(stopsKey(resolved));
         },
@@ -86,7 +88,8 @@ export function useCalculate({ stopsState, calculate, hasRoute, departure, speed
       for (const label of labels) {
         let hit;
         try {
-          hit = (await searchPlaces(label, lang))[0];
+          // Same reasoning as a typed stop: the stop before it disambiguates the name.
+          hit = (await searchPlaces(label, lang, undefined, drafts[drafts.length - 1]?.place))[0];
         } catch (err) {
           console.warn('[route] saved stop lookup failed', err);
         }

@@ -2,7 +2,6 @@ import { useMemo } from 'react';
 import type { WeatherResponse } from '../../../lib/types';
 import type { NowModel } from '../useNowModel';
 import { DayList } from './DayList';
-import { GearList } from './GearList';
 import { Hero } from './Hero';
 import { MoreGrid } from './MoreGrid';
 import type { NowSheetState } from './NowSheets';
@@ -53,7 +52,6 @@ export function NowContent({ data, model, selectedTime, onSelectTime, onOpen }: 
       <RainCard outlook={model.rain} nowIso={model.nowIso} onInfo={() => onOpen({ kind: 'rain' })} />
       <Readouts current={data.current} />
       <MoreGrid current={data.current} />
-      <GearList recs={model.gear.recs} date={model.gear.date} tomorrow={model.gear.tomorrow} />
       <DayList daily={data.daily} today={model.nowIso.slice(0, 10)} onOpen={(date) => onOpen({ kind: 'day', date })} />
     </>
   );
