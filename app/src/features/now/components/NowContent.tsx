@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import type { WeatherResponse } from '../../../lib/types';
 import type { NowModel } from '../useNowModel';
+import { AlertBanners } from './AlertBanners';
 import { DayList } from './DayList';
 import { Hero } from './Hero';
 import { MoreGrid } from './MoreGrid';
@@ -35,6 +36,7 @@ export function NowContent({ data, model, selectedTime, onSelectTime, onOpen }: 
 
   return (
     <>
+      <AlertBanners alerts={data.alerts ?? []} />
       <Hero
         score={score}
         model={model}

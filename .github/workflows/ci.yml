@@ -40,7 +40,7 @@ jobs:
           PYTHONIOENCODING: utf-8
         run: |
           python tests.py
-          python -m unittest test_scoring test_auth_alerts test_frontend_routes test_route_limits
+          python -m unittest test_scoring test_auth_alerts test_frontend_routes test_route_limits test_meteoalarm
 
   frontend:
     name: Frontend typecheck, build and tests

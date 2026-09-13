@@ -4,6 +4,13 @@ import { defineStrings } from '../../lib/i18n';
 export const S_NOW = defineStrings(
   {
     scoreAria: 'Scor moto {score} din 100, {tier}. Atinge pentru explicație.',
+    alertsTitle: 'Avertizări oficiale',
+    alertFallbackTitle: 'Avertizare meteo',
+    alertPeriod: '{from} – {to}',
+    alertUntil: 'până la {to}',
+    alertMore: 'Detalii',
+    alertLess: 'Ascunde',
+    alertSource: 'sursă: {sender}',
     confidenceLine: '{n} modele meteo · {state}',
     confidenceHigh: 'sunt de acord',
     confidenceMedium: 'diferă puțin',
@@ -58,6 +65,13 @@ export const S_NOW = defineStrings(
   },
   {
     scoreAria: 'Ride score {score} out of 100, {tier}. Tap for the explanation.',
+    alertsTitle: 'Official warnings',
+    alertFallbackTitle: 'Weather warning',
+    alertPeriod: '{from} – {to}',
+    alertUntil: 'until {to}',
+    alertMore: 'Details',
+    alertLess: 'Hide',
+    alertSource: 'source: {sender}',
     confidenceLine: '{n} weather models · {state}',
     confidenceHigh: 'they agree',
     confidenceMedium: 'they differ a little',
