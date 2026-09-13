@@ -1,12 +1,13 @@
 import * as L from 'leaflet';
 import { useEffect, useRef } from 'react';
-import { frameImageData, type ForecastData, type ForecastKind, type GridBounds } from './forecast';
+import { fieldImageData, type ForecastData, type ForecastKind, type GridBounds } from './forecast';
 
-// Paints one forecast hour as a single image stretched over the fetched box.
-// The grid is drawn at one pixel per cell and scaled up by the browser, which
-// interpolates it into a smooth field instead of a chequerboard.
+// Paints one forecast hour as a single image over the fetched box. Every pixel
+// is computed from the interpolated field, so the bands have real edges; the
+// browser is never asked to stretch a coloured grid, which would blend the
+// colours and turn light rain into a halo.
 
-/** How much the tiny grid is enlarged before it becomes the overlay image. */
+/** Output pixels per grid cell. Enough for a smooth edge, small enough to redraw fast. */
 const SCALE = 24;
 
 function paint(
@@ -16,19 +17,11 @@ function paint(
   cols: number,
   rows: number,
 ): string | null {
-  const cells = document.createElement('canvas');
-  cells.width = cols;
-  cells.height = rows;
-  const cellCtx = cells.getContext('2d');
   const ctx = canvas.getContext('2d');
-  if (!cellCtx || !ctx) return null;
-  const image = cellCtx.createImageData(cols, rows);
-  image.data.set(frameImageData(kind, values, cols, rows));
-  cellCtx.putImageData(image, 0, 0);
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(cells, 0, 0, canvas.width, canvas.height);
+  if (!ctx) return null;
+  const image = ctx.createImageData(canvas.width, canvas.height);
+  image.data.set(fieldImageData(kind, values, cols, rows, canvas.width, canvas.height));
+  ctx.putImageData(image, 0, 0);
   return canvas.toDataURL('image/png');
 }
 

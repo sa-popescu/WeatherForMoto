@@ -5,12 +5,17 @@
 export type ForecastKind = 'cloud' | 'rain';
 
 /**
- * Points across the view: still one request, and fine enough that the forecast
- * field has the shape of a front rather than a handful of blobs next to the
- * radar tiles it continues.
+ * The grid follows the ground, not the screen: a fixed count of points would be
+ * 20 km apart when zoomed in and 50 km apart when zoomed out, which is where the
+ * field stopped looking like weather and started looking like one soft blob.
  */
-export const GRID_COLS = 10;
-export const GRID_ROWS = 10;
+export const TARGET_CELL_KM = 20;
+/** Never coarser than this, and never more points than one request should carry. */
+export const MIN_GRID = 6;
+export const MAX_GRID = 12;
+
+/** Degrees of latitude in kilometres; good enough for choosing a grid. */
+const KM_PER_DEGREE = 111;
 
 /**
  * Second try when the full grid is refused. Some deployments cap how many
@@ -52,11 +57,40 @@ export interface ForecastData {
   rain: Array<Array<number | null>>;
 }
 
+/** The box in kilometres: width shrinks with latitude, height does not. */
+function boxKm(bounds: GridBounds): { widthKm: number; heightKm: number } {
+  const midLat = ((bounds.north + bounds.south) / 2) * (Math.PI / 180);
+  return {
+    widthKm: Math.abs(bounds.east - bounds.west) * KM_PER_DEGREE * Math.cos(midLat),
+    heightKm: Math.abs(bounds.north - bounds.south) * KM_PER_DEGREE,
+  };
+}
+
+function clampGrid(count: number): number {
+  if (!Number.isFinite(count)) return MIN_GRID;
+  return Math.max(MIN_GRID, Math.min(MAX_GRID, Math.round(count)));
+}
+
+/** How many points to sample across this box to land near TARGET_CELL_KM. */
+export function gridSizeFor(bounds: GridBounds): { cols: number; rows: number } {
+  const { widthKm, heightKm } = boxKm(bounds);
+  return {
+    cols: clampGrid(widthKm / TARGET_CELL_KM),
+    rows: clampGrid(heightKm / TARGET_CELL_KM),
+  };
+}
+
+/** The side of one cell in kilometres, for the note under the scrubber. */
+export function cellKm(bounds: GridBounds, cols: number, rows: number): number {
+  const { widthKm, heightKm } = boxKm(bounds);
+  return Math.max(1, Math.round((widthKm / cols + heightKm / rows) / 2));
+}
+
 /**
  * Grid centres, row-major from north to south. Cell centres rather than corners,
  * so a value covers the area it was sampled in.
  */
-export function gridPoints(bounds: GridBounds, cols: number = GRID_COLS, rows: number = GRID_ROWS): GridPoint[] {
+export function gridPoints(bounds: GridBounds, cols: number, rows: number): GridPoint[] {
   const latSpan = bounds.north - bounds.south;
   const lonSpan = bounds.east - bounds.west;
   const points: GridPoint[] = [];
@@ -197,20 +231,71 @@ export function colorFor(kind: ForecastKind, value: number | null): Rgba {
   return kind === 'cloud' ? cloudRgba(value) : rainRgba(value);
 }
 
-/** One frame as raw RGBA, one pixel per grid cell; the browser smooths it when scaled. */
-export function frameImageData(
+/**
+ * Bilinear value at (u, v) in grid coordinates, where whole numbers land on the
+ * sampled points. Corners that came back empty simply drop out of the mix, so a
+ * hole in the grid does not pull its neighbours towards zero; only a cell with
+ * no usable corner at all is a gap.
+ */
+export function sampleField(
+  values: ReadonlyArray<number | null>,
+  cols: number,
+  rows: number,
+  u: number,
+  v: number,
+): number | null {
+  const x0 = Math.max(0, Math.min(cols - 1, Math.floor(u)));
+  const y0 = Math.max(0, Math.min(rows - 1, Math.floor(v)));
+  const x1 = Math.min(cols - 1, x0 + 1);
+  const y1 = Math.min(rows - 1, y0 + 1);
+  const fx = Math.max(0, Math.min(1, u - x0));
+  const fy = Math.max(0, Math.min(1, v - y0));
+
+  let total = 0;
+  let weight = 0;
+  const add = (x: number, y: number, w: number): void => {
+    const value = values[y * cols + x];
+    if (value === null || value === undefined || w <= 0) return;
+    total += value * w;
+    weight += w;
+  };
+  add(x0, y0, (1 - fx) * (1 - fy));
+  add(x1, y0, fx * (1 - fy));
+  add(x0, y1, (1 - fx) * fy);
+  add(x1, y1, fx * fy);
+  return weight > 0 ? total / weight : null;
+}
+
+/**
+ * One frame as raw RGBA at the size it will be shown.
+ *
+ * The values are interpolated first and coloured after, which is the whole
+ * point: letting the browser stretch a coloured grid blends the colours
+ * themselves, and a light rain fading into transparency over 40 km reads as a
+ * halo. Interpolating the millimetres and then looking up the band gives the
+ * crisp edges the radar has.
+ */
+export function fieldImageData(
   kind: ForecastKind,
   values: ReadonlyArray<number | null>,
-  cols: number = GRID_COLS,
-  rows: number = GRID_ROWS,
+  cols: number,
+  rows: number,
+  width: number,
+  height: number,
 ): Uint8ClampedArray {
-  const pixels = new Uint8ClampedArray(cols * rows * 4);
-  for (let i = 0; i < cols * rows; i += 1) {
-    const [r, g, b, a] = colorFor(kind, values[i] ?? null);
-    pixels[i * 4] = r;
-    pixels[i * 4 + 1] = g;
-    pixels[i * 4 + 2] = b;
-    pixels[i * 4 + 3] = a;
+  const pixels = new Uint8ClampedArray(width * height * 4);
+  for (let y = 0; y < height; y += 1) {
+    // Pixel centres map onto sample points; the outer half cell keeps the edge value.
+    const v = ((y + 0.5) / height) * rows - 0.5;
+    for (let x = 0; x < width; x += 1) {
+      const u = ((x + 0.5) / width) * cols - 0.5;
+      const [r, g, b, a] = colorFor(kind, sampleField(values, cols, rows, u, v));
+      const i = (y * width + x) * 4;
+      pixels[i] = r;
+      pixels[i + 1] = g;
+      pixels[i + 2] = b;
+      pixels[i + 3] = a;
+    }
   }
   return pixels;
 }
