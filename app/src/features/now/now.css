@@ -42,20 +42,6 @@
   animation: now-fade-up 0.7s ease-out 0.45s both;
 }
 
-.now-hero__confidence {
-  margin-top: 6px;
-  font-size: 13px;
-  color: var(--muted-2);
-}
-
-.now-hero__confidence--medium {
-  color: var(--t-atentie);
-}
-
-.now-hero__confidence--low {
-  color: var(--t-evita);
-}
-
 .now-hero__warnings {
   display: flex;
   flex-direction: column;

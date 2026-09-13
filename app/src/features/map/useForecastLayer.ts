@@ -1,6 +1,6 @@
 import * as L from 'leaflet';
 import { useEffect, useRef } from 'react';
-import { frameImageData, GRID_COLS, GRID_ROWS, type ForecastData, type ForecastKind, type GridBounds } from './forecast';
+import { frameImageData, type ForecastData, type ForecastKind, type GridBounds } from './forecast';
 
 // Paints one forecast hour as a single image stretched over the fetched box.
 // The grid is drawn at one pixel per cell and scaled up by the browser, which
@@ -9,15 +9,21 @@ import { frameImageData, GRID_COLS, GRID_ROWS, type ForecastData, type ForecastK
 /** How much the tiny grid is enlarged before it becomes the overlay image. */
 const SCALE = 24;
 
-function paint(canvas: HTMLCanvasElement, kind: ForecastKind, values: ReadonlyArray<number | null>): string | null {
+function paint(
+  canvas: HTMLCanvasElement,
+  kind: ForecastKind,
+  values: ReadonlyArray<number | null>,
+  cols: number,
+  rows: number,
+): string | null {
   const cells = document.createElement('canvas');
-  cells.width = GRID_COLS;
-  cells.height = GRID_ROWS;
+  cells.width = cols;
+  cells.height = rows;
   const cellCtx = cells.getContext('2d');
   const ctx = canvas.getContext('2d');
   if (!cellCtx || !ctx) return null;
-  const image = cellCtx.createImageData(GRID_COLS, GRID_ROWS);
-  image.data.set(frameImageData(kind, values));
+  const image = cellCtx.createImageData(cols, rows);
+  image.data.set(frameImageData(kind, values, cols, rows));
   cellCtx.putImageData(image, 0, 0);
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.imageSmoothingEnabled = true;
@@ -39,10 +45,7 @@ export function useForecastLayer(map: L.Map | null, { kind, data, bounds, index,
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   if (!canvasRef.current && typeof document !== 'undefined') {
-    const canvas = document.createElement('canvas');
-    canvas.width = GRID_COLS * SCALE;
-    canvas.height = GRID_ROWS * SCALE;
-    canvasRef.current = canvas;
+    canvasRef.current = document.createElement('canvas');
   }
 
   useEffect(() => {
@@ -54,7 +57,10 @@ export function useForecastLayer(map: L.Map | null, { kind, data, bounds, index,
       return undefined;
     }
 
-    const url = paint(canvas, kind, frame);
+    // The output is sized from the grid that was actually fetched.
+    canvas.width = data.cols * SCALE;
+    canvas.height = data.rows * SCALE;
+    const url = paint(canvas, kind, frame, data.cols, data.rows);
     if (!url) return undefined;
     const box = L.latLngBounds([bounds.south, bounds.west], [bounds.north, bounds.east]);
 

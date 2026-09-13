@@ -30,7 +30,11 @@ export function ForecastPanel({ kind, grid, playback }: Props) {
     return (
       <div className="map-panel map-radar-msg" role="status">
         <Icon name="radar" size={22} />
-        <span className="map-radar-msg__text">{s.forecastUnavailable}</span>
+        <span className="map-radar-msg__text">
+          {s.forecastUnavailable}
+          {/* The reason is shown so a failure can be reported rather than guessed at. */}
+          {grid.error && <span className="map-radar-msg__why"> {grid.error}</span>}
+        </span>
         <Button onClick={grid.reload}>{core.retry}</Button>
       </div>
     );

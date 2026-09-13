@@ -111,14 +111,10 @@
 
 /* ---- Forecast field ---- */
 
-/* The overlay is a smoothed grid; blending keeps the map readable under it. */
+/* The overlay is a smoothed grid painted with its own alpha: no blend mode,
+   which used to wash the cloud field out to nothing over a pale map. */
 .map-forecast-overlay {
-  mix-blend-mode: multiply;
   pointer-events: none;
-}
-
-.map-screen--dark .map-forecast-overlay {
-  mix-blend-mode: screen;
 }
 
 .map-forecast-legend {
@@ -142,4 +138,9 @@
 .map-forecast-legend__text {
   font-size: 12px;
   color: var(--muted-2);
+}
+
+.map-radar-msg__why {
+  color: var(--muted-2);
+  font-size: 12px;
 }
