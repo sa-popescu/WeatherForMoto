@@ -115,6 +115,28 @@ export interface DailyWeather {
   sunset: string | null;
 }
 
+/** Meteoalarm's colour, worst first. */
+export type AlertLevel = 'red' | 'orange' | 'yellow' | 'green';
+
+/** An official warning from the national weather service, relayed by Meteoalarm. */
+export interface OfficialAlert {
+  id: string;
+  event: string | null;
+  headline: string | null;
+  description: string | null;
+  instruction: string | null;
+  level: AlertLevel;
+  /** "wind", "rain", "thunderstorm"… when the feed says so. */
+  awareness_type: string | null;
+  sender: string | null;
+  /** ISO 8601 with an offset, as the issuing service wrote it. */
+  onset: string | null;
+  expires: string | null;
+  areas: string[];
+  /** How it reached us: inside the drawn area, or by the name of the place. */
+  match: 'geometry' | 'name';
+}
+
 export interface WeatherResponse {
   city: string;
   latitude: number;
@@ -124,6 +146,8 @@ export interface WeatherResponse {
   current: CurrentWeather;
   hourly: HourlyWeather[];
   daily: DailyWeather[];
+  /** Official warnings covering this point; empty when there are none. */
+  alerts?: OfficialAlert[];
 }
 
 export interface GeocodeResult {

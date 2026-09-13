@@ -4,6 +4,13 @@ import { defineStrings } from '../../lib/i18n';
 export const S_NOW = defineStrings(
   {
     scoreAria: 'Scor moto {score} din 100, {tier}. Atinge pentru explicație.',
+    alertsTitle: 'Avertizări oficiale',
+    alertFallbackTitle: 'Avertizare meteo',
+    alertPeriod: '{from} – {to}',
+    alertUntil: 'până la {to}',
+    alertMore: 'Detalii',
+    alertLess: 'Ascunde',
+    alertSource: 'sursă: {sender}',
     scoreAriaNone: 'Fără scor moto acum.',
     windowLabel: 'Cea mai bună fereastră',
     windowToday: 'azi {from}–{to} · {score}',
@@ -57,6 +64,13 @@ export const S_NOW = defineStrings(
   },
   {
     scoreAria: 'Ride score {score} out of 100, {tier}. Tap for the explanation.',
+    alertsTitle: 'Official warnings',
+    alertFallbackTitle: 'Weather warning',
+    alertPeriod: '{from} – {to}',
+    alertUntil: 'until {to}',
+    alertMore: 'Details',
+    alertLess: 'Hide',
+    alertSource: 'source: {sender}',
     scoreAriaNone: 'No ride score right now.',
     windowLabel: 'Best window',
     windowToday: 'today {from}–{to} · {score}',

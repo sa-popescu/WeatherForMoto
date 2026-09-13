@@ -27,6 +27,8 @@ from typing import Any
 
 import httpx
 
+import meteoalarm
+
 logger = logging.getLogger("weatherformoto.weather")
 
 # ---------------------------------------------------------------------------
@@ -1193,6 +1195,7 @@ TTL_MET_DEFAULT_S = 30 * 60
 TTL_MET_MIN_S = 60
 TTL_MET_MAX_S = 2 * 3600
 TTL_PIRATE_S = 30 * 60
+TTL_METEOALARM_S = 10 * 60
 TTL_GEOCODE_S = 24 * 3600
 FORECAST_CACHE_MAX_ENTRIES = 400
 GEOCODE_CACHE_MAX_ENTRIES = 1000
@@ -3181,7 +3184,7 @@ async def _collect_weather(
     cell = _coord_key(lat, lon)
     async with http_client_scope() as client:
         (om_data, owm_current, owm_forecast, owm_air, om_air, met_raw, pw_raw,
-         wxm_raw, netatmo_raw) = await asyncio.gather(
+         wxm_raw, netatmo_raw, meteoalarm_feed) = await asyncio.gather(
             _forecast_cache.get_or_fetch(
                 ("open-meteo", cell, days),
                 _with_ttl(lambda: _fetch_openmeteo(lat, lon, client, forecast_days=days),
@@ -3204,6 +3207,9 @@ async def _collect_weather(
             _await_optional("WeatherXM", _fetch_weatherxm(lat, lon, weatherxm_api_key, client)),
             _await_optional("Netatmo", _fetch_netatmo(
                 lat, lon, netatmo_client_id, netatmo_client_secret, netatmo_refresh_token, client)),
+            # One feed covers the whole country, so every location shares the entry.
+            _cached_optional("Meteoalarm", ("meteoalarm", meteoalarm.feed_url()), _with_ttl(
+                lambda: meteoalarm.fetch_feed(client, met_user_agent), TTL_METEOALARM_S)),
         )
 
     utc_offset = int(om_data.get("utc_offset_seconds") or 0)
@@ -3217,6 +3223,8 @@ async def _collect_weather(
     current = _merge_current(om_data, owm_current, owm_air, om_air, met_norm, pw_norm,
                              wxm_norm, netatmo_norm, hourly=hourly)
     daily = _merge_daily(om_data, owm_forecast, met_daily, hourly=hourly)
+    # Official warnings are advisory on top of our own score, never a source for it.
+    alerts = meteoalarm.warnings_for(meteoalarm_feed, lat, lon, city_name) if meteoalarm_feed else []
 
     return {
         "city": city_name,
@@ -3227,6 +3235,7 @@ async def _collect_weather(
         "current": current,
         "daily": daily,
         "hourly": hourly,
+        "alerts": alerts,
     }
 
 

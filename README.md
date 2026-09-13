@@ -23,6 +23,7 @@ Vechiul frontend dintr-un singur fișier a fost retras: `index.html` și `sw.js`
 - Fereastră optimă de mers (azi/mâine)
 - Recomandări de echipament în funcție de ploaie/vânt/temperatură
 - Date extinse: UV, presiune, vizibilitate, frost risk, temperatură estimată carosabil
+- Avertizări oficiale de la Meteoalarm (ce emite ANM), afișate ca atare deasupra scorului. Se potrivesc pe poligonul sau cercul din avertizare, iar când feedul dă doar nume de zone, după numele localității
 
 ### Phase A (cont + alerting + PWA)
 
@@ -118,6 +119,7 @@ Organizare: `src/lib` (API tipizat, format, scor, geo), `src/state` (sesiune, lo
 - `APP_BASE_URL` (URL public al aplicației, folosit în emailurile de cont)
 - `API_BASE_URL` (URL public al backend-ului, pentru linkurile de confirmare a adresei; implicit URL-ul run.app)
 - `MET_NORWAY_USER_AGENT` (identificator cerut de MET Norway; are o valoare implicită reală)
+- `METEOALARM_FEED_URL` (feedul CAP de avertizări; implicit cel pentru România)
 
 **Pentru funcții avansate:**
 
@@ -208,6 +210,7 @@ python tests.py                       # agregare și logica meteo de bază
 python -m unittest test_scoring       # scor v2, matricea de ploaie, cache, buget de timp
 python -m unittest test_auth_alerts   # autentificare, limite, alerte (SQLite în locul libsql)
 python -m unittest test_route_limits  # limitele endpointului /route/multi
+python -m unittest test_meteoalarm    # parsarea CAP și potrivirea pe zonă
 ```
 
 Testele nu depind de rețea. Pe Windows, `tests.py` are nevoie de `PYTHONIOENCODING=utf-8` ca să poată afișa simbolurile din output.
