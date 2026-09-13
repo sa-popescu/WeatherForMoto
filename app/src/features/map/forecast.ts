@@ -4,9 +4,16 @@
 
 export type ForecastKind = 'cloud' | 'rain';
 
-/** Points across the view. 9 x 9 is one request and still shows a front moving. */
-export const GRID_COLS = 9;
-export const GRID_ROWS = 9;
+/** Points across the view: one request, and still enough to show a front moving. */
+export const GRID_COLS = 7;
+export const GRID_ROWS = 7;
+
+/**
+ * Second try when the full grid is refused. Some deployments cap how many
+ * coordinates one request may carry, and a coarse field beats no field.
+ */
+export const FALLBACK_COLS = 4;
+export const FALLBACK_ROWS = 4;
 
 /** Hours drawn ahead of the current one. */
 export const FORECAST_HOURS = 24;
@@ -30,6 +37,9 @@ export interface GridPoint {
 }
 
 export interface ForecastData {
+  /** Grid size the values were sampled on; the fallback fetch is coarser. */
+  cols: number;
+  rows: number;
   /** "YYYY-MM-DDTHH:MM" in UTC, one per frame. */
   times: string[];
   /** Cloud cover %, [frame][point] in the same order as the grid. */
@@ -92,7 +102,13 @@ export function utcHourKey(nowMs: number): string {
  * hour. Points that failed or came back short are left as null and painted as
  * a gap rather than as zero.
  */
-export function parseForecast(raw: unknown, pointCount: number, nowMs: number, hours: number = FORECAST_HOURS): ForecastData | null {
+export function parseForecast(
+  raw: unknown,
+  grid: { cols: number; rows: number },
+  nowMs: number,
+  hours: number = FORECAST_HOURS,
+): ForecastData | null {
+  const pointCount = grid.cols * grid.rows;
   const list = Array.isArray(raw) ? raw : isRecord(raw) ? [raw] : null;
   if (!list || list.length === 0) return null;
 
@@ -122,18 +138,23 @@ export function parseForecast(raw: unknown, pointCount: number, nowMs: number, h
     cloud.push(Array.from({ length: pointCount }, (_, p) => series[p]?.cloud[i] ?? null));
     rain.push(Array.from({ length: pointCount }, (_, p) => series[p]?.rain[i] ?? null));
   }
-  return { times, cloud, rain };
+  return { cols: grid.cols, rows: grid.rows, times, cloud, rain };
 }
 
 export type Rgba = [number, number, number, number];
 
 const TRANSPARENT: Rgba = [0, 0, 0, 0];
 
-/** Grey veil, opaque where the sky is covered. Clear sky stays invisible. */
+/**
+ * A slate veil that thickens as the sky fills in. Mid-grey rather than white,
+ * so it reads as cloud over a pale map and still shows over a dark one; a
+ * clear sky stays fully transparent.
+ */
 export function cloudRgba(cover: number | null): Rgba {
-  if (cover === null || cover <= 10) return TRANSPARENT;
+  if (cover === null || cover <= 5) return TRANSPARENT;
   const share = Math.min(100, cover) / 100;
-  return [226, 232, 240, Math.round(share * 210)];
+  // From a thin haze to a solid deck, never fully opaque: the map stays readable.
+  return [148, 163, 184, Math.round(60 + share * 165)];
 }
 
 /** Rain by intensity, the same reading as the score: traces, light, moderate, heavy. */

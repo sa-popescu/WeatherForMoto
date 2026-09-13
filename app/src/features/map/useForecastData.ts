@@ -3,8 +3,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { isAbort } from '../../lib/api';
 import {
   boundsMovedEnough,
+  FALLBACK_COLS,
+  FALLBACK_ROWS,
   forecastUrl,
   FORECAST_FETCH_TIMEOUT_MS,
+  GRID_COLS,
+  GRID_ROWS,
   gridPoints,
   parseForecast,
   type ForecastData,
@@ -28,6 +32,8 @@ export interface ForecastGrid {
   data: ForecastData | null;
   /** The box the grid covers, which is what the overlay is drawn over. */
   bounds: GridBounds | null;
+  /** Why the last attempt failed, shown in the panel so it can be reported. */
+  error: string | null;
   reload: () => void;
 }
 
@@ -45,6 +51,7 @@ export function useForecastData(map: LeafletMap | null, fetching: boolean): Fore
   const [status, setStatus] = useState<ForecastStatus>('idle');
   const [data, setData] = useState<ForecastData | null>(null);
   const [bounds, setBounds] = useState<GridBounds | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const loadedFor = useRef<GridBounds | null>(null);
   const loadedAt = useRef(0);
@@ -61,27 +68,43 @@ export function useForecastData(map: LeafletMap | null, fetching: boolean): Fore
     const controller = new AbortController();
     let timer = 0;
 
+    /** One attempt at the given grid size; throws so the caller can fall back. */
+    const attempt = async (box: GridBounds, cols: number, rows: number): Promise<ForecastData> => {
+      const points = gridPoints(box, cols, rows);
+      const res = await fetch(forecastUrl(points), { signal: controller.signal });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const parsed = parseForecast(await res.json(), { cols, rows }, Date.now());
+      if (!parsed) throw new Error('no usable hours in the answer');
+      return parsed;
+    };
+
     const load = async (): Promise<void> => {
       const next = paddedBounds(map);
       const stale = Date.now() - loadedAt.current > STALE_MS;
       if (!stale && !boundsMovedEnough(loadedFor.current, next)) return;
-      const points = gridPoints(next);
       setStatus('loading');
       const timeout = window.setTimeout(() => controller.abort(), FORECAST_FETCH_TIMEOUT_MS);
       try {
-        const res = await fetch(forecastUrl(points), { signal: controller.signal });
-        if (!res.ok) throw new Error(`Forecast grid HTTP ${res.status}`);
-        const parsed = parseForecast(await res.json(), points.length, Date.now());
+        let parsed: ForecastData;
+        try {
+          parsed = await attempt(next, GRID_COLS, GRID_ROWS);
+        } catch (err) {
+          if (isAbort(err) || controller.signal.aborted) return;
+          // A refused request may simply be too many coordinates: ask coarser.
+          console.warn('[map] forecast grid retrying smaller', err);
+          parsed = await attempt(next, FALLBACK_COLS, FALLBACK_ROWS);
+        }
         if (controller.signal.aborted) return;
-        if (!parsed) throw new Error('Forecast grid has no usable hours');
         loadedFor.current = next;
         loadedAt.current = Date.now();
         setBounds(next);
         setData(parsed);
+        setError(null);
         setStatus('ready');
       } catch (err) {
         if (isAbort(err) || controller.signal.aborted) return;
         console.warn('[map] forecast grid failed', err);
+        setError(err instanceof Error ? err.message : String(err));
         setStatus('error');
       } finally {
         window.clearTimeout(timeout);
@@ -102,5 +125,5 @@ export function useForecastData(map: LeafletMap | null, fetching: boolean): Fore
     };
   }, [map, fetching, attempt]);
 
-  return { status, data, bounds, reload };
+  return { status, data, bounds, error, reload };
 }
