@@ -46,7 +46,7 @@ from weather_service import (  # noqa: E402
 
 OFFSET_S = 3 * 3600  # Europe/Bucharest in summer
 FIXED_NOW = datetime(2024, 6, 1, 10, 15)  # local wall clock used by the merge tests
-CURRENT_HOUR_INDEX = 11  # first hourly slot at or after 10:15 is 11:00
+CURRENT_HOUR_INDEX = 10  # 10:15 is lived inside the 10:00 slot
 
 
 
@@ -297,6 +297,46 @@ class CurrentBlockTests(unittest.TestCase):
         current = _merge_current(om, None, None)
         self.assertEqual(current["weather_code"], 3)
         self.assertGreaterEqual(current["moto_score"], 85)
+
+    def test_now_is_the_hour_you_are_in_not_the_next_one(self) -> None:
+        # At 10:15 and at 10:45 the hour being lived is 10:00. Reading 11:00
+        # instead used to put a different hour behind the gauge than the one the
+        # timeline highlights.
+        for minute in (15, 45):
+            with self.subTest(minute=minute):
+                now = FIXED_NOW.replace(minute=minute)
+                om = make_om_payload(
+                    now, precipitation_probability=with_value_at([0] * 48, CURRENT_HOUR_INDEX, 70)
+                )
+                current = _merge_current(om, None, None)
+                self.assertEqual(current["precipitation_probability"], 70)
+
+    def test_gauge_cannot_beat_the_wet_hour_it_is_in(self) -> None:
+        # Models often report 0 mm in their "current" block while the hour is
+        # forecast with real rain; the gauge must not come out "ideal" then.
+        om = make_om_payload(
+            precipitation=with_value_at([0.0] * 48, CURRENT_HOUR_INDEX, 1.0),
+            precipitation_probability=with_value_at([0] * 48, CURRENT_HOUR_INDEX, 65),
+            weather_code=with_value_at([1] * 48, CURRENT_HOUR_INDEX, 61),
+        )
+        om["current"]["precipitation"] = 0.0
+        hour = _build_hourly(om)[CURRENT_HOUR_INDEX]
+        current = _merge_current(om, None, None)
+        self.assertEqual(current["precipitation_mm"], 1.0)
+        self.assertEqual(current["rain_intensity"], "slaba")
+        self.assertLessEqual(current["moto_score"], hour["moto_score"])
+
+    def test_station_reading_stays_ground_truth_over_the_hour(self) -> None:
+        # A physical station measuring a dry minute is not overruled by the model.
+        om = make_om_payload(
+            precipitation=with_value_at([0.0] * 48, CURRENT_HOUR_INDEX, 1.0),
+            precipitation_probability=with_value_at([0] * 48, CURRENT_HOUR_INDEX, 65),
+        )
+        wxm = {"temp": 18.0, "feels_like": 18.0, "humidity": 60, "wind_speed_kmh": 10.0,
+               "wind_gusts_kmh": 20.0, "precipitation": 0.0, "pressure": 1013.0,
+               "wmo_code": None}
+        current = _merge_current(om, None, None, wxm_norm=wxm)
+        self.assertEqual(current["precipitation_mm"], 0.0)
 
     def test_current_contract_fields(self) -> None:
         current = _merge_current(make_om_payload(), None, None)
