@@ -1,16 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import {
   boundsMovedEnough,
+  cellKm,
   cloudRgba,
   colorFor,
+  fieldImageData,
   forecastUrl,
-  frameImageData,
   frameOffsetHours,
-  GRID_COLS,
-  GRID_ROWS,
   gridPoints,
+  gridSizeFor,
+  MAX_GRID,
+  MIN_GRID,
   parseForecast,
   rainRgba,
+  sampleField,
+  TARGET_CELL_KM,
   utcHourKey,
   type GridBounds,
   type Rgba,
@@ -32,7 +36,7 @@ describe('gridPoints', () => {
   });
 
   it('keeps every point inside the box', () => {
-    for (const p of gridPoints(BOX)) {
+    for (const p of gridPoints(BOX, 4, 4)) {
       expect(p.lat).toBeGreaterThan(BOX.south);
       expect(p.lat).toBeLessThan(BOX.north);
       expect(p.lon).toBeGreaterThan(BOX.west);
@@ -120,11 +124,19 @@ describe('colours', () => {
     expect(rainRgba(10)[0]).toBeGreaterThan(rainRgba(1)[0]);
   });
 
-  it('paints one pixel per cell', () => {
-    const pixels = frameImageData('cloud', [100, null, 0, 50], 2, 2);
+  it('paints one pixel per cell when drawn at grid size', () => {
+    const pixels = fieldImageData('cloud', [100, null, 0, 50], 2, 2, 2, 2);
     expect(pixels).toHaveLength(16);
     expect(pixels[3]).toBe(colorFor('cloud', 100)[3]);
+    // Exactly on an empty sample there is nothing to draw: that cell is a gap.
     expect(pixels[7]).toBe(0);
+  });
+
+  it('borrows from the neighbours between samples, so one gap is not a hole', () => {
+    const pixels = fieldImageData('cloud', [100, null, 0, 50], 2, 2, 8, 8);
+    // Middle of the top edge, between the full cell and the empty one.
+    const i = (0 * 8 + 4) * 4;
+    expect(pixels[i + 3]).toBeGreaterThan(0);
   });
 });
 
@@ -146,9 +158,46 @@ describe('the forecast field matches the radar it continues', () => {
     expect(hex(rainRgba(50))).toBe('#ffaaff');
   });
 
-  it('samples enough points for the field to have a shape', () => {
-    expect(GRID_COLS * GRID_ROWS).toBe(100);
-    expect(gridPoints(BOX)).toHaveLength(GRID_COLS * GRID_ROWS);
+  it('keeps every painted pixel on a legend colour, with no blended edges', () => {
+    const radarColors = new Set(RADAR_LEGEND.flatMap((band) => band.colors));
+    // Light rain beside heavy: the field steps from band to band across the row.
+    const pixels = fieldImageData('rain', [0.2, 12], 2, 1, 60, 1);
+    const seen = new Set<string>();
+    for (let x = 0; x < 60; x += 1) {
+      const i = x * 4;
+      seen.add(hex([pixels[i], pixels[i + 1], pixels[i + 2], pixels[i + 3]]));
+    }
+    expect(seen.size).toBeGreaterThan(2);
+    for (const colour of seen) expect(radarColors.has(colour)).toBe(true);
+  });
+});
+
+describe('the grid follows the ground, not the screen', () => {
+  it('lands near the target cell size', () => {
+    const { cols, rows } = gridSizeFor(BOX);
+    const km = cellKm(BOX, cols, rows);
+    expect(km).toBeGreaterThanOrEqual(TARGET_CELL_KM * 0.5);
+    expect(km).toBeLessThanOrEqual(TARGET_CELL_KM * 1.5);
+  });
+
+  it('stays between its bounds for a tiny view and for half a continent', () => {
+    const tiny: GridBounds = { south: 44.95, west: 25.95, north: 45.0, east: 26.0 };
+    const huge: GridBounds = { south: 35, west: 5, north: 60, east: 40 };
+    expect(gridSizeFor(tiny)).toEqual({ cols: MIN_GRID, rows: MIN_GRID });
+    expect(gridSizeFor(huge)).toEqual({ cols: MAX_GRID, rows: MAX_GRID });
+  });
+});
+
+describe('the field is interpolated on values, not on colours', () => {
+  it('reads halfway between two samples', () => {
+    expect(sampleField([0, 2], 2, 1, 0.5, 0)).toBe(1);
+    expect(sampleField([0, 2], 2, 1, 0, 0)).toBe(0);
+    expect(sampleField([0, 2], 2, 1, 1, 0)).toBe(2);
+  });
+
+  it('drops a missing corner instead of pulling the mix towards zero', () => {
+    expect(sampleField([null, 2], 2, 1, 0.5, 0)).toBe(2);
+    expect(sampleField([null, null], 2, 1, 0.5, 0)).toBeNull();
   });
 });
 

@@ -127,15 +127,17 @@ export function TimelinePanel({ timeline }: { timeline: MapTimeline }) {
       {/* Rain reads on the radar's scale in both halves of the band, so the key
           under the scrubber stays put; only the cloud layer needs its own. */}
       {current.source === 'forecast' && timeline.kind === 'cloud' ? <ForecastLegend kind="cloud" /> : <RadarLegend />}
-      <p className="map-radar__note">
-        {current.source === 'radar' ? (
-          <>
-            {s.radarNote} <a href="#/acum">{s.radarNoteLink}</a>.
-          </>
-        ) : (
-          s.forecastNote
-        )}
-      </p>
+      {(current.source === 'radar' || timeline.forecast.cellKm !== null) && (
+        <p className="map-radar__note">
+          {current.source === 'radar' ? (
+            <>
+              {s.radarNote} <a href="#/acum">{s.radarNoteLink}</a>.
+            </>
+          ) : (
+            fmt(s.forecastNote, { km: timeline.forecast.cellKm ?? 0 })
+          )}
+        </p>
+      )}
     </section>
   );
 }

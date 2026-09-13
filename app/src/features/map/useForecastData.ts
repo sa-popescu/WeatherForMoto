@@ -3,13 +3,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { isAbort } from '../../lib/api';
 import {
   boundsMovedEnough,
+  cellKm,
   FALLBACK_COLS,
   FALLBACK_ROWS,
   forecastUrl,
   FORECAST_FETCH_TIMEOUT_MS,
-  GRID_COLS,
-  GRID_ROWS,
   gridPoints,
+  gridSizeFor,
   parseForecast,
   type ForecastData,
   type GridBounds,
@@ -32,6 +32,8 @@ export interface ForecastGrid {
   data: ForecastData | null;
   /** The box the grid covers, which is what the overlay is drawn over. */
   bounds: GridBounds | null;
+  /** Side of one grid cell in km, for the note under the scrubber. */
+  cellKm: number | null;
   /** Why the last attempt failed, shown in the panel so it can be reported. */
   error: string | null;
   reload: () => void;
@@ -51,6 +53,7 @@ export function useForecastData(map: LeafletMap | null, fetching: boolean): Fore
   const [status, setStatus] = useState<ForecastStatus>('idle');
   const [data, setData] = useState<ForecastData | null>(null);
   const [bounds, setBounds] = useState<GridBounds | null>(null);
+  const [cell, setCell] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const loadedFor = useRef<GridBounds | null>(null);
@@ -86,8 +89,9 @@ export function useForecastData(map: LeafletMap | null, fetching: boolean): Fore
       const timeout = window.setTimeout(() => controller.abort(), FORECAST_FETCH_TIMEOUT_MS);
       try {
         let parsed: ForecastData;
+        const size = gridSizeFor(next);
         try {
-          parsed = await attempt(next, GRID_COLS, GRID_ROWS);
+          parsed = await attempt(next, size.cols, size.rows);
         } catch (err) {
           if (isAbort(err) || controller.signal.aborted) return;
           // A refused request may simply be too many coordinates: ask coarser.
@@ -98,6 +102,7 @@ export function useForecastData(map: LeafletMap | null, fetching: boolean): Fore
         loadedFor.current = next;
         loadedAt.current = Date.now();
         setBounds(next);
+        setCell(cellKm(next, parsed.cols, parsed.rows));
         setData(parsed);
         setError(null);
         setStatus('ready');
@@ -125,5 +130,5 @@ export function useForecastData(map: LeafletMap | null, fetching: boolean): Fore
     };
   }, [map, fetching, attempt]);
 
-  return { status, data, bounds, error, reload };
+  return { status, data, bounds, cellKm: cell, error, reload };
 }
