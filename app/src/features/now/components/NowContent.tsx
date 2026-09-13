@@ -3,7 +3,6 @@ import type { WeatherResponse } from '../../../lib/types';
 import type { NowModel } from '../useNowModel';
 import { AlertBanners } from './AlertBanners';
 import { DayList } from './DayList';
-import { GearList } from './GearList';
 import { Hero } from './Hero';
 import { MoreGrid } from './MoreGrid';
 import type { NowSheetState } from './NowSheets';
@@ -38,7 +37,13 @@ export function NowContent({ data, model, selectedTime, onSelectTime, onOpen }: 
   return (
     <>
       <AlertBanners alerts={data.alerts ?? []} />
-      <Hero score={score} model={model} onScore={() => onOpen({ kind: 'score' })} />
+      <Hero
+        score={score}
+        model={model}
+        confidence={data.current.forecast_confidence}
+        modelCount={data.current.model_count}
+        onScore={() => onOpen({ kind: 'score' })}
+      />
       <Timeline
         bars={model.bars}
         nowIso={model.nowIso}
@@ -49,7 +54,6 @@ export function NowContent({ data, model, selectedTime, onSelectTime, onOpen }: 
       <RainCard outlook={model.rain} nowIso={model.nowIso} onInfo={() => onOpen({ kind: 'rain' })} />
       <Readouts current={data.current} />
       <MoreGrid current={data.current} />
-      <GearList recs={model.gear.recs} date={model.gear.date} tomorrow={model.gear.tomorrow} />
       <DayList daily={data.daily} today={model.nowIso.slice(0, 10)} onOpen={(date) => onOpen({ kind: 'day', date })} />
     </>
   );

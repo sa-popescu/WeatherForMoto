@@ -19,13 +19,8 @@ export interface ScoreFactor {
   detail: string;
 }
 
-export interface GearItem {
-  category: string;
-  item: string;
-  reason: string;
-  urgency: string;
-  icon: string;
-}
+/** How much the national models agree on an hour. */
+export type Confidence = 'high' | 'medium' | 'low';
 
 export interface CurrentWeather {
   temperature: number | null;
@@ -58,8 +53,10 @@ export interface CurrentWeather {
   moto_score: number | null;
   moto_label: MotoLabel | null;
   score_breakdown: ScoreFactor[] | null;
-  gear_recommendation: GearItem[] | null;
   road_surface_temp: number | null;
+  forecast_confidence: Confidence | null;
+  /** How many models answered for this hour. */
+  model_count: number | null;
   sources: string[] | null;
 }
 
@@ -90,6 +87,8 @@ export interface HourlyWeather {
   frost_risk: boolean | null;
   moto_score: number | null;
   moto_label: MotoLabel | null;
+  forecast_confidence: Confidence | null;
+  model_count: number | null;
 }
 
 export interface DailyWeather {

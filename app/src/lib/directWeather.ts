@@ -298,6 +298,9 @@ function buildHourly(raw: OpenMeteoForecast): HourlyWeather[] {
       frost_risk: frostRisk(temp, road, dewRaw ?? dewPoint(temp, humidity), precip, code),
       moto_score: null,
       moto_label: null,
+      // The browser-direct fallback talks to Open-Meteo alone, so there is no ensemble.
+      forecast_confidence: null,
+      model_count: null,
     };
     hour.moto_score = scoreHour(hour).score;
     hour.moto_label = labelFor(hour.moto_score);
@@ -334,7 +337,8 @@ function buildCurrent(raw: OpenMeteoForecast, row: HourlyWeather | undefined): C
     pressure_hpa: pick('pressure_msl', pick('surface_pressure', null)), visibility_km: visM == null ? null : round1(visM / 1000),
     aqi: null, pm10: null, pm2_5: null, ozone: null, eu_aqi: null, us_aqi: null, pollen_index: null,
     uv_index: row?.uv_index ?? null, is_day: isDay, dew_point: dew, frost_risk: frost, moto_score: score, moto_label: labelFor(score),
-    score_breakdown: factors, gear_recommendation: null, road_surface_temp: road, sources: ['open-meteo'],
+    score_breakdown: factors, road_surface_temp: road,
+    forecast_confidence: null, model_count: null, sources: ['open-meteo'],
   };
 }
 

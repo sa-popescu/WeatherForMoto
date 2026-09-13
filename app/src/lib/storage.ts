@@ -14,7 +14,6 @@ export const KEYS = {
   favorites: 'motoFavs',
   lastPlace: 'motoLastLoc',
   installDismissed: 'pwaInstallDismissed',
-  gearChecked: 'mmGearCheckedV1',
 } as const;
 
 export type StorageKey = (typeof KEYS)[keyof typeof KEYS];

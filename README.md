@@ -1,6 +1,6 @@
 # WeatherForMoto
 
-WeatherForMoto este o aplicație meteo pentru motocicliști, cu scoring de risc, recomandări de echipament, rutare pre-ride și alerte personalizate (notificări push).
+WeatherForMoto este o aplicație meteo pentru motocicliști, cu scoring de risc, rutare pre-ride și alerte personalizate (notificări push).
 
 Stack-ul actual este:
 
@@ -16,12 +16,12 @@ Vechiul frontend dintr-un singur fișier a fost retras: `index.html` și `sw.js`
 ### Core weather
 
 - Agregare multi-sursă (Open-Meteo + OpenWeatherMap + MET Norway + Pirate Weather + WeatherXM)
+- Ansamblu de modele: aceleași ore cerute separat de la ECMWF, ICON (DWD), GFS (NOAA), ARPEGE (Météo-France) și UKMO, fără cheie suplimentară. Valorile orare sunt trase spre media modelelor (blend-ul Open-Meteo păstrează greutate dublă), iar dispersia dintre ele dă încrederea afișată: „sunt de acord”, „diferă puțin”, „nu sunt de acord”
 - Condiții curente + forecast daily + hourly
 - Moto score (0-100), calculat pe server pentru fiecare oră, cu etichete IDEAL (≥85), OK (60–84), ATENȚIE (40–59), EVITĂ (<40); constantele sunt publicate la `GET /meta/scoring`
 - Ploaia se punctează după șanse × intensitate (mm/h: urme, slabă, moderată, puternică), niciodată doar după procent: 70% cu 0,1 mm nu e tratat ca ploaie adevărată
 - Geo lookup după oraș sau coordonate
 - Fereastră optimă de mers (azi/mâine)
-- Recomandări de echipament în funcție de ploaie/vânt/temperatură
 - Date extinse: UV, presiune, vizibilitate, frost risk, temperatură estimată carosabil
 - Avertizări oficiale de la Meteoalarm (ce emite ANM), afișate ca atare deasupra scorului. Se potrivesc pe poligonul sau cercul din avertizare, iar când feedul dă doar nume de zone, după numele localității
 
@@ -46,6 +46,7 @@ Vechiul frontend dintr-un singur fișier a fost retras: `index.html` și `sw.js`
 - Route planner cu 2-10 opriri, fiecare cu opțiunea „locația mea”
 - Route weather snapshots pe waypoint-uri estimate
 - Harta traseu (Leaflet)
+- Prognoză pe hartă: nori sau ploaie pentru următoarele 24 de ore, eșantionate de la Open-Meteo pe o grilă peste zona vizibilă și desenate ca un strat animat, cu scrubber pe ore
 - Saved routes per user (`/me/routes`)
 - Ride logs + stats (`/me/rides/log`, `/me/rides/stats`)
 - Hazard reporting geolocalizat (`/hazards`)
@@ -156,7 +157,7 @@ Organizare: `src/lib` (API tipizat, format, scor, geo), `src/state` (sesiune, lo
 ### Meta
 
 - `GET /health` - Status server
-- `GET /meta/scoring` - Pragurile scorului, benzile de intensitate a ploii și matricea șanse × intensitate
+- `GET /meta/scoring` - Pragurile scorului, benzile de intensitate a ploii, matricea șanse × intensitate și regula de încredere între modele
 - `GET /` - Redirecționează către aplicație (`APP_BASE_URL`)
 - `GET /sw.js` - Service worker care îl retrage pe cel vechi de pe acest domeniu
 - `GET /privacy-policy` - Politică de confidențialitate

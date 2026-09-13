@@ -2,6 +2,7 @@ import { CORE } from '../../../i18n/core';
 import { hourOf } from '../../../lib/format';
 import { fmt, useLang, useStrings } from '../../../lib/i18n';
 import { tierColor, tierOf } from '../../../lib/scoring';
+import type { Confidence } from '../../../lib/types';
 import { Gauge } from '../../../ui/Gauge';
 import { Banner } from '../../../ui/primitives';
 import type { RideWindow } from '../logic/bestWindow';
@@ -15,10 +16,13 @@ const SEVERE: ReadonlySet<WarningKind> = new Set(['storm', 'ice', 'frost']);
 interface HeroProps {
   score: number | null;
   model: NowModel;
+  /** How much the national models agree on this hour, when the ensemble answered. */
+  confidence: Confidence | null;
+  modelCount: number | null;
   onScore: () => void;
 }
 
-export function Hero({ score, model, onScore }: HeroProps) {
+export function Hero({ score, model, confidence, modelCount, onScore }: HeroProps) {
   const s = useStrings(S_NOW);
   const core = useStrings(CORE);
   const lang = useLang();
@@ -35,6 +39,7 @@ export function Hero({ score, model, onScore }: HeroProps) {
         {title}
       </h1>
       {sub && <p className="now-hero__sub">{sub}</p>}
+      <ModelAgreement confidence={confidence} count={modelCount} />
       {model.warnings.length > 0 && (
         <div className="now-hero__warnings">
           {model.warnings.map((w) => (
@@ -46,6 +51,23 @@ export function Hero({ score, model, onScore }: HeroProps) {
       )}
       <WindowPills today={model.windows.today} tomorrow={model.windows.tomorrow} />
     </section>
+  );
+}
+
+const CONFIDENCE_WORD: Record<Confidence, 'confidenceHigh' | 'confidenceMedium' | 'confidenceLow'> = {
+  high: 'confidenceHigh',
+  medium: 'confidenceMedium',
+  low: 'confidenceLow',
+};
+
+/** How many models stand behind this hour, and whether they say the same thing. */
+function ModelAgreement({ confidence, count }: { confidence: Confidence | null; count: number | null }) {
+  const s = useStrings(S_NOW);
+  if (!confidence || !count) return null;
+  return (
+    <p className={`now-hero__confidence now-hero__confidence--${confidence}`}>
+      {fmt(s.confidenceLine, { n: count, state: s[CONFIDENCE_WORD[confidence]] })}
+    </p>
   );
 }
 

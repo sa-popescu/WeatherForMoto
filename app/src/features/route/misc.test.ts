@@ -4,7 +4,7 @@ import { placeHazards, serverTimeMs } from './hazards';
 import { osrmUrl, parseOsrm, roadAt, RouteError } from './osrm';
 import { runPool } from './pool';
 import { rainLine } from './rainText';
-import { addStop, MAX_STOPS, moveItem, newStop, removeStop, roleOf, savedLabel } from './stops';
+import { addStop, MAX_STOPS, moveItem, nearestKnown, newStop, removeStop, roleOf, savedLabel } from './stops';
 import type { Hazard } from '../../lib/types';
 
 describe('gpx', () => {
@@ -152,6 +152,14 @@ describe('stops', () => {
     expect(roleOf(0, 3)).toBe('origin');
     expect(roleOf(1, 3)).toBe('via');
     expect(roleOf(2, 3)).toBe('destination');
+  });
+
+  it('finds the nearest pinned stop, looking back before looking ahead', () => {
+    const pinned = (name: string) => newStop({ name, lat: 45, lon: 25 });
+    const list = [pinned('A'), newStop(), newStop(), pinned('D')];
+    expect(nearestKnown(list, 1)?.name).toBe('A');
+    expect(nearestKnown(list, 2)?.name).toBe('D');
+    expect(nearestKnown([newStop(), newStop()], 0)).toBeNull();
   });
 
   it('saves villages with their county', () => {
