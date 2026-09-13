@@ -52,10 +52,9 @@ export function LayersPanel({ id, prefs, onPrefs, hazardsFailed }: Props) {
   );
 }
 
-const FORECAST_OPTIONS: ReadonlyArray<{ value: ForecastLayer; key: 'forecastOff' | 'forecastCloud' | 'forecastRain' }> = [
-  { value: 'off', key: 'forecastOff' },
-  { value: 'cloud', key: 'forecastCloud' },
+const FORECAST_OPTIONS: ReadonlyArray<{ value: ForecastLayer; key: 'forecastRain' | 'forecastCloud' }> = [
   { value: 'rain', key: 'forecastRain' },
+  { value: 'cloud', key: 'forecastCloud' },
 ];
 
 function ForecastChoice({ value, onChange }: { value: ForecastLayer; onChange: (next: ForecastLayer) => void }) {
