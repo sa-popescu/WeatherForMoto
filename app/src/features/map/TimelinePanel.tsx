@@ -124,7 +124,9 @@ export function TimelinePanel({ timeline }: { timeline: MapTimeline }) {
         </div>
       </div>
 
-      {current.source === 'radar' ? <RadarLegend /> : <ForecastLegend kind={timeline.kind} />}
+      {/* Rain reads on the radar's scale in both halves of the band, so the key
+          under the scrubber stays put; only the cloud layer needs its own. */}
+      {current.source === 'forecast' && timeline.kind === 'cloud' ? <ForecastLegend kind="cloud" /> : <RadarLegend />}
       <p className="map-radar__note">
         {current.source === 'radar' ? (
           <>

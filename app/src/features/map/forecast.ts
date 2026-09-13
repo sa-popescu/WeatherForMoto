@@ -4,9 +4,13 @@
 
 export type ForecastKind = 'cloud' | 'rain';
 
-/** Points across the view: one request, and still enough to show a front moving. */
-export const GRID_COLS = 7;
-export const GRID_ROWS = 7;
+/**
+ * Points across the view: still one request, and fine enough that the forecast
+ * field has the shape of a front rather than a handful of blobs next to the
+ * radar tiles it continues.
+ */
+export const GRID_COLS = 10;
+export const GRID_ROWS = 10;
 
 /**
  * Second try when the full grid is refused. Some deployments cap how many
@@ -157,13 +161,36 @@ export function cloudRgba(cover: number | null): Rgba {
   return [148, 163, 184, Math.round(60 + share * 165)];
 }
 
-/** Rain by intensity, the same reading as the score: traces, light, moderate, heavy. */
+/**
+ * Rain in the radar's own colours (RainViewer's Universal Blue, the scheme the
+ * tiles are requested in), so a rain area keeps its colour when the scrubber
+ * crosses from the observed half of the band into the forecast. Bands are
+ * hourly amounts in mm/h, upper bound exclusive; the alpha only rises enough to
+ * keep a light shower from looking like a downpour.
+ */
+const RAIN_BANDS: ReadonlyArray<readonly [number, Rgba]> = [
+  [0.3, [136, 221, 238, 170]],
+  [0.8, [0, 163, 224, 195]],
+  [1.5, [0, 119, 170, 205]],
+  [2.5, [0, 85, 136, 210]],
+  [5, [255, 238, 0, 215]],
+  [7.5, [255, 170, 0, 220]],
+  [15, [255, 68, 0, 225]],
+  [30, [193, 0, 0, 230]],
+];
+
+/** Above the last band: the pink of the radar's extreme end. */
+const RAIN_EXTREME: Rgba = [255, 170, 255, 235];
+
+/** Below this there is nothing to paint. */
+const RAIN_VISIBLE_MM_H = 0.1;
+
 export function rainRgba(mm: number | null): Rgba {
-  if (mm === null || mm < 0.1) return TRANSPARENT;
-  if (mm < 0.5) return [96, 165, 250, 110];
-  if (mm < 2.5) return [37, 99, 235, 160];
-  if (mm < 7.5) return [217, 119, 6, 190];
-  return [220, 38, 38, 215];
+  if (mm === null || mm < RAIN_VISIBLE_MM_H) return TRANSPARENT;
+  for (const [upperBound, color] of RAIN_BANDS) {
+    if (mm < upperBound) return color;
+  }
+  return RAIN_EXTREME;
 }
 
 export function colorFor(kind: ForecastKind, value: number | null): Rgba {
