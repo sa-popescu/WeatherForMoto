@@ -2410,6 +2410,34 @@ def _current_hour_index(om_data: dict, hourly_times: list[str]) -> int | None:
     return None
 
 
+# What the observed block replaces in the hour it belongs to. The amount and
+# the probability travel with the score, so the bar's tooltip explains the
+# number it shows instead of contradicting it.
+_CURRENT_HOUR_FIELDS: tuple[str, ...] = (
+    "moto_score", "moto_label", "precipitation_mm", "rain_intensity",
+    "precipitation_probability", "weather_code", "icon", "description",
+)
+
+
+def _sync_current_hour(om_data: dict, hourly: list[dict], current: dict) -> None:
+    """Give the hour being lived the measured conditions, in place.
+
+    The gauge scores what the sources report right now; the hourly series is
+    the models' average for each hour. For the hour you are in those two can
+    disagree — a bar reading 90 above a gauge reading 59 — and the screen then
+    contradicts itself. The measurement wins for that one hour; every hour
+    ahead stays forecast.
+    """
+    index = _current_hour_index(om_data, [str(h.get("time", "")) for h in hourly])
+    if index is None:
+        return
+    hour = hourly[index]
+    for field in _CURRENT_HOUR_FIELDS:
+        value = current.get(field)
+        if value is not None:
+            hour[field] = value
+
+
 def _first_not_none(*values: Any) -> Any:
     """First value that is not None (0 and 0.0 are valid values)."""
     for value in values:
@@ -3232,6 +3260,8 @@ async def _collect_weather(
     hourly = _build_hourly(om_data, _ensemble_by_time(ens_raw))
     current = _merge_current(om_data, owm_current, owm_air, om_air, met_norm, pw_norm,
                              wxm_norm, netatmo_norm, hourly=hourly)
+    # Before the daily scores are built, so the day counts the hour as it is.
+    _sync_current_hour(om_data, hourly, current)
     daily = _merge_daily(om_data, owm_forecast, met_daily, hourly=hourly)
     # Official warnings are advisory on top of our own score, never a source for it.
     alerts = meteoalarm.warnings_for(meteoalarm_feed, lat, lon, city_name) if meteoalarm_feed else []
