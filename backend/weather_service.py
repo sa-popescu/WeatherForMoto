@@ -2387,14 +2387,25 @@ def _local_now_iso(om_data: dict) -> str:
 
 
 def _current_hour_index(om_data: dict, hourly_times: list[str]) -> int | None:
-    """Index of the hourly slot for "now": the first slot at or after the
-    current local time (Open-Meteo hourly values describe the preceding hour,
-    and the frontend uses the same rule)."""
+    """Index of the hourly slot that CONTAINS the current local time.
+
+    The slot stamped 22:00 is the hour you are living between 22:00 and 22:59,
+    so the comparison is on the hour (first 13 characters), never on the
+    minute: at 22:15 a minute comparison would skip 22:00 and describe 23:00
+    instead. The frontend (currentHourIndex in app/src/lib/format.ts) uses the
+    same rule, and the two must agree or the gauge and the timeline contradict
+    each other. Falls back to the first slot after now when the current hour is
+    missing from the series.
+    """
     if not hourly_times:
         return None
     now_local = (om_data.get("current") or {}).get("time") or _local_now_iso(om_data)
+    now_hour = now_local[:13]
     for index, slot in enumerate(hourly_times):
-        if slot[:16] >= now_local[:16]:
+        if slot[:13] == now_hour:
+            return index
+    for index, slot in enumerate(hourly_times):
+        if slot[:13] > now_hour:
             return index
     return None
 
@@ -2497,6 +2508,17 @@ def _merge_current(
     wxm_prec = wxm_norm.get("precipitation") if wxm_norm else None
     precipitation = _wxm_or_blend(wxm_prec, [om_prec, owm_prec, met_prec, pw_prec], [1.0, 1.0, 1.1, 0.8],
                                   nta_val=nta.get("precipitation"))
+
+    # Without a physical station the blend can read ~0 mm while the hour you are
+    # actually in is forecast with real rain: the models' "current" block lags,
+    # and OWM omits its "rain" field, which the blend takes as a measured zero.
+    # Keep the wetter of the two so the gauge can never look better than the hour
+    # its own timeline shows. A station reading stays ground truth.
+    station_prec = _first_not_none(wxm_prec, nta.get("precipitation"))
+    hour_prec = current_hour.get("precipitation_mm")
+    if station_prec is None and hour_prec is not None:
+        hour_prec = round(float(hour_prec), 2)
+        precipitation = hour_prec if precipitation is None else max(precipitation, hour_prec)
 
     # --- rain probability of the current hour. A station that is measuring
     # rain right now makes it a certainty for the score.

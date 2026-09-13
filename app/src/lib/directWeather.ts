@@ -314,7 +314,12 @@ function buildCurrent(raw: OpenMeteoForecast, row: HourlyWeather | undefined): C
   const temp = pick('temperature_2m', row?.temperature);
   const feels = pick('apparent_temperature', row?.feels_like);
   const humidity = pick('relative_humidity_2m', row?.relative_humidity);
-  const precip = pick('precipitation', row?.precipitation_mm);
+  // The "current" block often reports 0 mm while the hour being lived is
+  // forecast with real rain; keep the wetter of the two so the gauge cannot
+  // look better than the hour its own timeline shows (same rule as the API).
+  const precipNow = pick('precipitation', row?.precipitation_mm);
+  const precipHour = row?.precipitation_mm ?? null;
+  const precip = precipNow == null ? precipHour : Math.max(precipNow, precipHour ?? precipNow);
   const gusts = pick('wind_gusts_10m', row?.wind_gusts_kmh);
   const speed = pick('wind_speed_10m', row?.wind_speed_kmh);
   const dir = pick('wind_direction_10m', row?.wind_direction_10m);
