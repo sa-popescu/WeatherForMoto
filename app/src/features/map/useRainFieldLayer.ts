@@ -41,7 +41,10 @@ function frameKey(entry: TimelineEntry, geometry: FieldGeometry, nowcast: RadarN
   return `${geometryKey(geometry)}|${entry.source}|${entry.timeSec}|${nowcast.key ?? '-'}|${model}`;
 }
 
-function paintFrame(entry: TimelineEntry, geometry: FieldGeometry, nowcast: RadarNowcast, rain: IconEuRain): Uint8ClampedArray | null {
+/** Pixels backed by a plain ArrayBuffer, the only kind ImageData accepts. */
+type Pixels = Uint8ClampedArray<ArrayBuffer>;
+
+function paintFrame(entry: TimelineEntry, geometry: FieldGeometry, nowcast: RadarNowcast, rain: IconEuRain): Pixels | null {
   const model = (): Model | null => modelAt(rain, entry.timeSec);
   const extrapolated =
     entry.source === 'nowcast' &&
@@ -76,7 +79,7 @@ interface Options {
 export function useRainFieldLayer(map: L.Map | null, { entry, geometry, nowcast, rain, opacity }: Options): void {
   const overlay = useRef<L.SVGOverlay | null>(null);
   const canvas = useRef<HTMLCanvasElement | null>(null);
-  const painted = useRef(new Map<string, Uint8ClampedArray>());
+  const painted = useRef(new Map<string, Pixels>());
   const onCanvas = useRef<string | null>(null);
 
   useEffect(() => {

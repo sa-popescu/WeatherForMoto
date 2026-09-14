@@ -443,7 +443,13 @@ const LATTICE_PX = 4;
  * are copied, never mixed, so the picture keeps the radar's own palette; a
  * trail that leaves the canvas finds no rain.
  */
-export function extrapolate(source: Uint8ClampedArray, width: number, height: number, motion: MotionField, steps: number): Uint8ClampedArray {
+export function extrapolate(
+  source: Uint8ClampedArray,
+  width: number,
+  height: number,
+  motion: MotionField,
+  steps: number,
+): Uint8ClampedArray<ArrayBuffer> {
   const pixels = new Uint8ClampedArray(width * height * 4);
   const lw = Math.floor(width / LATTICE_PX) + 2;
   const lh = Math.floor(height / LATTICE_PX) + 2;

@@ -24,7 +24,7 @@ export function mixValues(a: Float32Array, b: Float32Array, weight: number): Flo
  * the millimetres are interpolated there and only then coloured, so the bands
  * keep the crisp edges of the radar instead of melting into a halo.
  */
-export function paintModelRain(grid: RainGrid, values: Float32Array, geometry: FieldGeometry): Uint8ClampedArray {
+export function paintModelRain(grid: RainGrid, values: Float32Array, geometry: FieldGeometry): Uint8ClampedArray<ArrayBuffer> {
   const { width, height, x0, y0, z } = geometry;
   const pixels = new Uint8ClampedArray(width * height * 4);
   const { cols, rows } = grid;
