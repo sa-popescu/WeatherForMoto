@@ -24,7 +24,7 @@ export function SearchResults({ state, query, onChoose }: { state: PlaceSearchSt
       {state.results.length > 0 && (
         <ul className="place-list">
           {state.results.map((r) => (
-            <li key={`${r.lat},${r.lon}`}>
+            <li key={`${r.name}|${r.lat},${r.lon}`}>
               <button type="button" className="place-row" onClick={() => onChoose(r)}>
                 <Icon name="pin" size={22} />
                 <span className="place-row__text">
@@ -36,6 +36,7 @@ export function SearchResults({ state, query, onChoose }: { state: PlaceSearchSt
           ))}
         </ul>
       )}
+      {state.status === 'done' && state.results.length > 0 && <p className="place-credit">{s.searchCredit}</p>}
     </section>
   );
 }

@@ -1,10 +1,7 @@
-// Shareable link to a place: the app resolves ?q=<name> on start-up.
+import { placeLinkUrl } from '../../lib/placeLink';
+import type { Place } from '../../lib/types';
 
-const SHARE_BASE_URL = 'https://weatherformoto.bluemouse.cc/';
-
-export function shareUrl(name: string): string {
-  return `${SHARE_BASE_URL}?q=${encodeURIComponent(name)}`;
-}
+// Share a place: the app opens the link on start-up (see lib/placeLink.ts).
 
 export type ShareOutcome = 'shared' | 'copied' | 'cancelled';
 
@@ -12,8 +9,8 @@ export type ShareOutcome = 'shared' | 'copied' | 'cancelled';
  * Native share sheet when available, otherwise the clipboard.
  * Throws when neither works, so the caller can show an error.
  */
-export async function sharePlace(name: string, text: string): Promise<ShareOutcome> {
-  const url = shareUrl(name);
+export async function sharePlace(place: Place, text: string): Promise<ShareOutcome> {
+  const url = placeLinkUrl(place);
   if (typeof navigator.share === 'function') {
     try {
       await navigator.share({ title: 'MotoMeteo', text, url });

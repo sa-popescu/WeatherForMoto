@@ -3,7 +3,7 @@ import { isAbort } from '../../lib/api';
 import { searchPlaces, type NearPoint, type PlaceSuggestion } from '../../lib/geo';
 import type { Lang } from '../../lib/i18n';
 
-// Debounced search-as-you-type over Open-Meteo geocoding; every new keystroke
+// Debounced search-as-you-type over the place search (lib/geo); every new keystroke
 // cancels the previous request.
 
 const DEBOUNCE_MS = 300;

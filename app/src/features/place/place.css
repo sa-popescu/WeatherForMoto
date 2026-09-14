@@ -184,3 +184,8 @@
   font-size: 14px;
   color: var(--muted);
 }
+
+.place-credit {
+  font-size: 12px;
+  color: var(--muted-2);
+}

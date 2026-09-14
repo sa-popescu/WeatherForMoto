@@ -20,7 +20,8 @@ Vechiul frontend dintr-un singur fișier a fost retras: `index.html` și `sw.js`
 - Condiții curente + forecast daily + hourly
 - Moto score (0-100), calculat pe server pentru fiecare oră, cu etichete IDEAL (≥85), OK (60–84), ATENȚIE (40–59), EVITĂ (<40); constantele sunt publicate la `GET /meta/scoring`
 - Ploaia se punctează după șanse × intensitate (mm/h: urme, slabă, moderată, puternică), niciodată doar după procent: 70% cu 0,1 mm nu e tratat ca ploaie adevărată
-- Geo lookup după oraș sau coordonate
+- Căutare de locuri: orașe, sate, cartiere, străzi și locuri cunoscute (Photon, date OpenStreetMap, cu rezultatele din jurul locului curent primele; Open-Meteo ca rezervă), plus GPS
+- Linkurile de partajare poartă și coordonatele (`?q=Nume&ll=lat,lon`), ca un loc cu nume comun să se deschidă exact unde a fost trimis
 - Fereastră optimă de mers (azi/mâine)
 - Date extinse: UV, presiune, vizibilitate, frost risk, temperatură estimată carosabil
 - Avertizări oficiale de la Meteoalarm (ce emite ANM), afișate ca atare deasupra scorului. Se potrivesc pe poligonul sau cercul din avertizare, iar când feedul dă doar nume de zone, după numele localității

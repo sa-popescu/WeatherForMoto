@@ -3,11 +3,13 @@ import { api } from '../lib/api';
 import { DEFAULT_PLACE, MAX_FAVORITES } from '../lib/config';
 import { GeoError, geolocationPermission, getCurrentPosition, reverseGeocode } from '../lib/geo';
 import { useLang } from '../lib/i18n';
+import { parsePlaceLink } from '../lib/placeLink';
 import { KEYS, readJson, writeJson } from '../lib/storage';
 import type { Place } from '../lib/types';
 
 // The place the whole app is looking at, plus favourites.
-// Start-up order: ?q=City link, then the last place, then the default; GPS is
+// Start-up order: shared link (?q=Name, with ?ll=lat,lon from newer links),
+// then the last place, then the default; GPS is
 // used silently only when permission was already granted (never a surprise
 // prompt at launch), otherwise the user taps "my location".
 
@@ -83,13 +85,18 @@ export function PlaceProvider({ children }: { children: ReactNode }) {
     if (booted.current) return;
     booted.current = true;
     const params = new URLSearchParams(window.location.search);
-    const shared = params.get('q');
+    const shared = parsePlaceLink(params);
     if (shared) {
       params.delete('q');
+      params.delete('ll');
       const query = params.toString();
       window.history.replaceState(null, '', `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`);
+      if (shared.kind === 'place') {
+        setPlace(shared.place, 'link');
+        return;
+      }
       api
-        .geocode(shared)
+        .geocode(shared.name)
         .then((g) => setPlace({ name: g.name, lat: g.lat, lon: g.lon }, 'link'))
         .catch((err: unknown) => console.warn('[place] shared link could not be resolved', err));
       return;

@@ -26,7 +26,7 @@ export function PlaceSheet({ open, focusSearch, onClose }: PlaceSheetProps) {
   const { place, setPlace, favorites, isFavorite, toggleFavorite, removeFavorite, locate, locating, locateError } = usePlace();
   const [query, setQuery] = useState('');
   const [askedHere, setAskedHere] = useState(false);
-  const search = usePlaceSearch(query, lang);
+  const search = usePlaceSearch(query, lang, place);
   const inputRef = useRef<HTMLInputElement>(null);
   const inputId = useId();
 
@@ -52,7 +52,7 @@ export function PlaceSheet({ open, focusSearch, onClose }: PlaceSheetProps) {
 
   const onShare = async (): Promise<void> => {
     try {
-      const outcome = await sharePlace(place.name, fmt(s.shareText, { name: place.name }));
+      const outcome = await sharePlace(place, fmt(s.shareText, { name: place.name }));
       if (outcome === 'copied') toast(s.linkCopied, { tone: 'success' });
     } catch (err) {
       console.warn('[place] share failed', err);

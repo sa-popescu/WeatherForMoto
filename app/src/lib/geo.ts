@@ -1,10 +1,12 @@
 import { GPS_TIMEOUT_MS } from './config';
 import type { Lang } from './i18n';
+import { foldText, parsePhoton, photonUrl, type PhotonFeature } from './photon';
 import type { Place } from './types';
 
-// Location helpers. Suggestions come from Open-Meteo geocoding (built for
-// search-as-you-type); Nominatim is used only for one reverse lookup per GPS
-// fix, which its usage policy allows.
+// Location helpers. Suggestions come from Photon (OpenStreetMap, built for
+// search-as-you-type: towns, neighbourhoods, streets, landmarks), with
+// Open-Meteo's town search as the fallback. Nominatim is used only for one
+// reverse lookup per GPS fix, which its usage policy allows.
 
 export interface Position {
   lat: number;
@@ -95,15 +97,13 @@ interface OpenMeteoPlace {
   country_code?: string;
 }
 
-function fold(text: string): string {
-  return text.normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
-}
-
 /** A point the search can lean on when two places share a name. */
 export interface NearPoint {
   lat: number;
   lon: number;
 }
+
+const MAX_RESULTS = 8;
 
 /**
  * Orders geocoding hits: Romania first, as the API returned them. The one
@@ -116,30 +116,53 @@ export interface NearPoint {
  */
 export function rankSuggestions(list: readonly PlaceSuggestion[], name: string, near?: NearPoint | null): PlaceSuggestion[] {
   const ranked = [...list.filter((p) => p.countryCode === 'RO'), ...list.filter((p) => p.countryCode !== 'RO')];
-  const wanted = fold(name);
-  const exact = ranked.filter((p) => fold(p.name) === wanted);
+  const wanted = foldText(name);
+  const exact = ranked.filter((p) => foldText(p.name) === wanted);
   if (exact.length < 2) return ranked;
-  const rest = ranked.filter((p) => fold(p.name) !== wanted);
+  const rest = ranked.filter((p) => foldText(p.name) !== wanted);
   if (near) exact.sort((a, b) => distanceKm(near, a) - distanceKm(near, b));
   return [...exact, ...rest];
 }
 
 /**
- * Place suggestions for a search box. Supports the Romanian "village, county"
- * form: "Sâmbăta, Brașov" keeps only results whose region matches the county.
- * `near` breaks ties between places with the same name.
+ * Place suggestions for a search box: towns, villages, neighbourhoods, streets
+ * and landmarks. Supports the Romanian "village, county" form: "Sâmbăta,
+ * Brașov" keeps only results in that county. `near` (the place on screen, or
+ * the neighbouring route stop) ranks nearby results higher and breaks ties
+ * between places with the same name. When Photon fails or finds nothing, towns
+ * come from Open-Meteo.
  */
 export async function searchPlaces(query: string, lang: Lang, signal?: AbortSignal, near?: NearPoint | null): Promise<PlaceSuggestion[]> {
   const [namePart, regionPart] = query.split(',').map((s) => s.trim());
   if (!namePart || namePart.length < 2) return [];
+  try {
+    const res = await fetch(photonUrl(query.trim(), lang, near ?? undefined), { signal });
+    if (!res.ok) throw new Error(`Photon HTTP ${res.status}`);
+    const body = (await res.json()) as { features?: PhotonFeature[] };
+    const results = rankSuggestions(parsePhoton(body.features ?? [], regionPart), namePart, near);
+    if (results.length) return results.slice(0, MAX_RESULTS);
+  } catch (err) {
+    if (signal?.aborted) throw err;
+    console.warn('[geo] place search failed, falling back to town search', err);
+  }
+  return searchTowns(namePart, regionPart, lang, signal, near);
+}
+
+async function searchTowns(
+  namePart: string,
+  regionPart: string | undefined,
+  lang: Lang,
+  signal?: AbortSignal,
+  near?: NearPoint | null,
+): Promise<PlaceSuggestion[]> {
   const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(namePart)}&count=10&language=${lang}&format=json`;
   const res = await fetch(url, { signal });
   if (!res.ok) throw new Error(`Geocoding HTTP ${res.status}`);
   const body = (await res.json()) as { results?: OpenMeteoPlace[] };
   let results = body.results ?? [];
   if (regionPart) {
-    const wanted = fold(regionPart);
-    const filtered = results.filter((r) => fold(`${r.admin1 ?? ''} ${r.admin2 ?? ''}`).includes(wanted));
+    const wanted = foldText(regionPart);
+    const filtered = results.filter((r) => foldText(`${r.admin1 ?? ''} ${r.admin2 ?? ''}`).includes(wanted));
     if (filtered.length) results = filtered;
   }
   const suggestions = results.map((r) => ({
@@ -150,7 +173,7 @@ export async function searchPlaces(query: string, lang: Lang, signal?: AbortSign
     country: r.country ?? null,
     countryCode: r.country_code ?? null,
   }));
-  return rankSuggestions(suggestions, namePart, near).slice(0, 8);
+  return rankSuggestions(suggestions, namePart, near).slice(0, MAX_RESULTS);
 }
 
 /** Great-circle distance in km. */
