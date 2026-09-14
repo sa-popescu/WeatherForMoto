@@ -48,6 +48,9 @@ export function useRadarLayer(map: L.Map | null, { host, frames, index, opacity,
   const createLayer = useCallback(
     (path: string, url: string): L.TileLayer => {
       const layer = L.tileLayer(url, {
+        // Requested with CORS, like the extrapolation that reads the same tiles:
+        // both then share one cached copy the page is allowed to read.
+        crossOrigin: 'anonymous',
         opacity: 0,
         zIndex: RADAR_Z_INDEX,
         maxNativeZoom: RADAR_MAX_NATIVE_ZOOM,

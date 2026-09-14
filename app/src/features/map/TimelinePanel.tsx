@@ -7,11 +7,12 @@ import { frameClock } from './radar';
 import { RadarLegend } from './RadarLegend';
 import { MAP_STRINGS } from './strings';
 import { radarOffsetText } from './texts';
+import type { TimelineSource } from './timeline';
 import type { MapTimeline } from './useMapTimeline';
 
 // One panel for the whole band of time: play/pause, the moment on screen, the
-// scrubber from the oldest radar frame to the last forecast hour, and the
-// legend of whichever layer that moment belongs to.
+// scrubber from the oldest radar frame to the last forecast hour, the legend
+// of whichever layer that moment belongs to and a note on where it comes from.
 
 /** Label every sixth entry, so the row stays readable on a phone. */
 const LABEL_STEP = 6;
@@ -28,9 +29,11 @@ export function TimelinePanel({ timeline }: { timeline: MapTimeline }) {
   const core = useStrings(CORE);
   const lang = useLang();
   const { entries, index, current } = timeline;
-  const bothFailed = timeline.radarStatus === 'error' && timeline.forecast.status === 'error';
+  const onModel = timeline.kind === 'rain' && timeline.rainSource === 'model';
+  const aheadFailed = onModel ? timeline.modelStatus === 'error' : timeline.forecast.status === 'error';
+  const bothFailed = timeline.radarStatus === 'error' && aheadFailed;
 
-  if (bothFailed || (entries.length === 0 && timeline.forecast.status === 'error')) {
+  if (bothFailed || (entries.length === 0 && aheadFailed)) {
     return (
       <div className="map-panel map-radar-msg" role="status">
         <Icon name="radar" size={22} />
@@ -58,7 +61,11 @@ export function TimelinePanel({ timeline }: { timeline: MapTimeline }) {
   const firstForecast = entries.findIndex((entry) => entry.forecast);
   const forecastStart = firstForecast <= 0 || last === 0 ? 0 : ((firstForecast - 0.5) / last) * 100;
   const relative = relativeText(s, current.timeSec, nowSec);
-  const busy = timeline.tilesLoading || timeline.forecast.status === 'loading';
+  const busy =
+    timeline.tilesLoading ||
+    timeline.nowcastStatus === 'loading' ||
+    (onModel ? timeline.modelStatus === 'loading' : timeline.forecast.status === 'loading');
+  const note = noteFor(s, timeline, current.source, onModel);
 
   return (
     <section className="map-panel map-radar" aria-label={s.timelineLabel}>
@@ -111,7 +118,8 @@ export function TimelinePanel({ timeline }: { timeline: MapTimeline }) {
         <div className="map-scrub__labels" aria-hidden="true">
           {entries
             .map((_, i) => i)
-            .filter((i) => i % LABEL_STEP === 0 || i === last)
+            // A regular label too close to the last one would print on top of it.
+            .filter((i) => (i % LABEL_STEP === 0 && last - i >= LABEL_STEP / 2) || i === last)
             .map((i) => (
               <span
                 key={entries[i].timeSec}
@@ -127,17 +135,21 @@ export function TimelinePanel({ timeline }: { timeline: MapTimeline }) {
       {/* Rain reads on the radar's scale in both halves of the band, so the key
           under the scrubber stays put; only the cloud layer needs its own. */}
       {current.source === 'forecast' && timeline.kind === 'cloud' ? <ForecastLegend kind="cloud" /> : <RadarLegend />}
-      {(current.source === 'radar' || timeline.forecast.cellKm !== null) && (
+      {current.source === 'radar' ? (
         <p className="map-radar__note">
-          {current.source === 'radar' ? (
-            <>
-              {s.radarNote} <a href="#/acum">{s.radarNoteLink}</a>.
-            </>
-          ) : (
-            fmt(s.forecastNote, { km: timeline.forecast.cellKm ?? 0 })
-          )}
+          {s.radarNote} <a href="#/acum">{s.radarNoteLink}</a>.
         </p>
+      ) : (
+        note && <p className="map-radar__note">{note}</p>
       )}
     </section>
   );
+}
+
+/** What the moment on screen is made of, in one sentence. */
+function noteFor(s: (typeof MAP_STRINGS)['ro'], timeline: MapTimeline, source: TimelineSource, onModel: boolean): string | null {
+  if (source === 'nowcast') return s.nowcastNote;
+  if (source !== 'forecast') return null;
+  if (onModel) return s.modelNote;
+  return timeline.forecast.cellKm === null ? null : fmt(s.forecastNote, { km: timeline.forecast.cellKm });
 }

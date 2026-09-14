@@ -1,16 +1,28 @@
 import type { Map as LeafletMap } from 'leaflet';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ForecastKind } from './forecast';
-import { entryDelayMs, buildTimeline, nextIndex, startIndex, type TimelineEntry } from './timeline';
+import { iconEuCovers } from './iconEu';
+import { entryDelayMs, buildTimeline, nextIndex, planRainBand, startIndex, utcTimeSec, type TimelineEntry } from './timeline';
+import { useFieldGeometry } from './useFieldGeometry';
 import { useForecastData, type ForecastGrid } from './useForecastData';
 import { useForecastLayer } from './useForecastLayer';
+import { useIconEuRain, type ModelStatus } from './useIconEuRain';
 import { useRadarFrames, type RadarStatus } from './useRadarFrames';
 import { useRadarLayer } from './useRadarLayer';
+import { useRadarNowcast, type NowcastStatus } from './useRadarNowcast';
+import { useRainFieldLayer } from './useRainFieldLayer';
 
-// The map's single band of time. Observed radar and the forecast hours are two
-// sources behind one scrubber: the entry on screen decides which layer is
-// visible, so moving past the last radar frame simply continues into the
-// forecast instead of switching anything by hand.
+// The map's single band of time. Observed radar, the radar extrapolated for
+// the next hour and a half, and the forecast hours are sources behind one
+// scrubber: the entry on screen decides which layer is visible.
+//
+// Rain ahead comes from ICON-EU (DWD, ~7 km) wherever that model covers the
+// map, painted in the radar's colours; the extrapolated radar fades into it,
+// so there is no jump from the last radar frame to the first forecast hour.
+// Clouds, and rain outside ICON-EU or when the DWD is unreachable, still come
+// from the coarser Open-Meteo grid.
+
+export type RainSource = 'model' | 'grid';
 
 export interface MapTimeline {
   entries: readonly TimelineEntry[];
@@ -19,7 +31,11 @@ export interface MapTimeline {
   playing: boolean;
   /** What the forecast part of the band paints. */
   kind: ForecastKind;
+  /** Where rain ahead comes from right now. */
+  rainSource: RainSource;
   radarStatus: RadarStatus;
+  nowcastStatus: NowcastStatus;
+  modelStatus: ModelStatus;
   forecast: ForecastGrid;
   tilesLoading: boolean;
   tilesFailed: boolean;
@@ -38,13 +54,56 @@ interface Options {
   autoPlay: boolean;
 }
 
-export function useMapTimeline(map: LeafletMap | null, { fetching, radar, kind, opacity, autoPlay }: Options): MapTimeline {
-  const frames = useRadarFrames(fetching && radar);
-  const forecast = useForecastData(map, fetching);
-  const radarFrames = useMemo(() => (radar ? (frames.data?.frames ?? []) : []), [radar, frames.data]);
-  const forecastTimes = forecast.data?.times ?? EMPTY_TIMES;
+/** The forecast window slides with the clock; checking every few minutes is plenty. */
+const CLOCK_MS = 5 * 60_000;
 
-  const entries = useMemo(() => buildTimeline(radarFrames, forecastTimes), [radarFrames, forecastTimes]);
+function useClock(running: boolean): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!running) return undefined;
+    setNow(Date.now());
+    const timer = window.setInterval(() => setNow(Date.now()), CLOCK_MS);
+    return () => window.clearInterval(timer);
+  }, [running]);
+  return now;
+}
+
+export function useMapTimeline(map: LeafletMap | null, { fetching, radar, kind, opacity, autoPlay }: Options): MapTimeline {
+  const nowMs = useClock(fetching);
+  const frames = useRadarFrames(fetching && radar);
+  const radarFrames = useMemo(() => (radar ? (frames.data?.frames ?? []) : []), [radar, frames.data]);
+  const observed = useMemo(() => radarFrames.filter((frame) => !frame.nowcast), [radarFrames]);
+
+  const rainAhead = kind === 'rain';
+  const geometry = useFieldGeometry(map, fetching && rainAhead);
+  const modelCovers = geometry !== null && iconEuCovers(geometry.bounds);
+
+  const nowcast = useRadarNowcast({ enabled: fetching && radar && rainAhead, host: frames.data?.host ?? null, frames: observed, geometry });
+
+  const plan = useMemo(
+    () =>
+      planRainBand({
+        nowSec: nowMs / 1000,
+        lastObservedSec: observed.length > 0 ? observed[observed.length - 1].time : null,
+        lastRadarSec: radarFrames.length > 0 ? radarFrames[radarFrames.length - 1].time : null,
+        nowcastBaseSec: nowcast.status === 'ready' ? nowcast.baseSec : null,
+        nowcastExpected: radar && observed.length >= 2 && nowcast.status !== 'error',
+      }),
+    [nowMs, observed, radarFrames, nowcast.status, nowcast.baseSec, radar],
+  );
+
+  const model = useIconEuRain({ enabled: fetching && rainAhead && modelCovers, geometry, hourEnds: plan.hourEnds });
+  // Until the canvas is sized the model is assumed, so the coarse grid is not fetched for nothing.
+  const rainSource: RainSource = rainAhead && (geometry === null || modelCovers) && model.status !== 'error' ? 'model' : 'grid';
+  const useGrid = !rainAhead || rainSource === 'grid';
+
+  const forecast = useForecastData(map, fetching && useGrid);
+  const gridTimes = useMemo(() => (forecast.data?.times ?? []).map(utcTimeSec), [forecast.data]);
+
+  const entries = useMemo(() => {
+    const nowcastTimes = rainAhead && nowcast.status === 'ready' ? plan.nowcastTimes : EMPTY;
+    return buildTimeline(radarFrames, nowcastTimes, useGrid ? gridTimes : plan.modelTimes);
+  }, [radarFrames, rainAhead, nowcast.status, plan, useGrid, gridTimes]);
 
   const [index, setIndex] = useState(-1);
   const [playing, setPlaying] = useState(false);
@@ -106,8 +165,12 @@ export function useMapTimeline(map: LeafletMap | null, { fetching, radar, kind, 
     loaded,
   });
 
+  // Extrapolated frames are always painted here; forecast hours only when they come from the model.
+  const paintsRain = rainAhead && current !== null && (current.source === 'nowcast' || (current.source === 'forecast' && !useGrid));
+  useRainFieldLayer(map, { entry: paintsRain ? current : null, geometry, nowcast, rain: model, opacity });
+
   useForecastLayer(map, {
-    kind: current?.source === 'forecast' ? kind : null,
+    kind: current?.source === 'forecast' && useGrid ? kind : null,
     data: forecast.data,
     bounds: forecast.bounds,
     index: current?.source === 'forecast' ? current.index : 0,
@@ -124,7 +187,8 @@ export function useMapTimeline(map: LeafletMap | null, { fetching, radar, kind, 
   const retry = useCallback(() => {
     frames.reload();
     forecast.reload();
-  }, [frames, forecast]);
+    model.reload();
+  }, [frames, forecast, model]);
 
   return {
     entries,
@@ -132,7 +196,10 @@ export function useMapTimeline(map: LeafletMap | null, { fetching, radar, kind, 
     current,
     playing,
     kind,
+    rainSource,
     radarStatus: frames.status,
+    nowcastStatus: nowcast.status,
+    modelStatus: model.status,
     forecast,
     tilesLoading: radarLayer.loading,
     tilesFailed: radarLayer.failed,
@@ -142,4 +209,4 @@ export function useMapTimeline(map: LeafletMap | null, { fetching, radar, kind, 
   };
 }
 
-const EMPTY_TIMES: readonly string[] = [];
+const EMPTY: readonly number[] = [];

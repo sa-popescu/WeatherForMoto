@@ -67,6 +67,11 @@ export function radarTileUrl(host: string, frame: RadarFrame): string {
   return `${host}${frame.path}${TILE_SUFFIX}`;
 }
 
+/** One radar tile, for reading its pixels (the same URL the tile layer loads, so the cache is shared). */
+export function radarTileAt(host: string, frame: RadarFrame, z: number, x: number, y: number): string {
+  return radarTileUrl(host, frame).replace('{z}', String(z)).replace('{x}', String(x)).replace('{y}', String(y));
+}
+
 /** Index of the frame closest to `targetSec` (ties go to the earlier frame), -1 for an empty list. */
 export function closestFrameIndex(frames: readonly RadarFrame[], targetSec: number): number {
   let best = -1;

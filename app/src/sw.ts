@@ -17,9 +17,14 @@ declare let self: ServiceWorkerGlobalScope;
 // Bump on any change that must reach installed workers even when the bundle
 // is unchanged (e.g. new headers such as the CSP served with sw.js): the
 // browser only reinstalls a worker whose script bytes differ.
-const SW_VERSION = '2026-09-11.2';
+const SW_VERSION = '2026-09-14.1';
 
 const WEATHER_CACHE = 'mm-weather-v1';
+// Radar tiles are requested with CORS now, so the map can read their pixels to
+// extrapolate the radar. The old cache held opaque copies, which a CORS request
+// cannot use: it is dropped on activation.
+const RADAR_TILE_CACHE = 'mm-radar-tiles-v2';
+const RETIRED_CACHES = ['mm-radar-tiles-v1'];
 const WEATHER_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 const STAMP_HEADER = 'x-sw-cached-at';
 const LEGACY_CACHE_PREFIXES = ['motometeo-'];
@@ -94,8 +99,8 @@ registerRoute(
 registerRoute(
   ({ url }) => url.hostname === 'tilecache.rainviewer.com',
   new CacheFirst({
-    cacheName: 'mm-radar-tiles-v1',
-    plugins: [new CacheableResponsePlugin({ statuses: [0, 200] }), new ExpirationPlugin({ maxEntries: 300, maxAgeSeconds: 3 * 3600 })],
+    cacheName: RADAR_TILE_CACHE,
+    plugins: [new CacheableResponsePlugin({ statuses: [200] }), new ExpirationPlugin({ maxEntries: 300, maxAgeSeconds: 3 * 3600 })],
   }),
 );
 
@@ -104,6 +109,11 @@ registerRoute(
 async function legacyCacheNames(): Promise<string[]> {
   const names = await caches.keys();
   return names.filter((name) => LEGACY_CACHE_PREFIXES.some((prefix) => name.startsWith(prefix)));
+}
+
+async function retiredCacheNames(): Promise<string[]> {
+  const names = await caches.keys();
+  return names.filter((name) => RETIRED_CACHES.includes(name));
 }
 
 self.addEventListener('install', (event) => {
@@ -118,8 +128,8 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    legacyCacheNames()
-      .then((legacy) => Promise.all(legacy.map((name) => caches.delete(name))))
+    Promise.all([legacyCacheNames(), retiredCacheNames()])
+      .then(([legacy, retired]) => Promise.all([...legacy, ...retired].map((name) => caches.delete(name))))
       .then(() => self.clients.claim()),
   );
 });

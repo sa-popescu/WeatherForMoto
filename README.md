@@ -47,7 +47,11 @@ Vechiul frontend dintr-un singur fișier a fost retras: `index.html` și `sw.js`
 - Route planner cu 2-10 opriri, fiecare cu opțiunea „locația mea”
 - Route weather snapshots pe waypoint-uri estimate
 - Harta traseu (Leaflet)
-- Hartă cu o singură bandă de timp: radarul observat, nowcastul RainViewer și apoi orele următoare din prognoză, pe același scrubber. În partea de viitor se desenează norii sau ploaia, eșantionate de la Open-Meteo pe o grilă peste zona vizibilă
+- Hartă cu o singură bandă de timp, pe același scrubber:
+	- radarul observat (RainViewer, ultimele 2 ore);
+	- radarul extrapolat 90 de minute: ultima imagine radar mutată pe direcția și viteza măsurate din ultimele cadre (block matching într-un Web Worker), care după 20 de minute se estompează treptat în model, ca să nu existe un salt între ultimul cadru radar și prima oră de prognoză;
+	- ploaia pe ore din modelul ICON-EU al DWD (celule de ~7 km, citite ca valori prin WCS de pe `maps.dwd.de`, fără cheie, cu atribuire), desenată în culorile radarului pe un canvas aliniat la dalele hărții;
+	- norii, și ploaia în afara domeniului ICON-EU sau când DWD nu răspunde, vin în continuare din grila Open-Meteo
 - Saved routes per user (`/me/routes`)
 - Ride logs + stats (`/me/rides/log`, `/me/rides/stats`)
 - Hazard reporting geolocalizat (`/hazards`)
