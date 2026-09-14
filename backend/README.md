@@ -12,6 +12,10 @@ saved routes, ride logs and rider-reported hazards. It runs on Google Cloud Run
 | `main.py` | app, CORS, security headers, weather / route / geocode / meta routes |
 | `weather_service.py` | provider clients, merge, cache and time budget, moto score |
 | `auth_alerts.py` | accounts, sessions, email verification, prefs, push, alerts, routes, rides, hazards |
+| `official_stations.py` | official synoptic stations (ANM) through EUMETNET MeteoGate, nearest fresh reading per field |
+| `metar.py` | Romanian airport METAR from NOAA AWC: present weather code and visibility |
+| `meteoalarm.py` | Meteoalarm CAP county warnings |
+| `anm_nowcast.py` | ANM nowcasting warnings with their drawn polygons |
 | `migrate_to_turso.py` | one-off copy of a legacy SQLite file into Turso |
 | `entrypoint.sh` | container start (uvicorn, no access log) |
 

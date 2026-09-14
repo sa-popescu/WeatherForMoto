@@ -15,7 +15,8 @@ Vechiul frontend dintr-un singur fișier a fost retras: `index.html` și `sw.js`
 
 ### Core weather
 
-- Agregare multi-sursă (Open-Meteo + OpenWeatherMap + MET Norway + Pirate Weather + WeatherXM)
+- Agregare multi-sursă: modele (Open-Meteo, OpenWeatherMap, MET Norway, Pirate Weather) și măsurători (stațiile oficiale ANM prin EUMETNET MeteoGate, observațiile aeroporturilor METAR de la NOAA, WeatherXM, Netatmo). Stația oficială cea mai apropiată intră în media condițiilor de acum cu ponderea cea mai mare, care scade cu distanța; aeroportul dă fenomenul observat (ploaie, furtună, ceață) și vizibilitatea
+- „N surse” din antetul ecranului „Acum” se poate atinge: deschide lista surselor, cu rolul fiecăreia, dacă a răspuns acum, stația folosită, distanța și vechimea măsurătorii (`current.source_status` în răspunsul `/weather`)
 - Ansamblu de modele: aceleași ore cerute separat de la ECMWF, ICON (DWD), GFS (NOAA), ARPEGE (Météo-France) și UKMO, fără cheie suplimentară. Valorile orare sunt trase spre media modelelor (blend-ul Open-Meteo păstrează greutate dublă), iar dispersia dintre ele dă încrederea afișată: „sunt de acord”, „diferă puțin”, „nu sunt de acord”
 - Condiții curente + forecast daily + hourly
 - Moto score (0-100), calculat pe server pentru fiecare oră, cu etichete IDEAL (≥85), OK (60–84), ATENȚIE (40–59), EVITĂ (<40); constantele sunt publicate la `GET /meta/scoring`
@@ -24,7 +25,7 @@ Vechiul frontend dintr-un singur fișier a fost retras: `index.html` și `sw.js`
 - Linkurile de partajare poartă și coordonatele (`?q=Nume&ll=lat,lon`), ca un loc cu nume comun să se deschidă exact unde a fost trimis
 - Fereastră optimă de mers (azi/mâine)
 - Date extinse: UV, presiune, vizibilitate, frost risk, temperatură estimată carosabil
-- Avertizări oficiale de la Meteoalarm (ce emite ANM), afișate ca atare deasupra scorului. Se potrivesc pe poligonul sau cercul din avertizare, iar când feedul dă doar nume de zone, după numele localității
+- Avertizări oficiale de la Meteoalarm (ce emite ANM pe județe) și avertizările ANM de tip nowcasting (30-90 de minute, pe zona desenată de meteorologi), afișate ca atare deasupra scorului. Se potrivesc pe poligonul sau cercul din avertizare, iar când feedul dă doar nume de zone, după numele localității
 
 ### Phase A (cont + alerting + PWA)
 
@@ -62,6 +63,7 @@ WeatherForMoto/
 ├── app/                    # Frontend: Vite + React + TypeScript, PWA (vezi mai jos)
 ├── backend/                # API FastAPI (vezi backend/README.md)
 │   ├── main.py, weather_service.py, auth_alerts.py
+│   ├── official_stations.py, metar.py, meteoalarm.py, anm_nowcast.py  # surse de observații și avertizări
 │   ├── tests.py, test_scoring.py, test_auth_alerts.py, test_frontend_routes.py
 │   ├── requirements.in     # dependențe directe
 │   ├── requirements.txt    # toate versiunile fixate (Linux, Python 3.11)
@@ -216,6 +218,7 @@ python -m unittest test_scoring       # scor v2, matricea de ploaie, cache, buge
 python -m unittest test_auth_alerts   # autentificare, limite, alerte (SQLite în locul libsql)
 python -m unittest test_route_limits  # limitele endpointului /route/multi
 python -m unittest test_meteoalarm    # parsarea CAP și potrivirea pe zonă
+python -m unittest test_sources       # stații oficiale, METAR, nowcasting ANM, starea surselor
 ```
 
 Testele nu depind de rețea. Pe Windows, `tests.py` are nevoie de `PYTHONIOENCODING=utf-8` ca să poată afișa simbolurile din output.

@@ -58,6 +58,24 @@ export interface CurrentWeather {
   /** How many models answered for this hour. */
   model_count: number | null;
   sources: string[] | null;
+  /** Every source and what it did for this answer (absent from older servers and the direct fallback). */
+  source_status?: SourceStatus[] | null;
+}
+
+export type SourceState = 'used' | 'no-data' | 'none-nearby' | 'off';
+
+export interface SourceStatus {
+  id: string;
+  status: SourceState;
+  /** Station or airport that answered. */
+  station?: string | null;
+  distance_km?: number | null;
+  /** When the station measured, ISO 8601. */
+  observed_at?: string | null;
+  /** Models that answered (the ensemble). */
+  models?: number | null;
+  /** Warnings that apply to this place (warning feeds). */
+  count?: number | null;
 }
 
 export interface HourlyWeather {

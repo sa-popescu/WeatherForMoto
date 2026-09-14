@@ -4,62 +4,196 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Politica de Confidențialitate — MotoMeteo</title>
+    <title>Politica de confidențialitate — MotoMeteo</title>
     <style>
+        :root {
+            color-scheme: light dark;
+            --ink: #1a1a1a;
+            --muted: #555;
+            --ground: #ffffff;
+            --line: #e5e5e5;
+            --accent: #c2410c;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --ink: #ececec;
+                --muted: #a3a3a3;
+                --ground: #111111;
+                --line: #2a2a2a;
+                --accent: #fb923c;
+            }
+        }
+
         body {
-            font-family: -apple-system, sans-serif;
-            max-width: 700px;
-            margin: 40px auto;
-            padding: 0 20px;
-            color: #1a1a1a;
-            line-height: 1.7;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 32px 20px 64px;
+            color: var(--ink);
+            background: var(--ground);
+            line-height: 1.65;
         }
 
         h1 {
-            color: #f97316;
+            color: var(--accent);
+            line-height: 1.2;
+            margin-bottom: 4px;
         }
 
         h2 {
-            margin-top: 2em;
+            margin-top: 2.2em;
+            font-size: 1.2em;
+            border-bottom: 1px solid var(--line);
+            padding-bottom: 4px;
+        }
+
+        .updated {
+            color: var(--muted);
+            margin-top: 0;
+        }
+
+        li {
+            margin-bottom: 6px;
+        }
+
+        a {
+            color: var(--accent);
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            font-size: 0.95em;
+        }
+
+        th,
+        td {
+            text-align: left;
+            vertical-align: top;
+            padding: 6px 8px;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .table-wrap {
+            overflow-x: auto;
         }
     </style>
 </head>
 
 <body>
-    <h1>Politica de Confidențialitate — MotoMeteo</h1>
-    <p><em>Ultima actualizare: 11 aprilie 2026</em></p>
+    <h1>Politica de confidențialitate — MotoMeteo</h1>
+    <p class="updated">Ultima actualizare: 14 septembrie 2026</p>
 
-    <h2>1. Date colectate</h2>
-    <p>MotoMeteo nu colectează, nu stochează și nu transmite date cu caracter personal. Toate preferințele (orașe
-        favorite, profil moto, alerte) sunt stocate exclusiv <strong>local pe dispozitivul tău</strong> prin
-        localStorage.</p>
+    <p>MotoMeteo (WeatherForMoto) este un proiect personal, gratuit și necomercial: o aplicație meteo pentru
+        motocicliști. Nu are reclame, nu vinde nimic și nu folosește instrumente de urmărire sau statistici de trafic.
+        Pagina de mai jos spune ce date folosește aplicația, de ce și unde ajung.</p>
 
-    <h2>2. Localizare</h2>
-    <p>Aplicația poate accesa locația dispozitivului <strong>numai la cererea explicită a utilizatorului</strong> (buton
-        "📍 Locația mea"). Coordonatele sunt trimise direct la API-urile meteo (Open-Meteo, OpenWeatherMap, MET Norway)
-        exclusiv pentru a returna prognoza locală. Nu sunt stocate pe serverele noastre.</p>
+    <h2>1. Fără cont</h2>
+    <p>Poți folosi aplicația fără cont. În acest caz nu păstrăm date despre tine pe server. Pe dispozitivul tău, în
+        memoria browserului (localStorage), rămân doar: locurile favorite, ultimul loc privit, profilul moto,
+        setările (temă, limbă) și starea alertelor. Le poți șterge oricând ștergând datele site-ului din browser.</p>
 
-    <h2>3. Servicii terțe</h2>
+    <h2>2. Locația</h2>
+    <p>Aplicația citește poziția dispozitivului <strong>numai când apeși „Locația mea”</strong> (sau automat, doar
+        dacă ai permis deja accesul la locație pentru acest site). Coordonatele sunt folosite ca să aflăm vremea
+        pentru acel loc și numele lui. Nu păstrăm istoricul pozițiilor tale.</p>
+
+    <h2>3. Cu cont</h2>
+    <p>Dacă îți faci cont, păstrăm pe server:</p>
     <ul>
-        <li><strong>Open-Meteo</strong> (open-meteo.com) — date meteo, GDPR compliant, fără cheie API, fără date
-            personale</li>
-        <li><strong>OpenWeatherMap</strong> (openweathermap.org) — primesc coordonate geografice anonime</li>
-        <li><strong>MET Norway</strong> (api.met.no) — primesc coordonate geografice anonime</li>
-        <li><strong>RainViewer</strong> (rainviewer.com) — tiles radar, fără date personale</li>
-        <li><strong>RevenueCat</strong> (revenuecat.com) — procesare achiziții in-app; consultați <a
-                href="https://www.revenuecat.com/privacy">politica lor</a></li>
+        <li><strong>date de cont</strong>: adresa de email, numele afișat (opțional), dacă adresa e confirmată și
+            parola, doar sub formă de hash (nu poate fi citită înapoi);</li>
+        <li><strong>sesiuni și coduri</strong>: tokenurile de autentificare, codurile de logare și linkurile de
+            resetare, doar sub formă de hash și cu termen de expirare;</li>
+        <li><strong>preferințele de alertă</strong>: locația pentru alerte (coordonate și nume), pragurile, orele de
+            liniște și profilul moto;</li>
+        <li><strong>dispozitivele pentru notificări push</strong>: adresa tehnică de livrare primită de la browser
+            și cheile de criptare aferente;</li>
+        <li><strong>ce salvezi tu</strong>: trasee salvate, ture înregistrate și pericolele raportate pe hartă
+            (locul, tipul, descrierea, durata). Pericolele sunt vizibile altor motocicliști fără numele sau emailul
+            tău.</li>
+    </ul>
+    <p>Poți șterge contul oricând din ecranul „Eu”. Ștergerea elimină definitiv toate datele de mai sus.</p>
+
+    <h2>4. Securitate și abuz</h2>
+    <p>Ca să oprim încercările de spargere a conturilor și abuzurile, numărăm pentru scurt timp încercările
+        eșuate, pe adresa IP și pe email (emailul doar sub formă de hash). Aceste contoare se șterg automat după cel
+        mult o zi. Serverul păstrează jurnale tehnice ale cererilor (adresa IP, adresa cerută, ora) timp de cel mult
+        30 de zile, pentru depanare și securitate.</p>
+
+    <h2>5. Emailuri și notificări</h2>
+    <p>Emailurile trimise sunt doar cele de cont: codul de autentificare, confirmarea adresei și resetarea parolei.
+        Nu trimitem alerte meteo sau mesaje de marketing pe email.</p>
+    <p>Notificările push sunt opționale și pornesc doar după ce le accepți. Conțin alerte meteo pentru locația
+        aleasă. Le poți opri din aplicație sau din setările browserului.</p>
+
+    <h2>6. Unde sunt datele</h2>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Serviciu</th>
+                    <th>Rol</th>
+                    <th>Unde</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Google Cloud Run</td>
+                    <td>serverul aplicației (API)</td>
+                    <td>Belgia (UE)</td>
+                </tr>
+                <tr>
+                    <td>Turso</td>
+                    <td>baza de date pentru conturi</td>
+                    <td>Irlanda (UE)</td>
+                </tr>
+                <tr>
+                    <td>Cloudflare</td>
+                    <td>găzduirea paginilor aplicației</td>
+                    <td>rețea globală</td>
+                </tr>
+                <tr>
+                    <td>Brevo</td>
+                    <td>trimiterea emailurilor de cont</td>
+                    <td>Franța (UE)</td>
+                </tr>
+                <tr>
+                    <td>Apple, Google, Microsoft, Mozilla</td>
+                    <td>livrarea notificărilor push către dispozitivul tău (conținut criptat)</td>
+                    <td>serviciile lor de push</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h2>7. Surse meteo și hărți</h2>
+    <p>Pentru prognoză, serverul nostru cere date pentru coordonatele locului, fără să le trimită adresa ta IP sau
+        datele contului: Open-Meteo, OpenWeatherMap, MET Norway, Pirate Weather, WeatherXM, Netatmo, stațiile
+        meteo oficiale prin EUMETNET MeteoGate (ANM), avertizările ANM și Meteoalarm, observațiile aeroporturilor
+        (NOAA).</p>
+    <p>Unele servicii sunt apelate direct din browserul tău, deci văd adresa ta IP și zona cerută:</p>
+    <ul>
+        <li>hărți: OpenStreetMap (hartă de bază), RainViewer (radar), DWD (modelul ICON-EU), EUMETSAT (nori și
+            fulgere din satelit), Open-Meteo (prognoza pe grilă);</li>
+        <li>căutarea locurilor: Photon (komoot) primește textul căutat și zona aproximativă afișată; Open-Meteo
+            Geocoding e folosit ca rezervă;</li>
+        <li>numele locului pentru poziția GPS: OpenStreetMap Nominatim primește coordonatele;</li>
+        <li>trasee: OSRM primește punctele traseului;</li>
+        <li>dacă serverul nostru nu răspunde, prognoza vine direct de la Open-Meteo.</li>
     </ul>
 
-    <h2>4. Achiziții in-app</h2>
-    <p>Abonamentul MotoMeteo Plus este procesat prin Apple App Store. Nu stocăm date de plată. RevenueCat gestionează
-        validarea abonamentelor; nu sunt stocate date personale dincolo de ID-ul anonim de instalare.</p>
+    <h2>8. Drepturile tale</h2>
+    <p>Conform GDPR, poți cere accesul la datele tale, corectarea sau ștergerea lor și o copie a lor. Contul îl
+        poți șterge singur din aplicație; pentru restul scrie-ne. Ai și dreptul să depui o plângere la Autoritatea
+        Națională de Supraveghere a Prelucrării Datelor cu Caracter Personal (<a
+            href="https://www.dataprotection.ro/">dataprotection.ro</a>).</p>
 
-    <h2>5. Notificări push</h2>
-    <p>Notificările push sunt opționale și activate doar cu consimțământul explicit al utilizatorului. Nu trimitem
-        notificări de marketing.</p>
+    <h2>9. Contact</h2>
+    <p>Pentru orice întrebare despre date: <a href="mailto:weatherformoto@bluemouse.cc">weatherformoto@bluemouse.cc</a></p>
 
-    <h2>6. Contact</h2>
-    <p>Pentru orice întrebare: <a href="mailto:contact@motometeo.ro">contact@motometeo.ro</a></p>
+    <p class="updated">Dacă politica se schimbă, data de sus se actualizează.</p>
 </body>
 
 </html>

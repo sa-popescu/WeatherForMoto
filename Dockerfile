@@ -20,8 +20,9 @@ WORKDIR /app
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
-# Copy the frontend assets (served by FastAPI)
-COPY index.html sw.js manifest.json ./
+# Copy the frontend assets (served by FastAPI). The privacy policy is served
+# at /privacy-policy too, so store listings can link to the API's address.
+COPY index.html sw.js manifest.json privacy-policy.html ./
 COPY icons/ ./icons/
 
 # Copy the backend source code

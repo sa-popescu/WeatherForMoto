@@ -36,6 +36,7 @@ export default function NowScreen({ active }: ScreenProps) {
       <PlaceHeader
         utcOffsetSeconds={data?.utc_offset_seconds ?? null}
         sources={data?.current.sources?.length ?? null}
+        onSources={data && model ? () => setSheet({ kind: 'sources' }) : undefined}
         fetchedAt={weather.fetchedAt}
         refreshing={weather.refreshing && data !== null}
         loading={weather.status === 'loading'}
@@ -45,7 +46,7 @@ export default function NowScreen({ active }: ScreenProps) {
       {data && model ? (
         <>
           <NowContent data={data} model={model} selectedTime={selectedTime} onSelectTime={setSelectedTime} onOpen={setSheet} />
-          <NowSheets sheet={sheet} data={data} model={model} onClose={() => setSheet(null)} />
+          <NowSheets sheet={sheet} data={data} model={model} nowMs={nowMs} onClose={() => setSheet(null)} />
         </>
       ) : weather.status === 'error' ? (
         <ErrorCard kind={weather.error} busy={weather.refreshing} onRetry={weather.refresh} />

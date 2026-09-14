@@ -18,6 +18,8 @@ export interface PlaceHeaderProps {
   /** The location's UTC offset once weather is loaded, for its local clock. */
   utcOffsetSeconds: number | null;
   sources: number | null;
+  /** Opens the list of data sources; without it the count is plain text. */
+  onSources?: () => void;
   fetchedAt: number | null;
   /** Refreshing data that is already on screen (not the first load). */
   refreshing: boolean;
@@ -33,7 +35,7 @@ const AGE_WORDS = {
   en: { justNow: 'just now', minutes: '{n} min ago', hours: '{n} h ago' },
 } as const;
 
-export function PlaceHeader({ utcOffsetSeconds, sources, fetchedAt, refreshing, loading, nowMs }: PlaceHeaderProps) {
+export function PlaceHeader({ utcOffsetSeconds, sources, onSources, fetchedAt, refreshing, loading, nowMs }: PlaceHeaderProps) {
   const s = useStrings(S_PLACE);
   const core = useStrings(CORE);
   const lang = useLang();
@@ -72,7 +74,13 @@ export function PlaceHeader({ utcOffsetSeconds, sources, fetchedAt, refreshing, 
           {(when || loading) && <span>{when ?? core.loading}</span>}
           {(sourceText || age || refreshing) && (
             <span className="place-head__status">
-              {sourceText}
+              {sourceText && onSources ? (
+                <button type="button" className="place-head__sources" onClick={onSources} aria-haspopup="dialog" title={s.sourcesOpen}>
+                  {sourceText}
+                </button>
+              ) : (
+                sourceText
+              )}
               {sourceText && (age || refreshing) ? ' · ' : ''}
               {refreshing ? (
                 <>

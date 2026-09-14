@@ -27,7 +27,10 @@ from typing import Any
 
 import httpx
 
+import anm_nowcast
 import meteoalarm
+import metar
+import official_stations
 
 logger = logging.getLogger("weatherformoto.weather")
 
@@ -1022,6 +1025,13 @@ TTL_MET_MAX_S = 2 * 3600
 TTL_PIRATE_S = 30 * 60
 TTL_ENSEMBLE_S = 30 * 60
 TTL_METEOALARM_S = 10 * 60
+# Stations report hourly and airports every 30 minutes; nowcasting warnings last under two hours.
+TTL_STATIONS_S = 10 * 60
+TTL_METAR_S = 10 * 60
+TTL_ANM_NOWCAST_S = 5 * 60
+# Weight of an official station's reading in the current-conditions blend
+# (models weigh about 1, a Netatmo citizen station 1.3).
+OFFICIAL_STATION_WEIGHT = 2.0
 TTL_GEOCODE_S = 24 * 3600
 FORECAST_CACHE_MAX_ENTRIES = 400
 GEOCODE_CACHE_MAX_ENTRIES = 1000
@@ -1551,7 +1561,7 @@ async def _fetch_openmeteo(
 # models, which is the honest measure of how sure the forecast is.
 
 ENSEMBLE_MODELS: tuple[str, ...] = (
-    "ecmwf_ifs025",           # ECMWF, Reading
+    "ecmwf_ifs",              # ECMWF, Reading (HRES, 9 km, open data)
     "icon_seamless",          # DWD, Offenbach
     "gfs_seamless",           # NOAA, College Park
     "meteofrance_seamless",   # Météo-France, Toulouse
@@ -2456,9 +2466,13 @@ def _merge_current(
     wxm_norm: dict | None = None,
     netatmo_norm: dict | None = None,
     hourly: list[dict] | None = None,
+    official_norm: dict | None = None,
+    metar_obs: dict | None = None,
 ) -> dict:
     c = om_data.get("current", {})
     nta = netatmo_norm or {}
+    off = official_norm or {}
+    obs = metar_obs or {}
     if hourly is None:
         hourly = _build_hourly(om_data)
     hour_index = _current_hour_index(om_data, [str(h.get("time", "")) for h in hourly])
@@ -2482,16 +2496,30 @@ def _merge_current(
     # when a Netatmo public station is present add it to that blend with a high
     # weight.  Netatmo is *blended* rather than used as ground truth because
     # public stations vary in siting quality (rooftops, sun-exposed) — blending
-    # keeps a poorly-sited station from dominating.
-    def _wxm_or_blend(wxm_val, model_vals, model_weights, nta_val=None):
+    # keeps a poorly-sited station from dominating. An official synoptic
+    # station (ANM, through MeteoGate) is sited to WMO rules but reports once an
+    # hour, so it gets the largest weight in the blend without replacing it.
+    # The weight fades with distance: a station 25 km away, often at another
+    # altitude, says less about this point than one down the road.
+    official_distance = off.get("distance_km")
+    official_weight = OFFICIAL_STATION_WEIGHT * (
+        max(0.3, 1 - float(official_distance) / 40) if official_distance is not None else 1.0
+    )
+
+    def _wxm_or_blend(wxm_val, model_vals, model_weights, nta_val=None, official_val=None):
         if wxm_val is not None:
             return round(float(wxm_val), 2)
+        values, weights = list(model_vals), list(model_weights)
+        if official_val is not None:
+            values.append(official_val)
+            weights.append(official_weight)
         if nta_val is not None:
-            return _weighted_avg(list(model_vals) + [nta_val], list(model_weights) + [1.3])
-        return _weighted_avg(model_vals, model_weights)
+            values.append(nta_val)
+            weights.append(1.3)
+        return _weighted_avg(values, weights)
 
     temp = _wxm_or_blend(wxm_temp, [om_temp, owm_temp, met_temp, pw_temp], [1.2, 1.0, 1.1, 0.8],
-                         nta_val=nta.get("temp"))
+                         nta_val=nta.get("temp"), official_val=off.get("temp"))
     feels = _wxm_or_blend(wxm_feel, [om_feel, owm_feel, pw_feel], [1.0, 1.0, 0.8])
 
     # --- humidity
@@ -2501,7 +2529,7 @@ def _merge_current(
     pw_hum = pw_norm.get("humidity") if pw_norm else None
     wxm_hum = wxm_norm.get("humidity") if wxm_norm else None
     humidity = _wxm_or_blend(wxm_hum, [om_hum, owm_hum, met_hum, pw_hum], [1.2, 1.0, 1.1, 0.8],
-                             nta_val=nta.get("humidity"))
+                             nta_val=nta.get("humidity"), official_val=off.get("humidity"))
 
     # --- wind speed (km/h) and gusts
     om_wind = c.get("wind_speed_10m")
@@ -2510,7 +2538,7 @@ def _merge_current(
     pw_wind = pw_norm.get("wind_speed_kmh") if pw_norm else None
     wxm_wind = wxm_norm.get("wind_speed_kmh") if wxm_norm else None
     wind_speed = _wxm_or_blend(wxm_wind, [om_wind, owm_wind, met_wind, pw_wind], [1.2, 1.0, 1.1, 0.8],
-                               nta_val=nta.get("wind_speed_kmh"))
+                               nta_val=nta.get("wind_speed_kmh"), official_val=off.get("wind_speed_kmh"))
 
     om_gusts = c.get("wind_gusts_10m")
     # Only real gust values are blended; sustained wind never stands in for a gust.
@@ -2519,9 +2547,11 @@ def _merge_current(
     pw_gusts = pw_norm.get("wind_gusts_kmh") if pw_norm else None
     wxm_gusts = wxm_norm.get("wind_gusts_kmh") if wxm_norm else None
     wind_gusts = _wxm_or_blend(wxm_gusts, [om_gusts, owm_gusts, met_gusts, pw_gusts],
-                               [1.2, 0.8, 1.1, 1.0], nta_val=nta.get("wind_gusts_kmh"))
+                               [1.2, 0.8, 1.1, 1.0], nta_val=nta.get("wind_gusts_kmh"),
+                               official_val=off.get("wind_gusts_kmh"))
 
-    wind_dir = c.get("wind_direction_10m")
+    # A measured direction when the official station has one, else the model's.
+    wind_dir = _first_not_none(off.get("wind_dir"), c.get("wind_direction_10m"))
 
     # --- precipitation (physical station is ground truth here)
     om_prec = c.get("precipitation")
@@ -2534,8 +2564,10 @@ def _merge_current(
     met_prec = met_norm.get("precipitation") if met_norm else None
     pw_prec = pw_norm.get("precipitation") if pw_norm else None
     wxm_prec = wxm_norm.get("precipitation") if wxm_norm else None
+    # The official gauge's total covers the last full hour, not this moment: it
+    # joins the blend, but does not count as the "station" reading below.
     precipitation = _wxm_or_blend(wxm_prec, [om_prec, owm_prec, met_prec, pw_prec], [1.0, 1.0, 1.1, 0.8],
-                                  nta_val=nta.get("precipitation"))
+                                  nta_val=nta.get("precipitation"), official_val=off.get("precipitation"))
 
     # Without a physical station the blend can read ~0 mm while the hour you are
     # actually in is forecast with real rain: the models' "current" block lags,
@@ -2560,17 +2592,21 @@ def _merge_current(
     owm_code_raw = owm_current["weather"][0]["id"] if owm_current else None
     owm_code = _owm_id_to_wmo(owm_code_raw) if owm_code_raw is not None else None
     wxm_code = wxm_norm.get("wmo_code") if wxm_norm else None
+    # What an observer at a nearby airport reports right now (rain, storm, fog).
+    metar_code = obs.get("wmo_code")
 
     # Weather code: when WXM station is active use its icon-derived code to
-    # decide the icon (keeps visual in sync with measured conditions).
+    # decide the icon (keeps visual in sync with measured conditions); then a
+    # phenomenon observed at a nearby airport; then the providers.
     # Use OWM Romanian description for text since WXM has no localization.
     # OWM code 0 (clear sky) is a valid value, hence the explicit None checks.
-    effective_code = _first_not_none(wxm_code, owm_code, om_code)
+    effective_code = _first_not_none(wxm_code, metar_code, owm_code, om_code)
     # Downgrade a precip/storm code to overcast for DISPLAY when it isn't actually
     # precipitating, so the icon and description stay consistent with the score.
     display_code = _effective_display_code(effective_code, precipitation, score_probability)
     _downgraded = display_code != effective_code
-    if owm_current and not _downgraded:
+    # OWM's text describes its own code, so it is not used for an airport's.
+    if owm_current and not _downgraded and (metar_code is None or wxm_code is not None):
         description = owm_current["weather"][0].get("description", _wmo_desc(display_code)).capitalize()
     else:
         description = _wmo_desc(display_code)
@@ -2580,13 +2616,19 @@ def _merge_current(
     # pressure_msl before the station-level surface_pressure), visibility
     pressure = _first_not_none(
         wxm_norm.get("pressure") if wxm_norm else None,
+        off.get("pressure"),
         nta.get("pressure"),
         owm_current["main"].get("pressure") if owm_current else None,
         met_norm.get("pressure") if met_norm else None,
         c.get("pressure_msl"),
         c.get("surface_pressure"),
     )
-    visibility_m = owm_current.get("visibility") if owm_current else c.get("visibility")
+    # Visibility measured at a nearby airport beats any model's.
+    visibility_m = _first_not_none(
+        obs.get("visibility_m"),
+        owm_current.get("visibility") if owm_current else None,
+        c.get("visibility"),
+    )
     pw_vis = pw_norm.get("visibility_km") if pw_norm else None
     visibility_km = round(visibility_m / 1000, 1) if visibility_m is not None else pw_vis
 
@@ -2688,6 +2730,8 @@ def _merge_current(
             + (["pirate-weather"] if pw_norm else [])
             + (["weatherxm"] if wxm_norm else [])
             + (["netatmo"] if netatmo_norm else [])
+            + (["official-stations"] if official_norm else [])
+            + (["metar"] if metar_obs else [])
         ),
     }
 
@@ -3176,9 +3220,12 @@ async def get_weather(
     netatmo_refresh_token: str = "",
 ) -> dict[str, Any]:
     """
-    Fetch and aggregate weather data from Open-Meteo, OpenWeatherMap, MET Norway,
-    Pirate Weather, WeatherXM and Netatmo (physical stations).
-    Returns a unified JSON-serialisable dict.
+    Fetch and aggregate weather data from Open-Meteo (and its five-model
+    ensemble), OpenWeatherMap, MET Norway, Pirate Weather, and measurements:
+    official stations (MeteoGate), airports (METAR), WeatherXM and Netatmo;
+    plus Meteoalarm and ANM nowcasting warnings.
+    Returns a unified JSON-serialisable dict; current.source_status says what
+    each source did for this answer.
     forecast_days: 7 (free) or 14 (premium — Open-Meteo supports up to 16).
     met_user_agent: optional; defaults to the MET_NORWAY_USER_AGENT env value.
 
@@ -3201,6 +3248,57 @@ async def get_weather(
         raise RuntimeError("Weather data not available within the time budget") from exc
 
 
+def _source_status(
+    *,
+    current: dict[str, Any],
+    keys: dict[str, bool],
+    used: dict[str, bool],
+    stations: tuple[Any, dict | None],
+    airports: tuple[Any, dict | None],
+    warnings: dict[str, tuple[Any, int]],
+) -> list[dict[str, Any]]:
+    """
+    Every source and what it did for this answer, for the "data sources" view.
+
+    status: "used" (it contributed), "off" (not configured on this server),
+    "none-nearby" (answered, but nothing close enough or fresh enough),
+    "no-data" (did not answer in time, failed, or had nothing to give).
+    Warning feeds are "used" when they were read, with how many apply here.
+    """
+    out: list[dict[str, Any]] = [
+        {"id": "open-meteo", "status": "used"},
+        {"id": "model-ensemble", "status": "used" if current.get("model_count") else "no-data",
+         "models": current.get("model_count")},
+    ]
+    for source in ("openweathermap", "met-norway", "pirate-weather"):
+        configured = keys.get(source, True)
+        out.append({"id": source, "status": "used" if used[source] else ("no-data" if configured else "off")})
+
+    raw, norm = stations
+    out.append({
+        "id": "official-stations",
+        "status": "used" if norm else ("none-nearby" if raw is not None else "no-data"),
+        "station": norm.get("station") if norm else None,
+        "distance_km": norm.get("distance_km") if norm else None,
+        "observed_at": norm.get("observed_at") if norm else None,
+    })
+    raw, obs = airports
+    out.append({
+        "id": "metar",
+        "status": "used" if obs else ("none-nearby" if raw is not None else "no-data"),
+        "station": (obs.get("name") or obs.get("station")) if obs else None,
+        "distance_km": obs.get("distance_km") if obs else None,
+        "observed_at": obs.get("observed_at") if obs else None,
+    })
+    for source in ("weatherxm", "netatmo"):
+        configured = keys.get(source, True)
+        out.append({"id": source, "status": "used" if used[source] else ("no-data" if configured else "off")})
+
+    for source, (feed, count) in warnings.items():
+        out.append({"id": source, "status": "used" if feed is not None else "no-data", "count": count})
+    return out
+
+
 async def _collect_weather(
     lat: float,
     lon: float,
@@ -3219,7 +3317,7 @@ async def _collect_weather(
     cell = _coord_key(lat, lon)
     async with http_client_scope() as client:
         (om_data, ens_raw, owm_current, owm_forecast, owm_air, om_air, met_raw, pw_raw,
-         wxm_raw, netatmo_raw, meteoalarm_feed) = await asyncio.gather(
+         wxm_raw, netatmo_raw, meteoalarm_feed, stations_raw, metar_raw, nowcast_feed) = await asyncio.gather(
             _forecast_cache.get_or_fetch(
                 ("open-meteo", cell, days),
                 _with_ttl(lambda: _fetch_openmeteo(lat, lon, client, forecast_days=days),
@@ -3248,6 +3346,13 @@ async def _collect_weather(
             # One feed covers the whole country, so every location shares the entry.
             _cached_optional("Meteoalarm", ("meteoalarm", meteoalarm.feed_url()), _with_ttl(
                 lambda: meteoalarm.fetch_feed(client, met_user_agent), TTL_METEOALARM_S)),
+            _cached_optional("Official stations", ("official-stations", cell), _with_ttl(
+                lambda: official_stations.fetch(lat, lon, client, met_user_agent), TTL_STATIONS_S)),
+            # Airports and nowcasting warnings: one answer for the whole country.
+            _cached_optional("METAR", ("metar",), _with_ttl(
+                lambda: metar.fetch(client, met_user_agent), TTL_METAR_S)),
+            _cached_optional("ANM nowcasting", ("anm-nowcast",), _with_ttl(
+                lambda: anm_nowcast.fetch_feed(client, met_user_agent), TTL_ANM_NOWCAST_S)),
         )
 
     utc_offset = int(om_data.get("utc_offset_seconds") or 0)
@@ -3255,16 +3360,44 @@ async def _collect_weather(
     pw_norm = _normalize_pw_current(pw_raw)
     wxm_norm = _normalize_wxm_current(wxm_raw)
     netatmo_norm = _normalize_netatmo_current(netatmo_raw)
+    official_norm = official_stations.normalize(stations_raw)
+    metar_obs = metar.nearest(metar_raw, lat, lon)
     met_daily = _aggregate_met_daily(met_raw, utc_offset)
 
     hourly = _build_hourly(om_data, _ensemble_by_time(ens_raw))
     current = _merge_current(om_data, owm_current, owm_air, om_air, met_norm, pw_norm,
-                             wxm_norm, netatmo_norm, hourly=hourly)
+                             wxm_norm, netatmo_norm, hourly=hourly,
+                             official_norm=official_norm, metar_obs=metar_obs)
     # Before the daily scores are built, so the day counts the hour as it is.
     _sync_current_hour(om_data, hourly, current)
     daily = _merge_daily(om_data, owm_forecast, met_daily, hourly=hourly)
     # Official warnings are advisory on top of our own score, never a source for it.
-    alerts = meteoalarm.warnings_for(meteoalarm_feed, lat, lon, city_name) if meteoalarm_feed else []
+    county_alerts = meteoalarm.warnings_for(meteoalarm_feed, lat, lon, city_name) if meteoalarm_feed else []
+    nowcast_alerts = anm_nowcast.warnings_for(nowcast_feed, lat, lon, city_name) if nowcast_feed else []
+    alerts = sorted(county_alerts + nowcast_alerts,
+                    key=lambda w: (meteoalarm.LEVEL_ORDER.get(w["level"], 9), w["onset"] or ""))
+    current["source_status"] = _source_status(
+        current=current,
+        keys={
+            "openweathermap": bool(owm_api_key),
+            "pirate-weather": bool(pirate_weather_key),
+            "weatherxm": bool(weatherxm_api_key),
+            "netatmo": bool(netatmo_client_id and netatmo_client_secret),
+        },
+        used={
+            "openweathermap": owm_current is not None,
+            "met-norway": met_norm is not None,
+            "pirate-weather": pw_norm is not None,
+            "weatherxm": wxm_norm is not None,
+            "netatmo": netatmo_norm is not None,
+        },
+        stations=(stations_raw, official_norm),
+        airports=(metar_raw, metar_obs),
+        warnings={
+            "anm-nowcast": (nowcast_feed, len(nowcast_alerts)),
+            "meteoalarm": (meteoalarm_feed, len(county_alerts)),
+        },
+    )
 
     return {
         "city": city_name,

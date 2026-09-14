@@ -328,7 +328,8 @@ async def fetch_feed(client: httpx.AsyncClient, user_agent: str) -> str | None:
         response = await client.get(
             url,
             timeout=FETCH_TIMEOUT_S,
-            headers={"User-Agent": user_agent, "Accept": "application/xml, application/atom+xml, text/xml"},
+            # The feed answers 406 to any narrower Accept, even application/atom+xml (September 2026).
+            headers={"User-Agent": user_agent, "Accept": "*/*"},
         )
         response.raise_for_status()
         body = response.content

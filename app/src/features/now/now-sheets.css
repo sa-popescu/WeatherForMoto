@@ -278,6 +278,77 @@
   color: var(--muted);
 }
 
+/* ---- Data sources ---- */
+
+.now-sources {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.now-source {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+}
+
+.now-source__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.now-source__name {
+  font-weight: 600;
+}
+
+.now-source__state {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--muted);
+}
+
+.now-source__state--used {
+  border-color: var(--t-ideal);
+  color: var(--t-ideal);
+}
+
+.now-source__state--off {
+  color: var(--dim);
+}
+
+.now-source__role {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.now-source__detail {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.now-source__link {
+  align-self: flex-start;
+  font-size: 13px;
+  color: var(--muted-2);
+}
+
 /* ---- Hour sheet ---- */
 
 .now-hour__top {

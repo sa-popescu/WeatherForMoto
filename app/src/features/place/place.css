@@ -61,6 +61,18 @@
   white-space: nowrap;
 }
 
+.place-head__sources {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
 .place-head__actions {
   display: flex;
   flex-shrink: 0;
