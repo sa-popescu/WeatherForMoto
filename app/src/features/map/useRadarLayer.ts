@@ -1,5 +1,6 @@
 import * as L from 'leaflet';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { PANES } from './panes';
 import { nextFrameIndex, RADAR_MAX_NATIVE_ZOOM, radarTileUrl, type RadarFrame } from './radar';
 
 // Radar tiles on the map. Only the frame on screen and the next one exist as
@@ -7,7 +8,7 @@ import { nextFrameIndex, RADAR_MAX_NATIVE_ZOOM, radarTileUrl, type RadarFrame } 
 // the user jumped to is still loading, the last complete one stays visible.
 
 const RAINVIEWER_ATTRIBUTION = '<a href="https://www.rainviewer.com/api.html" target="_blank" rel="noopener">RainViewer</a>';
-/** Above the base map (zIndex 1) inside the tile pane, below all markers. */
+/** Order inside the radar's own pane (see panes.ts). */
 const RADAR_Z_INDEX = 5;
 /** Tile errors, with no tile loaded, before the radar counts as unavailable. */
 const FAILED_TILES = 4;
@@ -51,6 +52,7 @@ export function useRadarLayer(map: L.Map | null, { host, frames, index, opacity,
         // Requested with CORS, like the extrapolation that reads the same tiles:
         // both then share one cached copy the page is allowed to read.
         crossOrigin: 'anonymous',
+        pane: PANES.radar,
         opacity: 0,
         zIndex: RADAR_Z_INDEX,
         maxNativeZoom: RADAR_MAX_NATIVE_ZOOM,

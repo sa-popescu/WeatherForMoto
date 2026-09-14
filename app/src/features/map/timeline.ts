@@ -3,9 +3,9 @@ import { FORECAST_HOURS, FORECAST_STEP_MS } from './forecast';
 import { HOUR_S, hourEndsFor } from './iconEu';
 import { modelWeight, NOWCAST_STEP_S, NOWCAST_STEPS } from './nowcast';
 
-// One band of time for the map: observed radar, then the radar extrapolated
-// for up to an hour and a half, then the forecast hours. Pure helpers, so the
-// ordering rules are testable without a map.
+// One band of time for the map: observed pictures (radar, satellite), then the
+// pictures extrapolated for up to an hour and a half, then the forecast. Pure
+// helpers, so the ordering rules are testable without a map.
 
 export type TimelineSource = 'radar' | 'nowcast' | 'forecast';
 
@@ -59,33 +59,37 @@ export function utcTimeSec(time: string): number {
   return Number.isNaN(ms) ? Number.NaN : Math.round(ms / 1000);
 }
 
-export interface RainPlan {
-  /** Extrapolated radar frames, one per radar interval after the base picture. */
+/** Model moments every half hour for the first hours, where reading between two totals still helps; hourly after. */
+export const MODEL_FINE_STEP_S = 1800;
+export const MODEL_FINE_HOURS = 6;
+
+export interface BandPlan {
+  /** Extrapolated frames, one per interval after the base picture. */
   nowcastTimes: number[];
-  /** Whole hours painted from the model. */
+  /** Moments painted from the model. */
   modelTimes: number[];
   /** Hourly model totals needed for both (the extrapolated frames fade into the model). */
   hourEnds: number[];
 }
 
-export interface RainPlanInput {
+export interface BandPlanInput {
   nowSec: number;
-  /** Newest observed radar frame, null without radar. */
+  /** Newest observed picture (radar or satellite), null without one. */
   lastObservedSec: number | null;
-  /** Last radar entry of any kind (RainViewer may add its own forecast frames). */
+  /** Last observed entry of any kind (RainViewer may add its own forecast frames). */
   lastRadarSec: number | null;
   /** The extrapolation is ready from this picture. */
   nowcastBaseSec: number | null;
-  /** An extrapolation is on its way (radar on and nothing failed). */
+  /** An extrapolation is on its way (pictures on and nothing failed). */
   nowcastExpected: boolean;
 }
 
 /**
- * Which moments the rain part of the band shows. The model hours start after
- * the extrapolation's reach even while it is still being computed, so the band
+ * Which moments the future part of the band shows. The model starts after the
+ * extrapolation's reach even while it is still being computed, so the band
  * does not shift under the rider's finger when it arrives.
  */
-export function planRainBand({ nowSec, lastObservedSec, lastRadarSec, nowcastBaseSec, nowcastExpected }: RainPlanInput): RainPlan {
+export function planBand({ nowSec, lastObservedSec, lastRadarSec, nowcastBaseSec, nowcastExpected }: BandPlanInput): BandPlan {
   const nowcastTimes: number[] = [];
   if (nowcastBaseSec !== null) {
     for (let step = 1; step <= NOWCAST_STEPS; step += 1) {
@@ -99,10 +103,13 @@ export function planRainBand({ nowSec, lastObservedSec, lastRadarSec, nowcastBas
   else if (nowcastExpected && lastObservedSec !== null) reach = Math.max(lastRadarSec ?? 0, lastObservedSec + NOWCAST_STEPS * NOWCAST_STEP_S);
 
   const currentHour = Math.floor(nowSec / HOUR_S) * HOUR_S;
-  const firstHour = reach === null ? currentHour : Math.floor(reach / HOUR_S) * HOUR_S + HOUR_S;
+  const first =
+    reach === null ? currentHour : Math.floor((reach + OVERLAP_S) / MODEL_FINE_STEP_S) * MODEL_FINE_STEP_S + MODEL_FINE_STEP_S;
+  const fineEnd = first + MODEL_FINE_HOURS * HOUR_S;
   const lastHour = currentHour + FORECAST_HOURS * HOUR_S;
   const modelTimes: number[] = [];
-  for (let hour = firstHour; hour <= lastHour; hour += HOUR_S) modelTimes.push(hour);
+  for (let t = first; t < fineEnd && t <= lastHour; t += MODEL_FINE_STEP_S) modelTimes.push(t);
+  for (let hour = Math.ceil(fineEnd / HOUR_S) * HOUR_S; hour <= lastHour; hour += HOUR_S) modelTimes.push(hour);
 
   const blended = nowcastBaseSec === null ? [] : nowcastTimes.filter((t) => modelWeight(t - nowcastBaseSec) > 0);
   return { nowcastTimes, modelTimes, hourEnds: hourEndsFor([...blended, ...modelTimes]) };

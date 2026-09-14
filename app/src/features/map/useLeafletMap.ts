@@ -1,6 +1,7 @@
 import * as L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useEffect, useRef, useState, type RefObject } from 'react';
+import { CUSTOM_PANES } from './panes';
 
 // Owns the Leaflet map: created once per mount, OpenStreetMap base tiles, and
 // a size refresh whenever the tab becomes visible again (Leaflet measures
@@ -30,6 +31,11 @@ export interface LeafletMapState {
 
 function createMap(element: HTMLElement, center: { lat: number; lon: number }, onLoading: (loading: boolean) => void): L.Map {
   const map = L.map(element, { zoomControl: false, attributionControl: false, minZoom: 3, maxZoom: 18, worldCopyJump: true });
+  for (const [name, zIndex] of CUSTOM_PANES) {
+    const pane = map.createPane(name);
+    pane.style.zIndex = String(zIndex);
+    pane.style.pointerEvents = 'none';
+  }
   map.setView([center.lat, center.lon], REGIONAL_ZOOM);
   L.control.attribution({ position: 'topleft', prefix: false }).addTo(map);
   const base = L.tileLayer(OSM_URL, { maxZoom: 19, attribution: OSM_ATTRIBUTION, className: 'map-base' });

@@ -48,6 +48,7 @@ export default function MapScreen({ active }: ScreenProps) {
   const timeline = useMapTimeline(map, {
     fetching: onScreen,
     radar: prefs.radar,
+    lightning: prefs.lightning,
     kind: prefs.forecast,
     opacity: prefs.opacity,
     autoPlay: !reducedMotion,

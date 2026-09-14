@@ -4,8 +4,8 @@ import { cx, Toggle } from '../../ui/primitives';
 import type { ForecastLayer, LayerPrefs } from './layerPrefs';
 import { MAP_STRINGS } from './strings';
 
-// Layer switches: radar (with its opacity), the forecast field painted over
-// the map, and reported hazards.
+// Layer switches: radar (with its opacity), the view (rain or clouds),
+// lightning and reported hazards.
 
 interface Props {
   id: string;
@@ -42,6 +42,7 @@ export function LayersPanel({ id, prefs, onPrefs, hazardsFailed }: Props) {
         </div>
       )}
       <ForecastChoice value={prefs.forecast} onChange={(forecast) => onPrefs({ forecast })} />
+      <Toggle checked={prefs.lightning} onChange={(lightning) => onPrefs({ lightning })} label={s.layerLightning} description={s.layerLightningDesc} />
       <Toggle
         checked={prefs.hazards}
         onChange={(hazards) => onPrefs({ hazards })}

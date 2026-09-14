@@ -1,10 +1,13 @@
-import { estimateMotion, type MotionField, type MotionOptions, type RadarPicture } from './nowcast';
+import { alphaLevel, echoLevel, estimateMotion, type MotionField, type MotionOptions, type RadarPicture } from './nowcast';
 
-// Measures the radar motion off the main thread, so the map keeps panning and
-// the band keeps playing while a new radar frame is being analysed.
+// Measures motion off the main thread, so the map keeps panning and the band
+// keeps playing while new pictures are being analysed.
+
+export type PictureKind = 'radar' | 'cloud';
 
 export interface MotionRequest {
   id: number;
+  kind: PictureKind;
   pictures: RadarPicture[];
   width: number;
   height: number;
@@ -21,9 +24,9 @@ interface WorkerScope {
 const scope = self as unknown as WorkerScope;
 
 scope.onmessage = (event) => {
-  const { id, pictures, width, height, options } = event.data;
+  const { id, kind, pictures, width, height, options } = event.data;
   try {
-    const motion = estimateMotion(pictures, width, height, options);
+    const motion = estimateMotion(pictures, width, height, options, kind === 'cloud' ? alphaLevel : echoLevel);
     scope.postMessage({ id, motion }, [motion.dx.buffer, motion.dy.buffer]);
   } catch (err) {
     scope.postMessage({ id, error: err instanceof Error ? err.message : String(err) }, []);

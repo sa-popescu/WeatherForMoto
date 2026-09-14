@@ -10,13 +10,16 @@ export type ForecastLayer = 'cloud' | 'rain';
 export interface LayerPrefs {
   /** Observed radar: the past half of the band. */
   radar: boolean;
+  /** Lightning seen by the satellite, on the observed part of the band. */
+  lightning: boolean;
   hazards: boolean;
+  /** The view: rain (radar, model rain) or clouds (satellite, cloud forecast). */
   forecast: ForecastLayer;
   /** Radar and forecast opacity, 0.2 to 1. */
   opacity: number;
 }
 
-let sessionPrefs: LayerPrefs = { radar: true, hazards: true, forecast: 'rain', opacity: 0.7 };
+let sessionPrefs: LayerPrefs = { radar: true, lightning: true, hazards: true, forecast: 'rain', opacity: 0.7 };
 
 export function useLayerPrefs(): [LayerPrefs, (change: Partial<LayerPrefs>) => void] {
   const [prefs, setPrefs] = useState<LayerPrefs>(sessionPrefs);

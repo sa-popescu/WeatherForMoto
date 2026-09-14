@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { FRAME_HOLD_MS, FRAME_STEP_MS, type RadarFrame } from './radar';
 import { FORECAST_HOURS, FORECAST_STEP_MS } from './forecast';
 import { NOWCAST_STEP_S, NOWCAST_STEPS } from './nowcast';
-import { buildTimeline, entryDelayMs, nextIndex, planRainBand, startIndex, utcTimeSec } from './timeline';
+import { buildTimeline, entryDelayMs, MODEL_FINE_HOURS, MODEL_FINE_STEP_S, nextIndex, planBand, startIndex, utcTimeSec } from './timeline';
 
 const HOUR = 3600;
 const NOW = Date.parse('2026-09-13T12:00:00Z') / 1000;
@@ -68,11 +68,11 @@ describe('buildTimeline', () => {
   });
 });
 
-describe('planRainBand', () => {
+describe('planBand', () => {
   const base = { nowSec: NOW + 5 * 60, lastObservedSec: NOW, lastRadarSec: NOW };
 
   it('extrapolates for an hour and a half, then hands the rest of the day to the model', () => {
-    const plan = planRainBand({ ...base, nowcastBaseSec: NOW, nowcastExpected: true });
+    const plan = planBand({ ...base, nowcastBaseSec: NOW, nowcastExpected: true });
     expect(plan.nowcastTimes).toEqual(Array.from({ length: NOWCAST_STEPS }, (_, i) => NOW + (i + 1) * NOWCAST_STEP_S));
     expect(plan.modelTimes[0]).toBe(NOW + 2 * HOUR);
     expect(plan.modelTimes[plan.modelTimes.length - 1]).toBe(NOW + FORECAST_HOURS * HOUR);
@@ -81,18 +81,28 @@ describe('planRainBand', () => {
     expect(plan.hourEnds[plan.hourEnds.length - 1]).toBe(NOW + (FORECAST_HOURS + 1) * HOUR);
   });
 
+  it('steps every half hour for the first hours, then every hour', () => {
+    const { modelTimes } = planBand({ ...base, nowcastBaseSec: NOW, nowcastExpected: true });
+    const fine = MODEL_FINE_HOURS * 2;
+    expect(modelTimes.slice(0, fine + 1).map((t) => t - modelTimes[0])).toEqual(
+      Array.from({ length: fine + 1 }, (_, i) => i * MODEL_FINE_STEP_S),
+    );
+    for (let i = fine + 1; i < modelTimes.length; i += 1) expect(modelTimes[i] - modelTimes[i - 1]).toBe(HOUR);
+    expect(new Set(modelTimes).size).toBe(modelTimes.length);
+  });
+
   it('leaves room for an extrapolation still being computed, so the band does not shift', () => {
-    const plan = planRainBand({ ...base, nowcastBaseSec: null, nowcastExpected: true });
+    const plan = planBand({ ...base, nowcastBaseSec: null, nowcastExpected: true });
     expect(plan.nowcastTimes).toEqual([]);
     expect(plan.modelTimes[0]).toBe(NOW + 2 * HOUR);
   });
 
-  it('starts the model right after the radar when there is no extrapolation', () => {
-    expect(planRainBand({ ...base, nowcastBaseSec: null, nowcastExpected: false }).modelTimes[0]).toBe(NOW + HOUR);
+  it('starts the model half an hour after the radar when there is no extrapolation', () => {
+    expect(planBand({ ...base, nowcastBaseSec: null, nowcastExpected: false }).modelTimes[0]).toBe(NOW + HOUR / 2);
   });
 
   it('starts at the current hour without radar', () => {
-    const plan = planRainBand({ nowSec: NOW + 40 * 60, lastObservedSec: null, lastRadarSec: null, nowcastBaseSec: null, nowcastExpected: false });
+    const plan = planBand({ nowSec: NOW + 40 * 60, lastObservedSec: null, lastRadarSec: null, nowcastBaseSec: null, nowcastExpected: false });
     expect(plan.modelTimes[0]).toBe(NOW);
     expect(plan.hourEnds[0]).toBe(NOW);
   });

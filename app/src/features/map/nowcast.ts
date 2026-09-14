@@ -4,8 +4,9 @@ import { TILE_SIZE, type FieldGeometry } from './mercator';
 // direction and speed its rain areas travelled over the last frames. This is
 // what keeps the band continuous: ten minutes after the last radar frame the
 // map shows the same rain a little further on, not a different picture from a
-// model. The model takes over gradually (see modelWeight). Pure helpers only,
-// working on raw RGBA buffers.
+// model. The model takes over gradually (see modelWeight). The same engine
+// moves satellite cloud pictures, measured on their opacity (alphaLevel).
+// Pure helpers only, working on raw RGBA buffers.
 
 /** One radar interval, and how far the extrapolation reaches. */
 export const NOWCAST_STEP_S = 600;
@@ -69,14 +70,20 @@ export function echoLevel(r: number, g: number, b: number, a: number): number {
   return level;
 }
 
+/** What a pixel is worth when measuring motion; 0 for nothing to follow. */
+export type LevelOf = (r: number, g: number, b: number, a: number) => number;
+
+/** Cloud pictures carry their amount in the opacity (see paintClouds). */
+export const alphaLevel: LevelOf = (_r, _g, _b, a) => (a < 20 ? 0 : a / 6);
+
 export interface EchoField {
   data: Float32Array;
   width: number;
   height: number;
 }
 
-/** Echo levels averaged over factor x factor pixels: the grid motion is measured on. */
-export function echoField(rgba: Uint8ClampedArray, width: number, height: number, factor: number): EchoField {
+/** Levels averaged over factor x factor pixels: the grid motion is measured on. */
+export function echoField(rgba: Uint8ClampedArray, width: number, height: number, factor: number, level: LevelOf = echoLevel): EchoField {
   const w = Math.floor(width / factor);
   const h = Math.floor(height / factor);
   const data = new Float32Array(w * h);
@@ -88,7 +95,7 @@ export function echoField(rgba: Uint8ClampedArray, width: number, height: number
         const row = (y * factor + fy) * width;
         for (let fx = 0; fx < factor; fx += 1) {
           const i = (row + x * factor + fx) * 4;
-          if (rgba[i + 3] !== 0) sum += echoLevel(rgba[i], rgba[i + 1], rgba[i + 2], rgba[i + 3]);
+          if (rgba[i + 3] !== 0) sum += level(rgba[i], rgba[i + 1], rgba[i + 2], rgba[i + 3]);
         }
       }
       data[y * w + x] = sum / area;
@@ -110,12 +117,14 @@ export interface MotionOptions {
 
 const EARTH_KM = 40_075;
 /** Fastest rain area followed; faster ones are rare and would widen the search a lot. */
-const MAX_SPEED_KMH = 120;
+export const RAIN_MAX_SPEED_KMH = 120;
+/** High clouds ride the jet stream, so their search reaches further. */
+export const CLOUD_MAX_SPEED_KMH = 160;
 const TARGET_CELL_KM = 3.5;
 const BLOCK_KM = 40;
 
 /** Working grid and search sizes in kilometres, whatever the zoom. */
-export function motionOptions(geometry: FieldGeometry): MotionOptions {
+export function motionOptions(geometry: FieldGeometry, maxSpeedKmh: number = RAIN_MAX_SPEED_KMH): MotionOptions {
   const midLat = (geometry.bounds.north + geometry.bounds.south) / 2;
   const kmPerPx = (EARTH_KM * Math.cos((midLat * Math.PI) / 180)) / (TILE_SIZE * 2 ** geometry.z);
   const factor = Math.max(1, Math.round(TARGET_CELL_KM / kmPerPx));
@@ -123,7 +132,7 @@ export function motionOptions(geometry: FieldGeometry): MotionOptions {
   return {
     factor,
     blockCells: Math.max(6, Math.round(BLOCK_KM / cellKm)),
-    radiusCells: Math.max(2, Math.ceil((MAX_SPEED_KMH * NOWCAST_STEP_S) / 3600 / cellKm)),
+    radiusCells: Math.max(2, Math.ceil((maxSpeedKmh * NOWCAST_STEP_S) / 3600 / cellKm)),
   };
 }
 
@@ -371,8 +380,14 @@ export interface MotionField {
  * on its own and scaled to one interval; the newest pair counts double, since
  * it is the best guess for what comes next.
  */
-export function estimateMotion(pictures: readonly RadarPicture[], width: number, height: number, options: MotionOptions): MotionField {
-  const fields = pictures.map((picture) => echoField(picture.rgba, width, height, options.factor));
+export function estimateMotion(
+  pictures: readonly RadarPicture[],
+  width: number,
+  height: number,
+  options: MotionOptions,
+  level: LevelOf = echoLevel,
+): MotionField {
+  const fields = pictures.map((picture) => echoField(picture.rgba, width, height, options.factor, level));
   const cols = Math.max(1, Math.ceil((fields[0]?.width ?? 1) / options.blockCells));
   const rows = Math.max(1, Math.ceil((fields[0]?.height ?? 1) / options.blockCells));
   const sumX = new Float32Array(cols * rows);

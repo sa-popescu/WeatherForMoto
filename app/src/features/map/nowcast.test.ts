@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { fieldGeometry } from './mercator';
 import {
+  alphaLevel,
   echoLevel,
   estimateMotion,
   extrapolate,
@@ -58,6 +59,13 @@ describe('echoLevel', () => {
     expect(echoLevel(0, 0, 0, 0)).toBe(0);
     // Drizzle and clutter are drawn half transparent: nothing to follow.
     expect(echoLevel(0x82, 0x7b, 0x69, 0x49)).toBe(0);
+  });
+});
+
+describe('alphaLevel', () => {
+  it('follows cloud pictures by their opacity', () => {
+    expect(alphaLevel(241, 245, 249, 230)).toBeGreaterThan(alphaLevel(148, 163, 184, 60));
+    expect(alphaLevel(0, 0, 0, 0)).toBe(0);
   });
 });
 

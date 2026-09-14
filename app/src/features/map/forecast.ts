@@ -188,11 +188,19 @@ const TRANSPARENT: Rgba = [0, 0, 0, 0];
  * so it reads as cloud over a pale map and still shows over a dark one; a
  * clear sky stays fully transparent.
  */
-export function cloudRgba(cover: number | null): Rgba {
-  if (cover === null || cover <= 5) return TRANSPARENT;
+function cloudColour(cover: number): Rgba {
+  if (cover <= 5) return TRANSPARENT;
   const share = Math.min(100, cover) / 100;
   // From a thin haze to a solid deck, never fully opaque: the map stays readable.
   return [148, 163, 184, Math.round(60 + share * 165)];
+}
+
+/** One colour per whole percent, built once: this is looked up for every painted pixel. */
+const CLOUD_COLOURS: readonly Rgba[] = Array.from({ length: 101 }, (_, cover) => cloudColour(cover));
+
+export function cloudRgba(cover: number | null): Rgba {
+  if (cover === null || !Number.isFinite(cover)) return TRANSPARENT;
+  return CLOUD_COLOURS[Math.max(0, Math.min(100, Math.round(cover)))];
 }
 
 /**

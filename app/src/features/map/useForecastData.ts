@@ -49,7 +49,12 @@ function paddedBounds(map: LeafletMap): GridBounds {
   };
 }
 
-export function useForecastData(map: LeafletMap | null, fetching: boolean): ForecastGrid {
+/**
+ * `box` pins the grid to a given area (the canvas the rest of the band is
+ * painted on), so the forecast covers exactly what the pictures before it
+ * covered; without it the grid follows the view.
+ */
+export function useForecastData(map: LeafletMap | null, fetching: boolean, box: GridBounds | null = null): ForecastGrid {
   const [status, setStatus] = useState<ForecastStatus>('idle');
   const [data, setData] = useState<ForecastData | null>(null);
   const [bounds, setBounds] = useState<GridBounds | null>(null);
@@ -58,6 +63,9 @@ export function useForecastData(map: LeafletMap | null, fetching: boolean): Fore
   const [attempt, setAttempt] = useState(0);
   const loadedFor = useRef<GridBounds | null>(null);
   const loadedAt = useRef(0);
+  const pinned = useRef(box);
+  pinned.current = box;
+  const boxKey = box ? `${box.south},${box.west},${box.north},${box.east}` : '';
 
   const reload = useCallback(() => {
     loadedFor.current = null;
@@ -82,7 +90,7 @@ export function useForecastData(map: LeafletMap | null, fetching: boolean): Fore
     };
 
     const load = async (): Promise<void> => {
-      const next = paddedBounds(map);
+      const next = pinned.current ?? paddedBounds(map);
       const stale = Date.now() - loadedAt.current > STALE_MS;
       if (!stale && !boundsMovedEnough(loadedFor.current, next)) return;
       setStatus('loading');
@@ -128,7 +136,8 @@ export function useForecastData(map: LeafletMap | null, fetching: boolean): Fore
       controller.abort();
       map.off('moveend zoomend', schedule);
     };
-  }, [map, fetching, attempt]);
+    // boxKey: a new pinned area is a new grid.
+  }, [map, fetching, attempt, boxKey]);
 
   return { status, data, bounds, cellKm: cell, error, reload };
 }

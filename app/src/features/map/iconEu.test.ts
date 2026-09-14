@@ -27,7 +27,7 @@ describe('coverageUrl', () => {
   });
 
   it('lets the server resample a whole-country view and stays inside the model domain', () => {
-    const url = new URL(coverageUrl({ south: 25, west: 10, north: 55, east: 40 }, T));
+    const url = new URL(coverageUrl({ south: 25, west: 0, north: 55, east: 40 }, T));
     expect(url.searchParams.getAll('subset')[0]).toBe('Lat(29.47,55)');
     const size = /i\((\d+)\),j\((\d+)\)/.exec(url.searchParams.get('scalesize') ?? '');
     expect(size).not.toBeNull();

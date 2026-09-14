@@ -1,9 +1,19 @@
-import { rainRgba } from './forecast';
-import type { RainGrid } from './iconEu';
+import { rainRgba, type Rgba } from './forecast';
 import { xToLon, yToLat, type FieldGeometry } from './mercator';
 
-// Painting model rain onto the same Mercator canvas as the extrapolated radar,
-// and fading one into the other. Pure helpers only.
+// Painting model fields (rain, cloud cover) onto the same Mercator canvas as
+// the extrapolated radar or satellite picture, and fading one into the other.
+// Pure helpers only.
+
+/** A regular latitude-longitude grid: outer cell edges and size, row 0 in the north. */
+export interface GridBox {
+  west: number;
+  south: number;
+  east: number;
+  north: number;
+  cols: number;
+  rows: number;
+}
 
 /** Cell by cell (1 - weight) * a + weight * b; a missing value takes the other one. */
 export function mixValues(a: Float32Array, b: Float32Array, weight: number): Float32Array {
@@ -19,12 +29,17 @@ export function mixValues(a: Float32Array, b: Float32Array, weight: number): Flo
 }
 
 /**
- * A rain field on the canvas. Each pixel is placed back on the model's
+ * A field on the canvas. Each pixel is placed back on the model's
  * latitude-longitude grid (Mercator rows are not evenly spaced in latitude),
- * the millimetres are interpolated there and only then coloured, so the bands
- * keep the crisp edges of the radar instead of melting into a halo.
+ * the value is interpolated there and only then coloured, so colour bands keep
+ * crisp edges instead of melting into a halo.
  */
-export function paintModelRain(grid: RainGrid, values: Float32Array, geometry: FieldGeometry): Uint8ClampedArray<ArrayBuffer> {
+export function paintModelField(
+  grid: GridBox,
+  values: Float32Array,
+  geometry: FieldGeometry,
+  color: (value: number) => Rgba,
+): Uint8ClampedArray<ArrayBuffer> {
   const { width, height, x0, y0, z } = geometry;
   const pixels = new Uint8ClampedArray(width * height * 4);
   const { cols, rows } = grid;
@@ -73,16 +88,21 @@ export function paintModelRain(grid: RainGrid, values: Float32Array, geometry: F
         weight += w11;
       }
       if (weight <= 0) continue;
-      const color = rainRgba(total / weight);
-      if (color[3] === 0) continue;
+      const c = color(total / weight);
+      if (c[3] === 0) continue;
       const i = (y * width + x) * 4;
-      pixels[i] = color[0];
-      pixels[i + 1] = color[1];
-      pixels[i + 2] = color[2];
-      pixels[i + 3] = color[3];
+      pixels[i] = c[0];
+      pixels[i + 1] = c[1];
+      pixels[i + 2] = c[2];
+      pixels[i + 3] = c[3];
     }
   }
   return pixels;
+}
+
+/** Model rain in the radar's colours. */
+export function paintModelRain(grid: GridBox, values: Float32Array, geometry: FieldGeometry): Uint8ClampedArray<ArrayBuffer> {
+  return paintModelField(grid, values, geometry, rainRgba);
 }
 
 /**

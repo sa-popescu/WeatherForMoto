@@ -2,6 +2,7 @@ import { CORE } from '../../i18n/core';
 import { fmt, useLang, useStrings } from '../../lib/i18n';
 import { Icon } from '../../ui/icons';
 import { Button, cx, Spinner } from '../../ui/primitives';
+import { LIGHTNING_COLOR } from './eumetsat';
 import { ForecastLegend } from './ForecastLegend';
 import { frameClock } from './radar';
 import { RadarLegend } from './RadarLegend';
@@ -85,7 +86,7 @@ export function TimelinePanel({ timeline }: { timeline: MapTimeline }) {
         </div>
         {busy && <Spinner size={18} />}
         <span className={cx('map-radar__tag', current.forecast && 'map-radar__tag--forecast')}>
-          {current.forecast ? s.radarForecast : s.radarObserved}
+          {current.forecast ? s.radarForecast : timeline.radarOn ? s.radarObserved : s.satelliteObserved}
         </span>
       </div>
 
@@ -132,10 +133,16 @@ export function TimelinePanel({ timeline }: { timeline: MapTimeline }) {
         </div>
       </div>
 
-      {/* Rain reads on the radar's scale in both halves of the band, so the key
-          under the scrubber stays put; only the cloud layer needs its own. */}
-      {current.source === 'forecast' && timeline.kind === 'cloud' ? <ForecastLegend kind="cloud" /> : <RadarLegend />}
-      {current.source === 'radar' ? (
+      {/* Rain reads on the radar's scale in all three parts of the band, so the
+          key stays put; the cloud view has its own. */}
+      {timeline.kind === 'cloud' ? <ForecastLegend kind="cloud" /> : <RadarLegend />}
+      {timeline.lightningShown && (
+        <p className="map-lightning-key">
+          <span className="map-lightning-key__swatch" style={{ background: LIGHTNING_COLOR }} aria-hidden="true" />
+          {s.lightningKey}
+        </p>
+      )}
+      {current.source === 'radar' && timeline.kind === 'rain' ? (
         <p className="map-radar__note">
           {s.radarNote} <a href="#/acum">{s.radarNoteLink}</a>.
         </p>
@@ -148,8 +155,9 @@ export function TimelinePanel({ timeline }: { timeline: MapTimeline }) {
 
 /** What the moment on screen is made of, in one sentence. */
 function noteFor(s: (typeof MAP_STRINGS)['ro'], timeline: MapTimeline, source: TimelineSource, onModel: boolean): string | null {
-  if (source === 'nowcast') return s.nowcastNote;
-  if (source !== 'forecast') return null;
+  const clouds = timeline.kind === 'cloud';
+  if (source === 'radar') return clouds ? s.satelliteNote : null;
+  if (source === 'nowcast') return clouds ? s.cloudNowcastNote : s.nowcastNote;
   if (onModel) return s.modelNote;
   return timeline.forecast.cellKm === null ? null : fmt(s.forecastNote, { km: timeline.forecast.cellKm });
 }

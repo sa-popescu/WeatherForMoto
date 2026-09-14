@@ -11,10 +11,11 @@ export const ICON_EU_CELL_DEG = 0.0625;
 /** The model's domain (cell edges), from the coverage description. */
 export const ICON_EU_DOMAIN: Box = { south: 29.47, west: -23.53, north: 70.53, east: 62.53 };
 /**
- * Cells per side at most. A whole-country view is resampled by the server
- * (about 9 km instead of 7) rather than sent at full size: the answer is text.
+ * Cells per side at most. Up to this size the model comes at its own 7 km:
+ * the server's resampling keeps one cell in two, which can drop a single
+ * storm. Only views wider than a large country are resampled.
  */
-export const ICON_EU_MAX_CELLS = 256;
+export const ICON_EU_MAX_CELLS = 480;
 export const ICON_EU_FETCH_TIMEOUT_MS = 15_000;
 export const HOUR_S = 3600;
 

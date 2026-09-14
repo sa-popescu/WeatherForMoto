@@ -7,7 +7,8 @@ import { geometryKey, type FieldGeometry } from './mercator';
 // (also across tab switches), so moving the band along only asks for new hours.
 
 const CONCURRENCY = 3;
-const CACHE_LIMIT = 90;
+/** Hours kept; at the model's own resolution a country view is about half a megabyte each. */
+const CACHE_LIMIT = 40;
 
 export type ModelStatus = 'idle' | 'unsupported' | 'loading' | 'ready' | 'error';
 
