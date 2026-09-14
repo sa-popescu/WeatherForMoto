@@ -107,7 +107,7 @@ class MetarTests(unittest.TestCase):
         reports = [
             {"icaoId": "LROP", "name": "Bucharest/Coandă Intl", "lat": 44.572, "lon": 26.102, "wxString": None, "visib": "6+",
              "reportTime": "2026-09-14T08:00:00.000Z"},
-            {"icaoId": "LRBS", "name": "Bucharest/Băneasa Intl", "lat": 44.511, "lon": 26.078, "wxString": "-RA", "visib": 3,
+            {"icaoId": "LRBS", "name": "Bucharest/Băneasa Intl, B, RO", "lat": 44.511, "lon": 26.078, "wxString": "-RA", "visib": 3,
              "reportTime": "2026-09-14T08:00:00.000Z"},
             {"icaoId": "LRTC", "name": "Tulcea Arpt", "lat": 45.065, "lon": 28.716, "wxString": "TSRA", "visib": "6+",
              "reportTime": "2026-09-14T08:00:00.000Z"},
@@ -115,6 +115,7 @@ class MetarTests(unittest.TestCase):
         obs = metar.nearest(reports, *BUCHAREST, now=NOW)
         assert obs is not None
         self.assertEqual(obs["station"], "LRBS")
+        self.assertEqual(obs["name"], "Bucharest/Băneasa Intl")
         self.assertEqual(obs["wmo_code"], 61)
         self.assertEqual(obs["visibility_m"], 4828)
         self.assertIsNone(metar.nearest(reports, *BUCHAREST, now=datetime(2026, 9, 14, 10, 0, tzinfo=timezone.utc)))

@@ -160,9 +160,11 @@ def nearest(reports: list[dict[str, Any]] | None, lat: float, lon: float, now: d
     if best is None:
         return None
     distance, report, observed = best
+    # AWC names end in county and country codes ("Bucharest/Băneasa Intl, B, RO").
+    name = report.get("name")
     return {
         "station": report.get("icaoId"),
-        "name": report.get("name"),
+        "name": name.split(",")[0].strip() if isinstance(name, str) and name.strip() else None,
         "distance_km": round(distance, 1),
         "observed_at": observed.isoformat().replace("+00:00", "Z"),
         "wmo_code": weather_code(report.get("wxString")),

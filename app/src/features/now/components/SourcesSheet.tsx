@@ -1,4 +1,4 @@
-import { fmt, useStrings } from '../../../lib/i18n';
+import { fmt, useLang, useStrings, type Lang } from '../../../lib/i18n';
 import type { CurrentWeather, SourceState, SourceStatus } from '../../../lib/types';
 import { Sheet } from '../../../ui/Sheet';
 import { cx } from '../../../ui/primitives';
@@ -28,13 +28,14 @@ function text(s: Strings, id: string, part: 'name' | 'role'): string | null {
   return value ?? (part === 'name' ? id : null);
 }
 
-function detail(s: Strings, source: SourceStatus, nowMs: number): string | null {
+function detail(s: Strings, source: SourceStatus, nowMs: number, lang: Lang): string | null {
   if (source.status !== 'used') return null;
   if (source.station && source.distance_km != null) {
+    const km = source.distance_km.toLocaleString(lang === 'ro' ? 'ro-RO' : 'en-GB', { maximumFractionDigits: 1 });
     const minutes = minutesAgo(source.observed_at, nowMs);
-    if (minutes === null) return fmt(s.stationNoTime, { station: source.station, km: source.distance_km });
+    if (minutes === null) return fmt(s.stationNoTime, { station: source.station, km });
     const ago = minutes < 90 ? fmt(s.ago, { min: minutes }) : fmt(s.agoHours, { h: Math.round(minutes / 60) });
-    return fmt(s.stationDetail, { station: source.station, km: source.distance_km, ago });
+    return fmt(s.stationDetail, { station: source.station, km, ago });
   }
   if (source.models != null) return fmt(s.modelsDetail, { n: source.models });
   if (source.count != null) return source.count > 0 ? fmt(s.warningsSome, { n: source.count }) : s.warningsNone;
@@ -66,6 +67,7 @@ function SourceRow({ id, state, extra }: { id: string; state: SourceState | null
 
 export function SourcesSheet({ current, nowMs, onClose }: { current: CurrentWeather; nowMs: number; onClose: () => void }) {
   const s = useStrings(S_SOURCES);
+  const lang = useLang();
   const statuses = current.source_status;
   const groups = groupSources(statuses, current.sources);
   // The browser's direct fallback knows one source and reports no statuses.
@@ -81,7 +83,7 @@ export function SourcesSheet({ current, nowMs, onClose }: { current: CurrentWeat
           </h3>
           <ul className="now-sources">
             {items.map((source) => (
-              <SourceRow key={source.id} id={source.id} state={source.status} extra={detail(s, source, nowMs)} />
+              <SourceRow key={source.id} id={source.id} state={source.status} extra={detail(s, source, nowMs, lang)} />
             ))}
           </ul>
         </section>
