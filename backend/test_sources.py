@@ -1,4 +1,4 @@
-"""Tests for the added data sources: official stations, airports, ANM nowcasting, rain fusion."""
+"""Tests for the added data sources: official stations, airports, ANM nowcasting, rain fusion, verification log."""
 
 from __future__ import annotations
 
@@ -9,7 +9,16 @@ import anm_nowcast
 import metar
 import official_stations
 import rain_fusion
-from weather_service import _build_hourly, _ensemble_by_time, _fuse_rain, _merge_current, _source_status
+import verification
+import verify_report
+from weather_service import (
+    _build_hourly,
+    _ensemble_by_time,
+    _fuse_rain,
+    _merge_current,
+    _source_status,
+    _verification_snapshot,
+)
 from test_scoring import make_ensemble_payload, make_om_payload
 
 NOW = datetime(2026, 9, 14, 8, 12, tzinfo=timezone.utc)
@@ -278,6 +287,70 @@ class RainFusionTests(unittest.TestCase):
         self.assertGreater(hourly[12]["precipitation_probability"], 10)
         self.assertEqual(hourly[12]["rain_sources"], {"wet": 3, "total": 4})
         self.assertLess(hourly[12]["moto_score"], before)
+
+
+
+class VerificationTests(unittest.TestCase):
+    def test_snapshot_logs_the_lead_hours_and_what_was_measured(self) -> None:
+        om = make_om_payload()
+        hourly = _build_hourly(om)
+        times = om["hourly"]["time"]
+        rain_by_source = {times[11]: {"ensemble": 0.4, "open-meteo": 0.1}}
+        snapshot = _verification_snapshot(
+            cell=(44.45, 26.1), om_data=om, hourly=hourly, rain_by_source=rain_by_source,
+            stations={"official": {"temp": 17.2, "precipitation": 0.4, "station": "Afumati", "distance_km": 9.0,
+                                   "observed_at": "2024-06-01T07:00:00Z"},
+                      "weatherxm": None},
+            metar_obs={"station": "LROP", "distance_km": 12.0, "wmo_code": 61, "observed_at": "2024-06-01T07:00:00Z"},
+            now_utc=datetime(2024, 6, 1, 7, 15, tzinfo=timezone.utc),
+        )
+        self.assertEqual(snapshot["cell"], "44.45,26.10")
+        self.assertEqual(snapshot["issued_hour"], "2024-06-01T07")
+        leads = [row["lead_h"] for row in snapshot["forecasts"]]
+        self.assertEqual(leads, [1, 3, 6, 12, 24])  # 48 h is past the payload's end
+        first = snapshot["forecasts"][0]
+        # The payload's clock reads 10:15 local, so lead 1 is 11:00 local, 08:00 UTC in a Bucharest summer.
+        self.assertEqual(first["valid_hour"], "2024-06-01T08")
+        self.assertEqual((first["prob_ensemble"], first["prob_open_meteo"], first["prob_pirate_weather"]), (0.4, 0.1, None))
+        self.assertEqual(first["om_temp"], 18.0)
+        by_source = {row["source"]: row for row in snapshot["observations"]}
+        self.assertEqual(sorted(by_source), ["metar", "official"])
+        self.assertEqual((by_source["official"]["raining"], by_source["official"]["temp"]), (1, 17.2))
+        self.assertEqual(by_source["metar"]["raining"], 1)
+
+    def test_one_snapshot_per_cell_and_hour(self) -> None:
+        verification._seen.clear()
+        self.assertTrue(verification._first_time(("44.45,26.10", "2024-06-01T07")))
+        self.assertFalse(verification._first_time(("44.45,26.10", "2024-06-01T07")))
+        self.assertTrue(verification._first_time(("44.45,26.10", "2024-06-01T08")))
+
+    def test_record_outside_an_event_loop_does_nothing(self) -> None:
+        verification._seen.clear()
+        verification.record({"cell": "x", "issued_hour": "h", "forecasts": [], "observations": []})
+
+
+    def test_report_scores_each_source_against_what_fell(self) -> None:
+        def row(ensemble: float, open_meteo: float, raining: int) -> dict:
+            base = {f"prob_{n.replace('-', '_')}": None for n in verification.RAIN_SOURCES}
+            return {**base, "lead_h": 1, "precip_prob": 50, "prob_ensemble": ensemble,
+                    "prob_open_meteo": open_meteo, "raining": raining}
+        # Half the hours wet; the ensemble calls them right, Open-Meteo says 50 % every time.
+        rows = [row(0.9, 0.5, 1), row(0.1, 0.5, 0)] * 20
+        scores = verify_report.rain_scores(rows)
+        brier, skill, pairs = scores["ensemble"]["0-3 h"]
+        self.assertAlmostEqual(brier, 0.01)
+        self.assertAlmostEqual(skill, 0.96)
+        self.assertEqual(pairs, 40)
+        self.assertAlmostEqual(scores["open-meteo"]["0-3 h"][1], 0.0)
+        weights = verify_report.suggested_weights(scores)
+        self.assertEqual(weights["ensemble"], rain_fusion.WEIGHTS["ensemble"])
+        self.assertEqual(weights["open-meteo"], 0.0)
+
+    def test_report_compares_final_and_raw_temperature(self) -> None:
+        rows = [{"lead_h": 3, "temp": 16.0, "om_temp": 19.0, "measured": 15.0}] * 3
+        scores = verify_report.temp_scores(rows)
+        self.assertEqual(scores["final"]["0-3 h"], (1.0, 1.0, 3))
+        self.assertEqual(scores["open-meteo raw"]["0-3 h"], (4.0, 4.0, 3))
 
 
 if __name__ == "__main__":

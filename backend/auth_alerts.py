@@ -39,6 +39,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, 
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
+import verification
 from weather_service import get_weather, _haversine_km
 
 logger = logging.getLogger("weatherformoto.auth_alerts")
@@ -587,6 +588,9 @@ def init_db() -> None:
         for stmt in _INIT_TABLES:
             conn.execute(stmt)
         for stmt in _INIT_INDEXES:
+            conn.execute(stmt)
+        # Forecast verification log (see verification.py).
+        for stmt in (*verification.TABLES, *verification.INDEXES):
             conn.execute(stmt)
         conn.commit()
         _ensure_column(conn, "users", "display_name", "ALTER TABLE users ADD COLUMN display_name TEXT")

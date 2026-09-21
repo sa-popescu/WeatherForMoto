@@ -32,6 +32,7 @@ import meteoalarm
 import metar
 import official_stations
 import rain_fusion
+import verification
 
 logger = logging.getLogger("weatherformoto.weather")
 
@@ -3226,14 +3227,15 @@ def _fuse_rain(
     owm_forecast: dict | None,
     met: dict | None,
     utc_offset_seconds: int,
-) -> int | None:
+) -> tuple[int | None, dict[str, dict[str, float]]]:
     """Give every hour the chance of rain all sources agree on, and rescore it, in place.
 
     The hour keeps Open-Meteo's amount blend (see _build_hourly); what changes
     is the probability, plus "rain_sources" (how many sources give rain out of
     how many) and "precipitation_range_mm" (the ensembles' 25th to 90th
     percentile), which the app shows to explain the number. Returns how many
-    ensemble runs answered (None without the ensembles).
+    ensemble runs answered (None without the ensembles) and, per hour, each
+    source's own chance of rain (0-1), for the verification log.
     """
     by_source = {
         "ensemble": rain_fusion.ensemble_votes(rain_ensemble),
@@ -3241,14 +3243,22 @@ def _fuse_rain(
         "openweathermap": rain_fusion.owm_votes(owm_forecast, utc_offset_seconds),
         "met-norway": rain_fusion.met_votes(met, utc_offset_seconds),
     }
+    per_source: dict[str, dict[str, float]] = {}
     for hour in hourly:
         slot = str(hour.get("time", ""))[:13] + ":00"
         models = ensemble.get(str(hour.get("time", ""))) or {}
+        votes = {name: source_votes.get(slot) for name, source_votes in by_source.items()}
+        own = {name: float(vote["probability"]) for name, vote in votes.items() if vote is not None}
+        if hour.get("precipitation_probability") is not None:
+            own["open-meteo"] = float(hour["precipitation_probability"]) / 100
+        if models.get("rain_models"):
+            own["models"] = models["wet_models"] / models["rain_models"]
+        per_source[str(hour.get("time", ""))] = own
         fused = rain_fusion.fuse_hour(
             open_meteo_probability=hour.get("precipitation_probability"),
             wet_models=models.get("wet_models", 0),
             rain_models=models.get("rain_models", 0),
-            votes={name: votes.get(slot) for name, votes in by_source.items()},
+            votes=votes,
         )
         if fused is None:
             continue
@@ -3256,7 +3266,99 @@ def _fuse_rain(
         hour["rain_sources"] = {"wet": fused["wet_sources"], "total": fused["total_sources"]}
         hour["precipitation_range_mm"] = list(fused["range"]) if fused["range"] else None
         _rescore_hour(hour)
-    return max((vote["members"] for vote in by_source["ensemble"].values()), default=None)
+    return max((vote["members"] for vote in by_source["ensemble"].values()), default=None), per_source
+
+
+# ---------------------------------------------------------------------------
+# Verification snapshot
+# ---------------------------------------------------------------------------
+# weather_service only builds the snapshot; main.py plugs in the writer
+# (verification.record) when a database is configured, so this module never
+# depends on the storage layer.
+
+_verification_sink: Callable[[dict[str, Any]], None] | None = None
+
+
+def set_verification_sink(sink: Callable[[dict[str, Any]], None] | None) -> None:
+    """Where snapshots go (must return at once); None turns the log off."""
+    global _verification_sink
+    _verification_sink = sink
+
+
+def _utc_hour_of_local(local_iso: str, utc_offset_seconds: int) -> str | None:
+    """Local "YYYY-MM-DDTHH:MM" -> UTC "YYYY-MM-DDTHH"."""
+    try:
+        local = datetime.strptime(local_iso[:16], "%Y-%m-%dT%H:%M")
+    except ValueError:
+        return None
+    return (local - timedelta(seconds=utc_offset_seconds)).strftime("%Y-%m-%dT%H")
+
+
+def _utc_hour_of(iso_utc: str | None) -> str | None:
+    """"2026-09-14T08:12:00Z" -> "2026-09-14T08"."""
+    parsed = _parse_observation_time(iso_utc)
+    return parsed.astimezone(timezone.utc).strftime("%Y-%m-%dT%H") if parsed else None
+
+
+def _verification_snapshot(
+    *,
+    cell: tuple[float, float],
+    om_data: dict,
+    hourly: list[dict],
+    rain_by_source: dict[str, dict[str, float]],
+    stations: dict[str, dict | None],
+    metar_obs: dict | None,
+    now_utc: datetime,
+) -> dict[str, Any]:
+    """The rows verification.record writes for this answer (see verification.py)."""
+    offset = int(om_data.get("utc_offset_seconds") or 0)
+    raw = om_data.get("hourly") or {}
+    times = [str(h.get("time", "")) for h in hourly]
+    index = _current_hour_index(om_data, times)
+    issued = now_utc.strftime("%Y-%m-%dT%H")
+    key = verification.cell_key(cell)
+    forecasts: list[dict[str, Any]] = []
+    for lead in verification.LEAD_HOURS if index is not None else ():
+        i = index + lead
+        if i >= len(hourly):
+            break
+        hour = hourly[i]
+        valid = _utc_hour_of_local(times[i], offset)
+        if valid is None:
+            continue
+        own = rain_by_source.get(times[i], {})
+        row: dict[str, Any] = {
+            "cell": key, "issued_hour": issued, "valid_hour": valid, "lead_h": lead,
+            "temp": hour.get("temperature"), "om_temp": _safe(raw.get("temperature_2m"), i),
+            "gusts": hour.get("wind_gusts_kmh"), "precip_mm": hour.get("precipitation_mm"),
+            "precip_prob": hour.get("precipitation_probability"),
+        }
+        for name in verification.RAIN_SOURCES:
+            row[f"prob_{name.replace('-', '_')}"] = own.get(name)
+        forecasts.append(row)
+
+    observations: list[dict[str, Any]] = []
+    for source, station in stations.items():
+        hour = _utc_hour_of(station.get("observed_at")) if station else None
+        if not station or hour is None:
+            continue
+        precip = station.get("precipitation")
+        observations.append({
+            "cell": key, "hour": hour, "source": source,
+            "station": station.get("station") or station.get("station_id"),
+            "distance_km": station.get("distance_km"), "temp": station.get("temp"),
+            "gusts": station.get("wind_gusts_kmh"), "precip_mm": precip,
+            "raining": None if precip is None else int(precip >= CODE_ACTIVE_MIN_AMOUNT_MM),
+        })
+    if metar_obs and _utc_hour_of(metar_obs.get("observed_at")):
+        code = metar_obs.get("wmo_code")
+        observations.append({
+            "cell": key, "hour": _utc_hour_of(metar_obs.get("observed_at")), "source": "metar",
+            "station": metar_obs.get("station"), "distance_km": metar_obs.get("distance_km"),
+            # An airport reports what falls, not how much: rain, snow or storm is "raining".
+            "raining": int(code is not None and code >= STALE_CODE_MIN),
+        })
+    return {"cell": key, "issued_hour": issued, "forecasts": forecasts, "observations": observations}
 
 
 def _safe(lst: list | None, i: int) -> Any:
@@ -3673,14 +3775,24 @@ async def _collect_weather(
 
     ensemble = _ensemble_by_time(ens_raw)
     hourly = _build_hourly(om_data, ensemble)
-    rain_members = _fuse_rain(hourly, ensemble, rain_ensemble=rain_ens_raw, pirate=pw_raw,
-                              owm_forecast=owm_forecast, met=met_raw, utc_offset_seconds=utc_offset)
+    rain_members, rain_by_source = _fuse_rain(hourly, ensemble, rain_ensemble=rain_ens_raw, pirate=pw_raw,
+                                              owm_forecast=owm_forecast, met=met_raw,
+                                              utc_offset_seconds=utc_offset)
     current = _merge_current(om_data, owm_current, owm_air, om_air, met_norm, pw_norm,
                              wxm_norm, netatmo_norm, hourly=hourly,
                              official_norm=official_norm, metar_obs=metar_obs)
     # Before the daily scores are built, so the day counts the hours as corrected.
     _carry_measured_bias(om_data, hourly, current, _measured_fields(wxm_norm, netatmo_norm, official_norm))
     _sync_current_hour(om_data, hourly, current)
+    if _verification_sink is not None:
+        try:
+            _verification_sink(_verification_snapshot(
+                cell=cell, om_data=om_data, hourly=hourly, rain_by_source=rain_by_source,
+                stations={"official": official_norm, "weatherxm": wxm_norm, "netatmo": netatmo_norm},
+                metar_obs=metar_obs, now_utc=datetime.now(timezone.utc),
+            ))
+        except Exception as exc:  # the log must never cost the rider an answer
+            logger.warning("verification snapshot failed: %s", type(exc).__name__)
     daily = _merge_daily(om_data, owm_forecast, met_daily, hourly=hourly)
     # Official warnings are advisory on top of our own score, never a source for it.
     county_alerts = meteoalarm.warnings_for(meteoalarm_feed, lat, lon, city_name) if meteoalarm_feed else []

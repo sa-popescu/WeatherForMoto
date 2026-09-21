@@ -83,7 +83,7 @@
 
 <body>
     <h1>Politica de confidențialitate — MotoMeteo</h1>
-    <p class="updated">Ultima actualizare: 14 septembrie 2026</p>
+    <p class="updated">Ultima actualizare: 21 septembrie 2026</p>
 
     <p>MotoMeteo (WeatherForMoto) este un proiect personal, gratuit și necomercial: o aplicație meteo pentru
         motocicliști. Nu are reclame, nu vinde nimic și nu folosește instrumente de urmărire sau statistici de trafic.
@@ -98,6 +98,10 @@
     <p>Aplicația citește poziția dispozitivului <strong>numai când apeși „Locația mea”</strong> (sau automat, doar
         dacă ai permis deja accesul la locație pentru acest site). Coordonatele sunt folosite ca să aflăm vremea
         pentru acel loc și numele lui. Nu păstrăm istoricul pozițiilor tale.</p>
+    <p>Ca să verificăm cât de bine a nimerit fiecare sursă meteo, serverul păstrează un jurnal cu ce a prezis
+        și ce au măsurat apoi stațiile. Jurnalul ține doar zona rotunjită la aproximativ 5 km și ora (UTC), fără
+        nicio legătură cu tine, cu dispozitivul tău sau cu contul, și fără adresa IP. Se scrie cel mult o dată pe
+        oră pentru aceeași zonă.</p>
 
     <h2>3. Cu cont</h2>
     <p>Dacă îți faci cont, păstrăm pe server:</p>
@@ -146,7 +150,7 @@
                 </tr>
                 <tr>
                     <td>Turso</td>
-                    <td>baza de date pentru conturi</td>
+                    <td>baza de date pentru conturi și jurnalul de verificare a prognozei</td>
                     <td>Irlanda (UE)</td>
                 </tr>
                 <tr>
@@ -177,6 +181,7 @@
     <ul>
         <li>hărți: OpenStreetMap (hartă de bază), RainViewer (radar), DWD (modelul ICON-EU), EUMETSAT (nori și
             fulgere din satelit), Open-Meteo (prognoza pe grilă);</li>
+        <li>ploaia din următoarele 90 de minute pe ecranul „Acum”: RainViewer primește zona radar din jurul locului;</li>
         <li>căutarea locurilor: Photon (komoot) primește textul căutat și zona aproximativă afișată; Open-Meteo
             Geocoding e folosit ca rezervă;</li>
         <li>numele locului pentru poziția GPS: OpenStreetMap Nominatim primește coordonatele;</li>

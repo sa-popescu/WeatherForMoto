@@ -51,8 +51,10 @@ from weather_service import (  # noqa: E402
     http_client_scope,
     scoring_metadata,
     set_http_client,
+    set_verification_sink,
 )
 from auth_alerts import router as auth_alerts_router, init_db  # noqa: E402
+import verification  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -127,10 +129,15 @@ async def lifespan(fastapi_app: FastAPI) -> AsyncIterator[None]:
 
     http_client = httpx.AsyncClient(limits=HTTP_CLIENT_LIMITS, timeout=HTTP_CLIENT_TIMEOUT)
     set_http_client(http_client)
+    # Forecast verification log (verification.py), only where a database is configured.
+    if os.getenv("TURSO_DATABASE_URL") and os.getenv("TURSO_AUTH_TOKEN") and verification.ENABLED:
+        set_verification_sink(verification.record)
+        logger.info("Forecast verification log: on")
     try:
         yield
     finally:
         set_http_client(None)
+        set_verification_sink(None)
         await http_client.aclose()
         logger.info("Shared HTTP client closed")
 

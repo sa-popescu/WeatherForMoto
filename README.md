@@ -129,6 +129,7 @@ Organizare: `src/lib` (API tipizat, format, scor, geo), `src/state` (sesiune, lo
 - `API_BASE_URL` (URL public al backend-ului, pentru linkurile de confirmare a adresei; implicit URL-ul run.app)
 - `MET_NORWAY_USER_AGENT` (identificator cerut de MET Norway; are o valoare implicită reală)
 - `METEOALARM_FEED_URL` (feedul CAP de avertizări; implicit cel pentru România)
+- `VERIFICATION_LOG` (implicit `true`; cu `false` backend-ul nu mai scrie jurnalul de verificare a prognozei)
 
 **Pentru funcții avansate:**
 
@@ -220,10 +221,21 @@ python -m unittest test_scoring       # scor v2, matricea de ploaie, cache, buge
 python -m unittest test_auth_alerts   # autentificare, limite, alerte (SQLite în locul libsql)
 python -m unittest test_route_limits  # limitele endpointului /route/multi
 python -m unittest test_meteoalarm    # parsarea CAP și potrivirea pe zonă
-python -m unittest test_sources       # stații oficiale, METAR, nowcasting ANM, starea surselor
+python -m unittest test_sources       # stații oficiale, METAR, nowcasting ANM, starea surselor, ploaia combinată, jurnalul de verificare
 ```
 
 Testele nu depind de rețea. Pe Windows, `tests.py` are nevoie de `PYTHONIOENCODING=utf-8` ca să poată afișa simbolurile din output.
+
+## Verificarea prognozei
+
+Când Turso e configurat, backend-ul scrie un jurnal mic (`backend/verification.py`): pentru fiecare zonă de ~5 km, cel mult o dată pe oră, ce a prezis fiecare sursă de ploaie și temperatura finală la 1, 3, 6, 12, 24 și 48 de ore, plus ce au măsurat stația oficială, aeroportul, WeatherXM sau Netatmo. Nu conține nimic despre utilizator. Tabelele `forecast_log` și `observation_log` se creează la migrare (`RUN_DB_MIGRATIONS=true`); până atunci scrierile se sar.
+
+Raportul citește jurnalul și arată, pe fiecare sursă și orizont, cât de bine a nimerit ploaia (scor Brier și skill față de frecvența locală) și temperatura (eroarea finală față de Open-Meteo brut), plus ponderile propuse pentru `rain_fusion.WEIGHTS`:
+
+```bash
+cd backend
+python verify_report.py --days 30
+```
 
 ## Deploy
 
