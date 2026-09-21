@@ -4,7 +4,8 @@ import { rainBandOf } from '../../../lib/scoring';
 import type { CurrentWeather, DailyWeather, HourlyWeather } from '../../../lib/types';
 import { causeFromCurrent, causeFromHours, causeSentence, type Cause } from './cause';
 import { isDaylight, nextSunrise, sunTimes } from './daylight';
-import { capitalize, maxOf, rainPhrase } from './formatting';
+import { bandWord, capitalize, maxOf, rainPhrase } from './formatting';
+import { RADAR_WET_MM_H, type RadarRain } from './radarRain';
 import { countedMm, isWetHour } from './rainOutlook';
 import { TEXTS } from './texts';
 import { computeVerdict, daylightAhead, type Verdict } from './verdict';
@@ -27,6 +28,46 @@ export interface HeadlineInput {
   lang: Lang;
   /** Exact local time at the location; defaults to the current hour slot. */
   nowLocal?: string;
+  /** Radar rain over the place for the next ~90 minutes, when the radar answered. */
+  radar?: RadarRain | null;
+}
+
+/** A shower this close turns a "yes" into "yes, but". */
+const RADAR_TITLE_MIN = 60;
+/** Below light rain the radar note is enough; the title stays. */
+const RADAR_TITLE_MM_H = 0.5;
+
+/** Radar minutes read as "~20 min": rounded to 5, never below 5. */
+function radarMinutes(min: number): number {
+  return Math.max(5, Math.round(min / 5) * 5);
+}
+
+/**
+ * The radar's say on top of the forecast headline. The forecast is hourly and
+ * smeared over kilometres; the radar sees the shower itself, so for the next
+ * ~90 minutes its note leads the sub-line, and a shower due within the hour
+ * turns a plain "yes" into "yes, but".
+ */
+function withRadar(headline: Headline, radar: RadarRain | null | undefined, lang: Lang): Headline {
+  if (!radar) return headline;
+  const t = pick(TEXTS, lang);
+  const band = bandWord(rainBandOf(radar.peakMmPerHour), lang);
+  let note: string | null = null;
+  let title = headline.title;
+  if (radar.arrivesInMin != null) {
+    note = fmt(t.radarArrives, { band, min: radarMinutes(radar.arrivesInMin) });
+    const yes = headline.verdict.kind === 'go' || headline.verdict.kind === 'goUntil';
+    if (yes && radar.arrivesInMin <= RADAR_TITLE_MIN && radar.peakMmPerHour >= RADAR_TITLE_MM_H) {
+      title = fmt(t.radarSoon, { min: radarMinutes(radar.arrivesInMin) });
+    }
+  } else if (radar.nowMmPerHour >= RADAR_WET_MM_H) {
+    note =
+      radar.stopsInMin != null
+        ? fmt(t.radarStops, { min: radarMinutes(radar.stopsInMin) })
+        : fmt(t.radarRaining, { band: bandWord(rainBandOf(radar.nowMmPerHour), lang), min: radarMinutes(radar.reachMin) });
+  }
+  if (!note) return headline;
+  return { ...headline, title, sub: headline.sub ? `${note} ${headline.sub}` : note };
 }
 
 function goTitle(cause: Cause | null, verdict: Extract<Verdict, { kind: 'go' }>, lang: Lang): string {
@@ -63,7 +104,11 @@ function calmSub(rest: ReadonlyArray<HourlyWeather>, nowIso: string, daily: Read
   return sunset && sunset > nowIso ? fmt(t.dryUntilSunset, { sunset: hourOf(sunset), gust }) : fmt(t.dryAhead, { gust });
 }
 
-export function buildHeadline({ current, hourly, startIndex, daily, lang, nowLocal }: HeadlineInput): Headline {
+export function buildHeadline(input: HeadlineInput): Headline {
+  return withRadar(forecastHeadline(input), input.radar, input.lang);
+}
+
+function forecastHeadline({ current, hourly, startIndex, daily, lang, nowLocal }: HeadlineInput): Headline {
   const t = pick(TEXTS, lang);
   const now = hourly[startIndex];
   const nowScore = current.moto_score ?? now?.moto_score ?? null;

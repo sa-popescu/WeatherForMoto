@@ -40,6 +40,10 @@ export const TEXTS = defineStrings(
     causeHeat: 'caniculă, resimțit {feels}',
     causeColdWet: 'frig și ploaie, resimțit {feels}, {rain}',
     causeFrost: 'risc de polei pe carosabil (asfalt {road})',
+    radarSoon: 'Da, dar în ~{min} min vine ploaia.',
+    radarArrives: 'Radarul: ploaie ({band}) peste ~{min} min.',
+    radarStops: 'Radarul: ploaia trece în ~{min} min.',
+    radarRaining: 'Radarul: plouă ({band}) și nu se oprește în următoarele {min} min.',
   },
   {
     goIdeal: 'Yes. Clear road.',
@@ -78,6 +82,10 @@ export const TEXTS = defineStrings(
     causeHeat: 'heat, feels like {feels}',
     causeColdWet: 'cold and wet, feels like {feels}, {rain}',
     causeFrost: 'black ice risk on the road (asphalt {road})',
+    radarSoon: 'Yes, but rain arrives in ~{min} min.',
+    radarArrives: 'Radar: rain ({band}) in ~{min} min.',
+    radarStops: 'Radar: the rain passes in ~{min} min.',
+    radarRaining: 'Radar: raining ({band}), with no break in the next {min} min.',
   },
 );
 

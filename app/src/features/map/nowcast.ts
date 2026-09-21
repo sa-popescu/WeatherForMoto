@@ -428,7 +428,7 @@ export function estimateMotion(
 // ---- Moving the picture on ---------------------------------------------------
 
 /** Motion at a canvas point, read between block centres. */
-function velocityAt(motion: MotionField, x: number, y: number, out: { x: number; y: number }): void {
+export function velocityAt(motion: MotionField, x: number, y: number, out: { x: number; y: number }): void {
   const u = Math.max(0, Math.min(motion.cols - 1, x / motion.blockPx - 0.5));
   const v = Math.max(0, Math.min(motion.rows - 1, y / motion.blockPx - 0.5));
   const c0 = Math.floor(u);

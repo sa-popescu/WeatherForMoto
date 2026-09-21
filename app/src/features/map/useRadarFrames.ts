@@ -12,7 +12,7 @@ export interface RadarFrames {
   reload: () => void;
 }
 
-async function fetchRadarIndex(signal: AbortSignal): Promise<RadarIndex> {
+export async function fetchRadarIndex(signal: AbortSignal): Promise<RadarIndex> {
   const res = await fetch(RADAR_INDEX_URL, { signal, headers: { Accept: 'application/json' } });
   if (!res.ok) throw new Error(`RainViewer HTTP ${res.status}`);
   const parsed = parseRadarIndex(await res.json());

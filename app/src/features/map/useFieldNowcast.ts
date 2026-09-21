@@ -45,7 +45,7 @@ const yieldToBrowser = (): Promise<void> => new Promise((resolve) => window.setT
  * Motion for the pictures, in the worker when possible. The pictures are sent
  * as copies, so the newest one stays usable here as the extrapolation source.
  */
-async function measureMotion(
+export async function measureMotion(
   kind: PictureKind,
   pictures: RadarPicture[],
   geometry: FieldGeometry,

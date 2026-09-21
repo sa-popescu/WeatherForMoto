@@ -10,6 +10,7 @@ import { NowSkeleton } from './components/NowSkeleton';
 import { ErrorCard, StatusBanners } from './components/StatusBanners';
 import { useClock } from './useClock';
 import { useNowModel } from './useNowModel';
+import { useRadarRain } from './useRadarRain';
 import './now.css';
 
 // "Acum": can I ride now? Verdict, 24 h timeline, rain, readouts, days.
@@ -20,7 +21,9 @@ export default function NowScreen({ active }: ScreenProps) {
   const lang = useLang();
   const { place } = usePlace();
   const nowMs = useClock(active);
-  const model = useNowModel(weather.data, nowMs, lang);
+  const radarPlace = weather.data ? { lat: weather.data.latitude, lon: weather.data.longitude } : null;
+  const radar = useRadarRain(radarPlace, active, nowMs);
+  const model = useNowModel(weather.data, nowMs, lang, radar);
   const [sheet, setSheet] = useState<NowSheetState>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
 
