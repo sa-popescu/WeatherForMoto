@@ -230,5 +230,7 @@ def normalize(payload: dict[str, Any] | None, now: datetime | None = None) -> di
         "station": pretty_name(names.get(station_id)) or station_id,
         "station_id": station_id,
         "distance_km": round(distance, 1),
+        "lat": station["lat"],
+        "lon": station["lon"],
         "observed_at": observed_at.isoformat().replace("+00:00", "Z"),
     }

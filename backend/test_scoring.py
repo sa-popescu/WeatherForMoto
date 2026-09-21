@@ -22,12 +22,16 @@ from weather_service import (  # noqa: E402
     _MET_SYMBOL_TO_WMO,
     _WMO_MAP,
     _aggregate_met_daily,
+    _altitude_corrected,
     _blend_with_model_mean,
     _build_hourly,
+    _carry_measured_bias,
+    _consensus_code,
     _ensemble_by_time,
     _frost_risk,
     _merge_current,
     _merge_daily,
+    _measured_fields,
     _met_symbol_to_wmo,
     _moto_label,
     _moto_score,
@@ -999,6 +1003,80 @@ class EnsembleTests(unittest.TestCase):
         self.assertIsNone(plain[0]["forecast_confidence"])
         self.assertIsNone(plain[0]["model_count"])
         self.assertAlmostEqual(plain[0]["temperature"], 18.0, places=2)
+
+
+    def test_rain_takes_the_median_and_counts_the_wet_models(self) -> None:
+        data = make_ensemble_payload(
+            ["2024-06-01T00:00"],
+            precipitation=[[0.0], [0.0], [0.0], [0.2], [4.0]],
+        )
+        hour = _ensemble_by_time(data)["2024-06-01T00:00"]
+        # The mean would be 0.84 mm/h, a drizzle no model forecast.
+        self.assertEqual(hour["means"]["precipitation"], 0.0)
+        self.assertEqual((hour["wet_models"], hour["rain_models"]), (2, 5))
+
+    def test_weather_codes_are_voted_not_averaged(self) -> None:
+        data = make_ensemble_payload(["2024-06-01T00:00"], weather_code=[[3], [61], [95]])
+        self.assertEqual(_ensemble_by_time(data)["2024-06-01T00:00"]["codes"], [3, 61, 95])
+        # One model's storm does not win against a showery majority...
+        self.assertEqual(_consensus_code(61, [3, 61, 95, 61, 80]), 61)
+        # ...a dry blend is outvoted when most models give rain...
+        self.assertEqual(_consensus_code(3, [61, 61, 63, 61, 3]), 61)
+        # ...and without enough models the blend stands.
+        self.assertEqual(_consensus_code(95, [3]), 95)
+
+
+class MeasuredBiasTests(unittest.TestCase):
+    def test_the_measured_gap_fades_over_the_next_hours(self) -> None:
+        om = make_om_payload()
+        hourly = _build_hourly(om)
+        current = {"temperature": 12.0, "feels_like": 12.0, "humidity": 60, "wind_speed_kmh": 10.0,
+                   "wind_gusts_kmh": 20.0}
+        _carry_measured_bias(om, hourly, current, {"temperature", "feels_like"})
+        temps = [hourly[CURRENT_HOUR_INDEX + k]["temperature"] for k in range(7)]
+        # Forecast 18 °C, measured 12 °C: -6 now, then 1/6 less every hour, gone after 6.
+        self.assertEqual(temps, [12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0])
+        self.assertEqual(hourly[CURRENT_HOUR_INDEX - 1]["temperature"], 18.0)
+
+    def test_only_measured_fields_are_carried_and_gaps_are_limited(self) -> None:
+        om = make_om_payload()
+        hourly = _build_hourly(om)
+        current = {"temperature": 0.0, "wind_gusts_kmh": 90.0}
+        _carry_measured_bias(om, hourly, current, {"temperature"})
+        self.assertEqual(hourly[CURRENT_HOUR_INDEX]["temperature"], 12.0)
+        self.assertEqual(hourly[CURRENT_HOUR_INDEX]["wind_gusts_kmh"], 20.0)
+
+    def test_the_score_follows_the_corrected_hour(self) -> None:
+        om = make_om_payload()
+        hourly = _build_hourly(om)
+        before = hourly[CURRENT_HOUR_INDEX + 1]["moto_score"]
+        _carry_measured_bias(om, hourly, {"wind_gusts_kmh": 40.0}, {"wind_gusts_kmh"})
+        self.assertLess(hourly[CURRENT_HOUR_INDEX + 1]["moto_score"], before)
+
+    def test_nothing_measured_changes_nothing(self) -> None:
+        om = make_om_payload()
+        hourly = _build_hourly(om)
+        _carry_measured_bias(om, hourly, {"temperature": 5.0}, set())
+        self.assertEqual(hourly[CURRENT_HOUR_INDEX]["temperature"], 18.0)
+
+    def test_measured_fields_come_from_stations_only(self) -> None:
+        self.assertEqual(_measured_fields(None, {"temp": 10.0, "humidity": None}),
+                         {"temperature", "feels_like"})
+        self.assertEqual(_measured_fields(None, None), set())
+
+
+class AltitudeTests(unittest.TestCase):
+    def test_a_higher_station_reads_warmer_at_the_rider(self) -> None:
+        station = {"temp": 10.0, "distance_km": 25.0}
+        corrected = _altitude_corrected(station, 700.0, 100.0)
+        self.assertEqual(corrected["temp"], 13.9)
+        self.assertEqual(corrected["measured_temp"], 10.0)
+        self.assertEqual(corrected["altitude_correction_c"], 3.9)
+
+    def test_the_correction_is_limited_and_needs_both_heights(self) -> None:
+        self.assertEqual(_altitude_corrected({"temp": 10.0}, 2000.0, 100.0)["temp"], 14.0)
+        self.assertEqual(_altitude_corrected({"temp": 10.0}, None, 100.0), {"temp": 10.0})
+        self.assertEqual(_altitude_corrected({"temp": None}, 500.0, 100.0), {"temp": None})
 
 
 if __name__ == "__main__":

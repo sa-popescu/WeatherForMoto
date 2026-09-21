@@ -701,6 +701,19 @@ def scoring_metadata() -> dict[str, Any]:
             "blend": {
                 "seamless_weight": ENSEMBLE_SEAMLESS_WEIGHT,
                 "model_mean_weight": ENSEMBLE_MODEL_WEIGHT,
+                "median_variables": sorted(ENSEMBLE_MEDIAN_VARIABLES),
+                "weather_code": "severity-ranked vote of the models, the seamless blend "
+                                "voting with its weight; the middle vote wins",
+            },
+            "measured_bias": {
+                "fade_hours": BIAS_FADE_HOURS,
+                "limits": {hour_field: limit for _, hour_field, limit in BIAS_FIELDS},
+                "rule": "station minus forecast for the current hour, carried to the next "
+                        "hours with a weight falling linearly from 1 to 0",
+            },
+            "station_altitude": {
+                "lapse_rate_c_per_m": LAPSE_RATE_C_PER_M,
+                "max_correction_c": MAX_ALTITUDE_CORRECTION_C,
             },
             "spread_max": {
                 "high": dict(ENSEMBLE_HIGH_SPREAD),
@@ -1572,8 +1585,18 @@ ENSEMBLE_VARIABLES: tuple[str, ...] = (
     "temperature_2m",
     "apparent_temperature",
     "precipitation",
+    "wind_speed_10m",
     "wind_gusts_10m",
+    "weather_code",
 )
+
+# Rain is skewed: one model with a 4 mm/h shower and four dry ones average to a
+# drizzle nobody forecast. The median keeps the answer most models give.
+ENSEMBLE_MEDIAN_VARIABLES = frozenset({"precipitation"})
+# Weather codes are categories; they are voted on (see _consensus_code), never averaged.
+ENSEMBLE_CATEGORICAL_VARIABLES = frozenset({"weather_code"})
+# A model "gives rain" for an hour from this amount on (the same bar a rain code needs).
+ENSEMBLE_WET_MM = CODE_ACTIVE_MIN_AMOUNT_MM
 
 # The seamless blend keeps twice the weight of the raw model mean: it is a
 # curated product, not just another member.
@@ -1649,8 +1672,20 @@ def _spread_confidence(spreads: dict[str, float]) -> str:
     return level
 
 
+def _median(values: list[float]) -> float:
+    ordered = sorted(values)
+    middle = len(ordered) // 2
+    return ordered[middle] if len(ordered) % 2 else (ordered[middle - 1] + ordered[middle]) / 2
+
+
 def _ensemble_by_time(ens_data: dict | None) -> dict[str, dict[str, Any]]:
-    """Per local hour: the mean of the models, how many answered, and how much they agree."""
+    """Per local hour: the central value of the models, how many answered, and how much they agree.
+
+    "means" holds the mean for smooth variables and the median for rain (see
+    ENSEMBLE_MEDIAN_VARIABLES). "codes" lists each model's weather code, and
+    "wet_models" / "rain_models" count how many models give rain out of how
+    many answered for rain.
+    """
     if not isinstance(ens_data, dict):
         return {}
     hourly = ens_data.get("hourly")
@@ -1665,23 +1700,55 @@ def _ensemble_by_time(ens_data: dict | None) -> dict[str, dict[str, Any]]:
     for i, time_value in enumerate(times):
         means: dict[str, float] = {}
         spreads: dict[str, float] = {}
+        codes: list[int] = []
+        wet_models = rain_models = 0
         models = 0
         for variable, lists in series.items():
             values = [v for v in (_to_float(_safe(lst, i)) for lst in lists) if v is not None]
             if not values:
                 continue
             models = max(models, len(values))
-            means[variable] = sum(values) / len(values)
+            if variable in ENSEMBLE_CATEGORICAL_VARIABLES:
+                codes = [int(v) for v in values]
+                continue
+            if variable in ENSEMBLE_MEDIAN_VARIABLES:
+                means[variable] = _median(values)
+            else:
+                means[variable] = sum(values) / len(values)
             spreads[variable] = max(values) - min(values)
+            if variable == "precipitation":
+                rain_models = len(values)
+                wet_models = sum(1 for v in values if v >= ENSEMBLE_WET_MM)
         if models < ENSEMBLE_MIN_MODELS:
             continue
         out[str(time_value)] = {
             "means": means,
             "spreads": spreads,
+            "codes": codes,
+            "wet_models": wet_models,
+            "rain_models": rain_models,
             "models": models,
             "confidence": _spread_confidence(spreads),
         }
     return out
+
+
+def _consensus_code(seamless_code: int | None, model_codes: list[int]) -> int | None:
+    """The weather code most of the models back.
+
+    Every model votes with its code and Open-Meteo's own blend votes with the
+    seamless weight; the votes are ranked by severity and the middle one wins.
+    A thunderstorm only one model draws stays a shower, and a dry blend is
+    outvoted when most national models give rain. With fewer than
+    ENSEMBLE_MIN_MODELS codes the blend's code stands.
+    """
+    if len(model_codes) < ENSEMBLE_MIN_MODELS:
+        return seamless_code
+    votes = list(model_codes)
+    if seamless_code is not None:
+        votes += [seamless_code] * int(ENSEMBLE_SEAMLESS_WEIGHT)
+    votes.sort(key=lambda c: _CODE_SEVERITY.get(c, -1))
+    return votes[len(votes) // 2]
 
 
 def _blend_with_model_mean(seamless: float | None, model_mean: float | None) -> float | None:
@@ -2448,6 +2515,151 @@ def _sync_current_hour(om_data: dict, hourly: list[dict], current: dict) -> None
             hour[field] = value
 
 
+# ---------------------------------------------------------------------------
+# Measured correction carried into the next hours
+# ---------------------------------------------------------------------------
+# When a station measures the air right now, the gap between it and the
+# forecast for this hour is mostly the model's error at this spot (a valley
+# fog, a city heat island, a sea breeze), and that error does not vanish at the
+# next full hour. It is carried forward and faded out linearly: full weight on
+# the hour being lived, nothing left after BIAS_FADE_HOURS.
+
+BIAS_FADE_HOURS = 6
+
+# (field in the current block, field in an hourly item, largest correction).
+# A gap bigger than the limit is more likely a bad station than a model error.
+BIAS_FIELDS: tuple[tuple[str, str, float], ...] = (
+    ("temperature", "temperature", 6.0),
+    ("feels_like", "feels_like", 6.0),
+    ("humidity", "relative_humidity", 25.0),
+    ("wind_speed_kmh", "wind_speed_kmh", 15.0),
+    ("wind_gusts_kmh", "wind_gusts_kmh", 20.0),
+)
+
+# Which station field backs each current field (feels-like follows the temperature).
+_BIAS_STATION_KEYS: dict[str, str] = {
+    "temperature": "temp",
+    "feels_like": "temp",
+    "humidity": "humidity",
+    "wind_speed_kmh": "wind_speed_kmh",
+    "wind_gusts_kmh": "wind_gusts_kmh",
+}
+
+
+def _measured_fields(*stations: dict | None) -> set[str]:
+    """Current-block fields that at least one station actually measured."""
+    return {
+        field for field, key in _BIAS_STATION_KEYS.items()
+        if any(station and station.get(key) is not None for station in stations)
+    }
+
+
+def _rescore_hour(hour: dict[str, Any]) -> None:
+    """Recompute an hourly item's road temperature, frost risk and score, in place."""
+    road_temp = _road_surface_temp(hour.get("temperature"), hour.get("relative_humidity"),
+                                   hour.get("weather_code"), hour.get("precipitation_mm"),
+                                   is_day=hour.get("is_day"))
+    dew_point = _first_not_none(hour.get("dew_point_2m"),
+                                _dew_point_c(hour.get("temperature"), hour.get("relative_humidity")))
+    frost_risk = _frost_risk(hour.get("temperature"), road_temp, dew_point,
+                             hour.get("precipitation_mm"), hour.get("weather_code"))
+    score = _moto_score(hour.get("feels_like"), hour.get("wind_gusts_kmh"), hour.get("precipitation_mm"),
+                        hour.get("weather_code"), hour.get("precipitation_probability"),
+                        visibility_m=hour.get("visibility"), frost_risk=frost_risk)
+    hour.update({
+        "road_surface_temp": road_temp,
+        "frost_risk": frost_risk,
+        "moto_score": score,
+        "moto_label": _moto_label(score),
+    })
+
+
+def _carry_measured_bias(om_data: dict, hourly: list[dict], current: dict, measured: set[str]) -> None:
+    """Shift the next hours by the measured-minus-forecast gap of this hour, in place."""
+    index = _current_hour_index(om_data, [str(h.get("time", "")) for h in hourly])
+    if index is None or not measured:
+        return
+    gaps: dict[str, float] = {}
+    for current_field, hour_field, limit in BIAS_FIELDS:
+        observed = current.get(current_field)
+        forecast = hourly[index].get(hour_field)
+        if current_field in measured and observed is not None and forecast is not None:
+            gaps[hour_field] = max(-limit, min(limit, float(observed) - float(forecast)))
+    if not gaps:
+        return
+    for offset in range(BIAS_FADE_HOURS):
+        if index + offset >= len(hourly):
+            break
+        weight = 1 - offset / BIAS_FADE_HOURS
+        hour = hourly[index + offset]
+        for field, gap in gaps.items():
+            value = hour.get(field)
+            if value is None:
+                continue
+            shifted = float(value) + gap * weight
+            if field == "relative_humidity":
+                shifted = max(0.0, min(100.0, shifted))
+            elif field in ("wind_speed_kmh", "wind_gusts_kmh"):
+                shifted = max(0.0, shifted)
+            hour[field] = round(shifted, 2)
+        _rescore_hour(hour)
+
+
+# ---------------------------------------------------------------------------
+# Station altitude
+# ---------------------------------------------------------------------------
+# An official station up to 40 km away can sit hundreds of metres above or
+# below the rider. Its temperature is brought to the rider's altitude with the
+# standard lapse rate before it joins the blend. Station heights come from
+# Open-Meteo's elevation API (Copernicus 90 m DEM) and never change, so each is
+# asked once per process.
+
+OPENMETEO_ELEVATION_URL = "https://api.open-meteo.com/v1/elevation"
+LAPSE_RATE_C_PER_M = 0.0065
+# Morning inversions break the lapse rate; beyond this the correction guesses.
+MAX_ALTITUDE_CORRECTION_C = 4.0
+ELEVATION_CACHE_MAX_ENTRIES = 2000
+_elevation_cache: dict[tuple[float, float], float] = {}
+
+
+async def _elevation_m(lat: float, lon: float, client: httpx.AsyncClient) -> float | None:
+    """Ground elevation of a point, cached for the life of the process; None when the API fails."""
+    key = (round(lat, 4), round(lon, 4))
+    if key in _elevation_cache:
+        return _elevation_cache[key]
+    try:
+        resp = await client.get(OPENMETEO_ELEVATION_URL, params={"latitude": key[0], "longitude": key[1]},
+                                timeout=OPTIONAL_PROVIDER_HTTP_TIMEOUT_S)
+        resp.raise_for_status()
+        values = resp.json().get("elevation")
+        elevation = _to_float(values[0]) if isinstance(values, list) and values else None
+    except (httpx.HTTPError, ValueError, AttributeError) as exc:
+        logger.warning("Open-Meteo elevation fetch failed: %s", _describe_error(exc))
+        return None
+    if elevation is None:
+        return None
+    if len(_elevation_cache) >= ELEVATION_CACHE_MAX_ENTRIES:
+        _elevation_cache.clear()
+    _elevation_cache[key] = elevation
+    return elevation
+
+
+def _altitude_corrected(station: dict, station_elevation: float | None, point_elevation: float | None) -> dict:
+    """The station reading with its temperature moved to the rider's altitude."""
+    temp = station.get("temp")
+    if temp is None or station_elevation is None or point_elevation is None:
+        return station
+    correction = LAPSE_RATE_C_PER_M * (station_elevation - point_elevation)
+    correction = max(-MAX_ALTITUDE_CORRECTION_C, min(MAX_ALTITUDE_CORRECTION_C, correction))
+    return {
+        **station,
+        "temp": round(float(temp) + correction, 1),
+        "measured_temp": temp,
+        "elevation_m": round(station_elevation),
+        "altitude_correction_c": round(correction, 1),
+    }
+
+
 def _first_not_none(*values: Any) -> Any:
     """First value that is not None (0 and 0.0 are valid values)."""
     for value in values:
@@ -2903,7 +3115,8 @@ def _build_hourly(om_data: dict, ensemble: dict[str, dict[str, Any]] | None = No
     Hourly items, each with its own moto score and risk flags.
 
     Values come from Open-Meteo. When the model ensemble is available they are
-    pulled toward the mean of the national models, and the hour also carries how
+    pulled toward the national models (their mean, the median for rain), the
+    weather code is the one most models back, and the hour also carries how
     much those models agree (see ENSEMBLE_* above).
     """
     hourly = om_data.get("hourly", {})
@@ -2913,7 +3126,7 @@ def _build_hourly(om_data: dict, ensemble: dict[str, dict[str, Any]] | None = No
     for i, t in enumerate(times):
         ens_hour = ensemble.get(str(t)) if ensemble else None
         means: dict[str, float] = ens_hour["means"] if ens_hour else {}
-        code = _safe(hourly.get("weather_code"), i)
+        code = _consensus_code(_safe(hourly.get("weather_code"), i), ens_hour.get("codes", []) if ens_hour else [])
         temp = _blend_with_model_mean(_safe(hourly.get("temperature_2m"), i),
                                       means.get("temperature_2m"))
         feels = _blend_with_model_mean(_safe(hourly.get("apparent_temperature"), i),
@@ -2939,7 +3152,8 @@ def _build_hourly(om_data: dict, ensemble: dict[str, dict[str, Any]] | None = No
             "precipitation_mm": precipitation,
             "precipitation_probability": probability,
             "rain_intensity": _rain_intensity(precipitation),
-            "wind_speed_kmh": _safe(hourly.get("wind_speed_10m"), i),
+            "wind_speed_kmh": _blend_with_model_mean(_safe(hourly.get("wind_speed_10m"), i),
+                                                     means.get("wind_speed_10m")),
             "wind_gusts_kmh": gusts,
             "weather_code": code,
             "icon": _wmo_icon(code),
@@ -3354,13 +3568,18 @@ async def _collect_weather(
             _cached_optional("ANM nowcasting", ("anm-nowcast",), _with_ttl(
                 lambda: anm_nowcast.fetch_feed(client, met_user_agent), TTL_ANM_NOWCAST_S)),
         )
+        official_norm = official_stations.normalize(stations_raw)
+        if official_norm and official_norm.get("lat") is not None:
+            station_elevation = await _await_optional("Open-Meteo elevation", _elevation_m(
+                official_norm["lat"], official_norm["lon"], client))
+            official_norm = _altitude_corrected(official_norm, station_elevation,
+                                                _to_float(om_data.get("elevation")))
 
     utc_offset = int(om_data.get("utc_offset_seconds") or 0)
     met_norm = _normalize_met_current(met_raw)
     pw_norm = _normalize_pw_current(pw_raw)
     wxm_norm = _normalize_wxm_current(wxm_raw)
     netatmo_norm = _normalize_netatmo_current(netatmo_raw)
-    official_norm = official_stations.normalize(stations_raw)
     metar_obs = metar.nearest(metar_raw, lat, lon)
     met_daily = _aggregate_met_daily(met_raw, utc_offset)
 
@@ -3368,7 +3587,8 @@ async def _collect_weather(
     current = _merge_current(om_data, owm_current, owm_air, om_air, met_norm, pw_norm,
                              wxm_norm, netatmo_norm, hourly=hourly,
                              official_norm=official_norm, metar_obs=metar_obs)
-    # Before the daily scores are built, so the day counts the hour as it is.
+    # Before the daily scores are built, so the day counts the hours as corrected.
+    _carry_measured_bias(om_data, hourly, current, _measured_fields(wxm_norm, netatmo_norm, official_norm))
     _sync_current_hour(om_data, hourly, current)
     daily = _merge_daily(om_data, owm_forecast, met_daily, hourly=hourly)
     # Official warnings are advisory on top of our own score, never a source for it.
