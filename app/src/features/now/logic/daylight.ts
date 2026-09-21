@@ -20,6 +20,18 @@ export function isDaylight(hour: HourlyWeather, daily: ReadonlyArray<DailyWeathe
   return h >= FALLBACK_DAY_START && h < FALLBACK_DAY_END;
 }
 
+/**
+ * Daylight at an exact local time ("2026-09-21T07:03"), from the day's
+ * sunrise / sunset. An hourly is_day is sampled at the top of the hour, so it
+ * calls the whole sunrise hour night; the minute matters for "right now".
+ * Falls back to the containing hour's flag when the sun times are missing.
+ */
+export function isDaylightAt(localIso: string, hour: HourlyWeather, daily: ReadonlyArray<DailyWeather>): boolean {
+  const { sunrise, sunset } = sunTimes(localIso.slice(0, 10), daily);
+  if (sunrise && sunset) return localIso >= sunrise && localIso < sunset;
+  return isDaylight(hour, daily);
+}
+
 /** "2026-09-11" -> "2026-09-12" */
 export function nextDate(date: string): string {
   return addMinutesLocal(`${date}T00:00`, 24 * 60).slice(0, 10);

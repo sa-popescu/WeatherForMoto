@@ -1,7 +1,7 @@
 import { tierOf, type Tier } from '../../../lib/scoring';
 import type { DailyWeather, HourlyWeather } from '../../../lib/types';
 import { bestWindow, thresholds, type RideWindow } from './bestWindow';
-import { hoursOfDate, isDaylight, nextDate } from './daylight';
+import { hoursOfDate, isDaylight, isDaylightAt, nextDate } from './daylight';
 
 // "Can I ride now?" as a pure decision on the backend's hourly moto_score.
 // Rideable means OK or better; only today's daylight hours ahead count for
@@ -21,6 +21,8 @@ export interface VerdictInput {
   /** Index of the current hour in `hourly`. */
   startIndex: number;
   daily: ReadonlyArray<DailyWeather>;
+  /** Exact local time at the location ("2026-09-21T07:03"); defaults to the current hour slot. */
+  nowLocal?: string;
 }
 
 const scoreOf = (h: HourlyWeather): number => h.moto_score ?? -1;
@@ -33,7 +35,7 @@ export function daylightAhead(hourly: ReadonlyArray<HourlyWeather>, startIndex: 
   return hourly.slice(startIndex + 1).filter((h) => h.time.startsWith(today) && h.moto_score != null && isDaylight(h, daily));
 }
 
-export function computeVerdict({ nowScore, hourly, startIndex, daily }: VerdictInput): Verdict {
+export function computeVerdict({ nowScore, hourly, startIndex, daily, nowLocal }: VerdictInput): Verdict {
   const now = hourly[startIndex];
   if (nowScore == null || !now) return { kind: 'unknown' };
   const { ok } = thresholds();
@@ -42,7 +44,7 @@ export function computeVerdict({ nowScore, hourly, startIndex, daily }: VerdictI
   if (nowScore >= ok) {
     const drop = ahead.find((h) => scoreOf(h) < ok);
     if (drop) return { kind: 'goUntil', until: drop.time };
-    return { kind: 'go', tier: tierOf(nowScore) ?? 'ok', night: !isDaylight(now, daily) };
+    return { kind: 'go', tier: tierOf(nowScore) ?? 'ok', night: !isDaylightAt(nowLocal ?? now.time, now, daily) };
   }
 
   // Recovery needs two good hours in a row (or the last daylight hour), so a

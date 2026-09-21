@@ -46,6 +46,18 @@ describe('computeVerdict', () => {
     expect(computeVerdict({ nowScore: 90, hourly, startIndex: 22, daily: DAILY })).toEqual({ kind: 'go', tier: 'ideal', night: true });
   });
 
+  it('calls it day right after sunrise, even though the hour slot is flagged night', () => {
+    const daily = [day('2026-09-11', { sunrise: '2026-09-11T07:01' }), day('2026-09-12')];
+    const hourly = scenario((i) => (i === 7 ? { moto_score: 90, is_day: false } : { moto_score: 90 }));
+    expect(computeVerdict({ nowScore: 90, hourly, startIndex: 7, daily, nowLocal: '2026-09-11T07:03' })).toEqual({ kind: 'go', tier: 'ideal', night: false });
+    expect(computeVerdict({ nowScore: 90, hourly, startIndex: 7, daily, nowLocal: '2026-09-11T07:00' })).toEqual({ kind: 'go', tier: 'ideal', night: true });
+  });
+
+  it('calls it night right after sunset, inside an hour flagged day', () => {
+    const hourly = scenario(() => ({ moto_score: 90 }));
+    expect(computeVerdict({ nowScore: 90, hourly, startIndex: 19, daily: DAILY, nowLocal: '2026-09-11T19:40' })).toEqual({ kind: 'go', tier: 'ideal', night: true });
+  });
+
   it('is unknown without a score', () => {
     expect(computeVerdict({ nowScore: null, hourly: scenario(() => ({})), startIndex: 10, daily: DAILY }).kind).toBe('unknown');
   });
@@ -89,6 +101,14 @@ describe('buildHeadline', () => {
     const h = buildHeadline({ current: now, hourly, startIndex: 10, daily: DAILY, lang: 'ro' });
     expect(h.title).toBe('Nu azi.');
     expect(h.sub).toBe('Furtună, 90% șanse, până la 12 mm/h (puternică). Mâine de la 07:00 arată bine (84).');
+  });
+
+  it('names the coming sunrise from the exact time, not the hour slot', () => {
+    const daily = [day('2026-09-11', { sunrise: '2026-09-11T07:01' }), day('2026-09-12')];
+    const hourly = scenario(() => ({ moto_score: 95 }));
+    const h = buildHeadline({ current: current(), hourly, startIndex: 6, daily, lang: 'ro', nowLocal: '2026-09-11T06:40' });
+    expect(h.title).toBe('Da, dar e noapte.');
+    expect(h.sub).toBe('E întuneric până la 07:01: vizibilitate redusă, fii văzut și atent la animale.');
   });
 
   it('describes a calm day by what matters on the bike', () => {

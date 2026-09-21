@@ -25,6 +25,8 @@ export interface HeadlineInput {
   startIndex: number;
   daily: ReadonlyArray<DailyWeather>;
   lang: Lang;
+  /** Exact local time at the location; defaults to the current hour slot. */
+  nowLocal?: string;
 }
 
 function goTitle(cause: Cause | null, verdict: Extract<Verdict, { kind: 'go' }>, lang: Lang): string {
@@ -61,11 +63,11 @@ function calmSub(rest: ReadonlyArray<HourlyWeather>, nowIso: string, daily: Read
   return sunset && sunset > nowIso ? fmt(t.dryUntilSunset, { sunset: hourOf(sunset), gust }) : fmt(t.dryAhead, { gust });
 }
 
-export function buildHeadline({ current, hourly, startIndex, daily, lang }: HeadlineInput): Headline {
+export function buildHeadline({ current, hourly, startIndex, daily, lang, nowLocal }: HeadlineInput): Headline {
   const t = pick(TEXTS, lang);
   const now = hourly[startIndex];
   const nowScore = current.moto_score ?? now?.moto_score ?? null;
-  const verdict = computeVerdict({ nowScore, hourly, startIndex, daily });
+  const verdict = computeVerdict({ nowScore, hourly, startIndex, daily, nowLocal });
   if (!now || verdict.kind === 'unknown') return { verdict, title: t.unknown, sub: '', keyTime: null };
 
   const nowIso = now.time;
@@ -77,7 +79,7 @@ export function buildHeadline({ current, hourly, startIndex, daily, lang }: Head
     case 'go': {
       const title = goTitle(nowCause, verdict, lang);
       if (verdict.night) {
-        const sunrise = nextSunrise(nowIso, daily);
+        const sunrise = nextSunrise(nowLocal ?? nowIso, daily);
         const night = sunrise ? fmt(t.night, { sunrise: hourOf(sunrise) }) : t.nightNoSunrise;
         return { verdict, title, sub: verdict.tier === 'ok' && nowCause ? `${causeSentence(nowCause, lang)} ${night}` : night, keyTime: null };
       }
