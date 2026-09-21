@@ -31,6 +31,7 @@ import anm_nowcast
 import meteoalarm
 import metar
 import official_stations
+import rain_fusion
 
 logger = logging.getLogger("weatherformoto.weather")
 
@@ -1037,6 +1038,10 @@ TTL_MET_MIN_S = 60
 TTL_MET_MAX_S = 2 * 3600
 TTL_PIRATE_S = 30 * 60
 TTL_ENSEMBLE_S = 30 * 60
+# Ensemble systems run every 6-12 hours; an hour-old answer is as good as a new one.
+TTL_RAIN_ENSEMBLE_S = 60 * 60
+# Ensemble runs beyond a week add size, not skill, to a riding forecast.
+RAIN_ENSEMBLE_MAX_DAYS = 7
 TTL_METEOALARM_S = 10 * 60
 # Stations report hourly and airports every 30 minutes; nowcasting warnings last under two hours.
 TTL_STATIONS_S = 10 * 60
@@ -1579,6 +1584,7 @@ ENSEMBLE_MODELS: tuple[str, ...] = (
     "gfs_seamless",           # NOAA, College Park
     "meteofrance_seamless",   # Météo-France, Toulouse
     "ukmo_seamless",          # Met Office, Exeter
+    "gem_seamless",           # Environment Canada, Montreal
 )
 
 ENSEMBLE_VARIABLES: tuple[str, ...] = (
@@ -1647,6 +1653,33 @@ async def _fetch_openmeteo_ensemble(
         return data
     except (httpx.HTTPError, ValueError) as exc:
         logger.warning("Open-Meteo ensemble fetch failed: %s", _describe_error(exc))
+        return None
+
+
+async def _fetch_rain_ensemble(
+    lat: float, lon: float, client: httpx.AsyncClient, forecast_days: int = 7
+) -> dict[str, Any] | None:
+    """Every run of the rain ensembles (see rain_fusion.ENSEMBLE_SYSTEMS); None on failure."""
+    params = {
+        "latitude": lat,
+        "longitude": lon,
+        "hourly": "precipitation",
+        "models": ",".join(rain_fusion.ENSEMBLE_SYSTEMS),
+        "timezone": "auto",
+        "forecast_days": min(max(int(forecast_days), 1), RAIN_ENSEMBLE_MAX_DAYS),
+    }
+    try:
+        resp = await client.get(rain_fusion.ENSEMBLE_API_URL, params=params,
+                                timeout=OPTIONAL_PROVIDER_HTTP_TIMEOUT_S)
+        resp.raise_for_status()
+        data = resp.json()
+        if not isinstance(data, dict) or data.get("error"):
+            reason = data.get("reason", "unknown error") if isinstance(data, dict) else "not an object"
+            logger.warning("Open-Meteo rain ensemble error: %s", reason)
+            return None
+        return data
+    except (httpx.HTTPError, ValueError) as exc:
+        logger.warning("Open-Meteo rain ensemble fetch failed: %s", _describe_error(exc))
         return None
 
 
@@ -3055,8 +3088,12 @@ def _merge_daily(
 
         wind_max = _safe(daily.get("wind_speed_10m_max"), i)
 
+        # The day's chance is its wettest hour, from the fused hours when they
+        # exist (see _fuse_rain), else Open-Meteo's daily maximum.
+        fused_probs = [h["precipitation_probability"] for h in hours_by_date.get(date, [])
+                       if h.get("rain_sources") and h.get("precipitation_probability") is not None]
         prec_prob_raw = _safe(daily.get("precipitation_probability_max"), i)
-        prec_prob = prec_prob_raw or 0
+        prec_prob = max(fused_probs) if fused_probs else (prec_prob_raw or 0)
 
         # score: from the day's riding hours (daylight; for today the hours
         # still ahead), weighting the worst hours; aggregate fallback otherwise.
@@ -3173,8 +3210,53 @@ def _build_hourly(om_data: dict, ensemble: dict[str, dict[str, Any]] | None = No
             "moto_label": _moto_label(score),
             "forecast_confidence": ens_hour["confidence"] if ens_hour else None,
             "model_count": ens_hour["models"] if ens_hour else None,
+            # Filled by _fuse_rain when other sources speak about rain.
+            "rain_sources": None,
+            "precipitation_range_mm": None,
         })
     return result
+
+
+def _fuse_rain(
+    hourly: list[dict],
+    ensemble: dict[str, dict[str, Any]],
+    *,
+    rain_ensemble: dict | None,
+    pirate: dict | None,
+    owm_forecast: dict | None,
+    met: dict | None,
+    utc_offset_seconds: int,
+) -> int | None:
+    """Give every hour the chance of rain all sources agree on, and rescore it, in place.
+
+    The hour keeps Open-Meteo's amount blend (see _build_hourly); what changes
+    is the probability, plus "rain_sources" (how many sources give rain out of
+    how many) and "precipitation_range_mm" (the ensembles' 25th to 90th
+    percentile), which the app shows to explain the number. Returns how many
+    ensemble runs answered (None without the ensembles).
+    """
+    by_source = {
+        "ensemble": rain_fusion.ensemble_votes(rain_ensemble),
+        "pirate-weather": rain_fusion.pirate_votes(pirate, utc_offset_seconds),
+        "openweathermap": rain_fusion.owm_votes(owm_forecast, utc_offset_seconds),
+        "met-norway": rain_fusion.met_votes(met, utc_offset_seconds),
+    }
+    for hour in hourly:
+        slot = str(hour.get("time", ""))[:13] + ":00"
+        models = ensemble.get(str(hour.get("time", ""))) or {}
+        fused = rain_fusion.fuse_hour(
+            open_meteo_probability=hour.get("precipitation_probability"),
+            wet_models=models.get("wet_models", 0),
+            rain_models=models.get("rain_models", 0),
+            votes={name: votes.get(slot) for name, votes in by_source.items()},
+        )
+        if fused is None:
+            continue
+        hour["precipitation_probability"] = fused["probability"]
+        hour["rain_sources"] = {"wet": fused["wet_sources"], "total": fused["total_sources"]}
+        hour["precipitation_range_mm"] = list(fused["range"]) if fused["range"] else None
+        _rescore_hour(hour)
+    return max((vote["members"] for vote in by_source["ensemble"].values()), default=None)
 
 
 def _safe(lst: list | None, i: int) -> Any:
@@ -3470,6 +3552,7 @@ def _source_status(
     stations: tuple[Any, dict | None],
     airports: tuple[Any, dict | None],
     warnings: dict[str, tuple[Any, int]],
+    rain_ensemble_members: int | None = None,
 ) -> list[dict[str, Any]]:
     """
     Every source and what it did for this answer, for the "data sources" view.
@@ -3483,6 +3566,8 @@ def _source_status(
         {"id": "open-meteo", "status": "used"},
         {"id": "model-ensemble", "status": "used" if current.get("model_count") else "no-data",
          "models": current.get("model_count")},
+        {"id": "rain-ensemble", "status": "used" if rain_ensemble_members else "no-data",
+         "members": rain_ensemble_members},
     ]
     for source in ("openweathermap", "met-norway", "pirate-weather"):
         configured = keys.get(source, True)
@@ -3530,7 +3615,7 @@ async def _collect_weather(
     days = min(max(int(forecast_days), 1), 16)
     cell = _coord_key(lat, lon)
     async with http_client_scope() as client:
-        (om_data, ens_raw, owm_current, owm_forecast, owm_air, om_air, met_raw, pw_raw,
+        (om_data, ens_raw, rain_ens_raw, owm_current, owm_forecast, owm_air, om_air, met_raw, pw_raw,
          wxm_raw, netatmo_raw, meteoalarm_feed, stations_raw, metar_raw, nowcast_feed) = await asyncio.gather(
             _forecast_cache.get_or_fetch(
                 ("open-meteo", cell, days),
@@ -3540,6 +3625,9 @@ async def _collect_weather(
             _cached_optional("Open-Meteo ensemble", ("om-ensemble", cell, days), _with_ttl(
                 lambda: _fetch_openmeteo_ensemble(lat, lon, client, forecast_days=days),
                 TTL_ENSEMBLE_S)),
+            _cached_optional("Open-Meteo rain ensemble", ("rain-ensemble", cell, days), _with_ttl(
+                lambda: _fetch_rain_ensemble(lat, lon, client, forecast_days=days),
+                TTL_RAIN_ENSEMBLE_S)),
             _cached_optional("OWM current", ("owm-current", cell), _with_ttl(
                 lambda: _fetch_owm_current(lat, lon, owm_api_key, client), TTL_OWM_S)),
             _cached_optional("OWM forecast", ("owm-forecast", cell), _with_ttl(
@@ -3583,7 +3671,10 @@ async def _collect_weather(
     metar_obs = metar.nearest(metar_raw, lat, lon)
     met_daily = _aggregate_met_daily(met_raw, utc_offset)
 
-    hourly = _build_hourly(om_data, _ensemble_by_time(ens_raw))
+    ensemble = _ensemble_by_time(ens_raw)
+    hourly = _build_hourly(om_data, ensemble)
+    rain_members = _fuse_rain(hourly, ensemble, rain_ensemble=rain_ens_raw, pirate=pw_raw,
+                              owm_forecast=owm_forecast, met=met_raw, utc_offset_seconds=utc_offset)
     current = _merge_current(om_data, owm_current, owm_air, om_air, met_norm, pw_norm,
                              wxm_norm, netatmo_norm, hourly=hourly,
                              official_norm=official_norm, metar_obs=metar_obs)
@@ -3596,6 +3687,8 @@ async def _collect_weather(
     nowcast_alerts = anm_nowcast.warnings_for(nowcast_feed, lat, lon, city_name) if nowcast_feed else []
     alerts = sorted(county_alerts + nowcast_alerts,
                     key=lambda w: (meteoalarm.LEVEL_ORDER.get(w["level"], 9), w["onset"] or ""))
+    if rain_members:
+        current["sources"].insert(2, "rain-ensemble")
     current["source_status"] = _source_status(
         current=current,
         keys={
@@ -3617,6 +3710,7 @@ async def _collect_weather(
             "anm-nowcast": (nowcast_feed, len(nowcast_alerts)),
             "meteoalarm": (meteoalarm_feed, len(county_alerts)),
         },
+        rain_ensemble_members=rain_members,
     )
 
     return {

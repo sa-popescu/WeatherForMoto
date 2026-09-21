@@ -1,4 +1,4 @@
-"""Tests for the added data sources: official stations, airports, ANM nowcasting."""
+"""Tests for the added data sources: official stations, airports, ANM nowcasting, rain fusion."""
 
 from __future__ import annotations
 
@@ -8,8 +8,9 @@ from datetime import datetime, timezone
 import anm_nowcast
 import metar
 import official_stations
-from weather_service import _merge_current, _source_status
-from test_scoring import make_om_payload
+import rain_fusion
+from weather_service import _build_hourly, _ensemble_by_time, _fuse_rain, _merge_current, _source_status
+from test_scoring import make_ensemble_payload, make_om_payload
 
 NOW = datetime(2026, 9, 14, 8, 12, tzinfo=timezone.utc)
 
@@ -208,6 +209,75 @@ class MergeTests(unittest.TestCase):
         self.assertEqual(by_id["netatmo"]["status"], "off")
         self.assertEqual((by_id["anm-nowcast"]["status"], by_id["anm-nowcast"]["count"]), ("used", 1))
         self.assertEqual(by_id["meteoalarm"]["status"], "no-data")
+
+
+
+def ensemble_payload(times: list[str], wet_runs: int, runs: int = 20, amount: float = 1.5) -> dict:
+    """Open-Meteo ensemble shape: one key per run, the first `wet_runs` with rain."""
+    hourly: dict = {"time": times}
+    for run in range(runs):
+        key = "precipitation_icon_eu_eps" if run == 0 else f"precipitation_member{run:02d}_icon_eu_eps"
+        hourly[key] = [amount if run < wet_runs else 0.0] * len(times)
+    return {"hourly": hourly}
+
+
+class RainFusionTests(unittest.TestCase):
+    def test_the_ensemble_probability_is_the_share_of_wet_runs(self) -> None:
+        votes = rain_fusion.ensemble_votes(ensemble_payload(["2026-09-14T15:00"], wet_runs=5))
+        vote = votes["2026-09-14T15:00"]
+        self.assertEqual(vote["probability"], 0.25)
+        self.assertEqual(vote["members"], 20)
+        self.assertEqual(vote["range"], (0.0, 1.5))
+
+    def test_too_few_runs_and_a_dry_ensemble(self) -> None:
+        self.assertEqual(rain_fusion.ensemble_votes(ensemble_payload(["2026-09-14T15:00"], 1, runs=5)), {})
+        dry = rain_fusion.ensemble_votes(ensemble_payload(["2026-09-14T15:00"], 0))["2026-09-14T15:00"]
+        self.assertEqual((dry["probability"], dry["range"]), (0.0, None))
+
+    def test_provider_hours_are_moved_to_local_time(self) -> None:
+        offset = 3 * 3600
+        pirate = {"hourly": {"data": [{"time": 1789387200, "precipProbability": 0.6, "precipIntensity": 0.8}]}}
+        self.assertEqual(rain_fusion.pirate_votes(pirate, offset),
+                         {"2026-09-14T15:00": {"probability": 0.6, "amount": 0.8}})
+        met = {"properties": {"timeseries": [
+            {"time": "2026-09-14T12:00:00Z", "data": {"next_1_hours": {"details": {"precipitation_amount": 0.4}}}},
+            {"time": "2026-09-14T18:00:00Z", "data": {"next_6_hours": {"details": {"precipitation_amount": 3.0}}}},
+        ]}}
+        self.assertEqual(rain_fusion.met_votes(met, offset),
+                         {"2026-09-14T15:00": {"probability": 1.0, "amount": 0.4}})
+
+    def test_owm_spreads_its_block_over_three_hours(self) -> None:
+        owm = {"list": [{"dt": 1789387200, "pop": 0.3, "rain": {"3h": 0.9}}]}
+        votes = rain_fusion.owm_votes(owm, 3 * 3600)
+        self.assertEqual(sorted(votes), ["2026-09-14T14:00", "2026-09-14T15:00", "2026-09-14T16:00"])
+        self.assertAlmostEqual(votes["2026-09-14T15:00"]["amount"], 0.3)
+
+    def test_the_hour_is_the_weighted_mean_of_the_votes(self) -> None:
+        fused = rain_fusion.fuse_hour(
+            open_meteo_probability=20, wet_models=4, rain_models=6,
+            votes={"ensemble": {"probability": 0.5, "range": (0.0, 2.0), "members": 122},
+                   "pirate-weather": {"probability": 0.9}, "openweathermap": None, "met-norway": None},
+        )
+        # (0.2 * 1.5 + 4/6 * 2 + 0.5 * 3 + 0.9 * 1) / 7.5
+        self.assertEqual(fused["probability"], 54)
+        # Open-Meteo dry, 4 of 6 models wet, ensemble wet (50 %), Pirate wet.
+        self.assertEqual((fused["wet_sources"], fused["total_sources"]), (6, 9))
+        self.assertEqual(fused["range"], (0.0, 2.0))
+
+    def test_no_source_no_answer(self) -> None:
+        self.assertIsNone(rain_fusion.fuse_hour(open_meteo_probability=None, votes={"ensemble": None}))
+
+    def test_fused_hours_are_rescored(self) -> None:
+        om = make_om_payload(precipitation=[1.2] * 48, precipitation_probability=[10] * 48, weather_code=[61] * 48)
+        times = om["hourly"]["time"]
+        ensemble = _ensemble_by_time(make_ensemble_payload(times, precipitation=[[1.2] * 48, [1.0] * 48]))
+        hourly = _build_hourly(om, ensemble)
+        before = hourly[12]["moto_score"]
+        _fuse_rain(hourly, ensemble, rain_ensemble=ensemble_payload(times, wet_runs=20), pirate=None,
+                   owm_forecast=None, met=None, utc_offset_seconds=3 * 3600)
+        self.assertGreater(hourly[12]["precipitation_probability"], 10)
+        self.assertEqual(hourly[12]["rain_sources"], {"wet": 3, "total": 4})
+        self.assertLess(hourly[12]["moto_score"], before)
 
 
 if __name__ == "__main__":

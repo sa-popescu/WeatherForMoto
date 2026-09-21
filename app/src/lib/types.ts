@@ -74,6 +74,8 @@ export interface SourceStatus {
   observed_at?: string | null;
   /** Models that answered (the ensemble). */
   models?: number | null;
+  /** Ensemble runs that answered (the rain ensemble). */
+  members?: number | null;
   /** Warnings that apply to this place (warning feeds). */
   count?: number | null;
 }
@@ -107,6 +109,10 @@ export interface HourlyWeather {
   moto_label: MotoLabel | null;
   forecast_confidence: Confidence | null;
   model_count: number | null;
+  /** How many rain sources give rain for this hour, out of how many answered. */
+  rain_sources?: { wet: number; total: number } | null;
+  /** The ensembles' likely amount if it rains (25th to 90th percentile), mm/h. */
+  precipitation_range_mm?: [number, number] | null;
 }
 
 export interface DailyWeather {

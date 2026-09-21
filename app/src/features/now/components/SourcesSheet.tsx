@@ -38,6 +38,7 @@ function detail(s: Strings, source: SourceStatus, nowMs: number, lang: Lang): st
     return fmt(s.stationDetail, { station: source.station, km, ago });
   }
   if (source.models != null) return fmt(s.modelsDetail, { n: source.models });
+  if (source.members != null) return fmt(s.membersDetail, { n: source.members });
   if (source.count != null) return source.count > 0 ? fmt(s.warningsSome, { n: source.count }) : s.warningsNone;
   return null;
 }

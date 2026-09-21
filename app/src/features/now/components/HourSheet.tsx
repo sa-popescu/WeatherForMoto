@@ -35,9 +35,17 @@ export function HourSheet({ hour, nowIso, onClose }: { hour: HourlyWeather; nowI
   const mm = Math.max(0, hour.precipitation_mm ?? 0);
   const band = rainBandOf(mm);
   const rain = `${hour.precipitation_probability == null ? '–' : Math.round(hour.precipitation_probability)}% · ${fmtMm(mm, lang)} mm/h`;
+  const range = hour.precipitation_range_mm;
+  const rainSub = [
+    band === 'none' ? core.bandNone : bandWord(band, lang),
+    hour.rain_sources && fmt(s.rainSources, hour.rain_sources),
+    range && fmt(s.rainRange, { low: fmtMm(range[0], lang), high: fmtMm(range[1], lang) }),
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   const stats: Stat[] = [
-    { label: s.rain, value: rain, sub: band === 'none' ? core.bandNone : bandWord(band, lang), wide: true },
+    { label: s.rain, value: rain, sub: rainSub, wide: true },
     { label: s.temperature, value: fmtTemp(hour.temperature, lang), sub: fmt(now.feels, { t: fmtTemp(hour.feels_like, lang) }) },
     { label: s.wind, value: `${fmtNumber(hour.wind_gusts_kmh, lang)} km/h`, sub: gustText(hour.wind_gusts_kmh, hour.wind_direction_10m, lang) },
     { label: s.road, value: fmtTemp(hour.road_surface_temp, lang), sub: hour.frost_risk ? pick(READOUT_TEXTS, lang).asphaltFrost : undefined },

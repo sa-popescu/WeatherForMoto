@@ -7,7 +7,7 @@ export type SourceGroup = 'stations' | 'models' | 'warnings';
 
 export const SOURCE_GROUPS: ReadonlyArray<{ group: SourceGroup; ids: readonly string[] }> = [
   { group: 'stations', ids: ['official-stations', 'metar', 'weatherxm', 'netatmo'] },
-  { group: 'models', ids: ['open-meteo', 'model-ensemble', 'openweathermap', 'met-norway', 'pirate-weather'] },
+  { group: 'models', ids: ['open-meteo', 'model-ensemble', 'rain-ensemble', 'openweathermap', 'met-norway', 'pirate-weather'] },
   { group: 'warnings', ids: ['anm-nowcast', 'meteoalarm'] },
 ];
 
@@ -21,6 +21,7 @@ export const SOURCE_URLS: Readonly<Record<string, string>> = {
   netatmo: 'https://weathermap.netatmo.com/',
   'open-meteo': 'https://open-meteo.com/',
   'model-ensemble': 'https://open-meteo.com/en/docs',
+  'rain-ensemble': 'https://open-meteo.com/en/docs/ensemble-api',
   openweathermap: 'https://openweathermap.org/',
   'met-norway': 'https://api.met.no/',
   'pirate-weather': 'https://pirateweather.net/',
