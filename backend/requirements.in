@@ -1,7 +1,7 @@
 # Direct dependencies of the API. requirements.txt pins these and everything
 # they pull in (resolved on Linux, Python 3.11, the container runtime).
 fastapi>=0.111.0
-uvicorn[standard]>=0.29.0
+uvicorn[standard]>=0.53.0
 httpx>=0.27.0
 python-dotenv>=1.0.1
 pydantic>=2.7.0
