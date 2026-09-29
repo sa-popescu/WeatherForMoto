@@ -32,6 +32,15 @@ export function iconKeyFor(code: number | null | undefined, isDay: boolean | nul
   return 'cloud';
 }
 
+/**
+ * A rain code with a chance behind it and nothing to measure. "Izolate" is the
+ * honest part: when it does fall it falls on part of the area, often not on you.
+ */
+export const RAIN_CHANCE_DESCRIPTION: Record<Lang, string> = {
+  ro: 'Posibile averse izolate',
+  en: 'Isolated showers possible',
+};
+
 const DESCRIPTIONS: Record<number, [ro: string, en: string]> = {
   0: ['Senin', 'Clear sky'],
   1: ['Predominant senin', 'Mainly clear'],

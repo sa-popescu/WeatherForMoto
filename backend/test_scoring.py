@@ -303,6 +303,39 @@ class CurrentBlockTests(unittest.TestCase):
         self.assertEqual(current["weather_code"], 3)
         self.assertGreaterEqual(current["moto_score"], 85)
 
+    def test_a_chance_with_no_amount_is_not_called_rain(self) -> None:
+        # 20% and nothing to measure: possible showers, not "Ploaie usoara".
+        om = make_om_payload(precipitation_probability=with_value_at([0] * 48, CURRENT_HOUR_INDEX, 20))
+        om["current"].update({"weather_code": 61, "precipitation": 0.0})
+        current = _merge_current(om, None, None)
+        self.assertEqual(current["weather_code"], ws.RAIN_CHANCE_CODE)
+        self.assertEqual(current["description"], ws.RAIN_CHANCE_DESC)
+
+    def test_a_real_amount_is_still_called_rain(self) -> None:
+        om = make_om_payload(
+            precipitation=with_value_at([0.0] * 48, CURRENT_HOUR_INDEX, 0.8),
+            precipitation_probability=with_value_at([0] * 48, CURRENT_HOUR_INDEX, 20),
+        )
+        om["current"].update({"weather_code": 61, "precipitation": 0.8})
+        current = _merge_current(om, None, None)
+        self.assertEqual(current["weather_code"], 61)
+        self.assertEqual(current["description"], _wmo_desc(61))
+
+    def test_a_high_chance_without_amount_still_reads_as_rain(self) -> None:
+        # Above the ceiling the models agree enough that the code stands.
+        om = make_om_payload(precipitation_probability=with_value_at([0] * 48, CURRENT_HOUR_INDEX, 80))
+        om["current"].update({"weather_code": 61, "precipitation": 0.0})
+        current = _merge_current(om, None, None)
+        self.assertEqual(current["weather_code"], 61)
+
+    def test_snow_and_storm_chances_keep_their_names(self) -> None:
+        # Only rain is softened: a chance of snow or of a storm is worth naming.
+        for code in (71, 95):
+            with self.subTest(code=code):
+                om = make_om_payload(precipitation_probability=with_value_at([0] * 48, CURRENT_HOUR_INDEX, 40))
+                om["current"].update({"weather_code": code, "precipitation": 0.0})
+                self.assertEqual(_merge_current(om, None, None)["weather_code"], code)
+
     def test_now_is_the_hour_you_are_in_not_the_next_one(self) -> None:
         # At 10:15 and at 10:45 the hour being lived is 10:00. Reading 11:00
         # instead used to put a different hour behind the gauge than the one the

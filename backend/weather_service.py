@@ -117,6 +117,17 @@ STALE_CODE_MIN = 51
 CODE_ACTIVE_MIN_PROBABILITY = 20
 CODE_ACTIVE_MIN_AMOUNT_MM = 0.1
 
+# A rain code with nothing to measure is a chance, not a fact. Below the stale
+# threshold it is not worth a word (the sky is simply grey); from there up to
+# this probability it is shown as possible showers rather than as rain, because
+# "Ploaie usoara" at 20% and 0 mm is what makes the app cry wolf on a dry day.
+RAIN_CHANCE_MAX_PROBABILITY = 60
+# Sun behind a shower: the icon for a chance, not the steady-rain one.
+RAIN_CHANCE_CODE = 80
+# What that state is called. "Izolate" is the honest part: when it does fall,
+# it falls on part of the area, and often not on you.
+RAIN_CHANCE_DESC = "Posibile averse izolate"
+
 # --- Rain: probability x intensity -----------------------------------------
 # Hourly amounts (mm/h) below this count as "none".
 RAIN_NEGLIGIBLE_MM_H = 0.05
@@ -460,6 +471,25 @@ def _moto_score(
     return score
 
 
+def _is_rain_chance_only(
+    code: int | None, amount_mm: float | None, probability: float | None
+) -> bool:
+    """True for a rain code that carries a middling chance and no amount.
+
+    Between the stale threshold and RAIN_CHANCE_MAX_PROBABILITY the models are
+    saying rain is possible somewhere around here, not that it rains. Snow, ice
+    and storm codes are left alone: those are worth naming even as a chance.
+    """
+    if code is None or probability is None:
+        return False
+    if code not in LIGHT_RAIN_CODES and code not in HEAVY_RAIN_CODES:
+        return False
+    return (
+        (amount_mm or 0) < CODE_ACTIVE_MIN_AMOUNT_MM
+        and probability <= RAIN_CHANCE_MAX_PROBABILITY
+    )
+
+
 def _effective_display_code(
     code: int | None,
     precipitation_mm: float | None,
@@ -467,14 +497,32 @@ def _effective_display_code(
 ) -> int | None:
     """Keep the displayed weather code consistent with the score's de-weight.
 
-    A precipitation/storm code that isn't actually precipitating (known
-    probability below 20% AND no measured precip) is downgraded to overcast
-    (3), so the icon and description never show a storm next to a high
-    (green) score. Uses the same rule as the score (``_code_is_stale``).
+    Three states instead of two:
+    - a precipitation/storm code with a known probability below 20% AND no
+      measured precip is a leftover: it becomes overcast (3), so the icon and
+      description never show a storm next to a high (green) score;
+    - a rain code up to 60% with nothing to measure becomes the shower code,
+      which the description then words as a possibility;
+    - anything else stands.
     """
     if code is None:
         return code
-    return 3 if _code_is_stale(code, precipitation_mm, precipitation_probability) else code
+    if _code_is_stale(code, precipitation_mm, precipitation_probability):
+        return 3
+    if _is_rain_chance_only(code, precipitation_mm, precipitation_probability):
+        return RAIN_CHANCE_CODE
+    return code
+
+
+def _display_description(
+    code: int | None,
+    precipitation_mm: float | None,
+    precipitation_probability: float | None = 0,
+) -> str:
+    """The description for that display code, worded as a chance where it is one."""
+    if _is_rain_chance_only(code, precipitation_mm, precipitation_probability):
+        return RAIN_CHANCE_DESC
+    return _wmo_desc(_effective_display_code(code, precipitation_mm, precipitation_probability))
 
 
 def _most_severe_code(codes: Iterable[int | None]) -> int | None:
@@ -648,6 +696,14 @@ def scoring_metadata() -> dict[str, Any]:
             "codes_from": STALE_CODE_MIN,
             "min_probability_pct": CODE_ACTIVE_MIN_PROBABILITY,
             "min_amount_mm": CODE_ACTIVE_MIN_AMOUNT_MM,
+        },
+        # Above the stale rule: a rain code with a chance but nothing to measure
+        # is shown as possible showers, not as rain.
+        "rain_chance_rule": {
+            "codes": sorted(LIGHT_RAIN_CODES | HEAVY_RAIN_CODES),
+            "max_probability_pct": RAIN_CHANCE_MAX_PROBABILITY,
+            "max_amount_mm": CODE_ACTIVE_MIN_AMOUNT_MM,
+            "display_code": RAIN_CHANCE_CODE,
         },
         "hazards": {
             "storm": _hazard(STORM_CODES, STORM_PENALTY, STORM_CAP),
@@ -2855,7 +2911,7 @@ def _merge_current(
     if owm_current and not _downgraded and (metar_code is None or wxm_code is not None):
         description = owm_current["weather"][0].get("description", _wmo_desc(display_code)).capitalize()
     else:
-        description = _wmo_desc(display_code)
+        description = _display_description(effective_code, precipitation, score_probability)
     icon_emoji = _wmo_icon(display_code)
 
     # --- pressure (sea level: stations, OWM and MET report it; Open-Meteo's
@@ -3183,6 +3239,8 @@ def _build_hourly(om_data: dict, ensemble: dict[str, dict[str, Any]] | None = No
         frost_risk = _frost_risk(temp, road_temp, dew_point, precipitation, code)
         score = _moto_score(feels, gusts, precipitation, code, probability,
                             visibility_m=visibility, frost_risk=frost_risk)
+        # Scored on the model's own code, shown on the one the hour deserves.
+        display_code = _effective_display_code(code, precipitation, probability)
         result.append({
             "time": t,
             "temperature": temp,
@@ -3193,9 +3251,9 @@ def _build_hourly(om_data: dict, ensemble: dict[str, dict[str, Any]] | None = No
             "wind_speed_kmh": _blend_with_model_mean(_safe(hourly.get("wind_speed_10m"), i),
                                                      means.get("wind_speed_10m")),
             "wind_gusts_kmh": gusts,
-            "weather_code": code,
-            "icon": _wmo_icon(code),
-            "description": _wmo_desc(code),
+            "weather_code": display_code,
+            "icon": _wmo_icon(display_code),
+            "description": _display_description(code, precipitation, probability),
             "uv_index": _safe(hourly.get("uv_index"), i),
             "relative_humidity": humidity,
             "surface_pressure": _safe(hourly.get("surface_pressure"), i),
@@ -3494,9 +3552,9 @@ def _waypoint_snapshot(forecast: dict[str, Any] | None, eta_local: str) -> dict[
         "rain_intensity": _rain_intensity(prec),
         "wind_speed_kmh": _safe(hourly.get("wind_speed_10m"), best_idx),
         "wind_gusts_kmh": gusts,
-        "weather_code": code,
-        "icon": _wmo_icon(code),
-        "description": _wmo_desc(code),
+        "weather_code": _effective_display_code(code, prec, prec_prob),
+        "icon": _wmo_icon(_effective_display_code(code, prec, prec_prob)),
+        "description": _display_description(code, prec, prec_prob),
         "is_day": bool(is_day_raw) if is_day_raw is not None else None,
         "moto_score": score,
         "moto_label": _moto_label(score),
