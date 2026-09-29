@@ -31,6 +31,7 @@ import anm_nowcast
 import meteoalarm
 import metar
 import official_stations
+import calibration
 import rain_area
 import rain_fusion
 import verification
@@ -753,6 +754,8 @@ def scoring_metadata() -> dict[str, Any]:
             "min_probability_pct": CODE_ACTIVE_MIN_PROBABILITY,
             "min_amount_mm": CODE_ACTIVE_MIN_AMOUNT_MM,
         },
+        # What the verification log has taught us so far, and whether it has.
+        "calibration": calibration.current(rain_fusion.WEIGHTS).as_meta(),
         # Convective air makes showers on part of the area; a frontal deck rains
         # on everything. CAPE in J/kg, inhibition as an absolute value.
         "rain_character_rule": {
@@ -3415,6 +3418,12 @@ def _build_hourly(om_data: dict, ensemble: dict[str, dict[str, Any]] | None = No
     return result
 
 
+def _calibration_since() -> str:
+    """The oldest issue hour the calibration window reads, as the log stores it."""
+    start = datetime.now(timezone.utc) - timedelta(days=calibration.WINDOW_DAYS)
+    return start.strftime("%Y-%m-%dT%H")
+
+
 def _fuse_rain(
     hourly: list[dict],
     ensemble: dict[str, dict[str, Any]],
@@ -3424,6 +3433,7 @@ def _fuse_rain(
     owm_forecast: dict | None,
     met: dict | None,
     utc_offset_seconds: int,
+    learned: calibration.Snapshot | None = None,
 ) -> tuple[int | None, dict[str, dict[str, float]]]:
     """Give every hour the chance of rain all sources agree on, and rescore it, in place.
 
@@ -3433,7 +3443,13 @@ def _fuse_rain(
     percentile), which the app shows to explain the number. Returns how many
     ensemble runs answered (None without the ensembles) and, per hour, each
     source's own chance of rain (0-1), for the verification log.
+
+    ``learned`` carries what the verification log taught us: which sources to
+    trust more here, and how the fused percentage compares with what actually
+    happened. Without it the hand-set weights stand and the number is untouched.
     """
+    weights = learned.weights if learned else None
+    reliability = learned.reliability if learned else ()
     by_source = {
         "ensemble": rain_fusion.ensemble_votes(rain_ensemble),
         "pirate-weather": rain_fusion.pirate_votes(pirate, utc_offset_seconds),
@@ -3456,10 +3472,14 @@ def _fuse_rain(
             wet_models=models.get("wet_models", 0),
             rain_models=models.get("rain_models", 0),
             votes=votes,
+            weights=weights,
         )
         if fused is None:
             continue
-        hour["precipitation_probability"] = fused["probability"]
+        # What the log says hours like this one actually did.
+        hour["precipitation_probability"] = calibration.calibrated(
+            fused["probability"], reliability
+        )
         hour["rain_sources"] = {"wet": fused["wet_sources"], "total": fused["total_sources"]}
         hour["precipitation_range_mm"] = list(fused["range"]) if fused["range"] else None
         _rescore_hour(hour)
@@ -3974,9 +3994,12 @@ async def _collect_weather(
 
     ensemble = _ensemble_by_time(ens_raw)
     hourly = _build_hourly(om_data, ensemble)
+    learned = calibration.current(rain_fusion.WEIGHTS)
     rain_members, rain_by_source = _fuse_rain(hourly, ensemble, rain_ensemble=rain_ens_raw, pirate=pw_raw,
                                               owm_forecast=owm_forecast, met=met_raw,
-                                              utc_offset_seconds=utc_offset)
+                                              utc_offset_seconds=utc_offset, learned=learned)
+    # Off the request path: recomputed at most every few hours, in a thread.
+    calibration.refresh_soon(_calibration_since(), verification.RAIN_SOURCES, rain_fusion.WEIGHTS)
     _apply_rain_coverage(hourly, area_raw)
     current = _merge_current(om_data, owm_current, owm_air, om_air, met_norm, pw_norm,
                              wxm_norm, netatmo_norm, hourly=hourly,

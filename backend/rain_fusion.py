@@ -206,19 +206,28 @@ def fuse_hour(
     wet_models: int = 0,
     rain_models: int = 0,
     votes: dict[str, dict[str, Any] | None],
+    weights: dict[str, float] | None = None,
 ) -> dict[str, Any] | None:
     """One hour's chance of rain (0-100) and the tally of sources behind it.
 
     ``open_meteo_probability`` is in percent, as Open-Meteo gives it;
     ``votes`` maps a source name from WEIGHTS to that source's vote for the
-    hour (None when it has nothing). Returns None when no source says anything.
+    hour (None when it has nothing). ``weights`` overrides WEIGHTS, which is
+    how calibration.py hands over what the log learned; a name missing from it
+    falls back to its hand-set weight. Returns None when no source says
+    anything.
     """
+    live = weights or WEIGHTS
+
+    def weight_of(name: str) -> float:
+        return float(live.get(name, WEIGHTS[name]))
+
     weighted: list[tuple[float, float]] = []
     wet_sources = total_sources = 0
 
     def add(name: str, probability: float) -> None:
         nonlocal wet_sources, total_sources
-        weighted.append((probability, WEIGHTS[name]))
+        weighted.append((probability, weight_of(name)))
         total_sources += 1
         wet_sources += probability >= TALLY_WET_PROBABILITY
 
@@ -226,7 +235,7 @@ def fuse_hour(
         add("open-meteo", max(0.0, min(1.0, open_meteo_probability / 100)))
     if rain_models:
         # The models tally one by one: "4 of 6 models give rain" reads better than a share.
-        weighted.append((wet_models / rain_models, WEIGHTS["models"]))
+        weighted.append((wet_models / rain_models, weight_of("models")))
         total_sources += rain_models
         wet_sources += wet_models
     for name, vote in votes.items():
