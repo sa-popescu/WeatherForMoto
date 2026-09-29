@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { dailyScore, frostRisk, mapOpenMeteo, roadSurfaceTemp, scoreBreakdown, type OpenMeteoForecast, type ScoreInput } from '../../../lib/directWeather';
 import { addMinutesLocal } from '../../../lib/format';
 import { hours } from './testFixtures';
-import { codeToShow, rainChanceOnly } from '../../../lib/directWeather';
+import { codeToShow, rainChanceOnly, rainCharacter } from '../../../lib/directWeather';
 import type { DailyWeather } from '../../../lib/types';
 import { dayRainLine } from './dayRain';
 
@@ -156,6 +156,24 @@ describe('a chance of rain is not rain', () => {
 
   it('still drops a leftover code below the stale threshold', () => {
     expect(codeToShow(61, 0, 10)).toBe(3);
+  });
+});
+
+describe('the air says what kind of rain it would be', () => {
+  it('reads buoyant air as showers and a flat sky as steady rain', () => {
+    expect(rainCharacter(900, -10)).toBe('convective');
+    expect(rainCharacter(40, null)).toBe('frontal');
+    expect(rainCharacter(220, null)).toBeNull();
+    expect(rainCharacter(null, null)).toBeNull();
+  });
+
+  it('does not call it convective while a lid holds the air down', () => {
+    expect(rainCharacter(900, -200)).toBeNull();
+  });
+
+  it('shows rain from convective air as showers', () => {
+    expect(codeToShow(61, 1.5, 70, 'convective')).toBe(80);
+    expect(codeToShow(61, 1.5, 70, 'frontal')).toBe(61);
   });
 });
 

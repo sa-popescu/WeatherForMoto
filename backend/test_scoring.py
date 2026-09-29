@@ -311,6 +311,37 @@ class CurrentBlockTests(unittest.TestCase):
         self.assertEqual(current["weather_code"], ws.RAIN_CHANCE_CODE)
         self.assertEqual(current["description"], ws.RAIN_CHANCE_DESC)
 
+    def test_the_air_decides_what_kind_of_rain_it_would_be(self) -> None:
+        # Buoyant air makes showers on part of the area; a flat, frontal sky
+        # rains on all of it. The middle band is left unnamed.
+        self.assertEqual(ws._rain_character(900.0, -10.0), "convective")
+        self.assertEqual(ws._rain_character(40.0, None), "frontal")
+        self.assertIsNone(ws._rain_character(220.0, None))
+        self.assertIsNone(ws._rain_character(None, None))
+        # Energy with a lid on it stays energy: no showers.
+        self.assertIsNone(ws._rain_character(900.0, -200.0))
+
+    def test_the_chance_is_worded_by_character(self) -> None:
+        for cape, expected in ((900.0, "Posibile averse izolate"), (40.0, "Posibilă ploaie slabă")):
+            with self.subTest(cape=cape):
+                om = make_om_payload(
+                    precipitation_probability=with_value_at([0] * 48, CURRENT_HOUR_INDEX, 30),
+                    cape=[cape] * 48,
+                )
+                om["current"].update({"weather_code": 61, "precipitation": 0.0})
+                self.assertEqual(_merge_current(om, None, None)["description"], expected)
+
+    def test_rain_out_of_convective_air_is_shown_as_showers(self) -> None:
+        om = make_om_payload(
+            precipitation=with_value_at([0.0] * 48, CURRENT_HOUR_INDEX, 1.5),
+            precipitation_probability=with_value_at([0] * 48, CURRENT_HOUR_INDEX, 70),
+            cape=[900.0] * 48,
+        )
+        om["current"].update({"weather_code": 61, "precipitation": 1.5})
+        current = _merge_current(om, None, None)
+        self.assertEqual(current["weather_code"], 80)  # rain showers, not steady rain
+        self.assertEqual(current["rain_character"], "convective")
+
     def test_a_real_amount_is_still_called_rain(self) -> None:
         om = make_om_payload(
             precipitation=with_value_at([0.0] * 48, CURRENT_HOUR_INDEX, 0.8),

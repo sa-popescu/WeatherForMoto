@@ -2,7 +2,7 @@ import { currentHourIndex, localNowIso } from './format';
 import { getScoringMeta, rainBandOf, rainImpact, type ScoringMeta } from './scoring';
 import type { CurrentWeather, DailyWeather, HourlyWeather, MotoLabel, Place, RainBand, ScoreFactor, WeatherResponse } from './types';
 import type { Lang } from './i18n';
-import { describeCode, RAIN_CHANCE_DESCRIPTION } from './weatherCodes';
+import { describeCode, RAIN_CHANCE_BY_CHARACTER, RAIN_CHANCE_DESCRIPTION } from './weatherCodes';
 
 // Fallback used only when the backend does not answer: Open-Meteo is called
 // directly and scores are estimated in the browser with a simplified port of
@@ -15,7 +15,7 @@ const DIRECT_FORECAST_DAYS = 7;
 const CURRENT_FIELDS =
   'temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,surface_pressure,pressure_msl,visibility,is_day';
 const HOURLY_FIELDS =
-  'temperature_2m,apparent_temperature,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,uv_index,relative_humidity_2m,surface_pressure,pressure_msl,dew_point_2m,cloud_cover,visibility,is_day';
+  'temperature_2m,apparent_temperature,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,uv_index,relative_humidity_2m,surface_pressure,pressure_msl,dew_point_2m,cloud_cover,visibility,is_day,cape,convective_inhibition';
 const DAILY_FIELDS =
   'weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,sunrise,sunset';
 
@@ -38,6 +38,7 @@ interface MetaExtras {
   };
   stale_code_rule?: { codes_from: number; min_probability_pct: number; min_amount_mm: number };
   rain_chance_rule?: { codes: number[]; max_probability_pct: number; max_amount_mm: number; display_code: number };
+  rain_character_rule?: { convective_cape_min: number; frontal_cape_max: number; inhibition_max: number };
   hazards: Record<string, { visibility_tiers?: { below_m: number; penalty: number; cap: number }[] }>;
   daily?: { worst_hours_fraction: number; worst_hours_weight: number; hazard_factors: string[]; sustained_cap_fraction: number };
 }
@@ -86,11 +87,29 @@ export function rainChanceOnly(code: number | null, amount: number | null, proba
   return (amount ?? 0) < rule.max_amount_mm && probability <= rule.max_probability_pct;
 }
 
-/** The code to show: overcast when stale, showers when it is only a chance. */
-export function codeToShow(code: number | null, amount: number | null, probability: number | null): number | null {
+const CHARACTER_RULE = { convective_cape_min: 300, frontal_cape_max: 150, inhibition_max: 50 };
+const SHOWER_EQUIVALENT: Record<number, number> = { 61: 80, 63: 81, 65: 82 };
+
+/**
+ * What kind of rain the air would make: showers on part of the area
+ * (convective, buoyant) or steady rain on all of it (frontal). The middle band
+ * is left unnamed rather than guessed.
+ */
+export function rainCharacter(cape: number | null, inhibition: number | null): 'convective' | 'frontal' | null {
+  const rule = meta().rain_character_rule ?? CHARACTER_RULE;
+  if (cape == null) return null;
+  if (cape >= rule.convective_cape_min) {
+    return inhibition != null && Math.abs(inhibition) > rule.inhibition_max ? null : 'convective';
+  }
+  return cape <= rule.frontal_cape_max ? 'frontal' : null;
+}
+
+/** The code to show: overcast when stale, showers when it is only a chance or convective. */
+export function codeToShow(code: number | null, amount: number | null, probability: number | null, character: string | null = null): number | null {
   if (code == null) return code;
   if (codeIsStale(code, amount, probability)) return OVERCAST_CODE;
   if (rainChanceOnly(code, amount, probability)) return (meta().rain_chance_rule ?? CHANCE_RULE).display_code;
+  if (character === 'convective') return SHOWER_EQUIVALENT[code] ?? code;
   return code;
 }
 
@@ -283,9 +302,11 @@ const hourDisplayCode = (h: HourlyWeather): number | null =>
   codeToShow(h.weather_code, h.precipitation_mm, h.precipitation_probability);
 
 /** Description for a code, worded as a chance when that is all it is. */
-function describeWeather(code: number | null, amount: number | null, probability: number | null, lang: Lang = 'ro'): string {
-  if (rainChanceOnly(code, amount, probability)) return RAIN_CHANCE_DESCRIPTION[lang];
-  return describeCode(codeToShow(code, amount, probability), lang);
+function describeWeather(code: number | null, amount: number | null, probability: number | null, character: string | null = null, lang: Lang = 'ro'): string {
+  if (rainChanceOnly(code, amount, probability)) {
+    return (character && RAIN_CHANCE_BY_CHARACTER[lang][character]) || RAIN_CHANCE_DESCRIPTION[lang];
+  }
+  return describeCode(codeToShow(code, amount, probability, character), lang);
 }
 
 function buildHourly(raw: OpenMeteoForecast): HourlyWeather[] {
@@ -302,6 +323,7 @@ function buildHourly(raw: OpenMeteoForecast): HourlyWeather[] {
     const [rise, set] = sun.get(time.slice(0, 10)) ?? [null, null];
     const isDay = flag != null ? flag === 1 : rise && set ? time >= rise && time < set : null;
     const road = roadSurfaceTemp(temp, humidity, code, precip, isDay);
+    const character = rainCharacter(num(h.cape, i), num(h.convective_inhibition, i));
     const hour: HourlyWeather = {
       time,
       temperature: temp,
@@ -311,9 +333,10 @@ function buildHourly(raw: OpenMeteoForecast): HourlyWeather[] {
       rain_intensity: precip == null ? null : rainBandOf(precip),
       wind_speed_kmh: num(h.wind_speed_10m, i),
       wind_gusts_kmh: num(h.wind_gusts_10m, i),
-      weather_code: codeToShow(code, precip, num(h.precipitation_probability, i)),
+      weather_code: codeToShow(code, precip, num(h.precipitation_probability, i), character),
       icon: null,
-      description: describeWeather(code, precip, num(h.precipitation_probability, i)),
+      description: describeWeather(code, precip, num(h.precipitation_probability, i), character),
+      rain_character: character,
       uv_index: num(h.uv_index, i),
       relative_humidity: humidity,
       surface_pressure: num(h.surface_pressure, i),
@@ -357,7 +380,8 @@ function buildCurrent(raw: OpenMeteoForecast, row: HourlyWeather | undefined): C
   const isDay = flag != null ? flag === 1 : row?.is_day ?? null;
   const probability = row?.precipitation_probability ?? null;
   const rawCode = pick('weather_code', row?.weather_code);
-  const code = codeToShow(rawCode, precip, probability);
+  const character = row?.rain_character ?? null;
+  const code = codeToShow(rawCode, precip, probability, character);
   const dew = row?.dew_point_2m ?? dewPoint(temp, humidity);
   const road = roadSurfaceTemp(temp, humidity, code, precip, isDay);
   const frost = frostRisk(temp, road, dew, precip, code);
@@ -367,7 +391,7 @@ function buildCurrent(raw: OpenMeteoForecast, row: HourlyWeather | undefined): C
     temperature: temp, feels_like: feels, humidity, wind_speed_kmh: speed, wind_gusts_kmh: gusts,
     wind_direction_deg: dir, wind_direction: dir == null ? null : WIND_LABELS_RO[Math.round(dir / 45) % 8],
     beaufort: beaufort === -1 ? 12 : beaufort, precipitation_mm: precip, precipitation_probability: probability,
-    rain_intensity: precip == null ? null : rainBandOf(precip), weather_code: code, description: describeWeather(rawCode, precip, probability), icon: null,
+    rain_intensity: precip == null ? null : rainBandOf(precip), weather_code: code, description: describeWeather(rawCode, precip, probability, character), icon: null, rain_character: character,
     pressure_hpa: pick('pressure_msl', pick('surface_pressure', null)), visibility_km: visM == null ? null : round1(visM / 1000),
     aqi: null, pm10: null, pm2_5: null, ozone: null, eu_aqi: null, us_aqi: null, pollen_index: null,
     uv_index: row?.uv_index ?? null, is_day: isDay, dew_point: dew, frost_risk: frost, moto_score: score, moto_label: labelFor(score),

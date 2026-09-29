@@ -35,6 +35,7 @@
     "code_implied_intensity": { "light": "slaba", "heavy": "moderata" }
   },
   "stale_code_rule": { "codes_from": 51, "min_probability_pct": 20, "min_amount_mm": 0.1 },
+  "rain_character_rule": { "convective_cape_min": 300, "frontal_cape_max": 150, "inhibition_max": 50 },
   "rain_chance_rule": {
     "codes": [51, 53, 55, 61, 63, 65, 80, 81, 82],
     "max_probability_pct": 60,

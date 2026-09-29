@@ -124,9 +124,28 @@ CODE_ACTIVE_MIN_AMOUNT_MM = 0.1
 RAIN_CHANCE_MAX_PROBABILITY = 60
 # Sun behind a shower: the icon for a chance, not the steady-rain one.
 RAIN_CHANCE_CODE = 80
-# What that state is called. "Izolate" is the honest part: when it does fall,
-# it falls on part of the area, and often not on you.
-RAIN_CHANCE_DESC = "Posibile averse izolate"
+# What that state is called, once the air says what kind of rain it would be.
+# "Izolate" is the honest part of the convective one: when it does fall, it
+# falls on part of the area, and often not on you.
+RAIN_CHANCE_DESC = "Ploaie posibilă"
+RAIN_CHANCE_DESC_BY_CHARACTER: dict[str, str] = {
+    "convective": "Posibile averse izolate",
+    "frontal": "Posibilă ploaie slabă",
+}
+# Steady-rain codes and the shower code that says the same amount fell out of a
+# convective sky: the icon then matches what you would actually see.
+_SHOWER_EQUIVALENT: dict[int, int] = {61: 80, 63: 81, 65: 82}
+
+# --- Rain character: convective or frontal ---------------------------------
+# The same 40% means two different afternoons. Convective air (buoyant, high
+# CAPE) makes showers: short, heavy, and falling on part of the area, so it
+# rains 3 km away and not on you. A frontal deck makes steady light rain over
+# everything at once. CAPE in J/kg, from Open-Meteo's hourly fields.
+CONVECTIVE_CAPE_MIN = 300.0
+FRONTAL_CAPE_MAX = 150.0
+# Convection needs the lid off as well: strong inhibition keeps the air capped
+# whatever the CAPE says. Open-Meteo reports it as a negative number.
+CONVECTION_INHIBITION_MAX = 50.0
 
 # --- Rain: probability x intensity -----------------------------------------
 # Hourly amounts (mm/h) below this count as "none".
@@ -490,10 +509,30 @@ def _is_rain_chance_only(
     )
 
 
+def _rain_character(cape: float | None, inhibition: float | None) -> str | None:
+    """"convective", "frontal", or None when the air does not say.
+
+    Convective means showers you can ride around or wait out: they fall on part
+    of the area for twenty minutes. Frontal means everyone gets it, for hours.
+    The middle band is left unnamed rather than guessed.
+    """
+    if cape is None:
+        return None
+    if cape >= CONVECTIVE_CAPE_MIN:
+        # A strong cap holds the air down even with the energy there.
+        if inhibition is not None and abs(inhibition) > CONVECTION_INHIBITION_MAX:
+            return None
+        return "convective"
+    if cape <= FRONTAL_CAPE_MAX:
+        return "frontal"
+    return None
+
+
 def _effective_display_code(
     code: int | None,
     precipitation_mm: float | None,
     precipitation_probability: float | None = 0,
+    character: str | None = None,
 ) -> int | None:
     """Keep the displayed weather code consistent with the score's de-weight.
 
@@ -511,6 +550,9 @@ def _effective_display_code(
         return 3
     if _is_rain_chance_only(code, precipitation_mm, precipitation_probability):
         return RAIN_CHANCE_CODE
+    # Rain falling out of convective air is showers; the icon should say so.
+    if character == "convective":
+        return _SHOWER_EQUIVALENT.get(code, code)
     return code
 
 
@@ -518,11 +560,14 @@ def _display_description(
     code: int | None,
     precipitation_mm: float | None,
     precipitation_probability: float | None = 0,
+    character: str | None = None,
 ) -> str:
     """The description for that display code, worded as a chance where it is one."""
     if _is_rain_chance_only(code, precipitation_mm, precipitation_probability):
-        return RAIN_CHANCE_DESC
-    return _wmo_desc(_effective_display_code(code, precipitation_mm, precipitation_probability))
+        return RAIN_CHANCE_DESC_BY_CHARACTER.get(character or "", RAIN_CHANCE_DESC)
+    return _wmo_desc(
+        _effective_display_code(code, precipitation_mm, precipitation_probability, character)
+    )
 
 
 def _most_severe_code(codes: Iterable[int | None]) -> int | None:
@@ -696,6 +741,13 @@ def scoring_metadata() -> dict[str, Any]:
             "codes_from": STALE_CODE_MIN,
             "min_probability_pct": CODE_ACTIVE_MIN_PROBABILITY,
             "min_amount_mm": CODE_ACTIVE_MIN_AMOUNT_MM,
+        },
+        # Convective air makes showers on part of the area; a frontal deck rains
+        # on everything. CAPE in J/kg, inhibition as an absolute value.
+        "rain_character_rule": {
+            "convective_cape_min": CONVECTIVE_CAPE_MIN,
+            "frontal_cape_max": FRONTAL_CAPE_MAX,
+            "inhibition_max": CONVECTION_INHIBITION_MAX,
         },
         # Above the stale rule: a rain code with a chance but nothing to measure
         # is shown as possible showers, not as rain.
@@ -1574,7 +1626,7 @@ async def _fetch_openmeteo(
             "temperature_2m,apparent_temperature,precipitation_probability,"
             "precipitation,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,"
             "uv_index,relative_humidity_2m,surface_pressure,pressure_msl,dew_point_2m,"
-            "cloud_cover,visibility,is_day"
+            "cloud_cover,visibility,is_day,cape,convective_inhibition"
         ),
         "daily": (
             "weather_code,temperature_2m_max,temperature_2m_min,"
@@ -2905,13 +2957,19 @@ def _merge_current(
     effective_code = _first_not_none(wxm_code, metar_code, owm_code, om_code)
     # Downgrade a precip/storm code to overcast for DISPLAY when it isn't actually
     # precipitating, so the icon and description stay consistent with the score.
-    display_code = _effective_display_code(effective_code, precipitation, score_probability)
+    # The hour being lived already knows whether the air is convective.
+    character = current_hour.get("rain_character")
+    display_code = _effective_display_code(
+        effective_code, precipitation, score_probability, character
+    )
     _downgraded = display_code != effective_code
     # OWM's text describes its own code, so it is not used for an airport's.
     if owm_current and not _downgraded and (metar_code is None or wxm_code is not None):
         description = owm_current["weather"][0].get("description", _wmo_desc(display_code)).capitalize()
     else:
-        description = _display_description(effective_code, precipitation, score_probability)
+        description = _display_description(
+            effective_code, precipitation, score_probability, character
+        )
     icon_emoji = _wmo_icon(display_code)
 
     # --- pressure (sea level: stations, OWM and MET report it; Open-Meteo's
@@ -3001,6 +3059,7 @@ def _merge_current(
         "precipitation_mm": precipitation,
         "precipitation_probability": hour_probability,
         "rain_intensity": _rain_intensity(precipitation),
+        "rain_character": character,
         "weather_code": display_code,
         "description": description,
         "icon": icon_emoji,
@@ -3239,8 +3298,10 @@ def _build_hourly(om_data: dict, ensemble: dict[str, dict[str, Any]] | None = No
         frost_risk = _frost_risk(temp, road_temp, dew_point, precipitation, code)
         score = _moto_score(feels, gusts, precipitation, code, probability,
                             visibility_m=visibility, frost_risk=frost_risk)
+        character = _rain_character(_safe(hourly.get("cape"), i),
+                                    _safe(hourly.get("convective_inhibition"), i))
         # Scored on the model's own code, shown on the one the hour deserves.
-        display_code = _effective_display_code(code, precipitation, probability)
+        display_code = _effective_display_code(code, precipitation, probability, character)
         result.append({
             "time": t,
             "temperature": temp,
@@ -3253,7 +3314,8 @@ def _build_hourly(om_data: dict, ensemble: dict[str, dict[str, Any]] | None = No
             "wind_gusts_kmh": gusts,
             "weather_code": display_code,
             "icon": _wmo_icon(display_code),
-            "description": _display_description(code, precipitation, probability),
+            "description": _display_description(code, precipitation, probability, character),
+            "rain_character": character,
             "uv_index": _safe(hourly.get("uv_index"), i),
             "relative_humidity": humidity,
             "surface_pressure": _safe(hourly.get("surface_pressure"), i),
