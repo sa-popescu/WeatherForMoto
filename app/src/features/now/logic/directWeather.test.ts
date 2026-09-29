@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { dailyScore, frostRisk, mapOpenMeteo, roadSurfaceTemp, scoreBreakdown, type OpenMeteoForecast, type ScoreInput } from '../../../lib/directWeather';
 import { addMinutesLocal } from '../../../lib/format';
 import { hours } from './testFixtures';
+import { codeToShow, rainChanceOnly } from '../../../lib/directWeather';
+import type { DailyWeather } from '../../../lib/types';
+import { dayRainLine } from './dayRain';
 
 // The direct Open-Meteo fallback: local port of the backend scoring rules.
 
@@ -135,5 +138,42 @@ describe('mapOpenMeteo', () => {
   it('scores today from the daylight hours still ahead, with a sustained rain cap', () => {
     expect(data.daily[0]).toMatchObject({ date: '2026-09-11', moto_score: 59, precipitation_max_mm_h: 3.2, rain_intensity_max: 'moderata', weather_code: 63 });
     expect(data.daily[1]).toMatchObject({ moto_score: 100, sunset: '2026-09-12T19:31' });
+  });
+});
+
+describe('a chance of rain is not rain', () => {
+  it('reads a dry rain code with a middling chance as possible showers', () => {
+    expect(rainChanceOnly(61, 0, 20)).toBe(true);
+    expect(codeToShow(61, 0, 20)).toBe(80);
+  });
+
+  it('leaves a measured amount, a high chance and other phenomena alone', () => {
+    expect(rainChanceOnly(61, 0.8, 20)).toBe(false);
+    expect(rainChanceOnly(61, 0, 80)).toBe(false);
+    expect(rainChanceOnly(71, 0, 40)).toBe(false); // snow keeps its name
+    expect(codeToShow(61, 0, 80)).toBe(61);
+  });
+
+  it('still drops a leftover code below the stale threshold', () => {
+    expect(codeToShow(61, 0, 10)).toBe(3);
+  });
+});
+
+describe('dayRainLine', () => {
+  const day = (over: Partial<DailyWeather>): DailyWeather => ({
+    date: '2026-09-11', weather_code: 61, icon: null, description: '', temp_max: 20, temp_min: 10,
+    feels_max: 20, feels_min: 10, precipitation_mm: 0, precipitation_probability: null,
+    precipitation_max_mm_h: null, rain_intensity_max: null, wind_max_kmh: 10, wind_gusts_kmh: 20,
+    moto_score: 90, moto_label: 'OK', sunrise: null, sunset: null, ...over,
+  });
+
+  it('calls a chance without an amount possible showers, and does not mark the day wet', () => {
+    const line = dayRainLine(day({ precipitation_probability: 20 }), 'ro');
+    expect(line).toEqual({ text: '20% · posibile averse', wet: false });
+  });
+
+  it('still marks a day with a real amount as wet', () => {
+    const line = dayRainLine(day({ precipitation_probability: 70, rain_intensity_max: 'slaba', precipitation_max_mm_h: 1.2 }), 'ro');
+    expect(line.wet).toBe(true);
   });
 });

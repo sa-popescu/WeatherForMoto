@@ -1,7 +1,8 @@
 import { currentHourIndex, localNowIso } from './format';
 import { getScoringMeta, rainBandOf, rainImpact, type ScoringMeta } from './scoring';
 import type { CurrentWeather, DailyWeather, HourlyWeather, MotoLabel, Place, RainBand, ScoreFactor, WeatherResponse } from './types';
-import { describeCode } from './weatherCodes';
+import type { Lang } from './i18n';
+import { describeCode, RAIN_CHANCE_DESCRIPTION } from './weatherCodes';
 
 // Fallback used only when the backend does not answer: Open-Meteo is called
 // directly and scores are estimated in the browser with a simplified port of
@@ -36,6 +37,7 @@ interface MetaExtras {
     code_implied_intensity?: { light: RainBand; heavy: RainBand };
   };
   stale_code_rule?: { codes_from: number; min_probability_pct: number; min_amount_mm: number };
+  rain_chance_rule?: { codes: number[]; max_probability_pct: number; max_amount_mm: number; display_code: number };
   hazards: Record<string, { visibility_tiers?: { below_m: number; penalty: number; cap: number }[] }>;
   daily?: { worst_hours_fraction: number; worst_hours_weight: number; hazard_factors: string[]; sustained_cap_fraction: number };
 }
@@ -69,6 +71,27 @@ export function codeIsStale(code: number | null, amount: number | null, probabil
   const rule = meta().stale_code_rule ?? { codes_from: 51, min_probability_pct: 20, min_amount_mm: 0.1 };
   if (code == null || code < rule.codes_from || probability == null) return false;
   return probability < rule.min_probability_pct && (amount ?? 0) < rule.min_amount_mm;
+}
+
+const CHANCE_RULE = { codes: [51, 53, 55, 61, 63, 65, 80, 81, 82], max_probability_pct: 60, max_amount_mm: 0.1, display_code: 80 };
+
+/**
+ * A rain code carrying a chance and no amount: possible showers, not rain.
+ * Above the stale rule and up to the ceiling the models are saying it could
+ * rain somewhere around here, which is not the same as "it rains".
+ */
+export function rainChanceOnly(code: number | null, amount: number | null, probability: number | null): boolean {
+  const rule = meta().rain_chance_rule ?? CHANCE_RULE;
+  if (code == null || probability == null || !rule.codes.includes(code)) return false;
+  return (amount ?? 0) < rule.max_amount_mm && probability <= rule.max_probability_pct;
+}
+
+/** The code to show: overcast when stale, showers when it is only a chance. */
+export function codeToShow(code: number | null, amount: number | null, probability: number | null): number | null {
+  if (code == null) return code;
+  if (codeIsStale(code, amount, probability)) return OVERCAST_CODE;
+  if (rainChanceOnly(code, amount, probability)) return (meta().rain_chance_rule ?? CHANCE_RULE).display_code;
+  return code;
 }
 
 function rainFactor(amount: number | null, probability: number | null, code: number | null): ScoreFactor | null {
@@ -256,8 +279,14 @@ const str = (series: Series, i: number): string | null => {
   return typeof v === 'string' ? v : null;
 };
 const round1 = (v: number): number => Math.round(v * 10) / 10;
-const displayCode = (h: HourlyWeather): number | null =>
-  h.weather_code != null && codeIsStale(h.weather_code, h.precipitation_mm, h.precipitation_probability) ? OVERCAST_CODE : h.weather_code;
+const hourDisplayCode = (h: HourlyWeather): number | null =>
+  codeToShow(h.weather_code, h.precipitation_mm, h.precipitation_probability);
+
+/** Description for a code, worded as a chance when that is all it is. */
+function describeWeather(code: number | null, amount: number | null, probability: number | null, lang: Lang = 'ro'): string {
+  if (rainChanceOnly(code, amount, probability)) return RAIN_CHANCE_DESCRIPTION[lang];
+  return describeCode(codeToShow(code, amount, probability), lang);
+}
 
 function buildHourly(raw: OpenMeteoForecast): HourlyWeather[] {
   const h = raw.hourly ?? {};
@@ -282,9 +311,9 @@ function buildHourly(raw: OpenMeteoForecast): HourlyWeather[] {
       rain_intensity: precip == null ? null : rainBandOf(precip),
       wind_speed_kmh: num(h.wind_speed_10m, i),
       wind_gusts_kmh: num(h.wind_gusts_10m, i),
-      weather_code: code,
+      weather_code: codeToShow(code, precip, num(h.precipitation_probability, i)),
       icon: null,
-      description: describeCode(code, 'ro'),
+      description: describeWeather(code, precip, num(h.precipitation_probability, i)),
       uv_index: num(h.uv_index, i),
       relative_humidity: humidity,
       surface_pressure: num(h.surface_pressure, i),
@@ -328,7 +357,7 @@ function buildCurrent(raw: OpenMeteoForecast, row: HourlyWeather | undefined): C
   const isDay = flag != null ? flag === 1 : row?.is_day ?? null;
   const probability = row?.precipitation_probability ?? null;
   const rawCode = pick('weather_code', row?.weather_code);
-  const code = rawCode != null && codeIsStale(rawCode, precip, probability) ? OVERCAST_CODE : rawCode;
+  const code = codeToShow(rawCode, precip, probability);
   const dew = row?.dew_point_2m ?? dewPoint(temp, humidity);
   const road = roadSurfaceTemp(temp, humidity, code, precip, isDay);
   const frost = frostRisk(temp, road, dew, precip, code);
@@ -338,7 +367,7 @@ function buildCurrent(raw: OpenMeteoForecast, row: HourlyWeather | undefined): C
     temperature: temp, feels_like: feels, humidity, wind_speed_kmh: speed, wind_gusts_kmh: gusts,
     wind_direction_deg: dir, wind_direction: dir == null ? null : WIND_LABELS_RO[Math.round(dir / 45) % 8],
     beaufort: beaufort === -1 ? 12 : beaufort, precipitation_mm: precip, precipitation_probability: probability,
-    rain_intensity: precip == null ? null : rainBandOf(precip), weather_code: code, description: describeCode(code, 'ro'), icon: null,
+    rain_intensity: precip == null ? null : rainBandOf(precip), weather_code: code, description: describeWeather(rawCode, precip, probability), icon: null,
     pressure_hpa: pick('pressure_msl', pick('surface_pressure', null)), visibility_km: visM == null ? null : round1(visM / 1000),
     aqi: null, pm10: null, pm2_5: null, ozone: null, eu_aqi: null, us_aqi: null, pollen_index: null,
     uv_index: row?.uv_index ?? null, is_day: isDay, dew_point: dew, frost_risk: frost, moto_score: score, moto_label: labelFor(score),
@@ -355,7 +384,7 @@ function buildDaily(raw: OpenMeteoForecast, hourly: HourlyWeather[], nowLocal: s
     const score = dailyScore(riding);
     const amounts = dayHours.map((h) => h.precipitation_mm).filter((v): v is number => v != null);
     const maxMm = amounts.length ? round1(Math.max(...amounts)) : null;
-    const codes = riding.filter((h) => h.is_day).map(displayCode).filter((c): c is number => c != null);
+    const codes = riding.filter((h) => h.is_day).map(hourDisplayCode).filter((c): c is number => c != null);
     const code = codes.length ? codes.reduce((a, b) => (CODE_SEVERITY.indexOf(b) > CODE_SEVERITY.indexOf(a) ? b : a)) : num(d.weather_code, i);
     return {
       date, weather_code: code, icon: null, description: describeCode(code, 'ro'),

@@ -35,6 +35,12 @@
     "code_implied_intensity": { "light": "slaba", "heavy": "moderata" }
   },
   "stale_code_rule": { "codes_from": 51, "min_probability_pct": 20, "min_amount_mm": 0.1 },
+  "rain_chance_rule": {
+    "codes": [51, 53, 55, 61, 63, 65, 80, 81, 82],
+    "max_probability_pct": 60,
+    "max_amount_mm": 0.1,
+    "display_code": 80
+  },
   "hazards": {
     "storm": { "codes": [95, 96, 99], "penalty": 40, "cap": 39 },
     "snow": { "codes": [71, 73, 75, 77, 85, 86], "penalty": 45, "cap": 30 },
