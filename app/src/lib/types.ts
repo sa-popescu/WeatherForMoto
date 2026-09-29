@@ -34,6 +34,8 @@ export interface CurrentWeather {
   precipitation_mm: number | null;
   precipitation_probability: number | null;
   rain_intensity: RainBand | null;
+  /** "convective" (showers on part of the area) or "frontal" (rain on all of it). */
+  rain_character?: 'convective' | 'frontal' | null;
   weather_code: number | null;
   description: string | null;
   icon: string | null;
@@ -88,6 +90,8 @@ export interface HourlyWeather {
   precipitation_mm: number | null;
   precipitation_probability: number | null;
   rain_intensity: RainBand | null;
+  /** "convective" (showers on part of the area) or "frontal" (rain on all of it). */
+  rain_character?: 'convective' | 'frontal' | null;
   wind_speed_kmh: number | null;
   wind_gusts_kmh: number | null;
   weather_code: number | null;

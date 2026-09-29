@@ -37,8 +37,14 @@ export function iconKeyFor(code: number | null | undefined, isDay: boolean | nul
  * honest part: when it does fall it falls on part of the area, often not on you.
  */
 export const RAIN_CHANCE_DESCRIPTION: Record<Lang, string> = {
-  ro: 'Posibile averse izolate',
-  en: 'Isolated showers possible',
+  ro: 'Ploaie posibilă',
+  en: 'Rain possible',
+};
+
+/** The same chance, said properly once the air says what kind of rain it would be. */
+export const RAIN_CHANCE_BY_CHARACTER: Record<Lang, Record<string, string>> = {
+  ro: { convective: 'Posibile averse izolate', frontal: 'Posibilă ploaie slabă' },
+  en: { convective: 'Isolated showers possible', frontal: 'Light rain possible' },
 };
 
 const DESCRIPTIONS: Record<number, [ro: string, en: string]> = {
