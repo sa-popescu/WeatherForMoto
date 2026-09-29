@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { dailyScore, frostRisk, mapOpenMeteo, roadSurfaceTemp, scoreBreakdown, type OpenMeteoForecast, type ScoreInput } from '../../../lib/directWeather';
 import { addMinutesLocal } from '../../../lib/format';
 import { hours } from './testFixtures';
-import { codeToShow, rainChanceOnly, rainCharacter } from '../../../lib/directWeather';
+import { codeToShow, describeHour, rainChanceOnly, rainCharacter } from '../../../lib/directWeather';
 import type { DailyWeather } from '../../../lib/types';
 import { dayRainLine } from './dayRain';
 
@@ -174,6 +174,28 @@ describe('the air says what kind of rain it would be', () => {
   it('shows rain from convective air as showers', () => {
     expect(codeToShow(61, 1.5, 70, 'convective')).toBe(80);
     expect(codeToShow(61, 1.5, 70, 'frontal')).toBe(61);
+  });
+});
+
+describe('describeHour', () => {
+  const chance = { weather_code: 80, precipitation_mm: 0, precipitation_probability: 30 };
+
+  it('prefers the measured coverage over the inferred character', () => {
+    expect(describeHour({ ...chance, rain_extent: 'scattered', rain_character: 'frontal' }, 'ro')).toBe('Posibile averse pe alocuri');
+    expect(describeHour({ ...chance, rain_extent: 'widespread' }, 'ro')).toBe('Posibilă ploaie slabă');
+  });
+
+  it('falls back to the character, then to the neutral wording', () => {
+    expect(describeHour({ ...chance, rain_character: 'convective' }, 'ro')).toBe('Posibile averse izolate');
+    expect(describeHour(chance, 'ro')).toBe('Ploaie posibilă');
+  });
+
+  it('says it in English too, which printing the API text could not', () => {
+    expect(describeHour({ ...chance, rain_extent: 'scattered' }, 'en')).toBe('Scattered showers possible');
+  });
+
+  it('leaves an hour that really is wet to the plain code description', () => {
+    expect(describeHour({ weather_code: 63, precipitation_mm: 3, precipitation_probability: 90 }, 'ro')).toBe('Ploaie');
   });
 });
 
