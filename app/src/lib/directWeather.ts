@@ -2,7 +2,7 @@ import { currentHourIndex, localNowIso } from './format';
 import { getScoringMeta, rainBandOf, rainImpact, type ScoringMeta } from './scoring';
 import type { CurrentWeather, DailyWeather, HourlyWeather, MotoLabel, Place, RainBand, ScoreFactor, WeatherResponse } from './types';
 import type { Lang } from './i18n';
-import { describeCode, RAIN_CHANCE_BY_CHARACTER, RAIN_CHANCE_DESCRIPTION } from './weatherCodes';
+import { describeCode, RAIN_CHANCE_BY_CHARACTER, RAIN_CHANCE_BY_EXTENT, RAIN_CHANCE_DESCRIPTION } from './weatherCodes';
 
 // Fallback used only when the backend does not answer: Open-Meteo is called
 // directly and scores are estimated in the browser with a simplified port of
@@ -302,11 +302,44 @@ const hourDisplayCode = (h: HourlyWeather): number | null =>
   codeToShow(h.weather_code, h.precipitation_mm, h.precipitation_probability);
 
 /** Description for a code, worded as a chance when that is all it is. */
-function describeWeather(code: number | null, amount: number | null, probability: number | null, character: string | null = null, lang: Lang = 'ro'): string {
+function describeWeather(
+  code: number | null,
+  amount: number | null,
+  probability: number | null,
+  character: string | null = null,
+  extent: string | null = null,
+  lang: Lang = 'ro',
+): string {
   if (rainChanceOnly(code, amount, probability)) {
-    return (character && RAIN_CHANCE_BY_CHARACTER[lang][character]) || RAIN_CHANCE_DESCRIPTION[lang];
+    return (
+      (extent && RAIN_CHANCE_BY_EXTENT[lang][extent]) ||
+      (character && RAIN_CHANCE_BY_CHARACTER[lang][character]) ||
+      RAIN_CHANCE_DESCRIPTION[lang]
+    );
   }
   return describeCode(codeToShow(code, amount, probability, character), lang);
+}
+
+/**
+ * What to write under an hour (or a day's hour), in the reader's language.
+ *
+ * The screen cannot just print the API's `description`: that text is Romanian
+ * only. So the same rules are applied here to the fields the API sends, which
+ * keeps "Posibile averse pe alocuri" and its English twin in step.
+ */
+export function describeHour(
+  hour: Pick<HourlyWeather, 'weather_code' | 'precipitation_mm' | 'precipitation_probability'> &
+    { rain_character?: string | null; rain_extent?: string | null },
+  lang: Lang,
+): string {
+  return describeWeather(
+    hour.weather_code,
+    hour.precipitation_mm,
+    hour.precipitation_probability,
+    hour.rain_character ?? null,
+    hour.rain_extent ?? null,
+    lang,
+  );
 }
 
 function buildHourly(raw: OpenMeteoForecast): HourlyWeather[] {

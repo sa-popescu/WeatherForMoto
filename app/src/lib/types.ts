@@ -36,6 +36,10 @@ export interface CurrentWeather {
   rain_intensity: RainBand | null;
   /** "convective" (showers on part of the area) or "frontal" (rain on all of it). */
   rain_character?: 'convective' | 'frontal' | null;
+  /** Share of the ring around the point that sees rain that hour, 0 to 1. */
+  rain_coverage?: number | null;
+  /** That share, named: isolated, scattered or widespread. */
+  rain_extent?: 'isolated' | 'scattered' | 'widespread' | null;
   weather_code: number | null;
   description: string | null;
   icon: string | null;
@@ -92,6 +96,10 @@ export interface HourlyWeather {
   rain_intensity: RainBand | null;
   /** "convective" (showers on part of the area) or "frontal" (rain on all of it). */
   rain_character?: 'convective' | 'frontal' | null;
+  /** Share of the ring around the point that sees rain that hour, 0 to 1. */
+  rain_coverage?: number | null;
+  /** That share, named: isolated, scattered or widespread. */
+  rain_extent?: 'isolated' | 'scattered' | 'widespread' | null;
   wind_speed_kmh: number | null;
   wind_gusts_kmh: number | null;
   weather_code: number | null;

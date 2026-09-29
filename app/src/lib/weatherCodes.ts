@@ -47,6 +47,20 @@ export const RAIN_CHANCE_BY_CHARACTER: Record<Lang, Record<string, string>> = {
   en: { convective: 'Isolated showers possible', frontal: 'Light rain possible' },
 };
 
+/** Said better still when the ring around you has been sampled: how much of it gets wet. */
+export const RAIN_CHANCE_BY_EXTENT: Record<Lang, Record<string, string>> = {
+  ro: {
+    isolated: 'Posibile averse izolate',
+    scattered: 'Posibile averse pe alocuri',
+    widespread: 'Posibilă ploaie slabă',
+  },
+  en: {
+    isolated: 'Isolated showers possible',
+    scattered: 'Scattered showers possible',
+    widespread: 'Light rain possible',
+  },
+};
+
 const DESCRIPTIONS: Record<number, [ro: string, en: string]> = {
   0: ['Senin', 'Clear sky'],
   1: ['Predominant senin', 'Mainly clear'],

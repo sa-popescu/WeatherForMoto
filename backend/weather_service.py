@@ -31,6 +31,7 @@ import anm_nowcast
 import meteoalarm
 import metar
 import official_stations
+import rain_area
 import rain_fusion
 import verification
 
@@ -131,6 +132,13 @@ RAIN_CHANCE_DESC = "Ploaie posibilă"
 RAIN_CHANCE_DESC_BY_CHARACTER: dict[str, str] = {
     "convective": "Posibile averse izolate",
     "frontal": "Posibilă ploaie slabă",
+}
+# Measured coverage beats inferred character: CAPE says what kind of rain the
+# air would make, the ring around you says how much of it would get wet.
+RAIN_CHANCE_DESC_BY_EXTENT: dict[str, str] = {
+    rain_area.EXTENT_ISOLATED: "Posibile averse izolate",
+    rain_area.EXTENT_SCATTERED: "Posibile averse pe alocuri",
+    rain_area.EXTENT_WIDESPREAD: "Posibilă ploaie slabă",
 }
 # Steady-rain codes and the shower code that says the same amount fell out of a
 # convective sky: the icon then matches what you would actually see.
@@ -561,9 +569,12 @@ def _display_description(
     precipitation_mm: float | None,
     precipitation_probability: float | None = 0,
     character: str | None = None,
+    extent: str | None = None,
 ) -> str:
     """The description for that display code, worded as a chance where it is one."""
     if _is_rain_chance_only(code, precipitation_mm, precipitation_probability):
+        if extent:
+            return RAIN_CHANCE_DESC_BY_EXTENT.get(extent, RAIN_CHANCE_DESC)
         return RAIN_CHANCE_DESC_BY_CHARACTER.get(character or "", RAIN_CHANCE_DESC)
     return _wmo_desc(
         _effective_display_code(code, precipitation_mm, precipitation_probability, character)
@@ -1149,6 +1160,10 @@ TTL_PIRATE_S = 30 * 60
 TTL_ENSEMBLE_S = 30 * 60
 # Ensemble systems run every 6-12 hours; an hour-old answer is as good as a new one.
 TTL_RAIN_ENSEMBLE_S = 60 * 60
+# The shape of a rain area moves slower than its timing.
+TTL_RAIN_AREA_S = 30 * 60
+# Coverage is only used for the wording of the next couple of days.
+RAIN_AREA_DAYS = 2
 # Ensemble runs beyond a week add size, not skill, to a riding forecast.
 RAIN_ENSEMBLE_MAX_DAYS = 7
 TTL_METEOALARM_S = 10 * 60
@@ -1762,6 +1777,38 @@ async def _fetch_openmeteo_ensemble(
         return data
     except (httpx.HTTPError, ValueError) as exc:
         logger.warning("Open-Meteo ensemble fetch failed: %s", _describe_error(exc))
+        return None
+
+
+async def _fetch_rain_area(
+    lat: float, lon: float, client: httpx.AsyncClient
+) -> Any | None:
+    """Hourly rain at the centre and on a ring around it, in one request.
+
+    One call carries every coordinate, so the cost is a single round trip. Only
+    precipitation is asked for, and only the days the wording needs.
+    """
+    points = rain_area.ring_points(lat, lon)
+    params = {
+        "latitude": ",".join(f"{p[0]}" for p in points),
+        "longitude": ",".join(f"{p[1]}" for p in points),
+        "hourly": "precipitation",
+        # The same clock as the main forecast: every point is within 15 km, so
+        # they share a timezone and the hour keys line up with the series.
+        "timezone": "auto",
+        "forecast_days": RAIN_AREA_DAYS,
+    }
+    try:
+        resp = await client.get(OPENMETEO_BASE, params=params,
+                                timeout=OPTIONAL_PROVIDER_HTTP_TIMEOUT_S)
+        resp.raise_for_status()
+        data = resp.json()
+        if isinstance(data, dict) and data.get("error"):
+            logger.warning("Open-Meteo rain area error: %s", data.get("reason", "unknown error"))
+            return None
+        return data
+    except (httpx.HTTPError, ValueError) as exc:
+        logger.warning("Open-Meteo rain area fetch failed: %s", _describe_error(exc))
         return None
 
 
@@ -2638,6 +2685,33 @@ _CURRENT_HOUR_FIELDS: tuple[str, ...] = (
 )
 
 
+def _apply_rain_coverage(hourly: list[dict], area_raw: Any | None) -> None:
+    """Attach how much of the area each hour's rain covers, and say it, in place.
+
+    Runs before the current block is merged, so the hour being lived can hand
+    its extent to the gauge's own wording.
+    """
+    if not area_raw:
+        return
+    coverage = rain_area.coverage_by_time(area_raw)
+    if not coverage:
+        return
+    for hour in hourly:
+        share = coverage.get(str(hour.get("time")))
+        if share is None:
+            continue
+        extent = rain_area.extent(share)
+        hour["rain_coverage"] = share
+        hour["rain_extent"] = extent
+        hour["description"] = _display_description(
+            hour.get("weather_code"),
+            hour.get("precipitation_mm"),
+            hour.get("precipitation_probability"),
+            hour.get("rain_character"),
+            extent,
+        )
+
+
 def _sync_current_hour(om_data: dict, hourly: list[dict], current: dict) -> None:
     """Give the hour being lived the measured conditions, in place.
 
@@ -2959,6 +3033,7 @@ def _merge_current(
     # precipitating, so the icon and description stay consistent with the score.
     # The hour being lived already knows whether the air is convective.
     character = current_hour.get("rain_character")
+    extent = current_hour.get("rain_extent")
     display_code = _effective_display_code(
         effective_code, precipitation, score_probability, character
     )
@@ -2968,7 +3043,7 @@ def _merge_current(
         description = owm_current["weather"][0].get("description", _wmo_desc(display_code)).capitalize()
     else:
         description = _display_description(
-            effective_code, precipitation, score_probability, character
+            effective_code, precipitation, score_probability, character, extent
         )
     icon_emoji = _wmo_icon(display_code)
 
@@ -3060,6 +3135,8 @@ def _merge_current(
         "precipitation_probability": hour_probability,
         "rain_intensity": _rain_intensity(precipitation),
         "rain_character": character,
+        "rain_coverage": current_hour.get("rain_coverage"),
+        "rain_extent": extent,
         "weather_code": display_code,
         "description": description,
         "icon": icon_emoji,
@@ -3837,7 +3914,7 @@ async def _collect_weather(
     days = min(max(int(forecast_days), 1), 16)
     cell = _coord_key(lat, lon)
     async with http_client_scope() as client:
-        (om_data, ens_raw, rain_ens_raw, owm_current, owm_forecast, owm_air, om_air, met_raw, pw_raw,
+        (om_data, ens_raw, rain_ens_raw, area_raw, owm_current, owm_forecast, owm_air, om_air, met_raw, pw_raw,
          wxm_raw, netatmo_raw, meteoalarm_feed, stations_raw, metar_raw, nowcast_feed) = await asyncio.gather(
             _forecast_cache.get_or_fetch(
                 ("open-meteo", cell, days),
@@ -3850,6 +3927,8 @@ async def _collect_weather(
             _cached_optional("Open-Meteo rain ensemble", ("rain-ensemble", cell, days), _with_ttl(
                 lambda: _fetch_rain_ensemble(lat, lon, client, forecast_days=days),
                 TTL_RAIN_ENSEMBLE_S)),
+            _cached_optional("Open-Meteo rain area", ("rain-area", cell), _with_ttl(
+                lambda: _fetch_rain_area(lat, lon, client), TTL_RAIN_AREA_S)),
             _cached_optional("OWM current", ("owm-current", cell), _with_ttl(
                 lambda: _fetch_owm_current(lat, lon, owm_api_key, client), TTL_OWM_S)),
             _cached_optional("OWM forecast", ("owm-forecast", cell), _with_ttl(
@@ -3898,6 +3977,7 @@ async def _collect_weather(
     rain_members, rain_by_source = _fuse_rain(hourly, ensemble, rain_ensemble=rain_ens_raw, pirate=pw_raw,
                                               owm_forecast=owm_forecast, met=met_raw,
                                               utc_offset_seconds=utc_offset)
+    _apply_rain_coverage(hourly, area_raw)
     current = _merge_current(om_data, owm_current, owm_air, om_air, met_norm, pw_norm,
                              wxm_norm, netatmo_norm, hourly=hourly,
                              official_norm=official_norm, metar_obs=metar_obs)

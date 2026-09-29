@@ -1,11 +1,11 @@
 import { useMemo } from 'react';
 import { CORE } from '../../../i18n/core';
-import { scoreHour } from '../../../lib/directWeather';
+import { describeHour, scoreHour } from '../../../lib/directWeather';
 import { fmtMm, fmtNumber, fmtTemp } from '../../../lib/format';
 import { fmt, pick, useLang, useStrings } from '../../../lib/i18n';
 import { rainBandOf, tierColor, tierOf } from '../../../lib/scoring';
 import type { HourlyWeather } from '../../../lib/types';
-import { describeCode } from '../../../lib/weatherCodes';
+
 import { Sheet } from '../../../ui/Sheet';
 import { WeatherIcon } from '../../../ui/WeatherIcon';
 import { cx } from '../../../ui/primitives';
@@ -66,7 +66,7 @@ export function HourSheet({ hour, nowIso, onClose }: { hour: HourlyWeather; nowI
           </span>
           <span className="now-hour__desc">
             <WeatherIcon code={hour.weather_code} isDay={hour.is_day} size={24} />
-            {describeCode(hour.weather_code, lang)}
+            {describeHour(hour, lang)}
           </span>
         </span>
       </div>

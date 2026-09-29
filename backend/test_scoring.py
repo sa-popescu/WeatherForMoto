@@ -59,6 +59,11 @@ def is_ensemble_request(request: httpx.Request) -> bool:
     """The ensemble call is the Open-Meteo forecast asked for several models."""
     return b"models=" in request.url.query
 
+
+def is_area_request(request: httpx.Request) -> bool:
+    """The rain-area call carries a whole ring of coordinates in one request."""
+    return "," in request.url.params.get("latitude", "")
+
 def make_om_payload(now_local: datetime = FIXED_NOW, hours: int = 48, **hourly_overrides: Any) -> dict:
     """Open-Meteo-shaped payload: dry, mild, breezy; hourly from 00:00 of now_local's day."""
     start = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -320,6 +325,37 @@ class CurrentBlockTests(unittest.TestCase):
         self.assertIsNone(ws._rain_character(None, None))
         # Energy with a lid on it stays energy: no showers.
         self.assertIsNone(ws._rain_character(900.0, -200.0))
+
+    def test_measured_coverage_says_it_better_than_the_air_does(self) -> None:
+        # Half the ring wet: showers "pe alocuri", whatever CAPE thinks.
+        om = make_om_payload(
+            precipitation_probability=with_value_at([0] * 48, CURRENT_HOUR_INDEX, 30),
+            weather_code=with_value_at([1] * 48, CURRENT_HOUR_INDEX, 61),
+            cape=[40.0] * 48,  # frontal air, which alone would say "ploaie slabă"
+        )
+        om["current"].update({"weather_code": 61, "precipitation": 0.0})
+        hourly = _build_hourly(om)
+        hour_time = hourly[CURRENT_HOUR_INDEX]["time"]
+        area = [
+            {"hourly": {"time": [hour_time], "precipitation": [amount]}}
+            for amount in (1.0, 1.0, 0.0, 0.0)
+        ]
+        ws._apply_rain_coverage(hourly, area)
+        self.assertEqual(hourly[CURRENT_HOUR_INDEX]["rain_coverage"], 0.5)
+        self.assertEqual(hourly[CURRENT_HOUR_INDEX]["rain_extent"], "scattered")
+        self.assertEqual(hourly[CURRENT_HOUR_INDEX]["description"], "Posibile averse pe alocuri")
+
+        current = _merge_current(om, None, None, hourly=hourly)
+        self.assertEqual(current["description"], "Posibile averse pe alocuri")
+        self.assertEqual(current["rain_extent"], "scattered")
+
+    def test_no_area_answer_leaves_the_hours_as_they_were(self) -> None:
+        om = make_om_payload(precipitation_probability=with_value_at([0] * 48, CURRENT_HOUR_INDEX, 30))
+        hourly = _build_hourly(om)
+        before = [dict(h) for h in hourly]
+        ws._apply_rain_coverage(hourly, None)
+        ws._apply_rain_coverage(hourly, [])
+        self.assertEqual(hourly, before)
 
     def test_the_chance_is_worded_by_character(self) -> None:
         for cape, expected in ((900.0, "Posibile averse izolate"), (40.0, "Posibilă ploaie slabă")):
@@ -783,7 +819,7 @@ class NetworkTests(unittest.IsolatedAsyncioTestCase):
 
         async def handler(request: httpx.Request) -> httpx.Response:
             if request.url.host == "api.open-meteo.com":
-                if is_ensemble_request(request):
+                if is_ensemble_request(request) or is_area_request(request):
                     return httpx.Response(200, json={"hourly": {"time": []}})
                 self.count("om")
                 if self.calls["om"] == 1:
@@ -802,7 +838,10 @@ class NetworkTests(unittest.IsolatedAsyncioTestCase):
 
         async def handler(request: httpx.Request) -> httpx.Response:
             if request.url.host == "api.open-meteo.com":
-                self.count("ensemble" if is_ensemble_request(request) else "om")
+                if is_area_request(request):
+                    self.count("area")
+                else:
+                    self.count("ensemble" if is_ensemble_request(request) else "om")
                 await asyncio.sleep(0.1)
                 return httpx.Response(200, json=payload)
             return httpx.Response(404, json={})
@@ -816,6 +855,8 @@ class NetworkTests(unittest.IsolatedAsyncioTestCase):
             await ws.get_weather(44.43, 26.10, "C", "", forecast_days=2)
         self.assertEqual(self.calls["om"], 1)
         self.assertEqual(self.calls["ensemble"], 1)
+        # The ring around the cell is fetched once for the cell as well.
+        self.assertEqual(self.calls["area"], 1)
 
     async def test_cache_single_flight_ttl_and_bound(self) -> None:
         cache = ws._TTLCache("test", max_entries=2)

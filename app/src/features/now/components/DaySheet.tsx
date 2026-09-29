@@ -2,6 +2,7 @@ import { dayMonth, dayName, fmtMm, fmtNumber, fmtTemp, hourOf } from '../../../l
 import { fmt, useLang, useStrings } from '../../../lib/i18n';
 import { rainBandOf, tierColor } from '../../../lib/scoring';
 import type { DailyWeather, HourlyWeather } from '../../../lib/types';
+import { describeHour } from '../../../lib/directWeather';
 import { describeCode } from '../../../lib/weatherCodes';
 import { Sheet } from '../../../ui/Sheet';
 import { WeatherIcon } from '../../../ui/WeatherIcon';
@@ -72,7 +73,7 @@ function HourTable({ hours }: { hours: HourlyWeather[] }) {
                   {hourOf(h.time)}
                 </th>
                 <td>
-                  <WeatherIcon code={h.weather_code} isDay={h.is_day} size={22} title={describeCode(h.weather_code, lang)} />
+                  <WeatherIcon code={h.weather_code} isDay={h.is_day} size={22} title={describeHour(h, lang)} />
                 </td>
                 <td className="num">{fmtTemp(h.temperature, lang)}</td>
                 <td className="num">{fmtNumber(h.wind_gusts_kmh, lang)}</td>
