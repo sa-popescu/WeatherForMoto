@@ -232,11 +232,31 @@ class MergeTests(unittest.TestCase):
         self.assertEqual(limited["status"], "rate-limited")
         self.assertTrue(limited["retry_at"].startswith("2027-01-15T"))
 
+        self.assertEqual(limited["detail"], None)
+        # What WeatherXM itself said about the limit travels to the screen.
+        spoken = self._weatherxm_status(
+            note={"reason": "rate-limited", "retry_at": 1_800_000_000, "detail": "daily quota exceeded"})
+        self.assertEqual(spoken["detail"], "daily quota exceeded")
+
+        # A refused key is not a hiccup: waiting does not fix it.
+        rejected = self._weatherxm_status(note={"reason": "key-rejected", "detail": "invalid api key"})
+        self.assertEqual((rejected["status"], rejected["detail"]), ("key-rejected", "invalid api key"))
+
         self.assertEqual(self._weatherxm_status(note={"reason": "none-nearby"})["status"], "none-nearby")
         # A station answered, but its reading was too old to count as now.
         self.assertEqual(self._weatherxm_status(raw={"observation": {}})["status"], "stale")
         self.assertEqual(self._weatherxm_status(note={"reason": "http-403"})["status"], "no-data")
         self.assertEqual(self._weatherxm_status(configured=False)["status"], "off")
+
+    def test_the_upstream_message_is_carried_but_kept_short(self) -> None:
+        import httpx
+        json_body = httpx.Response(429, json={"message": "Daily quota exceeded"})
+        self.assertEqual(ws._upstream_detail(json_body), "Daily quota exceeded")
+        # Plain text, with its newlines flattened.
+        self.assertEqual(ws._upstream_detail(httpx.Response(403, text="no\n  plan")), "no plan")
+        long = ws._upstream_detail(httpx.Response(429, text="x" * 400))
+        self.assertLessEqual(len(long), ws._UPSTREAM_DETAIL_MAX + 1)
+        self.assertIsNone(ws._upstream_detail(httpx.Response(429, text="   ")))
 
     def test_weatherxm_names_the_station_it_used(self) -> None:
         row = self._weatherxm_status(norm={"station": "Ferentari", "distance_km": 2.1,

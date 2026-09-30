@@ -68,7 +68,7 @@ export interface CurrentWeather {
   source_status?: SourceStatus[] | null;
 }
 
-export type SourceState = 'used' | 'no-data' | 'none-nearby' | 'off' | 'rate-limited' | 'stale';
+export type SourceState = 'used' | 'no-data' | 'none-nearby' | 'off' | 'rate-limited' | 'stale' | 'key-rejected';
 
 export interface SourceStatus {
   id: string;
@@ -84,6 +84,8 @@ export interface SourceStatus {
   members?: number | null;
   /** When a rate-limited source comes back, ISO 8601. */
   retry_at?: string | null;
+  /** What the source itself said about the refusal. */
+  detail?: string | null;
   /** Warnings that apply to this place (warning feeds). */
   count?: number | null;
 }

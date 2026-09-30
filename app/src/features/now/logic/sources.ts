@@ -39,6 +39,7 @@ const STATE_ORDER: Record<SourceState, number> = {
   used: 0,
   stale: 1,
   'rate-limited': 1,
+  'key-rejected': 1,
   'none-nearby': 2,
   'no-data': 2,
   off: 3,
