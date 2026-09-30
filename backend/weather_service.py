@@ -2094,9 +2094,24 @@ _WXM_MIN_REFETCH_S = 600
 # Note: stored values are wall-clock Unix timestamps (time.time()), NOT
 # monotonic ones, since monotonic clocks are not comparable across processes.
 _WXM_BACKOFF_KEY = "wxm_backoff_until"
-_WXM_BACKOFF_SECS = 86400  # 24 hours — WeatherXM rate limit is daily
+# The quota is daily, so the wait is until it resets (UTC midnight), not a flat
+# day from the refusal: a 429 at 23:50 used to cost the whole of the next day.
+# The floor keeps a burst from hammering the API in the minutes before a reset.
+_WXM_MIN_BACKOFF_S = 900
 _wxm_backoff_until: float = 0.0       # cached wall-clock expiry for this process
 _wxm_backoff_loaded: bool = False     # whether persisted state was read this process
+# Why the last attempt for a cell gave nothing, so the app can say it instead of
+# the catch-all "no data": {cell: {"reason": str, "retry_at": float | None}}.
+_wxm_note: dict[tuple, dict[str, Any]] = {}
+
+
+def _wxm_quota_reset_at(now: float | None = None) -> float:
+    """When the daily quota next resets, as a Unix timestamp."""
+    moment = now if now is not None else time.time()
+    midnight = (
+        datetime.fromtimestamp(moment, tz=timezone.utc) + timedelta(days=1)
+    ).replace(hour=0, minute=0, second=0, microsecond=0)
+    return max(midnight.timestamp(), moment + _WXM_MIN_BACKOFF_S)
 
 
 def _backoff_read(key: str) -> float:
@@ -2118,6 +2133,24 @@ def _backoff_write(key: str, until: float) -> None:
         pass
 
 
+def _wxm_distance_km(station: dict[str, Any], lat: float, lon: float) -> float:
+    """How far a station from stations/near is, in km.
+
+    The API's own distance is used when it gives one (metres); otherwise the
+    station's coordinates are measured against the point. A station that says
+    neither sorts last rather than pretending to be next door.
+    """
+    metres = station.get("distance")
+    if isinstance(metres, (int, float)):
+        return float(metres) / 1000
+    location = station.get("location") or {}
+    s_lat = _to_float(location.get("lat", station.get("lat")))
+    s_lon = _to_float(location.get("lon", station.get("lon")))
+    if s_lat is None or s_lon is None:
+        return float("inf")
+    return _haversine_km(lat, lon, s_lat, s_lon)
+
+
 async def _fetch_weatherxm(
     lat: float, lon: float, api_key: str, client: httpx.AsyncClient,
     radius_m: int = 20_000,
@@ -2132,10 +2165,20 @@ async def _fetch_weatherxm(
     if not api_key:
         return None
 
-    import time
     global _wxm_backoff_until, _wxm_backoff_loaded
     cache_key = (round(lat, 2), round(lon, 2))
     now = time.monotonic()
+
+    def note(reason: str, retry_at: float | None = None) -> None:
+        """Remember why this cell got nothing, for the sources screen."""
+        _wxm_note[cache_key] = {"reason": reason, "retry_at": retry_at}
+
+    def rate_limited() -> None:
+        global _wxm_backoff_until
+        _wxm_backoff_until = _wxm_quota_reset_at()
+        note("rate-limited", _wxm_backoff_until)
+        _wxm_cache[cache_key] = (now, None)
+
     if cache_key in _wxm_cache:
         ts, cached = _wxm_cache[cache_key]
         entry_age = now - ts
@@ -2151,6 +2194,7 @@ async def _fetch_weatherxm(
         _wxm_backoff_until = await asyncio.to_thread(_backoff_read, _WXM_BACKOFF_KEY)
         _wxm_backoff_loaded = True
     if time.time() < _wxm_backoff_until:
+        note("rate-limited", _wxm_backoff_until)
         return None
 
     import logging
@@ -2165,12 +2209,13 @@ async def _fetch_weatherxm(
         )
         _wxm_log.info("WeatherXM stations/near status=%s body=%s", resp.status_code, resp.text[:300])
         if resp.status_code == 429:
-            _wxm_backoff_until = time.time() + _WXM_BACKOFF_SECS
+            rate_limited()
             await asyncio.to_thread(_backoff_write, _WXM_BACKOFF_KEY, _wxm_backoff_until)
-            _wxm_log.info("WeatherXM rate-limited — backing off for %dh", _WXM_BACKOFF_SECS // 3600)
-            _wxm_cache[cache_key] = (now, None)
+            _wxm_log.info("WeatherXM rate-limited — back at %s UTC",
+                          datetime.fromtimestamp(_wxm_backoff_until, tz=timezone.utc).isoformat(timespec="minutes"))
             return None
         if not resp.is_success:
+            note(f"http-{resp.status_code}")
             _wxm_cache[cache_key] = (now, None)
             return None
         payload = resp.json()
@@ -2178,10 +2223,14 @@ async def _fetch_weatherxm(
         active = [s for s in stations if s.get("lastDayQod", 0) > 0]
         _wxm_log.info("WeatherXM stations total=%d active=%d", len(stations), len(active))
         if not active:
+            note("none-nearby" if stations else "no-stations")
             _wxm_cache[cache_key] = (now, None)
             return None
-        station_id = active[0].get("id")
+        # The nearest one, not whichever the API listed first.
+        station = min(active, key=lambda s: _wxm_distance_km(s, lat, lon))
+        station_id = station.get("id")
         if not station_id:
+            note("none-nearby")
             _wxm_cache[cache_key] = (now, None)
             return None
         obs_resp = await client.get(
@@ -2191,18 +2240,23 @@ async def _fetch_weatherxm(
         )
         _wxm_log.info("WeatherXM latest status=%s body=%s", obs_resp.status_code, obs_resp.text[:300])
         if obs_resp.status_code == 429:
-            _wxm_backoff_until = time.time() + _WXM_BACKOFF_SECS
+            rate_limited()
             await asyncio.to_thread(_backoff_write, _WXM_BACKOFF_KEY, _wxm_backoff_until)
-            _wxm_log.info("WeatherXM rate-limited — backing off for %dh", _WXM_BACKOFF_SECS // 3600)
-            _wxm_cache[cache_key] = (now, None)
+            _wxm_log.info("WeatherXM rate-limited — back at %s UTC",
+                          datetime.fromtimestamp(_wxm_backoff_until, tz=timezone.utc).isoformat(timespec="minutes"))
             return None
         if not obs_resp.is_success:
+            note(f"http-{obs_resp.status_code}")
             _wxm_cache[cache_key] = (now, None)
             return None
         result = obs_resp.json()
+        if isinstance(result, dict):
+            result.setdefault("station", station)
+        _wxm_note.pop(cache_key, None)
         _wxm_cache[cache_key] = (now, result)
         return result
     except Exception as exc:
+        note("error")
         _wxm_log.warning("WeatherXM exception: %s", exc)
         return None
 
@@ -2280,6 +2334,7 @@ def _normalize_wxm_current(wxm_data: dict | None, now: datetime | None = None) -
         return None
     # Response is wrapped: {"observation": {...}, "health": {...}, "location": {...}}
     obs = wxm_data.get("observation", wxm_data)
+    station = wxm_data.get("station") or {}
     if not isinstance(obs, dict):
         return None
     observed_at = _parse_observation_time(obs.get("timestamp") or obs.get("ts"))
@@ -2302,6 +2357,11 @@ def _normalize_wxm_current(wxm_data: dict | None, now: datetime | None = None) -
         "precipitation": _to_float(obs.get("precipitation_rate")),  # mm/h
         "wmo_code": _WXM_ICON_TO_WMO.get(icon) if icon else None,
         "observed_at": observed_at.isoformat(),
+        # Which station answered, so the sources screen can name it.
+        "station": station.get("name") or station.get("id") if isinstance(station, dict) else None,
+        "distance_km": (round(float(station["distance"]) / 1000, 1)
+                        if isinstance(station, dict) and isinstance(station.get("distance"), (int, float))
+                        else None),
     }
 
 
@@ -3863,6 +3923,41 @@ async def get_weather(
         raise RuntimeError("Weather data not available within the time budget") from exc
 
 
+def _weatherxm_row(
+    *, configured: bool, raw: Any, norm: dict | None, note: dict[str, Any] | None
+) -> dict[str, Any]:
+    """WeatherXM's row: what it gave, or why it gave nothing.
+
+    Silence had exactly one word for four different situations, which is how a
+    spent quota looked the same as a dead station. Each one now says itself.
+    """
+    if not configured:
+        return {"id": "weatherxm", "status": "off"}
+    if norm:
+        return {
+            "id": "weatherxm",
+            "status": "used",
+            "station": norm.get("station"),
+            "distance_km": norm.get("distance_km"),
+            "observed_at": norm.get("observed_at"),
+        }
+    reason = (note or {}).get("reason")
+    if reason == "rate-limited":
+        retry_at = (note or {}).get("retry_at")
+        return {
+            "id": "weatherxm",
+            "status": "rate-limited",
+            "retry_at": (datetime.fromtimestamp(retry_at, tz=timezone.utc).isoformat()
+                         if isinstance(retry_at, (int, float)) else None),
+        }
+    if reason in ("none-nearby", "no-stations"):
+        return {"id": "weatherxm", "status": "none-nearby"}
+    # A station answered but the reading was too old, or had no usable time.
+    if raw is not None:
+        return {"id": "weatherxm", "status": "stale"}
+    return {"id": "weatherxm", "status": "no-data"}
+
+
 def _source_status(
     *,
     current: dict[str, Any],
@@ -3870,6 +3965,7 @@ def _source_status(
     used: dict[str, bool],
     stations: tuple[Any, dict | None],
     airports: tuple[Any, dict | None],
+    weatherxm: tuple[Any, dict | None, dict[str, Any] | None],
     warnings: dict[str, tuple[Any, int]],
     rain_ensemble_members: int | None = None,
 ) -> list[dict[str, Any]]:
@@ -3878,7 +3974,9 @@ def _source_status(
 
     status: "used" (it contributed), "off" (not configured on this server),
     "none-nearby" (answered, but nothing close enough or fresh enough),
-    "no-data" (did not answer in time, failed, or had nothing to give).
+    "no-data" (did not answer in time, failed, or had nothing to give),
+    and for WeatherXM also "rate-limited" (the daily quota is spent, with when
+    it comes back) and "stale" (a station answered, but too long ago to count).
     Warning feeds are "used" when they were read, with how many apply here.
     """
     out: list[dict[str, Any]] = [
@@ -3908,9 +4006,11 @@ def _source_status(
         "distance_km": obs.get("distance_km") if obs else None,
         "observed_at": obs.get("observed_at") if obs else None,
     })
-    for source in ("weatherxm", "netatmo"):
-        configured = keys.get(source, True)
-        out.append({"id": source, "status": "used" if used[source] else ("no-data" if configured else "off")})
+    raw, norm, note = weatherxm
+    out.append(_weatherxm_row(configured=keys.get("weatherxm", True), raw=raw, norm=norm, note=note))
+    configured = keys.get("netatmo", True)
+    out.append({"id": "netatmo",
+                "status": "used" if used["netatmo"] else ("no-data" if configured else "off")})
 
     for source, (feed, count) in warnings.items():
         out.append({"id": source, "status": "used" if feed is not None else "no-data", "count": count})
@@ -4041,6 +4141,7 @@ async def _collect_weather(
         },
         stations=(stations_raw, official_norm),
         airports=(metar_raw, metar_obs),
+        weatherxm=(wxm_raw, wxm_norm, _wxm_note.get((round(lat, 2), round(lon, 2)))),
         warnings={
             "anm-nowcast": (nowcast_feed, len(nowcast_alerts)),
             "meteoalarm": (meteoalarm_feed, len(county_alerts)),

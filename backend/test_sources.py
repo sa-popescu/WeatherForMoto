@@ -9,6 +9,7 @@ import anm_nowcast
 import metar
 import official_stations
 import rain_fusion
+import weather_service as ws
 import verification
 import verify_report
 from weather_service import (
@@ -205,6 +206,7 @@ class MergeTests(unittest.TestCase):
             used={"openweathermap": True, "met-norway": False, "pirate-weather": False, "weatherxm": False, "netatmo": False},
             stations=({"coverages": []}, None),
             airports=(None, None),
+            weatherxm=(None, None, None),
             warnings={"anm-nowcast": ("<xml/>", 1), "meteoalarm": (None, 0)},
         )
         by_id = {s["id"]: s for s in statuses}
@@ -218,6 +220,28 @@ class MergeTests(unittest.TestCase):
         self.assertEqual(by_id["netatmo"]["status"], "off")
         self.assertEqual((by_id["anm-nowcast"]["status"], by_id["anm-nowcast"]["count"]), ("used", 1))
         self.assertEqual(by_id["meteoalarm"]["status"], "no-data")
+        self.assertEqual(by_id["weatherxm"]["status"], "no-data")
+
+    def _weatherxm_status(self, **kwargs) -> dict:
+        row = ws._weatherxm_row(**{"configured": True, "raw": None, "norm": None, "note": None, **kwargs})
+        return row
+
+    def test_weatherxm_says_why_it_gave_nothing(self) -> None:
+        # A spent quota used to look exactly like a dead station.
+        limited = self._weatherxm_status(note={"reason": "rate-limited", "retry_at": 1_800_000_000})
+        self.assertEqual(limited["status"], "rate-limited")
+        self.assertTrue(limited["retry_at"].startswith("2027-01-15T"))
+
+        self.assertEqual(self._weatherxm_status(note={"reason": "none-nearby"})["status"], "none-nearby")
+        # A station answered, but its reading was too old to count as now.
+        self.assertEqual(self._weatherxm_status(raw={"observation": {}})["status"], "stale")
+        self.assertEqual(self._weatherxm_status(note={"reason": "http-403"})["status"], "no-data")
+        self.assertEqual(self._weatherxm_status(configured=False)["status"], "off")
+
+    def test_weatherxm_names_the_station_it_used(self) -> None:
+        row = self._weatherxm_status(norm={"station": "Ferentari", "distance_km": 2.1,
+                                           "observed_at": "2026-09-30T20:00:00+00:00"})
+        self.assertEqual((row["status"], row["station"], row["distance_km"]), ("used", "Ferentari", 2.1))
 
 
 

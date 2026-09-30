@@ -766,7 +766,9 @@ class NetworkTests(unittest.IsolatedAsyncioTestCase):
                 # Stale observation cached 15 minutes ago: refetched.
                 ws._wxm_cache[key] = (time.monotonic() - 900, stale)
                 result = await ws._fetch_weatherxm(44.43, 26.10, "key", client)
-        self.assertEqual(result, fresh)
+        # The station that answered rides along, for the sources screen.
+        self.assertEqual(result["observation"], fresh["observation"])
+        self.assertEqual(result["station"]["id"], "s1")
         self.assertEqual(len(paths), 2)
         self.assertIsNotNone(_normalize_wxm_current(result))
 
