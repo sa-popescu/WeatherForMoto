@@ -33,7 +33,16 @@ export const SOURCE_URLS: Readonly<Record<string, string>> = {
   osm: 'https://www.openstreetmap.org/copyright',
 };
 
-const STATE_ORDER: Record<SourceState, number> = { used: 0, 'none-nearby': 1, 'no-data': 1, off: 2 };
+// Used first, then the ones that had something to say about why they are
+// quiet, then plain silence, then what is not set up at all.
+const STATE_ORDER: Record<SourceState, number> = {
+  used: 0,
+  stale: 1,
+  'rate-limited': 1,
+  'none-nearby': 2,
+  'no-data': 2,
+  off: 3,
+};
 
 /**
  * Sources grouped for display, used ones first inside each group. Without

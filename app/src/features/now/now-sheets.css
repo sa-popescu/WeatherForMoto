@@ -330,6 +330,13 @@
   color: var(--dim);
 }
 
+/* Quiet for a reason it can name: worth noticing, not an error. */
+.now-source__state--rate-limited,
+.now-source__state--stale {
+  border-color: var(--t-atentie);
+  color: var(--t-atentie);
+}
+
 .now-source__role {
   margin: 0;
   font-size: 14px;

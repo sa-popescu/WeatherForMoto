@@ -16,11 +16,13 @@ const GROUP_TITLE: Record<SourceGroup, 'groupStations' | 'groupModels' | 'groupW
   warnings: 'groupWarnings',
 };
 
-const STATE_LABEL: Record<SourceState, 'statusUsed' | 'statusNoData' | 'statusNoneNearby' | 'statusOff'> = {
+const STATE_LABEL: Record<SourceState, keyof (typeof S_SOURCES)['ro']> = {
   used: 'statusUsed',
   'no-data': 'statusNoData',
   'none-nearby': 'statusNoneNearby',
   off: 'statusOff',
+  'rate-limited': 'statusRateLimited',
+  stale: 'statusStale',
 };
 
 function text(s: Strings, id: string, part: 'name' | 'role'): string | null {
@@ -29,6 +31,15 @@ function text(s: Strings, id: string, part: 'name' | 'role'): string | null {
 }
 
 function detail(s: Strings, source: SourceStatus, nowMs: number, lang: Lang): string | null {
+  // A source that is waiting out a quota says when it comes back.
+  if (source.status === 'rate-limited' && source.retry_at) {
+    const at = new Date(source.retry_at);
+    if (!Number.isNaN(at.getTime())) {
+      return fmt(s.retryAt, {
+        time: at.toLocaleTimeString(lang === 'ro' ? 'ro-RO' : 'en-GB', { hour: '2-digit', minute: '2-digit' }),
+      });
+    }
+  }
   if (source.status !== 'used') return null;
   if (source.station && source.distance_km != null) {
     const km = source.distance_km.toLocaleString(lang === 'ro' ? 'ro-RO' : 'en-GB', { maximumFractionDigits: 1 });

@@ -68,7 +68,7 @@ export interface CurrentWeather {
   source_status?: SourceStatus[] | null;
 }
 
-export type SourceState = 'used' | 'no-data' | 'none-nearby' | 'off';
+export type SourceState = 'used' | 'no-data' | 'none-nearby' | 'off' | 'rate-limited' | 'stale';
 
 export interface SourceStatus {
   id: string;
@@ -82,6 +82,8 @@ export interface SourceStatus {
   models?: number | null;
   /** Ensemble runs that answered (the rain ensemble). */
   members?: number | null;
+  /** When a rate-limited source comes back, ISO 8601. */
+  retry_at?: string | null;
   /** Warnings that apply to this place (warning feeds). */
   count?: number | null;
 }
