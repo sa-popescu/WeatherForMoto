@@ -23,6 +23,7 @@ const STATE_LABEL: Record<SourceState, keyof (typeof S_SOURCES)['ro']> = {
   off: 'statusOff',
   'rate-limited': 'statusRateLimited',
   stale: 'statusStale',
+  'key-rejected': 'statusKeyRejected',
 };
 
 function text(s: Strings, id: string, part: 'name' | 'role'): string | null {
@@ -31,14 +32,18 @@ function text(s: Strings, id: string, part: 'name' | 'role'): string | null {
 }
 
 function detail(s: Strings, source: SourceStatus, nowMs: number, lang: Lang): string | null {
-  // A source that is waiting out a quota says when it comes back.
-  if (source.status === 'rate-limited' && source.retry_at) {
-    const at = new Date(source.retry_at);
-    if (!Number.isNaN(at.getTime())) {
-      return fmt(s.retryAt, {
+  // A source that is quiet for a reason says it: when it comes back, and what
+  // the other side itself gave as the reason.
+  if (source.status === 'rate-limited' || source.status === 'key-rejected') {
+    const parts: string[] = [];
+    const at = source.retry_at ? new Date(source.retry_at) : null;
+    if (at && !Number.isNaN(at.getTime())) {
+      parts.push(fmt(s.retryAt, {
         time: at.toLocaleTimeString(lang === 'ro' ? 'ro-RO' : 'en-GB', { hour: '2-digit', minute: '2-digit' }),
-      });
+      }));
     }
+    if (source.detail) parts.push(source.detail);
+    return parts.length ? parts.join(' · ') : null;
   }
   if (source.status !== 'used') return null;
   if (source.station && source.distance_km != null) {

@@ -2133,6 +2133,31 @@ def _backoff_write(key: str, until: float) -> None:
         pass
 
 
+# How much of the other side's own explanation is worth carrying to the screen.
+_UPSTREAM_DETAIL_MAX = 120
+
+
+def _upstream_detail(response: httpx.Response) -> str | None:
+    """The API's own message, short enough for a line under the source."""
+    try:
+        body = response.json()
+    except ValueError:
+        body = None
+    text = None
+    if isinstance(body, dict):
+        for key in ("message", "detail", "error", "title"):
+            value = body.get(key)
+            if isinstance(value, str) and value.strip():
+                text = value
+                break
+    if text is None:
+        text = response.text
+    text = " ".join((text or "").split())
+    if not text:
+        return None
+    return text[:_UPSTREAM_DETAIL_MAX].rstrip() + ("…" if len(text) > _UPSTREAM_DETAIL_MAX else "")
+
+
 def _wxm_distance_km(station: dict[str, Any], lat: float, lon: float) -> float:
     """How far a station from stations/near is, in km.
 
@@ -2169,15 +2194,25 @@ async def _fetch_weatherxm(
     cache_key = (round(lat, 2), round(lon, 2))
     now = time.monotonic()
 
-    def note(reason: str, retry_at: float | None = None) -> None:
+    def note(reason: str, retry_at: float | None = None, detail: str | None = None) -> None:
         """Remember why this cell got nothing, for the sources screen."""
-        _wxm_note[cache_key] = {"reason": reason, "retry_at": retry_at}
+        _wxm_note[cache_key] = {"reason": reason, "retry_at": retry_at, "detail": detail}
 
-    def rate_limited() -> None:
+    def rate_limited(response: httpx.Response) -> None:
         global _wxm_backoff_until
         _wxm_backoff_until = _wxm_quota_reset_at()
-        note("rate-limited", _wxm_backoff_until)
+        # WeatherXM says which limit was hit; that belongs on the screen, not
+        # only in a log nobody reads from a phone.
+        note("rate-limited", _wxm_backoff_until, _upstream_detail(response))
         _wxm_cache[cache_key] = (now, None)
+
+    def refused(response: httpx.Response) -> bool:
+        """A key the other side will not take is not a network hiccup."""
+        if response.status_code not in (401, 403):
+            return False
+        note("key-rejected", detail=_upstream_detail(response))
+        _wxm_cache[cache_key] = (now, None)
+        return True
 
     if cache_key in _wxm_cache:
         ts, cached = _wxm_cache[cache_key]
@@ -2191,7 +2226,12 @@ async def _fetch_weatherxm(
     # once per process so a cold-started instance inherits an active backoff
     # instead of immediately re-hitting the (likely still rate-limited) API.
     if not _wxm_backoff_loaded:
-        _wxm_backoff_until = await asyncio.to_thread(_backoff_read, _WXM_BACKOFF_KEY)
+        stored = await asyncio.to_thread(_backoff_read, _WXM_BACKOFF_KEY)
+        # The current rule never waits past the next quota reset, so anything
+        # further out was written by the old flat-24h one: it is clamped rather
+        # than served, and a stale backoff cannot keep the source quiet for a
+        # day after the quota came back.
+        _wxm_backoff_until = min(stored, _wxm_quota_reset_at()) if stored else 0.0
         _wxm_backoff_loaded = True
     if time.time() < _wxm_backoff_until:
         note("rate-limited", _wxm_backoff_until)
@@ -2209,13 +2249,15 @@ async def _fetch_weatherxm(
         )
         _wxm_log.info("WeatherXM stations/near status=%s body=%s", resp.status_code, resp.text[:300])
         if resp.status_code == 429:
-            rate_limited()
+            rate_limited(resp)
             await asyncio.to_thread(_backoff_write, _WXM_BACKOFF_KEY, _wxm_backoff_until)
             _wxm_log.info("WeatherXM rate-limited — back at %s UTC",
                           datetime.fromtimestamp(_wxm_backoff_until, tz=timezone.utc).isoformat(timespec="minutes"))
             return None
+        if refused(resp):
+            return None
         if not resp.is_success:
-            note(f"http-{resp.status_code}")
+            note(f"http-{resp.status_code}", detail=_upstream_detail(resp))
             _wxm_cache[cache_key] = (now, None)
             return None
         payload = resp.json()
@@ -2240,13 +2282,15 @@ async def _fetch_weatherxm(
         )
         _wxm_log.info("WeatherXM latest status=%s body=%s", obs_resp.status_code, obs_resp.text[:300])
         if obs_resp.status_code == 429:
-            rate_limited()
+            rate_limited(obs_resp)
             await asyncio.to_thread(_backoff_write, _WXM_BACKOFF_KEY, _wxm_backoff_until)
             _wxm_log.info("WeatherXM rate-limited — back at %s UTC",
                           datetime.fromtimestamp(_wxm_backoff_until, tz=timezone.utc).isoformat(timespec="minutes"))
             return None
+        if refused(obs_resp):
+            return None
         if not obs_resp.is_success:
-            note(f"http-{obs_resp.status_code}")
+            note(f"http-{obs_resp.status_code}", detail=_upstream_detail(obs_resp))
             _wxm_cache[cache_key] = (now, None)
             return None
         result = obs_resp.json()
@@ -3942,6 +3986,7 @@ def _weatherxm_row(
             "observed_at": norm.get("observed_at"),
         }
     reason = (note or {}).get("reason")
+    detail = (note or {}).get("detail")
     if reason == "rate-limited":
         retry_at = (note or {}).get("retry_at")
         return {
@@ -3949,7 +3994,10 @@ def _weatherxm_row(
             "status": "rate-limited",
             "retry_at": (datetime.fromtimestamp(retry_at, tz=timezone.utc).isoformat()
                          if isinstance(retry_at, (int, float)) else None),
+            "detail": detail,
         }
+    if reason == "key-rejected":
+        return {"id": "weatherxm", "status": "key-rejected", "detail": detail}
     if reason in ("none-nearby", "no-stations"):
         return {"id": "weatherxm", "status": "none-nearby"}
     # A station answered but the reading was too old, or had no usable time.
@@ -3976,7 +4024,9 @@ def _source_status(
     "none-nearby" (answered, but nothing close enough or fresh enough),
     "no-data" (did not answer in time, failed, or had nothing to give),
     and for WeatherXM also "rate-limited" (the daily quota is spent, with when
-    it comes back) and "stale" (a station answered, but too long ago to count).
+    it comes back), "key-rejected" (the key was refused, which no amount of
+    waiting fixes) and "stale" (a station answered, but too long ago to count).
+    Both of the first two carry the other side's own wording as "detail".
     Warning feeds are "used" when they were read, with how many apply here.
     """
     out: list[dict[str, Any]] = [

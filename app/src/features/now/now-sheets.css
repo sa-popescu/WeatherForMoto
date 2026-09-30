@@ -332,6 +332,7 @@
 
 /* Quiet for a reason it can name: worth noticing, not an error. */
 .now-source__state--rate-limited,
+.now-source__state--key-rejected,
 .now-source__state--stale {
   border-color: var(--t-atentie);
   color: var(--t-atentie);
