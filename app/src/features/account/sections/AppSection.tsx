@@ -4,7 +4,7 @@ import { useStrings, type Lang } from '../../../lib/i18n';
 import { useSettings, type Theme } from '../../../state/settings';
 import { useToast } from '../../../state/toast';
 import { Icon } from '../../../ui/icons';
-import { Button, Card } from '../../../ui/primitives';
+import { Button, Card, Toggle } from '../../../ui/primitives';
 import { promptInstall, useInstallState } from '../installPrompt';
 import { currentIsIos } from '../lib/platform';
 import { APP } from '../strings/app';
@@ -19,7 +19,7 @@ const LANGUAGES: ReadonlyArray<{ value: Lang; label: string }> = [
 export function AppSection() {
   const s = useStrings(APP);
   const core = useStrings(CORE);
-  const { lang, setLang, theme, setTheme } = useSettings();
+  const { lang, setLang, theme, setTheme, followMe, setFollowMe } = useSettings();
   const install = useInstallState();
   const toast = useToast();
 
@@ -43,6 +43,8 @@ export function AppSection() {
         <LabeledSegmented label={s.language} options={LANGUAGES} value={lang} onChange={setLang} />
         <LabeledSegmented label={s.theme} options={themes} value={theme} onChange={setTheme} />
         <p className="acct-hint">{s.themeNote}</p>
+        <div className="acct-divider" />
+        <Toggle checked={followMe} onChange={setFollowMe} label={s.followMe} description={s.followMeNote} />
         <div className="acct-divider" />
         {install === 'installed' && <Note icon="check">{s.installed}</Note>}
         {install === 'available' && (

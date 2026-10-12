@@ -3,15 +3,18 @@ import { api } from '../lib/api';
 import { DEFAULT_PLACE, MAX_FAVORITES } from '../lib/config';
 import { GeoError, geolocationPermission, getCurrentPosition, reverseGeocode } from '../lib/geo';
 import { useLang } from '../lib/i18n';
+import { useSettings } from './settings';
 import { parsePlaceLink } from '../lib/placeLink';
+import { shouldLocateOnBoot, shouldRefreshOnResume } from '../lib/followLocation';
 import { KEYS, readJson, writeJson } from '../lib/storage';
 import type { Place } from '../lib/types';
 
 // The place the whole app is looking at, plus favourites.
 // Start-up order: shared link (?q=Name, with ?ll=lat,lon from newer links),
-// then the last place, then the default; GPS is
-// used silently only when permission was already granted (never a surprise
-// prompt at launch), otherwise the user taps "my location".
+// then the last place, then the default. GPS runs at launch when the browser
+// has already granted it (silent), or when you asked the app to open on your
+// location (see lib/followLocation.ts); otherwise you tap "my location", and
+// doing so turns that setting on.
 
 export type PlaceSource = 'default' | 'last' | 'gps' | 'search' | 'favorite' | 'link';
 
@@ -53,11 +56,14 @@ function initialPlace(): { place: Place; source: PlaceSource } {
 
 export function PlaceProvider({ children }: { children: ReactNode }) {
   const lang = useLang();
+  const { followMe, setFollowMe } = useSettings();
   const [{ place, source }, setState] = useState(initialPlace);
   const [favorites, setFavorites] = useState<Place[]>(() => readJson(KEYS.favorites, [], isPlaceArray));
   const [locating, setLocating] = useState(false);
   const [locateError, setLocateError] = useState<GeoError['reason'] | null>(null);
   const booted = useRef(false);
+  /** When the last GPS fix landed, so a return to the app can refresh a stale one. */
+  const fixAt = useRef<number | null>(null);
 
   const setPlace = useCallback((next: Place, nextSource: PlaceSource) => {
     const clean = { name: next.name, lat: next.lat, lon: next.lon };
@@ -72,6 +78,10 @@ export function PlaceProvider({ children }: { children: ReactNode }) {
       const pos = await getCurrentPosition();
       const name = (await reverseGeocode(pos.lat, pos.lon, lang)) ?? `${pos.lat.toFixed(3)}, ${pos.lon.toFixed(3)}`;
       setPlace({ name, lat: pos.lat, lon: pos.lon }, 'gps');
+      fixAt.current = Date.now();
+      // It worked once, so from now on the app opens here instead of on
+      // yesterday's city. Turned off again from the "Eu" screen.
+      setFollowMe(true);
       return true;
     } catch (err) {
       setLocateError(err instanceof GeoError ? err.reason : 'unavailable');
@@ -79,7 +89,7 @@ export function PlaceProvider({ children }: { children: ReactNode }) {
     } finally {
       setLocating(false);
     }
-  }, [lang, setPlace]);
+  }, [lang, setPlace, setFollowMe]);
 
   useEffect(() => {
     if (booted.current) return;
@@ -102,9 +112,22 @@ export function PlaceProvider({ children }: { children: ReactNode }) {
       return;
     }
     void geolocationPermission().then((state) => {
-      if (state === 'granted') void locate();
+      if (shouldLocateOnBoot(followMe, state)) void locate();
     });
-  }, [locate, setPlace]);
+  }, [followMe, locate, setPlace]);
+
+  // Back in the app after a while: the place on screen should be where you are
+  // now, not where you were when you last closed it.
+  useEffect(() => {
+    const onVisible = (): void => {
+      if (document.visibilityState !== 'visible') return;
+      void geolocationPermission().then((state) => {
+        if (shouldRefreshOnResume(followMe, state, fixAt.current, Date.now())) void locate();
+      });
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [followMe, locate]);
 
   const persistFavorites = useCallback((list: Place[]) => {
     writeJson(KEYS.favorites, list);

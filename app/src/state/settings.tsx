@@ -21,6 +21,9 @@ interface SettingsState {
   setTheme: (theme: Theme) => void;
   profile: MotoProfile;
   setProfile: (profile: MotoProfile) => void;
+  /** Open on where you are, rather than on the last place you looked at. */
+  followMe: boolean;
+  setFollowMe: (on: boolean) => void;
 }
 
 const SettingsContext = createContext<SettingsState | null>(null);
@@ -38,6 +41,12 @@ function initialTheme(): Theme {
   return stored === 'light' || stored === 'day' ? 'day' : 'dark';
 }
 
+function initialFollowMe(): boolean {
+  // Off until the location button works once: nobody is asked for a permission
+  // they never showed any interest in.
+  return readString(KEYS.followMe) === 'true';
+}
+
 function isObject(value: unknown): value is Partial<MotoProfile> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -46,6 +55,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [lang, setLangState] = useState<Lang>(initialLang);
   const [theme, setThemeState] = useState<Theme>(initialTheme);
   const [profile, setProfileState] = useState<MotoProfile>(() => ({ ...DEFAULT_PROFILE, ...readJson(KEYS.profile, {}, isObject) }));
+  const [followMe, setFollowMeState] = useState<boolean>(initialFollowMe);
 
   useEffect(() => {
     document.documentElement.lang = lang;
@@ -71,7 +81,15 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setProfileState(next);
   }, []);
 
-  const value = useMemo(() => ({ lang, setLang, theme, setTheme, profile, setProfile }), [lang, setLang, theme, setTheme, profile, setProfile]);
+  const setFollowMe = useCallback((on: boolean) => {
+    writeString(KEYS.followMe, on ? 'true' : 'false');
+    setFollowMeState(on);
+  }, []);
+
+  const value = useMemo(
+    () => ({ lang, setLang, theme, setTheme, profile, setProfile, followMe, setFollowMe }),
+    [lang, setLang, theme, setTheme, profile, setProfile, followMe, setFollowMe],
+  );
 
   return (
     <SettingsContext.Provider value={value}>
