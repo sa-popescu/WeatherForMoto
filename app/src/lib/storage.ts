@@ -13,6 +13,7 @@ export const KEYS = {
   alertStates: 'motoAlerts',
   favorites: 'motoFavs',
   lastPlace: 'motoLastLoc',
+  followMe: 'motoFollowMeV1',
   installDismissed: 'pwaInstallDismissed',
 } as const;
 
