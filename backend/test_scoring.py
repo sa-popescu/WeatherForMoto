@@ -780,6 +780,56 @@ class NetworkTests(unittest.IsolatedAsyncioTestCase):
         ws.set_http_client(client)
         return client
 
+    async def test_old_weather_beats_no_weather(self) -> None:
+        # Open-Meteo is the primary source AND the app's own fallback, so when
+        # it refuses the rider gets an error card. The last good answer is
+        # served instead, saying how old it is and what went wrong.
+        payload = make_om_payload(now_local_for_offset())
+        failing = {"on": False}
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.host != "api.open-meteo.com":
+                return httpx.Response(404, json={})
+            if failing["on"]:
+                return httpx.Response(429, text="Minutely API request limit exceeded")
+            return httpx.Response(200, json=payload)
+
+        async with self.make_client(handler):
+            with patch.object(ws, "OPENMETEO_RETRY_DELAY_S", 0):
+                good = await ws.get_weather(44.43, 26.10, "Test", "", forecast_days=2)
+                self.assertIsNone(good["stale"])
+
+                failing["on"] = True
+                # Only the provider cache: clear_caches() would also drop the
+                # last good answer, which is the thing under test.
+                ws._forecast_cache.clear()
+                stale = await ws.get_weather(44.43, 26.10, "Test", "", forecast_days=2)
+
+        self.assertEqual(stale["current"]["temperature"], good["current"]["temperature"])
+        self.assertEqual(stale["stale"]["age_min"], 0)
+        self.assertIn("429", stale["stale"]["reason"])
+
+    async def test_an_answer_too_old_to_help_is_still_an_error(self) -> None:
+        payload = make_om_payload(now_local_for_offset())
+        failing = {"on": False}
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.host != "api.open-meteo.com":
+                return httpx.Response(404, json={})
+            return httpx.Response(503, text="down") if failing["on"] else httpx.Response(200, json=payload)
+
+        async with self.make_client(handler):
+            with patch.object(ws, "OPENMETEO_RETRY_DELAY_S", 0):
+                await ws.get_weather(44.43, 26.10, "Test", "", forecast_days=2)
+                failing["on"] = True
+                ws._forecast_cache.clear()
+                # Pretend the stored answer is older than the limit allows.
+                key = next(iter(ws._last_good))
+                stored_at, body = ws._last_good[key]
+                ws._last_good[key] = (stored_at - ws.LAST_GOOD_MAX_AGE_S - 60, body)
+                with self.assertRaises(Exception):
+                    await ws.get_weather(44.43, 26.10, "Test", "", forecast_days=2)
+
     async def test_slow_optional_provider_does_not_block(self) -> None:
         payload = make_om_payload(now_local_for_offset())
 

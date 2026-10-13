@@ -1307,6 +1307,7 @@ def clear_caches() -> None:
     """Drop every cached provider and geocoding response (used by tests)."""
     _forecast_cache.clear()
     _geocode_cache.clear()
+    _last_good.clear()
 
 
 def _coord_key(lat: float, lon: float) -> tuple[float, float]:
@@ -3925,6 +3926,49 @@ def _with_ttl(
     return fetch_with_ttl
 
 
+# --- Last good answer ------------------------------------------------------
+# Open-Meteo is the primary source, and the app's own fallback is Open-Meteo
+# again, asked straight from the browser. So when it refuses us, both legs fail
+# at once and the rider gets an error card. Twenty-minute-old weather is not
+# the same as no weather, so the last good answer per cell is kept and served
+# instead, saying how old it is and what went wrong.
+_last_good: OrderedDict[Hashable, tuple[float, dict[str, Any]]] = OrderedDict()
+_LAST_GOOD_MAX_ENTRIES = 200
+# Beyond this an old answer stops being useful and the error is the honest reply.
+LAST_GOOD_MAX_AGE_S = 3 * 3600
+
+
+def _remember_good(key: Hashable, payload: dict[str, Any]) -> None:
+    _last_good[key] = (time.time(), payload)
+    _last_good.move_to_end(key)
+    while len(_last_good) > _LAST_GOOD_MAX_ENTRIES:
+        _last_good.popitem(last=False)
+
+
+def _stale_answer(key: Hashable, reason: str) -> dict[str, Any] | None:
+    """The last good answer for this cell, marked as old; None when too old."""
+    entry = _last_good.get(key)
+    if entry is None:
+        return None
+    stored_at, payload = entry
+    age_s = time.time() - stored_at
+    if age_s > LAST_GOOD_MAX_AGE_S:
+        del _last_good[key]
+        return None
+    answer = dict(payload)
+    answer["stale"] = {
+        "age_min": int(age_s // 60),
+        "reason": reason[:160] or None,
+    }
+    return answer
+
+
+def _failure_reason(exc: BaseException) -> str:
+    """Short, human-readable cause for the screen ("Open-Meteo HTTP 429")."""
+    text = " ".join(str(exc).split())
+    return text or type(exc).__name__
+
+
 async def get_weather(
     lat: float,
     lon: float,
@@ -3952,8 +3996,9 @@ async def get_weather(
     that miss OPTIONAL_PROVIDER_BUDGET_S are left out; Open-Meteo is required
     and its failure (or a blown budget) raises.
     """
+    key = (_coord_key(lat, lon), int(forecast_days))
     try:
-        return await asyncio.wait_for(
+        answer = await asyncio.wait_for(
             _collect_weather(
                 lat, lon, city_name, owm_api_key, forecast_days, pirate_weather_key,
                 _resolve_met_user_agent(met_user_agent), weatherxm_api_key,
@@ -3964,7 +4009,21 @@ async def get_weather(
     except TimeoutError as exc:
         logger.warning("Weather aggregation exceeded the %.1fs budget without Open-Meteo data",
                        WEATHER_TOTAL_BUDGET_S)
+        stale = _stale_answer(key, "Timp depășit la surse")
+        if stale is not None:
+            logger.info("serving the last good answer, %d min old", stale["stale"]["age_min"])
+            return stale
         raise RuntimeError("Weather data not available within the time budget") from exc
+    except Exception as exc:
+        stale = _stale_answer(key, _failure_reason(exc))
+        if stale is None:
+            raise
+        logger.warning("sources failed (%s); serving the last good answer, %d min old",
+                       _failure_reason(exc), stale["stale"]["age_min"])
+        return stale
+    answer["stale"] = None
+    _remember_good(key, answer)
+    return answer
 
 
 def _weatherxm_row(

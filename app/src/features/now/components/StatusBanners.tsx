@@ -8,12 +8,14 @@ import { S_NOW } from '../strings';
 interface StatusBannersProps {
   source: WeatherSource | null;
   offlineAgeMin: number | null;
+  /** What the server said went wrong upstream, when it served older data. */
+  staleReason?: string | null;
   /** A refresh failed while older data is still on screen. */
   failedRefresh: boolean;
   onRetry: () => void;
 }
 
-export function StatusBanners({ source, offlineAgeMin, failedRefresh, onRetry }: StatusBannersProps) {
+export function StatusBanners({ source, offlineAgeMin, staleReason, failedRefresh, onRetry }: StatusBannersProps) {
   const core = useStrings(CORE);
   const s = useStrings(S_NOW);
   return (
@@ -21,6 +23,12 @@ export function StatusBanners({ source, offlineAgeMin, failedRefresh, onRetry }:
       {source === 'offline' && (
         <Banner tone="warn" icon="alert">
           {fmt(core.offlineAge, { min: offlineAgeMin ?? '?' })}
+        </Banner>
+      )}
+      {source === 'stale' && (
+        <Banner tone="warn" icon="alert">
+          {fmt(core.staleAge, { min: offlineAgeMin ?? '?' })}
+          {staleReason && <span className="muted"> · {staleReason}</span>}
         </Banner>
       )}
       {source === 'direct' && (
