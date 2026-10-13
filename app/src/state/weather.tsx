@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { api, ApiError, isAbort } from '../lib/api';
 import { AUTO_REFRESH_MS, STALE_ON_FOCUS_MS } from '../lib/config';
 import { fetchDirectWeather } from '../lib/directWeather';
+import { lastGoodFor, rememberLastGood } from '../lib/lastGood';
 import type { WeatherResponse } from '../lib/types';
 import { usePlace } from './place';
 
@@ -9,7 +10,7 @@ import { usePlace } from './place';
 // One request in flight at a time; the previous data stays on screen while a
 // refresh runs, so auto-refresh never collapses the page to a skeleton.
 
-export type WeatherSource = 'backend' | 'direct' | 'offline';
+export type WeatherSource = 'backend' | 'direct' | 'offline' | 'stale';
 export type WeatherErrorKind = 'network' | 'server';
 
 interface WeatherState {
@@ -18,6 +19,8 @@ interface WeatherState {
   error: WeatherErrorKind | null;
   source: WeatherSource | null;
   offlineAgeMin: number | null;
+  /** Why the data on screen is old, when the server said so. */
+  staleReason: string | null;
   fetchedAt: number | null;
   refreshing: boolean;
   refresh: () => void;
@@ -25,7 +28,7 @@ interface WeatherState {
 
 type Snapshot = Omit<WeatherState, 'refresh'>;
 
-const INITIAL: Snapshot = { data: null, status: 'loading', error: null, source: null, offlineAgeMin: null, fetchedAt: null, refreshing: false };
+const INITIAL: Snapshot = { data: null, status: 'loading', error: null, source: null, offlineAgeMin: null, staleReason: null, fetchedAt: null, refreshing: false };
 
 const WeatherContext = createContext<WeatherState | null>(null);
 
@@ -44,12 +47,15 @@ export function WeatherProvider({ children }: { children: ReactNode }) {
       const result = await api.weather(place, controller.signal);
       if (controller.signal.aborted) return;
       fetchedAtRef.current = Date.now();
+      const stale = result.data.stale ?? null;
+      if (!result.offline && !stale) rememberLastGood(place, result.data);
       setSnap({
         data: result.data,
         status: 'ready',
         error: null,
-        source: result.offline ? 'offline' : 'backend',
-        offlineAgeMin: result.offlineAgeMin,
+        source: result.offline ? 'offline' : stale ? 'stale' : 'backend',
+        offlineAgeMin: result.offline ? result.offlineAgeMin : (stale?.age_min ?? null),
+        staleReason: stale?.reason ?? null,
         fetchedAt: fetchedAtRef.current,
         refreshing: false,
       });
@@ -61,11 +67,29 @@ export function WeatherProvider({ children }: { children: ReactNode }) {
         const data = await fetchDirectWeather(place, controller.signal);
         if (controller.signal.aborted) return;
         fetchedAtRef.current = Date.now();
-        setSnap({ data, status: 'ready', error: null, source: 'direct', offlineAgeMin: null, fetchedAt: fetchedAtRef.current, refreshing: false });
+        setSnap({ data, status: 'ready', error: null, source: 'direct', offlineAgeMin: null, staleReason: null, fetchedAt: fetchedAtRef.current, refreshing: false });
       } catch (fallbackErr) {
         if (isAbort(fallbackErr) || controller.signal.aborted) return;
         console.warn('[weather] direct fallback failed', fallbackErr);
-        setSnap((s) => ({ ...s, status: s.data ? 'ready' : 'error', error: kind, refreshing: false }));
+        // Every leg is down. An hour-old forecast is not an error card, and on
+        // a bike the difference matters.
+        const known = lastGoodFor(place);
+        setSnap((s) => {
+          if (s.data) return { ...s, status: 'ready', error: kind, refreshing: false };
+          if (known) {
+            return {
+              data: known.data,
+              status: 'ready',
+              error: null,
+              source: 'stale',
+              offlineAgeMin: known.ageMin,
+              staleReason: null,
+              fetchedAt: Date.now(),
+              refreshing: false,
+            };
+          }
+          return { ...s, status: 'error', error: kind, refreshing: false };
+        });
       }
     }
   }, [place]);

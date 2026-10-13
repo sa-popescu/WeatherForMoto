@@ -57,15 +57,28 @@ registerRoute(
   ({ url, request }) => request.method === 'GET' && /\/weather$/.test(url.pathname),
   async ({ request }) => {
     const cache = await caches.open(WEATHER_CACHE);
-    try {
-      const response = await fetch(request);
-      if (response.ok) await cache.put(request, await stamp(response.clone()));
-      return response;
-    } catch (err) {
+
+    /** The saved copy, if there is one and it is still worth showing. */
+    const fallback = async (): Promise<Response | null> => {
       const cached = await cache.match(request);
       const cachedAt = Number(cached?.headers.get(STAMP_HEADER) ?? 0);
       const age = Date.now() - cachedAt;
-      if (cached && age <= WEATHER_MAX_AGE_MS) return withOfflineHeaders(cached, age);
+      return cached && age <= WEATHER_MAX_AGE_MS ? withOfflineHeaders(cached, age) : null;
+    };
+
+    try {
+      const response = await fetch(request);
+      if (response.ok) {
+        await cache.put(request, await stamp(response.clone()));
+        return response;
+      }
+      // A server that answers 502 is as useless as one that does not answer at
+      // all, and the saved copy used to go unused because the fetch "worked".
+      if (response.status >= 500) return (await fallback()) ?? response;
+      return response;
+    } catch (err) {
+      const cached = await fallback();
+      if (cached) return cached;
       throw err;
     }
   },

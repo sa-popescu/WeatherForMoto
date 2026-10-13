@@ -176,6 +176,13 @@ export interface OfficialAlert {
   match: 'geometry' | 'name';
 }
 
+/** Set when the server could not reach its sources and served what it had. */
+export interface StaleMark {
+  age_min: number;
+  /** What went wrong upstream, in the source's own words. */
+  reason?: string | null;
+}
+
 export interface WeatherResponse {
   city: string;
   latitude: number;
@@ -187,6 +194,8 @@ export interface WeatherResponse {
   daily: DailyWeather[];
   /** Official warnings covering this point; empty when there are none. */
   alerts?: OfficialAlert[];
+  /** Present when the server served an older answer because its sources failed. */
+  stale?: StaleMark | null;
 }
 
 export interface GeocodeResult {
