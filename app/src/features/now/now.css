@@ -157,6 +157,20 @@
   font-weight: 600;
 }
 
+/* The technical cause of a failure, meant to survive being photographed:
+   small and dim, but legible, and it wraps rather than truncating. */
+.status-detail {
+  display: block;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--dim);
+  overflow-wrap: anywhere;
+}
+
+.status-detail--card {
+  margin-top: -4px;
+}
+
 .now-skeleton {
   display: flex;
   flex-direction: column;

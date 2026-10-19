@@ -12,10 +12,12 @@ interface StatusBannersProps {
   staleReason?: string | null;
   /** A refresh failed while older data is still on screen. */
   failedRefresh: boolean;
+  /** What each leg replied when it failed. Technical, shown so a screenshot diagnoses it. */
+  errorDetail?: string | null;
   onRetry: () => void;
 }
 
-export function StatusBanners({ source, offlineAgeMin, staleReason, failedRefresh, onRetry }: StatusBannersProps) {
+export function StatusBanners({ source, offlineAgeMin, staleReason, failedRefresh, errorDetail, onRetry }: StatusBannersProps) {
   const core = useStrings(CORE);
   const s = useStrings(S_NOW);
   return (
@@ -28,7 +30,7 @@ export function StatusBanners({ source, offlineAgeMin, staleReason, failedRefres
       {source === 'stale' && (
         <Banner tone="warn" icon="alert">
           {fmt(core.staleAge, { min: offlineAgeMin ?? '?' })}
-          {staleReason && <span className="muted"> · {staleReason}</span>}
+          {staleReason && <span className="status-detail">{staleReason}</span>}
         </Banner>
       )}
       {source === 'direct' && (
@@ -47,13 +49,25 @@ export function StatusBanners({ source, offlineAgeMin, staleReason, failedRefres
           }
         >
           {s.staleError}
+          {errorDetail && <span className="status-detail">{errorDetail}</span>}
         </Banner>
       )}
     </>
   );
 }
 
-export function ErrorCard({ kind, busy, onRetry }: { kind: WeatherErrorKind | null; busy: boolean; onRetry: () => void }) {
+export function ErrorCard({
+  kind,
+  detail,
+  busy,
+  onRetry,
+}: {
+  kind: WeatherErrorKind | null;
+  /** The technical cause of each failed leg, so a screenshot is a diagnosis. */
+  detail?: string | null;
+  busy: boolean;
+  onRetry: () => void;
+}) {
   const core = useStrings(CORE);
   const s = useStrings(S_NOW);
   return (
@@ -61,6 +75,7 @@ export function ErrorCard({ kind, busy, onRetry }: { kind: WeatherErrorKind | nu
       <Icon name="alert" size={28} />
       <h2 className="now-error__title num">{s.errorTitle}</h2>
       <p className="muted">{kind === 'network' ? core.networkError : core.genericError}</p>
+      {detail && <p className="status-detail status-detail--card">{detail}</p>}
       <Button variant="primary" size="lg" full icon="refresh" busy={busy} onClick={onRetry}>
         {core.retry}
       </Button>

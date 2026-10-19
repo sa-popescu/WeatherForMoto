@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { api, ApiError, isAbort } from '../lib/api';
 import { AUTO_REFRESH_MS, STALE_ON_FOCUS_MS } from '../lib/config';
 import { fetchDirectWeather } from '../lib/directWeather';
+import { failureDetail } from '../lib/failureDetail';
 import { lastGoodFor, rememberLastGood } from '../lib/lastGood';
 import type { WeatherResponse } from '../lib/types';
 import { usePlace } from './place';
@@ -21,6 +22,8 @@ interface WeatherState {
   offlineAgeMin: number | null;
   /** Why the data on screen is old, when the server said so. */
   staleReason: string | null;
+  /** What each leg replied when everything failed. Technical, not translated. */
+  errorDetail: string | null;
   fetchedAt: number | null;
   refreshing: boolean;
   refresh: () => void;
@@ -28,7 +31,7 @@ interface WeatherState {
 
 type Snapshot = Omit<WeatherState, 'refresh'>;
 
-const INITIAL: Snapshot = { data: null, status: 'loading', error: null, source: null, offlineAgeMin: null, staleReason: null, fetchedAt: null, refreshing: false };
+const INITIAL: Snapshot = { data: null, status: 'loading', error: null, source: null, offlineAgeMin: null, staleReason: null, errorDetail: null, fetchedAt: null, refreshing: false };
 
 const WeatherContext = createContext<WeatherState | null>(null);
 
@@ -56,6 +59,7 @@ export function WeatherProvider({ children }: { children: ReactNode }) {
         source: result.offline ? 'offline' : stale ? 'stale' : 'backend',
         offlineAgeMin: result.offline ? result.offlineAgeMin : (stale?.age_min ?? null),
         staleReason: stale?.reason ?? null,
+        errorDetail: null,
         fetchedAt: fetchedAtRef.current,
         refreshing: false,
       });
@@ -67,15 +71,18 @@ export function WeatherProvider({ children }: { children: ReactNode }) {
         const data = await fetchDirectWeather(place, controller.signal);
         if (controller.signal.aborted) return;
         fetchedAtRef.current = Date.now();
-        setSnap({ data, status: 'ready', error: null, source: 'direct', offlineAgeMin: null, staleReason: null, fetchedAt: fetchedAtRef.current, refreshing: false });
+        setSnap({ data, status: 'ready', error: null, source: 'direct', offlineAgeMin: null, staleReason: null, errorDetail: null, fetchedAt: fetchedAtRef.current, refreshing: false });
       } catch (fallbackErr) {
         if (isAbort(fallbackErr) || controller.signal.aborted) return;
         console.warn('[weather] direct fallback failed', fallbackErr);
+        // Both legs named their cause; carry it to the screen, because a
+        // screenshot of the error card is all the diagnosis this app ever gets.
+        const detail = failureDetail(err, fallbackErr);
         // Every leg is down. An hour-old forecast is not an error card, and on
         // a bike the difference matters.
         const known = lastGoodFor(place);
         setSnap((s) => {
-          if (s.data) return { ...s, status: 'ready', error: kind, refreshing: false };
+          if (s.data) return { ...s, status: 'ready', error: kind, errorDetail: detail, refreshing: false };
           if (known) {
             return {
               data: known.data,
@@ -83,12 +90,13 @@ export function WeatherProvider({ children }: { children: ReactNode }) {
               error: null,
               source: 'stale',
               offlineAgeMin: known.ageMin,
-              staleReason: null,
+              staleReason: detail,
+              errorDetail: detail,
               fetchedAt: Date.now(),
               refreshing: false,
             };
           }
-          return { ...s, status: 'error', error: kind, refreshing: false };
+          return { ...s, status: 'error', error: kind, errorDetail: detail, refreshing: false };
         });
       }
     }

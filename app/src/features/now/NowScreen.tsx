@@ -45,14 +45,14 @@ export default function NowScreen({ active }: ScreenProps) {
         loading={weather.status === 'loading'}
         nowMs={nowMs}
       />
-      <StatusBanners source={weather.source} offlineAgeMin={weather.offlineAgeMin} staleReason={weather.staleReason} failedRefresh={weather.error !== null && data !== null} onRetry={weather.refresh} />
+      <StatusBanners source={weather.source} offlineAgeMin={weather.offlineAgeMin} staleReason={weather.staleReason} failedRefresh={weather.error !== null && data !== null} errorDetail={weather.errorDetail} onRetry={weather.refresh} />
       {data && model ? (
         <>
           <NowContent data={data} model={model} selectedTime={selectedTime} onSelectTime={setSelectedTime} onOpen={setSheet} />
           <NowSheets sheet={sheet} data={data} model={model} nowMs={nowMs} onClose={() => setSheet(null)} />
         </>
       ) : weather.status === 'error' ? (
-        <ErrorCard kind={weather.error} busy={weather.refreshing} onRetry={weather.refresh} />
+        <ErrorCard kind={weather.error} detail={weather.errorDetail} busy={weather.refreshing} onRetry={weather.refresh} />
       ) : (
         <NowSkeleton />
       )}
