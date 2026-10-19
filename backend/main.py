@@ -44,6 +44,7 @@ from fastapi.staticfiles import StaticFiles  # noqa: E402
 
 from weather_service import (  # noqa: E402
     DEFAULT_MET_USER_AGENT,
+    failure_reason,
     geocode_city,
     get_multi_route_weather,
     get_route_weather,
@@ -400,8 +401,12 @@ async def weather(
                                  netatmo_refresh_token=NETATMO_REFRESH_TOKEN)
     except Exception as exc:
         logger.exception("Weather fetch error: %s", exc)
+        # The reason travels to the screen: a rider sending a screenshot of the
+        # error card is the only diagnostic this app gets. failure_reason keeps
+        # URLs out of it, so a provider key cannot ride along.
         raise HTTPException(
-            status_code=502, detail="Weather data temporarily unavailable"
+            status_code=502,
+            detail=f"Weather data temporarily unavailable ({failure_reason(exc)})",
         ) from exc
 
     logger.info("Weather data returned successfully")

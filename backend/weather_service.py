@@ -16,6 +16,7 @@ import asyncio
 import logging
 import math
 import os
+import re
 import time
 import unicodedata
 from collections import OrderedDict
@@ -32,6 +33,7 @@ import meteoalarm
 import metar
 import official_stations
 import calibration
+import last_good
 import rain_area
 import rain_fusion
 import verification
@@ -1308,6 +1310,7 @@ def clear_caches() -> None:
     _forecast_cache.clear()
     _geocode_cache.clear()
     _last_good.clear()
+    last_good.reset_for_tests()
 
 
 def _coord_key(lat: float, lon: float) -> tuple[float, float]:
@@ -3937,23 +3940,34 @@ _LAST_GOOD_MAX_ENTRIES = 200
 # Beyond this an old answer stops being useful and the error is the honest reply.
 LAST_GOOD_MAX_AGE_S = 3 * 3600
 
+_StoreKey = tuple[tuple[float, float], int]
 
-def _remember_good(key: Hashable, payload: dict[str, Any]) -> None:
-    _last_good[key] = (time.time(), payload)
+
+def _store_cell(key: _StoreKey) -> str:
+    """The cache key as the store spells it: "44.4500,26.1000"."""
+    (lat, lon), _days = key
+    return f"{lat:.4f},{lon:.4f}"
+
+
+def _keep_in_memory(key: _StoreKey, entry: tuple[float, dict[str, Any]]) -> None:
+    _last_good[key] = entry
     _last_good.move_to_end(key)
     while len(_last_good) > _LAST_GOOD_MAX_ENTRIES:
         _last_good.popitem(last=False)
 
 
-def _stale_answer(key: Hashable, reason: str) -> dict[str, Any] | None:
-    """The last good answer for this cell, marked as old; None when too old."""
-    entry = _last_good.get(key)
-    if entry is None:
-        return None
-    stored_at, payload = entry
+def _remember_good(key: _StoreKey, payload: dict[str, Any]) -> None:
+    stored_at = time.time()
+    _keep_in_memory(key, (stored_at, payload))
+    # This process may not be the one that needs it: Cloud Run scales to zero,
+    # so the instance holding the answer is usually gone by the next request.
+    last_good.remember(_store_cell(key), key[1], stored_at, payload)
+
+
+def _mark_stale(stored_at: float, payload: dict[str, Any], reason: str) -> dict[str, Any] | None:
+    """The answer, marked with its age and what went wrong; None when too old."""
     age_s = time.time() - stored_at
     if age_s > LAST_GOOD_MAX_AGE_S:
-        del _last_good[key]
         return None
     answer = dict(payload)
     answer["stale"] = {
@@ -3963,10 +3977,48 @@ def _stale_answer(key: Hashable, reason: str) -> dict[str, Any] | None:
     return answer
 
 
-def _failure_reason(exc: BaseException) -> str:
-    """Short, human-readable cause for the screen ("Open-Meteo HTTP 429")."""
-    text = " ".join(str(exc).split())
-    return text or type(exc).__name__
+async def _stale_answer(key: _StoreKey, reason: str) -> dict[str, Any] | None:
+    """The last good answer for this cell, from memory or, failing that, the store."""
+    entry = _last_good.get(key)
+    if entry is not None:
+        answer = _mark_stale(entry[0], entry[1], reason)
+        if answer is not None:
+            return answer
+        del _last_good[key]
+    stored = await last_good.load(_store_cell(key), key[1])
+    if stored is None:
+        return None
+    answer = _mark_stale(stored[0], stored[1], reason)
+    if answer is None:
+        return None
+    _keep_in_memory(key, stored)  # a cold instance warms itself from the store
+    return answer
+
+
+_URL_IN_TEXT = re.compile(r"https?://\S+")
+# An upstream can answer with a whole HTML page; the screen gets a line.
+_REASON_MAX = 200
+
+
+def failure_reason(exc: BaseException) -> str:
+    """Short, human-readable cause for the screen ("Open-Meteo error 429: ...").
+
+    This text reaches the rider's screen and the 502 body, so it must never
+    carry a URL: httpx writes the request URL into its own messages, and a
+    provider key can live in a URL. Our own ValueErrors are written here and
+    already say what happened, so they are used as they are; everything else
+    is described rather than quoted, and any URL that still slips in is cut.
+    """
+    if isinstance(exc, httpx.HTTPStatusError):
+        head = f"HTTP {exc.response.status_code}"
+        detail = _upstream_detail(exc.response)
+        return f"{head}: {detail}" if detail else head
+    if isinstance(exc, (httpx.TimeoutException, TimeoutError)):
+        return "Timp depășit la surse"
+    if isinstance(exc, ValueError):
+        text = _URL_IN_TEXT.sub("<url>", " ".join(str(exc).split()))
+        return text[:_REASON_MAX] if text else type(exc).__name__
+    return type(exc).__name__
 
 
 async def get_weather(
@@ -4009,17 +4061,18 @@ async def get_weather(
     except TimeoutError as exc:
         logger.warning("Weather aggregation exceeded the %.1fs budget without Open-Meteo data",
                        WEATHER_TOTAL_BUDGET_S)
-        stale = _stale_answer(key, "Timp depășit la surse")
+        stale = await _stale_answer(key, "Timp depășit la surse")
         if stale is not None:
             logger.info("serving the last good answer, %d min old", stale["stale"]["age_min"])
             return stale
         raise RuntimeError("Weather data not available within the time budget") from exc
     except Exception as exc:
-        stale = _stale_answer(key, _failure_reason(exc))
+        reason = failure_reason(exc)
+        stale = await _stale_answer(key, reason)
         if stale is None:
             raise
         logger.warning("sources failed (%s); serving the last good answer, %d min old",
-                       _failure_reason(exc), stale["stale"]["age_min"])
+                       reason, stale["stale"]["age_min"])
         return stale
     answer["stale"] = None
     _remember_good(key, answer)

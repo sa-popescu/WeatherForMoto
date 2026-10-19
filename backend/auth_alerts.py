@@ -39,6 +39,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, 
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
+import last_good
 import verification
 from weather_service import get_weather, _haversine_km
 
@@ -591,6 +592,9 @@ def init_db() -> None:
             conn.execute(stmt)
         # Forecast verification log (see verification.py).
         for stmt in (*verification.TABLES, *verification.INDEXES):
+            conn.execute(stmt)
+        # Last good weather answer, kept across cold starts (see last_good.py).
+        for stmt in (*last_good.TABLES, *last_good.INDEXES):
             conn.execute(stmt)
         conn.commit()
         _ensure_column(conn, "users", "display_name", "ALTER TABLE users ADD COLUMN display_name TEXT")

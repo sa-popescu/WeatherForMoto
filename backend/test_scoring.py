@@ -830,6 +830,91 @@ class NetworkTests(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaises(Exception):
                     await ws.get_weather(44.43, 26.10, "Test", "", forecast_days=2)
 
+    async def test_a_cold_instance_finds_the_answer_in_the_store(self) -> None:
+        # Cloud Run scales to zero, so the instance that stored the answer in
+        # memory is usually gone by the next request. The one that takes over
+        # must still find it, or the safety net only ever helps a warm process.
+        payload = make_om_payload(now_local_for_offset())
+        failing = {"on": False}
+        store: dict[tuple[str, int], tuple[float, dict]] = {}
+
+        def remember(cell: str, days: int, stored_at: float, body: dict) -> None:
+            store[(cell, days)] = (stored_at, body)
+
+        async def load(cell: str, days: int):
+            return store.get((cell, days))
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.host != "api.open-meteo.com":
+                return httpx.Response(404, json={})
+            if failing["on"]:
+                return httpx.Response(429, text="Minutely API request limit exceeded")
+            return httpx.Response(200, json=payload)
+
+        async with self.make_client(handler):
+            with patch.object(ws, "OPENMETEO_RETRY_DELAY_S", 0), \
+                 patch.object(ws.last_good, "remember", remember), \
+                 patch.object(ws.last_good, "load", load):
+                good = await ws.get_weather(44.43, 26.10, "Test", "", forecast_days=2)
+                failing["on"] = True
+                # A fresh process: the provider cache and the in-memory copy of
+                # the last good answer are both gone. Only the store is left.
+                ws._forecast_cache.clear()
+                ws._last_good.clear()
+                stale = await ws.get_weather(44.43, 26.10, "Test", "", forecast_days=2)
+
+        self.assertEqual(stale["current"]["temperature"], good["current"]["temperature"])
+        self.assertIn("429", stale["stale"]["reason"])
+
+    async def test_the_store_does_not_resurrect_an_expired_answer(self) -> None:
+        payload = make_om_payload(now_local_for_offset())
+        failing = {"on": False}
+        store: dict[tuple[str, int], tuple[float, dict]] = {}
+
+        def remember(cell: str, days: int, stored_at: float, body: dict) -> None:
+            # Older than the limit allows, as a row left over from hours ago.
+            store[(cell, days)] = (stored_at - ws.LAST_GOOD_MAX_AGE_S - 60, body)
+
+        async def load(cell: str, days: int):
+            return store.get((cell, days))
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.host != "api.open-meteo.com":
+                return httpx.Response(404, json={})
+            return httpx.Response(503, text="down") if failing["on"] else httpx.Response(200, json=payload)
+
+        async with self.make_client(handler):
+            with patch.object(ws, "OPENMETEO_RETRY_DELAY_S", 0), \
+                 patch.object(ws.last_good, "remember", remember), \
+                 patch.object(ws.last_good, "load", load):
+                await ws.get_weather(44.43, 26.10, "Test", "", forecast_days=2)
+                failing["on"] = True
+                ws._forecast_cache.clear()
+                ws._last_good.clear()
+                with self.assertRaises(Exception):
+                    await ws.get_weather(44.43, 26.10, "Test", "", forecast_days=2)
+
+    async def test_the_reason_on_screen_carries_no_url(self) -> None:
+        # failure_reason text reaches the rider's screen and the 502 body. httpx
+        # writes the request URL into its own messages, and a provider key can
+        # live in a URL, so the reason is built rather than copied from str(exc).
+        request = httpx.Request("GET", "https://api.openweathermap.org/data?appid=SECRET-KEY")
+        response = httpx.Response(401, text="Invalid API key", request=request)
+        reason = ws.failure_reason(httpx.HTTPStatusError("boom", request=request, response=response))
+        self.assertIn("401", reason)
+        self.assertNotIn("SECRET-KEY", reason)
+        self.assertNotIn("openweathermap.org", reason)
+
+        # Our own messages are kept, because they say more than a type name —
+        # but a URL inside one is still cut out.
+        self.assertEqual(
+            ws.failure_reason(ValueError("Open-Meteo error 429: Minutely API request limit exceeded")),
+            "Open-Meteo error 429: Minutely API request limit exceeded",
+        )
+        leaky = ws.failure_reason(ValueError("failed https://api.openweathermap.org/x?appid=SECRET-KEY now"))
+        self.assertNotIn("SECRET-KEY", leaky)
+        self.assertIn("failed", leaky)
+
     async def test_slow_optional_provider_does_not_block(self) -> None:
         payload = make_om_payload(now_local_for_offset())
 
