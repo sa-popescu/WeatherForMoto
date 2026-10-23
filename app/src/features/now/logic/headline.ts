@@ -4,7 +4,7 @@ import { rainBandOf } from '../../../lib/scoring';
 import type { CurrentWeather, DailyWeather, HourlyWeather } from '../../../lib/types';
 import { causeFromCurrent, causeFromHours, causeSentence, type Cause } from './cause';
 import { isDaylight, nextSunrise, sunTimes } from './daylight';
-import { bandWord, capitalize, maxOf, rainPhrase } from './formatting';
+import { capitalize, maxOf, rainNoun, rainPhrase, uncapitalize } from './formatting';
 import { RADAR_WET_MM_H, type RadarRain } from './radarRain';
 import { countedMm, isWetHour } from './rainOutlook';
 import { TEXTS } from './texts';
@@ -51,7 +51,7 @@ function radarMinutes(min: number): number {
 function withRadar(headline: Headline, radar: RadarRain | null | undefined, lang: Lang): Headline {
   if (!radar) return headline;
   const t = pick(TEXTS, lang);
-  const band = bandWord(rainBandOf(radar.peakMmPerHour), lang);
+  const band = rainNoun(rainBandOf(radar.peakMmPerHour), lang);
   let note: string | null = null;
   let title = headline.title;
   if (radar.arrivesInMin != null) {
@@ -64,10 +64,18 @@ function withRadar(headline: Headline, radar: RadarRain | null | undefined, lang
     note =
       radar.stopsInMin != null
         ? fmt(t.radarStops, { min: radarMinutes(radar.stopsInMin) })
-        : fmt(t.radarRaining, { band: bandWord(rainBandOf(radar.nowMmPerHour), lang), min: radarMinutes(radar.reachMin) });
+        : fmt(t.radarRaining, { band: rainNoun(rainBandOf(radar.nowMmPerHour), lang), min: radarMinutes(radar.reachMin) });
   }
   if (!note) return headline;
-  return { ...headline, title, sub: headline.sub ? `${note} ${headline.sub}` : note };
+  // The radar speaks for the next ~90 minutes and the forecast for the hours
+  // after it. Printed side by side they read as a contradiction: the radar can
+  // measure heavy rain overhead while the hourly peak, averaged over a cell, is
+  // only moderate. Naming the second window keeps them from arguing — unless
+  // the forecast half already opens with its own hour ("De la 16:00: …"), which
+  // says it better and would otherwise collect a second colon.
+  const namesItsHour = headline.sub.startsWith(t.fromHour.split('{hour}')[0]);
+  const sub = headline.sub && !namesItsHour ? fmt(t.radarThenForecast, { text: uncapitalize(headline.sub) }) : headline.sub;
+  return { ...headline, title, sub: sub ? `${note} ${sub}` : note };
 }
 
 function goTitle(cause: Cause | null, verdict: Extract<Verdict, { kind: 'go' }>, lang: Lang): string {

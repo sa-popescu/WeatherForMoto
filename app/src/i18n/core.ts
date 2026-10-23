@@ -34,6 +34,14 @@ export const CORE = defineStrings(
     bandSlaba: 'slabă',
     bandModerata: 'moderată',
     bandPuternica: 'puternică',
+    // The same bands as a noun phrase, for sentences. The bare adjective above
+    // is written for table rows and chips ("80% · moderată"); dropped into a
+    // sentence it agrees with nothing, and "urme" is not an adjective at all.
+    rainNounNone: 'fără ploaie',
+    rainNounUrme: 'picături',
+    rainNounSlaba: 'ploaie slabă',
+    rainNounModerata: 'ploaie moderată',
+    rainNounPuternica: 'ploaie puternică',
     signInRequired: 'Intră în cont ca să folosești asta.',
     comingSoon: 'În lucru',
   },
@@ -68,6 +76,11 @@ export const CORE = defineStrings(
     bandSlaba: 'light',
     bandModerata: 'moderate',
     bandPuternica: 'heavy',
+    rainNounNone: 'no rain',
+    rainNounUrme: 'a few drops',
+    rainNounSlaba: 'light rain',
+    rainNounModerata: 'moderate rain',
+    rainNounPuternica: 'heavy rain',
     signInRequired: 'Sign in to use this.',
     comingSoon: 'Work in progress',
   },

@@ -5,10 +5,6 @@ import { rainBandOf } from '../../../lib/scoring';
 import type { RainBand } from '../../../lib/types';
 import { TEXTS } from './texts';
 
-export function capitalize(text: string): string {
-  return text ? text.charAt(0).toUpperCase() + text.slice(1) : text;
-}
-
 /** "300 m" under a kilometre, "1,2 km" / "12 km" above. */
 export function fmtVisibility(metres: number, lang: Lang): string {
   if (metres < 1000) return `${Math.round(metres / 10) * 10} m`;
@@ -21,10 +17,37 @@ export function timeLabel(localIso: string, todayIso: string, lang: Lang): strin
   return localIso.slice(0, 10) === todayIso.slice(0, 10) ? hour : fmt(pick(TEXTS, lang).tomorrowAt, { hour });
 }
 
+export function capitalize(text: string): string {
+  return text ? text.charAt(0).toUpperCase() + text.slice(1) : text;
+}
+
+/** The intensity as an adjective: for chips and table rows ("80% · moderată"). */
 export function bandWord(band: RainBand | null, lang: Lang): string {
   const s = pick(CORE, lang);
   const words: Record<RainBand, string> = { none: s.bandNone, urme: s.bandUrme, slaba: s.bandSlaba, moderata: s.bandModerata, puternica: s.bandPuternica };
   return words[band ?? 'none'];
+}
+
+/**
+ * The intensity as a noun phrase: for sentences ("ploaie moderată").
+ * The adjective above belongs to a column header, not to a verb — "plouă
+ * (puternică)" agrees with nothing, and "plouă (urme)" is not Romanian at all.
+ */
+export function rainNoun(band: RainBand | null, lang: Lang): string {
+  const s = pick(CORE, lang);
+  const words: Record<RainBand, string> = {
+    none: s.rainNounNone,
+    urme: s.rainNounUrme,
+    slaba: s.rainNounSlaba,
+    moderata: s.rainNounModerata,
+    puternica: s.rainNounPuternica,
+  };
+  return words[band ?? 'none'];
+}
+
+/** Opposite of capitalize: a sentence folded into one that already started. */
+export function uncapitalize(text: string): string {
+  return text ? text.charAt(0).toLowerCase() + text.slice(1) : text;
 }
 
 export interface RainPeak {
@@ -34,13 +57,13 @@ export interface RainPeak {
 
 /**
  * Rain as probability AND amount, never one without the other:
- * "80% șanse, până la 3,2 mm/h (moderată)", "70% șanse, dar doar urme (0,2 mm/h)".
+ * "80% șanse, până la 3,2 mm/h, ploaie moderată", "70% șanse, dar doar urme (0,2 mm/h)".
  */
 export function rainPhrase(peak: RainPeak, lang: Lang): string {
   const t = pick(TEXTS, lang);
   const mm = Math.max(0, peak.mm ?? 0);
   const band = rainBandOf(mm);
-  const vars = { p: Math.round(peak.probability ?? 0), mm: fmtMm(mm, lang), band: bandWord(band, lang) };
+  const vars = { p: Math.round(peak.probability ?? 0), mm: fmtMm(mm, lang), band: rainNoun(band, lang) };
   if (peak.probability == null) return fmt(t.rainAmountOnly, vars);
   if (band === 'none') return fmt(t.rainNoAmount, vars);
   if (band === 'urme') return fmt(t.rainTraces, vars);
