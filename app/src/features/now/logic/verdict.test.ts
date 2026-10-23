@@ -71,14 +71,14 @@ describe('buildHeadline', () => {
   it('names the rain with probability, amount and intensity (RO)', () => {
     const h = buildHeadline({ current: current({ moto_score: 72 }), hourly: rainyAfternoon, startIndex: 10, daily: DAILY, lang: 'ro' });
     expect(h.title).toBe('Da, până la 16:00.');
-    expect(h.sub).toBe('De la 16:00: 80% șanse, până la 3,2 mm/h (moderată).');
+    expect(h.sub).toBe('De la 16:00: 80% șanse, până la 3,2 mm/h, ploaie moderată.');
     expect(h.keyTime).toBe('2026-09-11T16:00');
   });
 
   it('names the rain with probability, amount and intensity (EN)', () => {
     const h = buildHeadline({ current: current({ moto_score: 72 }), hourly: rainyAfternoon, startIndex: 10, daily: DAILY, lang: 'en' });
     expect(h.title).toBe('Yes, until 16:00.');
-    expect(h.sub).toBe('From 16:00: 80% chance, up to 3.2 mm/h (moderate).');
+    expect(h.sub).toBe('From 16:00: 80% chance, up to 3.2 mm/h, moderate rain.');
   });
 
   it('calls a high chance of traces what it is', () => {
@@ -100,7 +100,7 @@ describe('buildHeadline', () => {
     const now = current({ moto_score: 22, weather_code: 95, precipitation_probability: 90, precipitation_mm: 12, score_breakdown: null });
     const h = buildHeadline({ current: now, hourly, startIndex: 10, daily: DAILY, lang: 'ro' });
     expect(h.title).toBe('Nu azi.');
-    expect(h.sub).toBe('Furtună, 90% șanse, până la 12 mm/h (puternică). Mâine de la 07:00 arată bine (84).');
+    expect(h.sub).toBe('Furtună, 90% șanse, până la 12 mm/h, ploaie puternică. Mâine de la 07:00 arată bine (84).');
   });
 
   it('names the coming sunrise from the exact time, not the hour slot', () => {

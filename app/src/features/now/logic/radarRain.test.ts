@@ -69,7 +69,39 @@ describe('the radar in the headline', () => {
   it('turns a yes into "yes, but" for a shower within the hour', () => {
     const h = headline(radar({ arrivesInMin: 22, peakMmPerHour: 3 }));
     expect(h.title).toBe('Da, dar în ~20 min vine ploaia.');
-    expect(h.sub.startsWith('Radarul: ploaie (moderată) peste ~20 min.')).toBe(true);
+    expect(h.sub.startsWith('Radarul: ploaie moderată peste ~20 min.')).toBe(true);
+  });
+
+  it('names the rain overhead without turning the verb into an adjective', () => {
+    // "Radarul: plouă (puternică)" was an adjective agreeing with nothing, and
+    // at the lowest band it read "plouă (urme)", which is not a sentence.
+    const heavy = headline(radar({ nowMmPerHour: 9, peakMmPerHour: 9 }));
+    expect(heavy.sub.startsWith('Radarul: ploaie puternică acum, fără pauză în următoarele ~90 min.')).toBe(true);
+    const drops = headline(radar({ nowMmPerHour: 0.2, peakMmPerHour: 0.2 }));
+    expect(drops.sub.startsWith('Radarul: picături acum,')).toBe(true);
+  });
+
+  it('says which window the forecast half is talking about', () => {
+    // The radar measures what is overhead; the forecast averages an hour over a
+    // cell. Side by side with nothing between them the two look like they
+    // disagree, which is what a rider reads as a bug.
+    const h = headline(radar({ nowMmPerHour: 9, peakMmPerHour: 9 }));
+    expect(h.sub).toContain('Pe orele următoare: ');
+    expect(h.sub).not.toContain(': Uscat');
+  });
+
+  it('leaves the forecast half alone when it already opens with its own hour', () => {
+    const wetLater = hours('2026-09-11T00:00', 48, (i) => ({
+      moto_score: i >= 16 ? 39 : 94,
+      precipitation_probability: i >= 16 ? 84 : 0,
+      precipitation_mm: i >= 16 ? 3.8 : 0,
+    }));
+    const h = buildHeadline({
+      current: current({ moto_score: 94 }), hourly: wetLater, startIndex: 10, daily: DAILY, lang: 'ro',
+      radar: radar({ nowMmPerHour: 9, peakMmPerHour: 9 }),
+    });
+    expect(h.sub).toContain('min. De la 16:00: 84% șanse');
+    expect(h.sub).not.toContain('Pe orele următoare');
   });
 
   it('only notes drizzle or a shower further off', () => {
