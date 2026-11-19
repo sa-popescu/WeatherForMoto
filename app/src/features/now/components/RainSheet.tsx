@@ -4,11 +4,10 @@ import { RAIN_BAND_COLOR, RAIN_BANDS } from '../../../lib/scoring';
 import type { RainBand } from '../../../lib/types';
 import { Sheet } from '../../../ui/Sheet';
 import { Button, cx } from '../../../ui/primitives';
-import { bandWord, capitalize } from '../logic/formatting';
+import { bandRangeLabel, bandWord, capitalize } from '../logic/formatting';
 import type { RainOutlook } from '../logic/rainOutlook';
 import { S_SHEETS } from '../sheetStrings';
 import { RainMatrix } from './RainMatrix';
-import { bandRangeLabel } from './RainScale';
 
 // The rain explainer: probability and amount defined side by side, the
 // intensity bands with what they mean on a bike, and the scoring matrix.

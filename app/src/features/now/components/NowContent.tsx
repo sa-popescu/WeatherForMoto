@@ -4,10 +4,7 @@ import type { NowModel } from '../useNowModel';
 import { AlertBanners } from './AlertBanners';
 import { DayList } from './DayList';
 import { Hero } from './Hero';
-import { MoreGrid } from './MoreGrid';
 import type { NowSheetState } from './NowSheets';
-import { RainCard } from './RainCard';
-import { Readouts } from './Readouts';
 import { Timeline } from './Timeline';
 
 interface NowContentProps {
@@ -37,14 +34,13 @@ export function NowContent({ data, model, selectedTime, onSelectTime, onOpen }: 
       <Hero score={score} model={model} onScore={() => onOpen({ kind: 'score' })} />
       <Timeline
         bars={model.bars}
+        outlook={model.rain}
         nowIso={model.nowIso}
         selected={selected}
         onSelect={(i) => onSelectTime(model.bars[i].time)}
         onOpenHour={(i) => onOpen({ kind: 'hour', time: model.bars[i].time })}
+        onRainInfo={() => onOpen({ kind: 'rain' })}
       />
-      <RainCard outlook={model.rain} nowIso={model.nowIso} onInfo={() => onOpen({ kind: 'rain' })} />
-      <Readouts current={data.current} />
-      <MoreGrid current={data.current} />
       <DayList daily={data.daily} today={model.nowIso.slice(0, 10)} onOpen={(date) => onOpen({ kind: 'day', date })} />
     </>
   );

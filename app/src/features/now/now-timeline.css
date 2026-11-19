@@ -1,19 +1,26 @@
-/* 24 h timeline card (design direction A "Cockpit"). */
+/* 24 h card (design direction A "Cockpit"): the picked hour, the score
+   bars and the day's rain, in one card. */
 
 .now-tl {
   margin-top: 12px;
   padding: 16px 16px 14px;
 }
 
+/* The panel is a button: it opens the picked hour's details. */
 .now-tl__readout {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  width: 100%;
   margin-top: 12px;
   padding: 12px;
   border-radius: var(--r-md);
   border: 1px solid var(--line);
   background: var(--surface-2);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
 .now-tl__readout-top {
@@ -24,9 +31,16 @@
 }
 
 .now-tl__when {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
   font-size: 16px;
   font-weight: 600;
   letter-spacing: 0.02em;
+}
+
+.now-tl__when > svg {
+  color: var(--muted-2);
 }
 
 .now-tl__score {
@@ -53,15 +67,13 @@
   color: var(--muted);
 }
 
-/* The rain column is the widest, so that "1,3 mm/h · moderată" stays on one
-   line on a 375 px phone and the panel keeps its height while a finger drags
-   across the hours. A longer text ("foarte puternice") wraps: it is rare, and
-   it is exactly the kind of word that must not be cut short. */
+/* Air, gusts, asphalt. The gusts carry the longest words ("din NV,
+   moderate"), so their column gets a little more room; a rare longer one
+   ("foarte puternice") wraps rather than being cut short. */
 .now-tl__stats {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.2fr) minmax(0, 0.9fr);
   gap: 8px;
-  margin: 0;
 }
 
 .now-tl__stat {
@@ -91,10 +103,6 @@
   white-space: nowrap;
 }
 
-.now-tl__stat-value--rain {
-  color: var(--rain-ink);
-}
-
 .now-tl__stat-unit {
   margin-left: 4px;
   font-size: 12px;
@@ -103,7 +111,46 @@
 }
 
 .now-tl__stat-sub {
-  margin: 0;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
+.now-tl__road--wet {
+  color: var(--t-atentie);
+}
+
+.now-tl__road--frost {
+  color: var(--t-evita);
+}
+
+/* Rain gets a line of its own: one word for what the rider meets, then the numbers. */
+.now-tl__rain-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 8px;
+  row-gap: 2px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.now-tl__rain-value {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.now-tl__rain-value--wet,
+.now-tl__rain-value--possible {
+  color: var(--rain-ink);
+}
+
+.now-tl__rain-value--unlikely {
+  color: var(--muted);
+}
+
+.now-tl__rain-sub {
   font-size: 12px;
   line-height: 1.35;
   color: var(--muted);
@@ -223,15 +270,21 @@
   color: var(--ink);
 }
 
+/* ---- The day's rain, under the bars ---- */
+
+.now-tl__rain {
+  margin-top: 8px;
+}
+
 .now-tl__lane-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-top: 16px;
 }
 
 .now-tl__lane-title {
+  margin: 0;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.14em;
@@ -239,21 +292,19 @@
   color: var(--rain-ink);
 }
 
-.now-tl__unit {
-  text-transform: none;
-  letter-spacing: 0.04em;
-}
-
-.now-tl__lane-max {
-  font-size: 12px;
-  color: var(--muted-2);
+/* A full-size tap target that does not push the lane down. */
+.now-tl__rain-info.icon-btn {
+  margin: -2px -8px -2px 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
 }
 
 .now-tl__lane {
   display: grid;
   gap: 3px;
-  height: 44px;
-  margin-top: 6px;
+  height: 40px;
+  margin-top: 2px;
   border-bottom: 1px solid var(--line-2);
 }
 
@@ -275,31 +326,22 @@
   );
 }
 
-.now-tl__rain {
+.now-tl__rain-bar {
   width: 100%;
   border-radius: 2px 2px 0 0;
 }
 
-.now-tl__detail {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  width: 100%;
-  min-height: var(--tap);
-  margin-top: 12px;
-  padding: 0 12px 0 14px;
-  border-radius: var(--r-md);
-  border: 1px solid var(--line);
-  background: var(--surface-2);
+.now-tl__rain-peak,
+.now-tl__rain-advice {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
   color: var(--ink);
-  font-size: 15px;
-  font-weight: 500;
-  cursor: pointer;
 }
 
-.now-tl__detail > svg {
-  color: var(--muted-2);
+.now-tl__rain-peak + .now-tl__rain-advice {
+  margin-top: 2px;
+  color: var(--muted);
 }
 
 @keyframes now-rise {

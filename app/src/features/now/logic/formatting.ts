@@ -1,8 +1,9 @@
 import { CORE } from '../../../i18n/core';
 import { fmtMm, fmtNumber, hourOf } from '../../../lib/format';
 import { fmt, pick, type Lang } from '../../../lib/i18n';
-import { rainBandOf } from '../../../lib/scoring';
+import { bandRange, rainBandOf } from '../../../lib/scoring';
 import type { RainBand } from '../../../lib/types';
+import { S_NOW } from '../strings';
 import { TEXTS } from './texts';
 
 /** "300 m" under a kilometre, "1,2 km" / "12 km" above. */
@@ -26,6 +27,16 @@ export function bandWord(band: RainBand | null, lang: Lang): string {
   const s = pick(CORE, lang);
   const words: Record<RainBand, string> = { none: s.bandNone, urme: s.bandUrme, slaba: s.bandSlaba, moderata: s.bandModerata, puternica: s.bandPuternica };
   return words[band ?? 'none'];
+}
+
+/** A band's range: "sub 0,5", "0,5–2,5", "peste 7,5" (optionally with the unit). */
+export function bandRangeLabel(band: Exclude<RainBand, 'none'>, lang: Lang, withUnit = false): string {
+  const s = pick(S_NOW, lang);
+  const { min, max } = bandRange(band);
+  const unit = withUnit ? ' mm/h' : '';
+  if (band === 'urme' && max != null) return `${fmt(s.scaleBelow, { v: fmtMm(max, lang) })}${unit}`;
+  if (max == null) return `${fmt(s.scaleAbove, { v: fmtMm(min, lang) })}${unit}`;
+  return `${fmtMm(min, lang)}–${fmtMm(max, lang)}${unit}`;
 }
 
 /**

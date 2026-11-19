@@ -4,13 +4,13 @@ import { describeHour, scoreHour } from '../../../lib/directWeather';
 import { fmtMm, fmtNumber, fmtTemp } from '../../../lib/format';
 import { fmt, pick, useLang, useStrings } from '../../../lib/i18n';
 import { rainBandOf, tierColor, tierOf } from '../../../lib/scoring';
-import type { HourlyWeather } from '../../../lib/types';
+import type { CurrentWeather, HourlyWeather } from '../../../lib/types';
 
 import { Sheet } from '../../../ui/Sheet';
 import { WeatherIcon } from '../../../ui/WeatherIcon';
 import { cx } from '../../../ui/primitives';
 import { bandWord, capitalize, fmtVisibility, timeLabel } from '../logic/formatting';
-import { gustText, READOUT_TEXTS, uvWord } from '../logic/readouts';
+import { aqiWord, gustText, pollenWord, READOUT_TEXTS, uvWord } from '../logic/readouts';
 import { S_SHEETS } from '../sheetStrings';
 import { S_NOW } from '../strings';
 import { FactorList, valuesFromHour } from './FactorList';
@@ -23,8 +23,16 @@ interface Stat {
   wide?: boolean;
 }
 
+interface HourSheetProps {
+  hour: HourlyWeather;
+  /** The present conditions, only when `hour` is the current one: adds what has no hourly forecast. */
+  current?: CurrentWeather | null;
+  nowIso: string;
+  onClose: () => void;
+}
+
 /** One hour in detail, opened from the timeline. */
-export function HourSheet({ hour, nowIso, onClose }: { hour: HourlyWeather; nowIso: string; onClose: () => void }) {
+export function HourSheet({ hour, current = null, nowIso, onClose }: HourSheetProps) {
   const s = useStrings(S_SHEETS);
   const now = useStrings(S_NOW);
   const core = useStrings(CORE);
@@ -52,7 +60,16 @@ export function HourSheet({ hour, nowIso, onClose }: { hour: HourlyWeather; nowI
     { label: s.visibility, value: hour.visibility == null ? '–' : fmtVisibility(hour.visibility, lang) },
     { label: s.uv, value: fmtNumber(hour.uv_index, lang), sub: hour.uv_index == null ? undefined : uvWord(hour.uv_index, lang) },
     { label: s.humidity, value: hour.relative_humidity == null ? '–' : `${fmtNumber(hour.relative_humidity, lang)}%` },
+    { label: now.dewPoint, value: fmtTemp(hour.dew_point_2m, lang) },
+    { label: now.pressure, value: hour.pressure_msl == null ? '–' : `${fmtNumber(hour.pressure_msl, lang)} hPa` },
+    { label: now.windAvg, value: hour.wind_speed_kmh == null ? '–' : `${fmtNumber(hour.wind_speed_kmh, lang)} km/h` },
   ];
+  if (current) {
+    stats.push(
+      { label: now.aqi, value: fmtNumber(current.eu_aqi, lang), sub: current.eu_aqi == null ? undefined : aqiWord(current.eu_aqi, lang) },
+      { label: now.pollen, value: fmtNumber(current.pollen_index, lang), sub: current.pollen_index == null ? undefined : pollenWord(current.pollen_index, lang) },
+    );
+  }
 
   return (
     <Sheet open onClose={onClose} title={capitalize(timeLabel(hour.time, nowIso, lang))}>

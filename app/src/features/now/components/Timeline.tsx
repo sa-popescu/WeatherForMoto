@@ -1,16 +1,20 @@
 import { useMemo } from 'react';
-import { CORE } from '../../../i18n/core';
-import { fmtMm, fmtTemp } from '../../../lib/format';
+import { fmtTemp } from '../../../lib/format';
 import { fmt, useLang, useStrings } from '../../../lib/i18n';
 import { RAIN_BAND_COLOR, tierColor } from '../../../lib/scoring';
-import { Icon } from '../../../ui/icons';
-import { Card, cx } from '../../../ui/primitives';
+import { Card, cx, IconButton } from '../../../ui/primitives';
 import { timeLabel } from '../logic/formatting';
+import { rainConsequence, rainPeakLine, rainPeriod, type RainOutlook } from '../logic/rainOutlook';
 import { hourReadout, MEASURABLE_MM, nightRanges, peakRain, type TimelineBar } from '../logic/timeline';
 import { S_NOW } from '../strings';
 import { useScrub } from '../useScrub';
 import { TimelineReadout } from './TimelineReadout';
 import '../now-timeline.css';
+
+// The next 24 hours in one card: the picked hour in full, the score bars,
+// and the rain of the day under them. It used to be four sections (this
+// card, a rain card, three readout tiles and "Mai multe"); the details that
+// do not fit here live in the hour's sheet.
 
 // Bar geometry from the design: 14 px + 0.9 px per score point; the rain lane
 // is 4 px + 9 px per mm/h, capped at the lane height. Heights are mm/h,
@@ -19,26 +23,28 @@ const BAR_BASE_PX = 14;
 const BAR_PX_PER_POINT = 0.9;
 const LANE_BASE_PX = 4;
 const LANE_PX_PER_MM = 9;
-const LANE_MAX_PX = 42;
+const LANE_MAX_PX = 40;
 const NIGHT_LABEL_MIN_BARS = 3;
 
 const laneHeight = (mm: number): number => (mm < MEASURABLE_MM ? 0 : Math.max(LANE_BASE_PX, Math.min(LANE_MAX_PX, Math.round(LANE_BASE_PX + mm * LANE_PX_PER_MM))));
 
 interface TimelineProps {
   bars: TimelineBar[];
+  outlook: RainOutlook;
   nowIso: string;
   selected: number;
   onSelect: (index: number) => void;
   onOpenHour: (index: number) => void;
+  onRainInfo: () => void;
 }
 
-export function Timeline({ bars, nowIso, selected, onSelect, onOpenHour }: TimelineProps) {
+export function Timeline({ bars, outlook, nowIso, selected, onSelect, onOpenHour, onRainInfo }: TimelineProps) {
   const s = useStrings(S_NOW);
-  const core = useStrings(CORE);
   const lang = useLang();
   const { ref, handlers } = useScrub(bars.length, selected, onSelect, onOpenHour);
   const nights = useMemo(() => nightRanges(bars), [bars]);
-  const peak = useMemo(() => peakRain(bars), [bars]);
+  // No measurable rain in the whole day: the lane would be an empty strip.
+  const showLane = useMemo(() => peakRain(bars) !== null, [bars]);
   const bar = bars[selected];
   if (!bar) return null;
 
@@ -46,6 +52,8 @@ export function Timeline({ bars, nowIso, selected, onSelect, onOpenHour }: Timel
   const columns = { gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))` };
   const pct = (i: number): string => `${(i / n) * 100}%`;
   const readout = hourReadout(bar, selected === 0, nowIso, lang);
+  const period = rainPeriod(outlook, nowIso, lang);
+  const peakLine = rainPeakLine(outlook, nowIso, lang);
 
   return (
     <Card className="now-tl" aria-labelledby="now-tl-title">
@@ -56,7 +64,7 @@ export function Timeline({ bars, nowIso, selected, onSelect, onOpenHour }: Timel
         <span className="now-card-head__hint">{s.timelineHint}</span>
       </div>
 
-      <TimelineReadout readout={readout} />
+      <TimelineReadout readout={readout} label={fmt(s.hourDetails, { hour: timeLabel(bar.time, nowIso, lang) })} onOpen={() => onOpenHour(selected)} />
 
       <div
         ref={ref}
@@ -102,27 +110,23 @@ export function Timeline({ bars, nowIso, selected, onSelect, onOpenHour }: Timel
         ))}
       </div>
 
-      <div className="now-tl__lane-head">
-        <span className="now-tl__lane-title num">
-          {s.rainLane}
-          <span className="now-tl__unit"> · mm/h</span>
-        </span>
-        <span className="now-tl__lane-max">
-          {peak ? fmt(s.laneMax, { mm: fmtMm(peak.mm, lang), hour: timeLabel(peak.time, nowIso, lang) }) : core.bandNone}
-        </span>
+      <div className="now-tl__rain">
+        <div className="now-tl__lane-head">
+          <h3 className="now-tl__lane-title num">{period ? fmt(s.rainHead, { period }) : s.rainTitle}</h3>
+          <IconButton icon="info" label={s.rainInfo} onClick={onRainInfo} aria-haspopup="dialog" className="now-tl__rain-info" />
+        </div>
+        {showLane && (
+          <div className="now-tl__lane" style={columns} aria-hidden="true">
+            {bars.map((b, i) => (
+              <span key={b.time} className={cx('now-tl__rain-cell', i === selected && 'now-tl__rain-cell--on')}>
+                <span className="now-tl__rain-bar" style={{ height: laneHeight(b.mm), background: b.band === 'none' ? 'transparent' : RAIN_BAND_COLOR[b.band] }} />
+              </span>
+            ))}
+          </div>
+        )}
+        {peakLine && <p className="now-tl__rain-peak">{peakLine}</p>}
+        <p className="now-tl__rain-advice">{rainConsequence(outlook, lang)}</p>
       </div>
-      <div className="now-tl__lane" style={columns} aria-hidden="true">
-        {bars.map((b, i) => (
-          <span key={b.time} className={cx('now-tl__rain-cell', i === selected && 'now-tl__rain-cell--on')}>
-            <span className="now-tl__rain" style={{ height: laneHeight(b.mm), background: b.band === 'none' ? 'transparent' : RAIN_BAND_COLOR[b.band] }} />
-          </span>
-        ))}
-      </div>
-
-      <button type="button" className="now-tl__detail" onClick={() => onOpenHour(selected)} aria-haspopup="dialog">
-        <span>{fmt(s.hourDetails, { hour: timeLabel(bar.time, nowIso, lang) })}</span>
-        <Icon name="chevronRight" size={20} />
-      </button>
     </Card>
   );
 }

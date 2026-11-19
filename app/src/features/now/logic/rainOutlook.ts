@@ -2,6 +2,8 @@ import { addMinutesLocal, fmtMm } from '../../../lib/format';
 import { fmt, pick, type Lang } from '../../../lib/i18n';
 import { rainBandOf } from '../../../lib/scoring';
 import type { HourlyWeather, RainBand } from '../../../lib/types';
+import { S_NOW } from '../strings';
+import { bandWord, timeLabel } from './formatting';
 import { ALERT_TEXTS } from './texts';
 
 // The next rain episode in the coming hours: consecutive hours where rain is
@@ -88,6 +90,30 @@ export function rainOutlook(hourly: ReadonlyArray<HourlyWeather>, startIndex: nu
     }
   }
   return summarize('episode', window.slice(first, last + 1), first === 0);
+}
+
+/** "acum – mâine 04:00", "14:00 – 17:00", or null when no rain is coming. */
+export function rainPeriod(o: RainOutlook, nowIso: string, lang: Lang): string | null {
+  if (o.kind === 'dry' || !o.start || !o.end) return null;
+  const s = pick(S_NOW, lang);
+  const to = timeLabel(o.end, nowIso, lang);
+  return o.startsNow ? fmt(s.rainNowUntil, { to }) : fmt(s.rainSpan, { from: timeLabel(o.start, nowIso, lang), to });
+}
+
+/**
+ * "Până la 90% șanse, maxim 1,4 mm/h (slabă) la 03:00." The chance and the
+ * amount of the episode in one line. Null when there is no amount to give,
+ * or when the chance is low: the consequence then says "puțin probabil"
+ * with the number, and saying it twice would be noise.
+ */
+export function rainPeakLine(o: RainOutlook, nowIso: string, lang: Lang): string | null {
+  if (o.kind === 'dry' || o.band === 'none' || !o.peakMmTime || o.peakProbability < WET_PROBABILITY_PCT) return null;
+  return fmt(pick(ALERT_TEXTS, lang).peakLine, {
+    p: o.peakProbability,
+    mm: fmtMm(o.peakMm, lang),
+    band: bandWord(o.band, lang),
+    hour: timeLabel(o.peakMmTime, nowIso, lang),
+  });
 }
 
 /** Plain-language consequence for the rider. */
