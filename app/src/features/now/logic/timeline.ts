@@ -1,9 +1,12 @@
-import { fmtMm, fmtTemp, hourOf } from '../../../lib/format';
-import type { Lang } from '../../../lib/i18n';
-import { rainBandOf } from '../../../lib/scoring';
+import { CORE } from '../../../i18n/core';
+import { fmtMm, fmtNumber, fmtTemp, hourOf } from '../../../lib/format';
+import { fmt, pick, type Lang } from '../../../lib/i18n';
+import { rainBandOf, tierOf } from '../../../lib/scoring';
 import type { DailyWeather, HourlyWeather, RainBand } from '../../../lib/types';
+import { S_NOW } from '../strings';
 import { isDaylight } from './daylight';
-import { timeLabel } from './formatting';
+import { bandWord, rainPhrase, timeLabel } from './formatting';
+import { gustText } from './readouts';
 
 // 24 h timeline model: one bar per hour from the current one.
 
@@ -50,20 +53,92 @@ export function nightRanges(bars: ReadonlyArray<TimelineBar>): NightRange[] {
   return ranges;
 }
 
-/** "17:00 · 34 · 80% · 3,2 mm/h" (rain hours) or "mâine 06:00 · 84 · 18°" (dry hours). */
-export function calloutText(bar: TimelineBar, nowIso: string, lang: Lang): string {
-  const parts = [timeLabel(bar.time, nowIso, lang), bar.score == null ? '–' : String(bar.score)];
-  const probability = bar.hour.precipitation_probability;
-  if ((probability ?? 0) > 0 || bar.mm >= 0.05) {
-    if (probability != null) parts.push(`${Math.round(probability)}%`);
-    parts.push(`${fmtMm(bar.mm, lang)} mm/h`);
-  } else {
-    parts.push(fmtTemp(bar.hour.temperature, lang));
-  }
-  return parts.join(' · ');
+/** Below this an hour counts as dry: the same floor the rain lane draws from. */
+export const MEASURABLE_MM = 0.05;
+/** A dry hour with at least this chance of rain reads "possible", not "dry". */
+const POSSIBLE_RAIN_PCT = 30;
+
+/**
+ * The picked hour, spelled out for the panel above the bars. The bars only
+ * carry the score, so this is where the hour's temperature, rain and gusts are
+ * read without opening the details.
+ */
+export interface HourReadout {
+  /** "Acum · 16:00", "21:00" or "mâine 06:00". */
+  when: string;
+  score: number | null;
+  /** "11°" */
+  temp: string;
+  /** "resimțit 9°" */
+  feels: string;
+  rain: {
+    /** wet: it rains that hour; possible: dry, but with a real chance; dry: neither. */
+    state: 'dry' | 'possible' | 'wet';
+    /** "80%", "Posibil" or "Uscat". */
+    value: string;
+    /** "1,2 mm/h · slabă" or "șanse 45%". */
+    sub: string;
+  };
+  /** Whole km/h, "22". */
+  gust: string;
+  /** "moderate" */
+  gustWord: string;
+  /** All of it in one sentence, for a screen reader moving the slider. */
+  sentence: string;
 }
 
-/** Largest hourly amount in the timeline, for the "maxim X mm/h" label. */
-export function maxRain(bars: ReadonlyArray<TimelineBar>): number {
-  return bars.reduce((max, b) => Math.max(max, b.mm), 0);
+export function hourReadout(bar: TimelineBar, isNow: boolean, nowIso: string, lang: Lang): HourReadout {
+  const s = pick(S_NOW, lang);
+  const core = pick(CORE, lang);
+  const hour = timeLabel(bar.time, nowIso, lang);
+  const when = isNow ? fmt(s.readoutNow, { hour }) : hour;
+  const probability = bar.hour.precipitation_probability;
+  const pct = probability == null ? null : Math.round(probability);
+  const chance = pct == null ? '' : fmt(s.rainChance, { p: pct });
+
+  let rain: HourReadout['rain'];
+  if (bar.mm >= MEASURABLE_MM) {
+    const amount = `${fmtMm(bar.mm, lang)} mm/h`;
+    rain = pct == null
+      ? { state: 'wet', value: amount, sub: bandWord(bar.band, lang) }
+      : { state: 'wet', value: `${pct}%`, sub: `${amount} · ${bandWord(bar.band, lang)}` };
+  } else if ((pct ?? 0) >= POSSIBLE_RAIN_PCT) {
+    rain = { state: 'possible', value: s.rainPossible, sub: chance };
+  } else {
+    rain = { state: 'dry', value: s.rainDry, sub: chance };
+  }
+
+  const temp = fmtTemp(bar.hour.temperature, lang);
+  const gust = fmtNumber(bar.hour.wind_gusts_kmh == null ? null : Math.round(bar.hour.wind_gusts_kmh), lang);
+  const tier = tierOf(bar.score);
+  const tierName = tier ? { ideal: core.tierIdeal, ok: core.tierOk, atentie: core.tierAtentie, evita: core.tierEvita }[tier] : '';
+  const rainWords = rain.state === 'dry' ? core.rainNounNone : rainPhrase({ probability, mm: bar.mm }, lang);
+  const sentence = fmt(s.readoutAria, {
+    when,
+    score: bar.score == null ? '–' : String(bar.score),
+    tier: tierName,
+    temp,
+    rain: rainWords,
+    gust,
+  });
+
+  return {
+    when,
+    score: bar.score,
+    temp,
+    feels: fmt(s.feels, { t: fmtTemp(bar.hour.feels_like, lang) }),
+    rain,
+    gust,
+    gustWord: gustText(bar.hour.wind_gusts_kmh, null, lang),
+    sentence,
+  };
+}
+
+/** The wettest hour of the timeline, or null when no hour has measurable rain. */
+export function peakRain(bars: ReadonlyArray<TimelineBar>): TimelineBar | null {
+  let peak: TimelineBar | null = null;
+  for (const bar of bars) {
+    if (bar.mm >= MEASURABLE_MM && (peak === null || bar.mm > peak.mm)) peak = bar;
+  }
+  return peak;
 }
