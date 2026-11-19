@@ -1,4 +1,5 @@
 import { GPS_TIMEOUT_MS } from './config';
+import { locateWaitMs } from './followLocation';
 import type { Lang } from './i18n';
 import { foldText, parsePhoton, photonUrl, type PhotonFeature } from './photon';
 import type { Place } from './types';
@@ -27,15 +28,18 @@ export class GeoError extends Error {
 /**
  * Current position with a hard timeout. The Geolocation timeout option only
  * starts after the user answers the permission prompt, so an ignored prompt
- * would otherwise hang forever.
+ * would otherwise hang forever. While the prompt may be on screen the hard
+ * timeout is a long one (see locateWaitMs); a slow GPS is still cut off after
+ * `timeoutMs` by the browser's own timeout.
  */
-export function getCurrentPosition(timeoutMs: number = GPS_TIMEOUT_MS): Promise<Position> {
+export async function getCurrentPosition(timeoutMs: number = GPS_TIMEOUT_MS): Promise<Position> {
+  const hardLimitMs = locateWaitMs(await geolocationPermission(), timeoutMs);
   return new Promise((resolve, reject) => {
     if (!('geolocation' in navigator)) {
       reject(new GeoError('unsupported'));
       return;
     }
-    const timer = window.setTimeout(() => reject(new GeoError('timeout')), timeoutMs);
+    const timer = window.setTimeout(() => reject(new GeoError('timeout')), hardLimitMs);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         window.clearTimeout(timer);
