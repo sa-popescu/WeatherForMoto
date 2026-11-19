@@ -7,6 +7,7 @@ import { cx, SectionLabel } from '../../../ui/primitives';
 import { dayRainLine } from '../logic/dayRain';
 import { nextDate } from '../logic/daylight';
 import { S_NOW } from '../strings';
+import '../now-lists.css';
 
 const SHORT_LIST_DAYS = 7;
 

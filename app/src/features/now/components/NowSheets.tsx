@@ -35,7 +35,9 @@ export function NowSheets({ sheet, data, model, nowMs, onClose }: NowSheetsProps
       return <RainSheet outlook={model.rain} onClose={onClose} />;
     case 'hour': {
       const hour = data.hourly.find((h) => h.time === sheet.time);
-      return hour ? <HourSheet hour={hour} nowIso={model.nowIso} onClose={onClose} /> : null;
+      // Air quality and pollen exist only for the present, so only the current hour shows them.
+      const current = sheet.time === model.bars[0]?.time ? data.current : null;
+      return hour ? <HourSheet hour={hour} current={current} nowIso={model.nowIso} onClose={onClose} /> : null;
     }
     case 'day': {
       const day = data.daily.find((d) => d.date === sheet.date);

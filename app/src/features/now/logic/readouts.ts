@@ -1,9 +1,6 @@
-import { scoreBreakdown } from '../../../lib/directWeather';
 import { defineStrings, fmt, pick, type Lang } from '../../../lib/i18n';
-import { tierOf, type Tier } from '../../../lib/scoring';
-import type { CurrentWeather } from '../../../lib/types';
 
-// Words and tiers for the instrument readouts (air, gusts, asphalt, extras).
+// Words for the readings: gusts, asphalt, UV, air quality, pollen.
 
 export const READOUT_TEXTS = defineStrings(
   {
@@ -13,8 +10,6 @@ export const READOUT_TEXTS = defineStrings(
     gustVeryStrong: 'foarte puternice',
     gustDangerous: 'periculoase',
     gustFrom: 'din {dir}, {word}',
-    asphaltDry: 'uscat',
-    asphaltWet: 'ud, aderență redusă',
     asphaltFrost: 'risc de polei',
     uvLow: 'scăzut',
     uvModerate: 'moderat',
@@ -39,8 +34,6 @@ export const READOUT_TEXTS = defineStrings(
     gustVeryStrong: 'very strong',
     gustDangerous: 'dangerous',
     gustFrom: 'from {dir}, {word}',
-    asphaltDry: 'dry',
-    asphaltWet: 'wet, less grip',
     asphaltFrost: 'black ice risk',
     uvLow: 'low',
     uvModerate: 'moderate',
@@ -96,20 +89,4 @@ export function aqiWord(aqi: number, lang: Lang): string {
 export function pollenWord(grains: number, lang: Lang): string {
   const w = pick(READOUT_TEXTS, lang);
   return band(grains, [20, 100, 500], [w.pollenLow, w.pollenModerate, w.pollenHigh, w.pollenVeryHigh]);
-}
-
-export function asphalt(current: CurrentWeather, lang: Lang): { word: string; tier: Tier } {
-  const w = pick(READOUT_TEXTS, lang);
-  if (current.frost_risk) return { word: w.asphaltFrost, tier: 'evita' };
-  const wet = (current.precipitation_mm ?? 0) >= 0.05 || (current.rain_intensity != null && current.rain_intensity !== 'none');
-  return wet ? { word: w.asphaltWet, tier: 'atentie' } : { word: w.asphaltDry, tier: 'ideal' };
-}
-
-/** Tier of a single factor, scored alone with the published rules. */
-export function airTier(feels: number | null): Tier | null {
-  return feels == null ? null : tierOf(scoreBreakdown({ feelsLike: feels, gustsKmh: null, precipitationMm: null, weatherCode: null, probability: null }).score);
-}
-
-export function gustTier(gust: number | null): Tier | null {
-  return gust == null ? null : tierOf(scoreBreakdown({ feelsLike: null, gustsKmh: gust, precipitationMm: null, weatherCode: null, probability: null }).score);
 }
