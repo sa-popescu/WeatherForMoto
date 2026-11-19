@@ -3,10 +3,10 @@ import { Icon, type IconName } from '../../ui/icons';
 import { cx } from '../../ui/primitives';
 import { AS } from './actionStrings';
 
-// Save, GPX, log ride, report hazard. Signed-out riders still see the
+// Share, save, GPX, log ride, report hazard. Signed-out riders still see the
 // buttons; the ones needing an account explain it instead of failing.
 
-export type ActionKind = 'save' | 'gpx' | 'log' | 'hazard';
+export type ActionKind = 'share' | 'save' | 'gpx' | 'log' | 'hazard';
 
 interface RouteActionsProps {
   signedIn: boolean;
@@ -16,6 +16,7 @@ interface RouteActionsProps {
 export function RouteActions({ signedIn, onAction }: RouteActionsProps) {
   const as = useStrings(AS);
   const items: { kind: ActionKind; icon: IconName; label: string; aria: string; warn?: boolean }[] = [
+    { kind: 'share', icon: 'share', label: as.actShare, aria: as.actShareAria },
     { kind: 'save', icon: 'bookmark', label: as.actSave, aria: as.actSaveAria },
     { kind: 'gpx', icon: 'download', label: as.actGpx, aria: as.actGpxAria },
     { kind: 'log', icon: 'bike', label: as.actLog, aria: as.actLogAria },

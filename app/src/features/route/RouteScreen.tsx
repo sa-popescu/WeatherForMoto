@@ -20,6 +20,7 @@ import type { Departure } from './types';
 import { useRideStats, useSavedRoutes } from './useAccountData';
 import { useCalculate } from './useCalculate';
 import { useDerivedPlan } from './useDerivedPlan';
+import { useOpenRouteLink } from './useOpenRouteLink';
 import { useRouteActions } from './useRouteActions';
 import { useRouteHazards } from './useRouteHazards';
 import { useRoutePlan } from './useRoutePlan';
@@ -59,6 +60,7 @@ export default function RouteScreen({ active }: ScreenProps) {
     onLogged: rides.reload,
     onReported: hazards.reload,
   });
+  useOpenRouteLink({ dates, speed, setDeparture, setSpeed, openShared: calc.openShared });
 
   // A departure further out needs the longer forecast: reload the points once.
   useEffect(() => {
@@ -69,10 +71,11 @@ export default function RouteScreen({ active }: ScreenProps) {
 
   const onAction = useCallback(
     (kind: ActionKind) => {
-      if (kind === 'gpx') actions.exportGpx();
+      if (kind === 'share') void actions.shareRoute({ departure, track: calc.sharedTrack(), stale: calc.stale });
+      else if (kind === 'gpx') actions.exportGpx();
       else setSheet(signedIn ? kind : 'signin');
     },
-    [actions, signedIn],
+    [actions, calc, departure, signedIn],
   );
 
   const close = useCallback(() => setSheet('none'), []);
