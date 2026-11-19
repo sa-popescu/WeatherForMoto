@@ -58,10 +58,12 @@ export function AppSection() {
         {install === 'unavailable' && <Note icon="download">{currentIsIos() ? s.installIos : s.installOther}</Note>}
       </Card>
       <Card className="acct-rows">
-        <a className="acct-row" href={PRIVACY_POLICY_URL} target="_blank" rel="noopener noreferrer">
+        {/* Same window, not a new one: the installed app on an iPhone has no
+            windows, and the policy page links back here instead. */}
+        <a className="acct-row" href={PRIVACY_POLICY_URL}>
           <Icon name="lock" size={22} />
           <span className="acct-row__label">{s.privacy}</span>
-          <Icon name="external" size={20} className="acct-row__chevron" />
+          <Icon name="chevronRight" size={20} className="acct-row__chevron" />
         </a>
         <div className="acct-row acct-row--static">
           <Icon name="info" size={22} />
