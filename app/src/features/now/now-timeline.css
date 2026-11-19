@@ -5,10 +5,115 @@
   padding: 16px 16px 14px;
 }
 
+.now-tl__readout {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+}
+
+.now-tl__readout-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.now-tl__when {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.now-tl__score {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1.5px solid var(--line-2);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.now-tl__score-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.now-tl__score-tier {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+}
+
+/* The rain column is the widest, so that "1,3 mm/h · moderată" stays on one
+   line on a 375 px phone and the panel keeps its height while a finger drags
+   across the hours. A longer text ("foarte puternice") wraps: it is rare, and
+   it is exactly the kind of word that must not be cut short. */
+.now-tl__stats {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 8px;
+  margin: 0;
+}
+
+.now-tl__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.now-tl__stat-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted-2);
+}
+
+.now-tl__stat-label--rain {
+  color: var(--rain-ink);
+}
+
+.now-tl__stat-value {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.now-tl__stat-value--rain {
+  color: var(--rain-ink);
+}
+
+.now-tl__stat-unit {
+  margin-left: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted-2);
+}
+
+.now-tl__stat-sub {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
+/* 34 px above the bars: the night label, then the temperatures. */
 .now-tl__plot {
   position: relative;
   height: 108px;
-  margin-top: 52px;
+  margin-top: 48px;
   border-radius: 6px;
   touch-action: pan-y;
   cursor: ew-resize;
@@ -22,7 +127,7 @@
 
 .now-tl__night {
   position: absolute;
-  top: -18px;
+  top: -34px;
   bottom: 0;
   border-radius: 10px;
   background: var(--night);
@@ -37,6 +142,30 @@
   font-weight: 600;
   letter-spacing: 0.16em;
   color: var(--dim);
+}
+
+.now-tl__temps {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -18px;
+  display: grid;
+  gap: 3px;
+  pointer-events: none;
+}
+
+.now-tl__temp {
+  display: flex;
+  justify-content: center;
+  min-height: 14px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.now-tl__temp--now {
+  justify-content: flex-start;
 }
 
 .now-tl__bars {
@@ -70,21 +199,6 @@
   width: 1.5px;
   margin-left: -0.75px;
   background: color-mix(in srgb, var(--ink) 30%, transparent);
-  pointer-events: none;
-}
-
-.now-tl__callout {
-  position: absolute;
-  top: -46px;
-  padding: 6px 10px;
-  border-radius: 10px;
-  border: 1.5px solid var(--line-2);
-  background: var(--bg);
-  color: var(--ink);
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
   pointer-events: none;
 }
 
@@ -138,13 +252,31 @@
 .now-tl__lane {
   display: grid;
   gap: 3px;
-  align-items: end;
-  height: 30px;
+  height: 44px;
   margin-top: 6px;
   border-bottom: 1px solid var(--line-2);
 }
 
+.now-tl__rain-cell {
+  display: flex;
+  align-items: flex-end;
+  border-radius: 3px 3px 0 0;
+}
+
+/* The cursor line of the bars, carried on through the lane so the eye can
+   follow the picked hour down. A filled cell would read as a rain bar. */
+.now-tl__rain-cell--on {
+  background: linear-gradient(
+    to right,
+    transparent calc(50% - 0.75px),
+    color-mix(in srgb, var(--ink) 30%, transparent) calc(50% - 0.75px),
+    color-mix(in srgb, var(--ink) 30%, transparent) calc(50% + 0.75px),
+    transparent calc(50% + 0.75px)
+  );
+}
+
 .now-tl__rain {
+  width: 100%;
   border-radius: 2px 2px 0 0;
 }
 

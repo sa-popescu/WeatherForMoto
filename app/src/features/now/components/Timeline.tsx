@@ -1,25 +1,25 @@
 import { useMemo } from 'react';
 import { CORE } from '../../../i18n/core';
-import { fmtMm } from '../../../lib/format';
+import { fmtMm, fmtTemp } from '../../../lib/format';
 import { fmt, useLang, useStrings } from '../../../lib/i18n';
 import { RAIN_BAND_COLOR, tierColor } from '../../../lib/scoring';
 import { Icon } from '../../../ui/icons';
 import { Card, cx } from '../../../ui/primitives';
 import { timeLabel } from '../logic/formatting';
-import { calloutText, maxRain, nightRanges, type TimelineBar } from '../logic/timeline';
+import { hourReadout, MEASURABLE_MM, nightRanges, peakRain, type TimelineBar } from '../logic/timeline';
 import { S_NOW } from '../strings';
 import { useScrub } from '../useScrub';
+import { TimelineReadout } from './TimelineReadout';
 import '../now-timeline.css';
 
 // Bar geometry from the design: 14 px + 0.9 px per score point; the rain lane
-// is 2 px + 6.5 px per mm/h, capped at the lane height. Heights are mm/h,
+// is 4 px + 9 px per mm/h, capped at the lane height. Heights are mm/h,
 // never probability.
 const BAR_BASE_PX = 14;
 const BAR_PX_PER_POINT = 0.9;
-const LANE_BASE_PX = 2;
-const LANE_PX_PER_MM = 6.5;
-const LANE_MAX_PX = 28;
-const MEASURABLE_MM = 0.05;
+const LANE_BASE_PX = 4;
+const LANE_PX_PER_MM = 9;
+const LANE_MAX_PX = 42;
 const NIGHT_LABEL_MIN_BARS = 3;
 
 const laneHeight = (mm: number): number => (mm < MEASURABLE_MM ? 0 : Math.max(LANE_BASE_PX, Math.min(LANE_MAX_PX, Math.round(LANE_BASE_PX + mm * LANE_PX_PER_MM))));
@@ -38,16 +38,14 @@ export function Timeline({ bars, nowIso, selected, onSelect, onOpenHour }: Timel
   const lang = useLang();
   const { ref, handlers } = useScrub(bars.length, selected, onSelect, onOpenHour);
   const nights = useMemo(() => nightRanges(bars), [bars]);
-  const peak = useMemo(() => maxRain(bars), [bars]);
+  const peak = useMemo(() => peakRain(bars), [bars]);
   const bar = bars[selected];
   if (!bar) return null;
 
   const n = bars.length;
   const columns = { gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))` };
   const pct = (i: number): string => `${(i / n) * 100}%`;
-  const left = pct(selected + 0.5);
-  const shift = selected > n * 0.7 ? '-88%' : selected < n * 0.17 ? '-12%' : '-50%';
-  const callout = calloutText(bar, nowIso, lang);
+  const readout = hourReadout(bar, selected === 0, nowIso, lang);
 
   return (
     <Card className="now-tl" aria-labelledby="now-tl-title">
@@ -58,6 +56,8 @@ export function Timeline({ bars, nowIso, selected, onSelect, onOpenHour }: Timel
         <span className="now-card-head__hint">{s.timelineHint}</span>
       </div>
 
+      <TimelineReadout readout={readout} />
+
       <div
         ref={ref}
         className="now-tl__plot"
@@ -67,7 +67,7 @@ export function Timeline({ bars, nowIso, selected, onSelect, onOpenHour }: Timel
         aria-valuemin={0}
         aria-valuemax={n - 1}
         aria-valuenow={selected}
-        aria-valuetext={callout}
+        aria-valuetext={readout.sentence}
         {...handlers}
       >
         {nights.map((r) => (
@@ -75,6 +75,13 @@ export function Timeline({ bars, nowIso, selected, onSelect, onOpenHour }: Timel
             {r.end - r.start >= NIGHT_LABEL_MIN_BARS && <span className="now-tl__night-label num">{s.nightLabel}</span>}
           </div>
         ))}
+        <div className="now-tl__temps" style={columns} aria-hidden="true">
+          {bars.map((b, i) => (
+            <span key={b.time} className={cx('now-tl__temp num', i === 0 && 'now-tl__temp--now')}>
+              {i === 0 || b.label ? fmtTemp(b.hour.temperature, lang) : ''}
+            </span>
+          ))}
+        </div>
         <div className="now-tl__bars" style={columns}>
           {bars.map((b, i) => (
             <span
@@ -84,10 +91,7 @@ export function Timeline({ bars, nowIso, selected, onSelect, onOpenHour }: Timel
             />
           ))}
         </div>
-        <div className="now-tl__cursor" style={{ left }} aria-hidden="true" />
-        <div className="now-tl__callout num" style={{ left, transform: `translateX(${shift})`, borderColor: tierColor(bar.score) }} aria-hidden="true">
-          {callout}
-        </div>
+        <div className="now-tl__cursor" style={{ left: pct(selected + 0.5) }} aria-hidden="true" />
       </div>
 
       <div className="now-tl__labels" style={columns} aria-hidden="true">
@@ -103,11 +107,15 @@ export function Timeline({ bars, nowIso, selected, onSelect, onOpenHour }: Timel
           {s.rainLane}
           <span className="now-tl__unit"> · mm/h</span>
         </span>
-        <span className="now-tl__lane-max">{peak >= MEASURABLE_MM ? fmt(s.laneMax, { mm: fmtMm(peak, lang) }) : core.bandNone}</span>
+        <span className="now-tl__lane-max">
+          {peak ? fmt(s.laneMax, { mm: fmtMm(peak.mm, lang), hour: timeLabel(peak.time, nowIso, lang) }) : core.bandNone}
+        </span>
       </div>
       <div className="now-tl__lane" style={columns} aria-hidden="true">
-        {bars.map((b) => (
-          <span key={b.time} className="now-tl__rain" style={{ height: laneHeight(b.mm), background: b.band === 'none' ? 'transparent' : RAIN_BAND_COLOR[b.band] }} />
+        {bars.map((b, i) => (
+          <span key={b.time} className={cx('now-tl__rain-cell', i === selected && 'now-tl__rain-cell--on')}>
+            <span className="now-tl__rain" style={{ height: laneHeight(b.mm), background: b.band === 'none' ? 'transparent' : RAIN_BAND_COLOR[b.band] }} />
+          </span>
         ))}
       </div>
 

@@ -20,17 +20,14 @@ interface NowContentProps {
 }
 
 export function NowContent({ data, model, selectedTime, onSelectTime, onOpen }: NowContentProps) {
-  // Default callout: the hour the verdict hinges on, else the rain peak, else now.
+  // The timeline opens on the current hour: the first thing a rider wants from
+  // it is what the weather is doing right now. The hour the verdict hinges on
+  // is already named in the headline above. An hour picked by hand is kept
+  // until it drops off the left edge.
   const selected = useMemo(() => {
-    const find = (time: string | null): number => (time ? model.bars.findIndex((b) => b.time === time) : -1);
-    const rainPeak = model.rain.kind === 'episode' ? (model.rain.peakMmTime ?? model.rain.start) : null;
-    const candidates = [selectedTime, model.headline.keyTime, rainPeak];
-    for (const time of candidates) {
-      const i = find(time);
-      if (i >= 0) return i;
-    }
-    return 0;
-  }, [model, selectedTime]);
+    const picked = selectedTime ? model.bars.findIndex((b) => b.time === selectedTime) : -1;
+    return picked >= 0 ? picked : 0;
+  }, [model.bars, selectedTime]);
 
   const score = data.current.moto_score ?? model.bars[0]?.score ?? null;
 
