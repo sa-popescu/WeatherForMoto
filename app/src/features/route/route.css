@@ -57,6 +57,11 @@
   padding: 0 6px 0 16px;
 }
 
+.route-stops__tools {
+  display: flex;
+  align-items: center;
+}
+
 .route-stops__list {
   list-style: none;
   margin: 0;

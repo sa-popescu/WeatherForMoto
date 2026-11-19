@@ -11,7 +11,8 @@ import type { PointWeather, RouteLine, SamplePoint, StopDraft } from './types';
 
 // Orchestrates one calculation: resolve typed stops, route with OSRM, then
 // load the weather of every sample point (3 at a time, filling in as they
-// arrive). A new calculation or unmounting cancels everything in flight.
+// arrive). An imported GPX track skips the first two steps. A new calculation
+// or unmounting cancels everything in flight.
 
 const WEATHER_CONCURRENCY = 3;
 
@@ -41,6 +42,14 @@ export interface CalculateInput {
   nameBetween: NameBetween;
   /** Receives the stops as resolved, so the editor can show what was used. */
   onResolved: (places: ResolvedStop[]) => void;
+}
+
+export interface TrackInput {
+  /** The line of the imported file, with its stops already placed along it. */
+  route: RouteLine;
+  stops: readonly Place[];
+  days: number;
+  nameBetween: NameBetween;
 }
 
 async function resolveStops(stops: readonly StopDraft[], lang: Lang, signal: AbortSignal): Promise<ResolvedStop[]> {
@@ -136,6 +145,17 @@ export function useRoutePlan() {
     [fresh, loadWeather],
   );
 
+  /** An imported track already is the road: no geocoding, no OSRM, straight to the weather. */
+  const calculateFromTrack = useCallback(
+    async ({ route, stops, days, nameBetween }: TrackInput) => {
+      const controller = fresh();
+      const points = buildSamplePoints(route, stops, nameBetween);
+      setState({ ...INITIAL, step: 'weather', route, points });
+      await loadWeather(points, days, controller);
+    },
+    [fresh, loadWeather],
+  );
+
   /** Reloads every point with a longer forecast when the departure moves further out. */
   const ensureDays = useCallback(
     (days: number) => {
@@ -160,5 +180,5 @@ export function useRoutePlan() {
     setState(INITIAL);
   }, []);
 
-  return { state, calculate, ensureDays, retryFailed, reset };
+  return { state, calculate, calculateFromTrack, ensureDays, retryFailed, reset };
 }

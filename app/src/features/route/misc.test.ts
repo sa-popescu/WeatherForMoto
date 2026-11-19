@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { buildGpx, escapeXml, gpxFileName } from './gpx';
+import { buildGpx, escapeXml, GpxError, gpxFileName, parseGpx, unescapeXml } from './gpx';
 import { placeHazards, serverTimeMs } from './hazards';
 import { osrmUrl, parseOsrm, roadAt, RouteError } from './osrm';
 import { runPool } from './pool';
 import { rainLine } from './rainText';
 import { addStop, MAX_STOPS, moveItem, nearestKnown, newStop, removeStop, roleOf, savedLabel } from './stops';
+import { pickEvenly, planImport, thinLine } from './track';
 import type { Hazard } from '../../lib/types';
 
 describe('gpx', () => {
@@ -33,6 +34,110 @@ describe('gpx', () => {
   it('builds a plain file name', () => {
     expect(gpxFileName('București → Râmnicu Vâlcea')).toBe('bucuresti-ramnicu-valcea.gpx');
     expect(gpxFileName('→')).toBe('traseu.gpx');
+  });
+});
+
+describe('gpx import', () => {
+  it('reads tracks, routes and waypoints however the points are written', () => {
+    const parsed = parseGpx(`<?xml version="1.0"?>
+      <gpx version="1.1" xmlns:gpxx="http://www.garmin.com/xmlschemas/GpxExtensions/v3">
+        <wpt lat="44.4268" lon="26.1025"><name>Bucure&#537;ti &amp; Co</name></wpt>
+        <wpt lon='24.1256' lat='45.7983'><ele>415</ele><name><![CDATA[Sibiu <centru>]]></name></wpt>
+        <!-- <wpt lat="1" lon="1"><name>commented out</name></wpt> -->
+        <rte><rtept lat="44.5" lon="26.0"/></rte>
+        <trk><trkseg>
+          <trkpt lat="44.4268" lon="26.1025"/>
+          <trkpt lat="44.9" lon="25.5"><ele>300</ele><time>2026-09-11T10:00:00Z</time></trkpt>
+          <trkpt lat="95" lon="25"/>
+          <trkpt lat="abc" lon="25"/>
+        </trkseg><trkseg>
+          <trkpt lon="24.1256" lat="45.7983"></trkpt>
+        </trkseg></trk>
+      </gpx>`);
+    expect(parsed.waypoints).toEqual([
+      { lat: 44.4268, lon: 26.1025, name: 'București & Co' },
+      { lat: 45.7983, lon: 24.1256, name: 'Sibiu <centru>' },
+    ]);
+    expect(parsed.routePoints).toEqual([{ lat: 44.5, lon: 26, name: '' }]);
+    expect(parsed.track).toEqual([
+      { lat: 44.4268, lon: 26.1025 },
+      { lat: 44.9, lon: 25.5 },
+      { lat: 45.7983, lon: 24.1256 },
+    ]);
+    expect(unescapeXml('&lt;a&gt; &#x41;&quot;&unknown;')).toBe('<a> A"&unknown;');
+  });
+
+  it('gets back the road and the stops of its own export', () => {
+    const line = [
+      { lat: 44.4268, lon: 26.1025 },
+      { lat: 44.8565, lon: 24.8692 },
+      { lat: 45.3, lon: 24.5 },
+      { lat: 45.7983, lon: 24.1256 },
+    ];
+    const waypoints = [
+      { ...line[0], name: 'București' },
+      { ...line[1], name: 'Pitești' },
+      { ...line[3], name: 'Sibiu' },
+    ];
+    const plan = planImport(parseGpx(buildGpx({ name: 'București → Sibiu', line, waypoints, createdIso: '2026-09-11T10:00:00.000Z' })));
+    if (plan.kind !== 'track') throw new Error('expected the track to be kept');
+    expect(plan.route.coords).toEqual(line);
+    expect(plan.route.roads).toEqual([]);
+    expect(plan.stops.map((s) => s.name)).toEqual(['București', 'Pitești', 'Sibiu']);
+    expect(plan.route.stopKm).toHaveLength(3);
+    expect(plan.route.stopKm[0]).toBe(0);
+    expect(plan.route.stopKm[1]).toBeCloseTo(plan.route.cumKm[1], 6);
+    expect(plan.route.stopKm[2]).toBe(plan.route.distanceKm);
+    expect(plan.route.distanceKm).toBeGreaterThan(200);
+  });
+
+  it('leaves the ends unnamed when no waypoint sits on them and ignores far waypoints', () => {
+    const plan = planImport({
+      track: [{ lat: 45, lon: 25 }, { lat: 45, lon: 25 }, { lat: 45.5, lon: 25 }, { lat: 46, lon: 25 }],
+      routePoints: [],
+      waypoints: [{ lat: 45.5, lon: 27, name: 'Far away' }, { lat: 45.5, lon: 25.001, name: 'Popas' }, { lat: 45.5, lon: 25, name: '' }],
+    });
+    if (plan.kind !== 'track') throw new Error('expected the track to be kept');
+    expect(plan.route.coords).toHaveLength(3);
+    expect(plan.stops.map((s) => s.name)).toEqual([null, 'Popas', null]);
+  });
+
+  it('keeps a route drawn point by point, but routes between a few via points', () => {
+    const dense = Array.from({ length: 50 }, (_, i) => ({ lat: 45 + i * 0.005, lon: 25, name: '' }));
+    expect(planImport({ track: [], routePoints: dense, waypoints: [] }).kind).toBe('track');
+
+    const sparse = Array.from({ length: 14 }, (_, i) => ({ lat: 44 + i * 0.2, lon: 25, name: i === 0 ? 'Start' : '' }));
+    const plan = planImport({ track: [], routePoints: sparse, waypoints: [] });
+    if (plan.kind !== 'stops') throw new Error('expected stops for the router');
+    expect(plan.stops).toHaveLength(MAX_STOPS);
+    expect(plan.stops[0]).toEqual({ lat: 44, lon: 25, name: 'Start' });
+    expect(plan.stops[MAX_STOPS - 1]).toEqual({ lat: sparse[13].lat, lon: 25, name: null });
+  });
+
+  it('uses waypoints as stops when the file has nothing else', () => {
+    const plan = planImport(parseGpx('<gpx><wpt lat="44.4" lon="26.1"><name>A</name></wpt><wpt lat="45.8" lon="24.1"><name>B</name></wpt></gpx>'));
+    expect(plan).toEqual({ kind: 'stops', stops: [{ lat: 44.4, lon: 26.1, name: 'A' }, { lat: 45.8, lon: 24.1, name: 'B' }] });
+  });
+
+  it('rejects files without a route', () => {
+    const empty = (xml: string): void => {
+      expect(() => planImport(parseGpx(xml))).toThrow(GpxError);
+    };
+    empty('');
+    empty('not xml at all <<<');
+    empty('<kml><Placemark><coordinates>26.1,44.4</coordinates></Placemark></kml>');
+    empty('<gpx><trk><trkseg><trkpt lat="45" lon="25"/></trkseg></trk></gpx>');
+    empty('<gpx><trk><trkseg><trkpt lat="45" lon="25"/><trkpt lat="45" lon="25"/></trkseg></trk></gpx>');
+  });
+
+  it('thins very dense lines evenly and keeps both ends', () => {
+    const line = Array.from({ length: 1001 }, (_, i) => ({ lat: 45 + i * 0.0001, lon: 25 }));
+    const thin = thinLine(line, 101);
+    expect(thin).toHaveLength(101);
+    expect(thin[0]).toEqual(line[0]);
+    expect(thin[50]).toEqual(line[500]);
+    expect(thin[100]).toEqual(line[1000]);
+    expect(pickEvenly([1, 2, 3], 5)).toEqual([1, 2, 3]);
   });
 });
 

@@ -43,12 +43,12 @@ export default function RouteScreen({ active }: ScreenProps) {
   const [sheet, setSheet] = useState<SheetKind>('none');
 
   const stopsState = useStopsState();
-  const { state: plan, calculate, ensureDays, retryFailed } = useRoutePlan();
+  const { state: plan, calculate, calculateFromTrack, ensureDays, retryFailed } = useRoutePlan();
   const derived = useDerivedPlan(plan, departure, speed);
   const hazards = useRouteHazards(plan.route, plan.points);
   const saved = useSavedRoutes(active);
   const rides = useRideStats(active);
-  const calc = useCalculate({ stopsState, calculate, hasRoute: plan.route !== null, departure, speed, today: dates[0] });
+  const calc = useCalculate({ stopsState, calculate, calculateFromTrack, hasRoute: plan.route !== null, departure, speed, today: dates[0] });
   const actions = useRouteActions({
     route: plan.route,
     points: plan.points,
@@ -90,7 +90,7 @@ export default function RouteScreen({ active }: ScreenProps) {
         )}
       </header>
 
-      <StopsEditor state={stopsState} />
+      <StopsEditor state={stopsState} onImportGpx={(file) => void calc.importGpx(file)} />
       {calc.formError && (
         <Banner tone="error" icon="alert">
           {calc.formError}
