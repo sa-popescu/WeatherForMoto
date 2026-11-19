@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { api, ApiError, type HazardInput } from '../../lib/api';
-import { useStrings } from '../../lib/i18n';
+import { dayMonth, dayName } from '../../lib/format';
+import { fmt, useLang, useStrings } from '../../lib/i18n';
 import type { SavedRoute } from '../../lib/types';
 import { CORE } from '../../i18n/core';
 import { useAuth } from '../../state/auth';
@@ -8,12 +9,40 @@ import { useToast } from '../../state/toast';
 import { AS } from './actionStrings';
 import { buildGpx, gpxFileName } from './gpx';
 import type { RouteStats } from './plan';
+import { buildRouteLink, type ShareStop } from './routeLink';
+import { fmtKm } from './routeFormat';
 import { savedLabel } from './stops';
 import { rideMinutes } from './timing';
-import type { RouteLine, SamplePoint, StopDraft } from './types';
+import type { Departure, RouteLine, SamplePoint, StopDraft } from './types';
 
 // The write actions of the screen. Each returns true when it succeeded, so
 // the sheet that started it knows whether to close.
+
+/** What sharing needs beyond the route itself. */
+export interface ShareRequest {
+  departure: Departure;
+  /** The imported road when the route came from a GPX file, else null. */
+  track: RouteLine | null;
+  /** The stops were edited after the route was calculated. */
+  stale: boolean;
+}
+
+type ShareOutcome = 'shared' | 'copied' | 'cancelled';
+
+/** The phone's share sheet where there is one, the clipboard otherwise. Throws when neither works. */
+async function shareOrCopy(url: string, text: string): Promise<ShareOutcome> {
+  if (typeof navigator.share === 'function') {
+    try {
+      await navigator.share({ title: 'MotoMeteo', text, url });
+      return 'shared';
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return 'cancelled';
+      console.warn('[route] native share failed, copying instead', err);
+    }
+  }
+  await navigator.clipboard.writeText(url);
+  return 'copied';
+}
 
 interface Options {
   route: RouteLine | null;
@@ -31,6 +60,7 @@ const round1 = (v: number): number => Math.round(v * 10) / 10;
 export function useRouteActions({ route, points, stops, stats, speed, onSavedChange, onLogged, onReported }: Options) {
   const { token, handleAuthError } = useAuth();
   const toast = useToast();
+  const lang = useLang();
   const as = useStrings(AS);
   const core = useStrings(CORE);
 
@@ -140,7 +170,37 @@ export function useRouteActions({ route, points, stops, stats, speed, onSavedCha
     [as.hzErr, as.hzOk, as.hzRate, fail, onReported, toast, token],
   );
 
-  return { routeName, saveRoute, deleteRoute, exportGpx, logRide, reportHazard };
+  const shareRoute = useCallback(
+    async ({ departure, track, stale }: ShareRequest): Promise<void> => {
+      if (!route) return;
+      const shared: ShareStop[] = [];
+      for (const st of stops) {
+        if (!st.place) break;
+        shared.push({ name: st.place.name, lat: st.place.lat, lon: st.place.lon, gps: st.gps });
+      }
+      // A link made from edited stops would not open the route on screen.
+      if (stale || shared.length !== stops.length) {
+        toast(as.shareStale, { tone: 'error' });
+        return;
+      }
+      const url = buildRouteLink({ stops: shared, departure, speed, line: track ? track.coords : null });
+      const text = fmt(as.shareText, {
+        route: routeName,
+        day: `${dayName(departure.date, lang)} ${dayMonth(departure.date, lang)}`,
+        time: departure.time,
+        km: fmtKm(route.distanceKm, lang),
+      });
+      try {
+        if ((await shareOrCopy(url, text)) === 'copied') toast(as.shareCopied, { tone: 'success' });
+      } catch (err) {
+        console.warn('[route] share failed', err);
+        toast(as.shareErr, { tone: 'error' });
+      }
+    },
+    [as.shareCopied, as.shareErr, as.shareStale, as.shareText, lang, route, routeName, speed, stops, toast],
+  );
+
+  return { routeName, saveRoute, deleteRoute, exportGpx, logRide, reportHazard, shareRoute };
 }
 
 export type RouteActionsApi = ReturnType<typeof useRouteActions>;

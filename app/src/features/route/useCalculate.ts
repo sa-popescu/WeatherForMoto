@@ -10,13 +10,21 @@ import { MAX_STOPS, newStop, stopsKey } from './stops';
 import { RS } from './strings';
 import { SWEEP_LAST } from './sweep';
 import { daysBetween, forecastDaysFor, minutesOf } from './timing';
+import { trackFromLink, type RouteLink } from './routeLink';
 import { planImport, type GpxPlan } from './track';
 import type { Departure, RouteLine, StopDraft } from './types';
 import type { CalculateInput, TrackInput } from './useRoutePlan';
 import type { StopsState } from './useStopsState';
 
-// Starting a calculation from the editor, the example, a saved route or a GPX
-// file, and noticing when the stops no longer match the route on screen.
+// Starting a calculation from the editor, the example, a saved route, a GPX
+// file or a shared link, and noticing when the stops no longer match the
+// route on screen.
+
+/** When and how fast: what the forecast length depends on. */
+export interface RidePlan {
+  departure: Departure;
+  speed: number;
+}
 
 const EXAMPLE: Place[] = [
   { name: 'București', lat: 44.4268, lon: 26.1025 },
@@ -63,17 +71,35 @@ export function useCalculate({ stopsState, calculate, calculateFromTrack, hasRou
 
   const nameBetween = useCallback<NameBetween>((road, previous) => road ?? fmt(s.afterStop, { stop: previous }), [s.afterStop]);
 
-  /** Forecast length needed for a ride of this many km at the chosen departure. */
+  /**
+   * Forecast length needed for a ride of this many km. The departure and pace
+   * default to the ones on screen; a shared link passes its own, because the
+   * screen has not re-rendered with them yet when the calculation starts.
+   */
   const daysFor = useCallback(
-    (roadKm: number): number => {
-      const latest = Math.max(minutesOf(departure.time), minutesOf(SWEEP_LAST));
-      return forecastDaysFor(daysBetween(today, departure.date), latest, roadKm / speed);
+    (roadKm: number, plan: RidePlan = { departure, speed }): number => {
+      const latest = Math.max(minutesOf(plan.departure.time), minutesOf(SWEEP_LAST));
+      return forecastDaysFor(daysBetween(today, plan.departure.date), latest, roadKm / plan.speed);
     },
     [departure, speed, today],
   );
 
+  /** Puts a known road on screen with its stops, and remembers it so recalculating keeps it. */
+  const startTrack = useCallback(
+    (route: RouteLine, places: Place[], plan?: RidePlan) => {
+      const drafts = places.map((p) => newStop(p));
+      const key = stopsKey(drafts);
+      imported.current = { key, route, places };
+      setFormError(null);
+      setStops(drafts);
+      setCalcKey(key);
+      void calculateFromTrack({ route, stops: places, days: daysFor(route.distanceKm, plan), nameBetween });
+    },
+    [calculateFromTrack, daysFor, nameBetween, setStops],
+  );
+
   const run = useCallback(
-    (list: StopDraft[]) => {
+    (list: StopDraft[], plan?: RidePlan) => {
       // Empty stops in the middle are dropped; start and destination are required.
       const filled = list.filter((st, i) => i === 0 || i === list.length - 1 || st.place || st.text.trim());
       if (!filled[0]?.text.trim() || !filled[filled.length - 1]?.text.trim()) {
@@ -87,7 +113,7 @@ export function useCalculate({ stopsState, calculate, calculateFromTrack, hasRou
       if (track && stopsKey(filled) === track.key) {
         // Untouched stops of an imported GPX: keep the road from the file.
         setCalcKey(track.key);
-        void calculateFromTrack({ route: track.route, stops: track.places, days: daysFor(track.route.distanceKm), nameBetween });
+        void calculateFromTrack({ route: track.route, stops: track.places, days: daysFor(track.route.distanceKm, plan), nameBetween });
         return;
       }
       imported.current = null;
@@ -96,7 +122,7 @@ export function useCalculate({ stopsState, calculate, calculateFromTrack, hasRou
       for (let i = 1; i < known.length; i += 1) straight += distanceKm(known[i - 1], known[i]);
       void calculate({
         stops: filled,
-        days: daysFor(straight * ROAD_FACTOR),
+        days: daysFor(straight * ROAD_FACTOR, plan),
         lang,
         nameBetween,
         onResolved: (places) => {
@@ -176,18 +202,39 @@ export function useCalculate({ stopsState, calculate, calculateFromTrack, hasRou
       }
       if (seq !== requestSeq.current) return;
 
-      const drafts = places.map((p) => newStop(p));
-      const key = stopsKey(drafts);
-      imported.current = { key, route: plan.route, places };
-      setFormError(null);
-      setStops(drafts);
-      setCalcKey(key);
       toast(fmt(as.gpxImported, { km: Math.round(plan.route.distanceKm) }), { tone: 'success' });
-      void calculateFromTrack({ route: plan.route, stops: places, days: daysFor(plan.route.distanceKm), nameBetween });
+      startTrack(plan.route, places);
     },
-    [as, calculateFromTrack, daysFor, lang, nameBetween, run, s.fieldDestination, s.fieldOrigin, setStops, toast],
+    [as, lang, run, s.fieldDestination, s.fieldOrigin, startTrack, toast],
   );
 
+  /**
+   * A plan from a shared link: the road it carries when it came from a GPX,
+   * otherwise its stops, routed like typed ones. Returns false when the road
+   * in the link has no length, so the caller can say the link is broken.
+   */
+  const openShared = useCallback(
+    (link: RouteLink, plan: RidePlan): boolean => {
+      requestSeq.current += 1;
+      const places: Place[] = link.stops.map((st) => ({ name: st.name, lat: st.lat, lon: st.lon }));
+      if (link.line) {
+        const route = trackFromLink(link.line, link.stops);
+        if (!route) return false;
+        startTrack(route, places, plan);
+        return true;
+      }
+      run(places.map((p) => newStop(p)), plan);
+      return true;
+    },
+    [run, startTrack],
+  );
+
+  /** The imported road on screen, when that is what the current stops were calculated on. */
+  const sharedTrack = useCallback((): RouteLine | null => {
+    const track = imported.current;
+    return track && track.key === calcKey ? track.route : null;
+  }, [calcKey]);
+
   const stale = hasRoute && calcKey !== null && stopsKey(stops) !== calcKey;
-  return { run, runExample, loadSaved, importGpx, formError, stale };
+  return { run, runExample, loadSaved, importGpx, openShared, sharedTrack, formError, stale };
 }
