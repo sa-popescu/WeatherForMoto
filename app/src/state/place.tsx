@@ -14,7 +14,9 @@ import type { Place } from '../lib/types';
 // then the last place, then the default. GPS runs at launch when the browser
 // has already granted it (silent), or when you asked the app to open on your
 // location (see lib/followLocation.ts); otherwise you tap "my location", and
-// doing so turns that setting on.
+// doing so turns that setting on. The permission prompt can appear at launch
+// or on that tap, never on coming back to the app, and a refusal turns the
+// setting off so the next launch does not ask again.
 
 export type PlaceSource = 'default' | 'last' | 'gps' | 'search' | 'favorite' | 'link';
 
@@ -64,6 +66,8 @@ export function PlaceProvider({ children }: { children: ReactNode }) {
   const booted = useRef(false);
   /** When the last GPS fix landed, so a return to the app can refresh a stale one. */
   const fixAt = useRef<number | null>(null);
+  /** The position request in flight, if any. */
+  const pendingFix = useRef<Promise<boolean> | null>(null);
 
   const setPlace = useCallback((next: Place, nextSource: PlaceSource) => {
     const clean = { name: next.name, lat: next.lat, lon: next.lon };
@@ -71,7 +75,7 @@ export function PlaceProvider({ children }: { children: ReactNode }) {
     setState({ place: clean, source: nextSource });
   }, []);
 
-  const locate = useCallback(async (): Promise<boolean> => {
+  const requestFix = useCallback(async (): Promise<boolean> => {
     setLocating(true);
     setLocateError(null);
     try {
@@ -84,12 +88,26 @@ export function PlaceProvider({ children }: { children: ReactNode }) {
       setFollowMe(true);
       return true;
     } catch (err) {
-      setLocateError(err instanceof GeoError ? err.reason : 'unavailable');
+      const reason = err instanceof GeoError ? err.reason : 'unavailable';
+      // A "no" is an answer: stop asking at every launch. Safari does not
+      // report the refusal afterwards, so without this the prompt came back
+      // each time the app opened. Tapping the pin still asks, and a fix
+      // turns the setting back on.
+      if (reason === 'denied') setFollowMe(false);
+      setLocateError(reason);
       return false;
     } finally {
       setLocating(false);
     }
   }, [lang, setPlace, setFollowMe]);
+
+  /** One request at a time: a second caller joins the one already waiting on the prompt or the GPS. */
+  const locate = useCallback((): Promise<boolean> => {
+    pendingFix.current ??= requestFix().finally(() => {
+      pendingFix.current = null;
+    });
+    return pendingFix.current;
+  }, [requestFix]);
 
   useEffect(() => {
     if (booted.current) return;
