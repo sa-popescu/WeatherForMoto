@@ -4,7 +4,10 @@ WeatherForMoto – FastAPI Backend
 Endpoints
 ---------
 GET /health
-    Simple health check.
+    Simple health check; also says whether the database answers.
+
+GET /health/db
+    503 when the database does not answer.
 
 GET /weather?city=Bucharest
     Returns aggregated weather (current + 7-day daily + hourly) for a city name.
@@ -23,6 +26,7 @@ GET /meta/scoring
 import logging
 import os
 import asyncio
+import time
 from datetime import datetime as _dt
 import pathlib
 from contextlib import asynccontextmanager
@@ -54,7 +58,7 @@ from weather_service import (  # noqa: E402
     set_http_client,
     set_verification_sink,
 )
-from auth_alerts import router as auth_alerts_router, init_db  # noqa: E402
+from auth_alerts import router as auth_alerts_router, check_database, init_db  # noqa: E402
 import verification  # noqa: E402
 
 # ---------------------------------------------------------------------------
@@ -233,10 +237,51 @@ def _validated_departure(departure: str | None) -> str | None:
 # Routes
 # ---------------------------------------------------------------------------
 
+# The database answer is remembered this long, so a monitor pinging /health
+# does not open a connection every time, and a slow database is given up on
+# quickly instead of holding the ping.
+DB_CHECK_TTL_S = 60.0
+DB_CHECK_TIMEOUT_S = 3.0
+_db_check: tuple[float, str] | None = None
+
+
+async def _database_status() -> str:
+    """"ok", "unavailable", or "off" when no database is configured."""
+    global _db_check
+    if not (os.getenv("TURSO_DATABASE_URL") and os.getenv("TURSO_AUTH_TOKEN")):
+        return "off"
+    now = time.monotonic()
+    if _db_check is not None and now - _db_check[0] < DB_CHECK_TTL_S:
+        return _db_check[1]
+    try:
+        await asyncio.wait_for(asyncio.to_thread(check_database), timeout=DB_CHECK_TIMEOUT_S)
+        status = "ok"
+    except Exception as exc:
+        logger.warning("database check failed: %s: %s", type(exc).__name__, exc)
+        status = "unavailable"
+    _db_check = (now, status)
+    return status
+
+
 @app.get("/health", tags=["meta"])
 async def health() -> dict:
-    """Returns API status."""
-    return {"status": "ok", "version": "1.0.0"}
+    """Returns API status.
+
+    Always 200 while the process is up: the weather does not need the
+    database, so a database outage must not make the whole API look dead.
+    The "database" field says how that part is doing; /health/db is the
+    strict version for a monitor.
+    """
+    return {"status": "ok", "version": "1.0.0", "database": await _database_status()}
+
+
+@app.get("/health/db", tags=["meta"])
+async def health_database() -> dict:
+    """200 when the database answers (or none is configured), 503 when it does not."""
+    status = await _database_status()
+    if status == "unavailable":
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    return {"database": status}
 
 
 @app.get("/meta/scoring", tags=["meta"])

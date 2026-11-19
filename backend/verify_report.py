@@ -6,6 +6,9 @@ Run from backend/ with the database variables set (read only, changes nothing):
     python verify_report.py              # the last 30 days
     python verify_report.py --days 7
 
+The log keeps verification.RETENTION_DAYS days, so asking for more than that
+shows no more than that.
+
 Rain: every source's chance of rain against whether a station or an airport
 saw rain in that cell and hour, as a Brier score (0 is perfect, lower is
 better) and a skill score against always forecasting the local base rate
@@ -39,16 +42,9 @@ MIN_PAIRS = 30
 
 
 def _rain_rows(conn: Any, since: str) -> list[dict[str, Any]]:
-    prob_columns = ", ".join(f"f.prob_{name.replace('-', '_')}" for name in verification.RAIN_SOURCES)
-    return conn.execute(
-        f"""SELECT f.lead_h, f.precip_prob, {prob_columns}, o.raining
-            FROM forecast_log f
-            JOIN (SELECT cell, hour, MAX(raining) AS raining FROM observation_log
-                  WHERE raining IS NOT NULL GROUP BY cell, hour) o
-              ON o.cell = f.cell AND o.hour = f.valid_hour
-            WHERE f.issued_hour >= ?""",
-        (since,),
-    ).fetchall()
+    # Matched in Python, not in SQL: see verification.rain_pairs for why.
+    columns = ("lead_h", "precip_prob", *(f"prob_{name.replace('-', '_')}" for name in verification.RAIN_SOURCES))
+    return verification.rain_pairs(conn, since, columns)
 
 
 def _temp_rows(conn: Any, since: str) -> list[dict[str, Any]]:

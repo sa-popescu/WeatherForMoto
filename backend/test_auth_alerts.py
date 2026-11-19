@@ -47,6 +47,8 @@ _libsql_stub.connect = _stub_connect  # type: ignore[attr-defined]
 sys.modules["libsql_experimental"] = _libsql_stub
 
 import auth_alerts as aa  # noqa: E402
+import calibration  # noqa: E402
+import verification  # noqa: E402
 from fastapi import FastAPI, HTTPException  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 from starlette.requests import Request  # noqa: E402
@@ -992,6 +994,96 @@ class RetiredEmailColumnsTests(_Base):
 # ---------------------------------------------------------------------------
 # 2/4/10. Input limits, email rendering, small fixes
 # ---------------------------------------------------------------------------
+
+class DatabaseOutageTests(_Base):
+    # What libSQL raised in production when the plan's read quota ran out.
+    BLOCKED = ValueError(
+        'Hrana: stream error: Error { message: "Operation was blocked: SQL read operations are '
+        'forbidden (reads are blocked, do you need to upgrade your plan?)", code: "BLOCKED" }'
+    )
+
+    def test_a_blocked_database_is_a_503_the_app_can_read(self) -> None:
+        with mock.patch.object(aa, "_connect", side_effect=self.BLOCKED):
+            open_route = self.client.get("/hazards?lat=44.43&lon=26.10")
+            behind_login = self.client.get("/me", headers=_auth("any-token"))
+        for response in (open_route, behind_login):
+            self.assertEqual(response.status_code, 503, response.text)
+            self.assertEqual(response.json()["detail"], aa.DATABASE_DOWN_DETAIL)
+            self.assertEqual(response.headers["retry-after"], str(aa.DATABASE_DOWN_RETRY_S))
+
+    def test_other_failures_are_not_dressed_up_as_an_outage(self) -> None:
+        # A bug must stay a loud 500, not become "try again later".
+        with mock.patch.object(aa, "_connect", side_effect=ValueError("not a database problem")):
+            with self.assertRaises(ValueError):
+                self.client.get("/hazards?lat=44.43&lon=26.10")
+
+    def test_a_statement_error_is_not_an_outage(self) -> None:
+        self.assertTrue(aa.is_database_outage(self.BLOCKED))
+        self.assertTrue(aa.is_database_outage(ValueError("Hrana: http error: connection reset")))
+        self.assertFalse(aa.is_database_outage(ValueError(
+            'Hrana: stream error: Error { message: "SQLite error: UNIQUE constraint failed: users.email", '
+            'code: "SQLITE_CONSTRAINT" }')))
+        self.assertFalse(aa.is_database_outage(sqlite3.OperationalError("no such table: missing")))
+
+    def test_the_health_probe_reads_a_real_table(self) -> None:
+        aa.check_database()
+        with mock.patch.object(aa, "_connect", side_effect=self.BLOCKED):
+            with self.assertRaises(ValueError):
+                aa.check_database()
+
+
+class CalibrationStoreTests(_Base):
+    """calibration.py against a real (SQLite) database: read the log once, then live off app_state."""
+
+    DEFAULTS = {"ensemble": 3.0, "models": 2.0}
+    SOURCES = ("ensemble", "models")
+
+    def setUp(self) -> None:
+        super().setUp()
+        calibration.reset_for_tests()
+        self.addCleanup(calibration.reset_for_tests)
+
+    def _log_hours(self, start: datetime, hours: int) -> None:
+        """One cell, one forecast an hour ahead per hour, and whether it then rained."""
+        conn = self.db()
+        fmt = verification.HOUR_FORMAT
+        for step in range(hours):
+            issued = start + timedelta(hours=step)
+            wet = step % 2
+            conn.execute(
+                "INSERT INTO forecast_log (cell, issued_hour, valid_hour, lead_h, precip_prob, prob_ensemble, prob_models) "
+                "VALUES ('44.45,26.10', ?, ?, 1, ?, ?, 0.5)",
+                (issued.strftime(fmt), (issued + timedelta(hours=1)).strftime(fmt), 90 if wet else 10, 0.9 if wet else 0.1),
+            )
+            conn.execute(
+                "INSERT INTO observation_log (cell, hour, source, raining) VALUES ('44.45,26.10', ?, 'official', ?)",
+                ((issued + timedelta(hours=1)).strftime(fmt), wet),
+            )
+        conn.commit()
+
+    def test_the_log_is_read_once_and_the_answer_is_shared(self) -> None:
+        now = datetime.now(timezone.utc)
+        self._log_hours(now - timedelta(days=10), hours=240 - 2)
+        self._log_hours(now - timedelta(days=verification.RETENTION_DAYS + 20), hours=24)
+        since = (now - timedelta(days=calibration.WINDOW_DAYS)).strftime(verification.HOUR_FORMAT)
+
+        calibration._refresh(since, self.SOURCES, self.DEFAULTS)
+
+        first = calibration.current(self.DEFAULTS)
+        self.assertEqual(first.pairs, 238)
+        self.assertGreater(first.weights["ensemble"], 3.0)
+        self.assertIsNotNone(aa.get_app_state(calibration.STATE_KEY))
+        # The rows past keeping went in the same pass.
+        self.assertEqual(self.db().execute("SELECT COUNT(*) AS n FROM forecast_log").fetchone()["n"], 238)
+        self.assertEqual(self.db().execute("SELECT COUNT(*) AS n FROM observation_log").fetchone()["n"], 238)
+
+        # A cold start somewhere else: one row from app_state, and the log is not opened.
+        calibration.reset_for_tests()
+        with mock.patch.object(verification, "rain_pairs") as rain_pairs:
+            calibration._refresh(since, self.SOURCES, self.DEFAULTS)
+        rain_pairs.assert_not_called()
+        self.assertEqual(calibration.current(self.DEFAULTS).as_meta(), first.as_meta())
+
 
 class MiscTests(_Base):
     def test_request_reset_swallows_email_failure(self) -> None:

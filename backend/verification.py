@@ -16,6 +16,10 @@ rounded cell, which is also the forecast cache key, and UTC hours. At most one
 snapshot per cell and hour is written, off the event loop, and a failed write
 never touches the weather answer.
 
+The join is done here in Python (rain_pairs), not in SQL, and rows older than
+RETENTION_DAYS are dropped (prune): Turso bills every row a query steps over,
+and this log is the only table in the app that grows without being asked to.
+
 The tables are created by init_db (RUN_DB_MIGRATIONS=true); until then the
 writes see the tables missing and skip.
 """
@@ -27,6 +31,8 @@ import logging
 import os
 import time
 from collections import OrderedDict
+from collections.abc import Sequence
+from datetime import datetime, timedelta
 from typing import Any
 
 logger = logging.getLogger("weatherformoto.verification")
@@ -37,6 +43,11 @@ LEAD_HOURS: tuple[int, ...] = (1, 3, 6, 12, 24, 48)
 RAIN_SOURCES: tuple[str, ...] = ("ensemble", "models", "open-meteo", "pirate-weather", "openweathermap", "met-norway")
 # Set VERIFICATION_LOG=false to stop writing without a code change.
 ENABLED = os.getenv("VERIFICATION_LOG", "true").lower() != "false"
+# How long a row is kept. Twice the window calibration.py learns from, so
+# verify_report.py can still look a season back; nothing reads further than that.
+RETENTION_DAYS = 90
+# Hours are stored as UTC text, "2026-11-19T03", which sorts like time does.
+HOUR_FORMAT = "%Y-%m-%dT%H"
 # In-process memory of the cells already written this hour (the table's key
 # also stops duplicates across instances).
 _SEEN_MAX = 5000
@@ -134,6 +145,56 @@ def _write(snapshot: dict[str, Any]) -> None:
         conn.commit()
     finally:
         conn.close()
+
+
+def rain_pairs(conn: Any, since: str, columns: Sequence[str]) -> list[dict[str, Any]]:
+    """Blocking: forecasts issued since ``since``, each with whether it then rained.
+
+    Every returned row carries the asked forecast_log ``columns`` (internal
+    constants, never user input) plus ``raining``: 1 when any source saw rain
+    in that cell and hour, 0 when none did. Forecasts without a measurement
+    are left out.
+
+    Two plain scans, matched here. The same thing written as one SQL join
+    looked harmless and was not: SQLite walked a cell's whole forecast history
+    again for every observed hour, so the rows read grew with the square of
+    the log. With about 10,000 logged forecasts one read stepped over some 11
+    million rows (measured on SQLite 3.45), which is the likely reason the
+    database's monthly read quota ran out in November 2026.
+    """
+    observed: dict[tuple[str, str], int] = {}
+    for row in conn.execute(
+        "SELECT cell, hour, raining FROM observation_log WHERE hour >= ? AND raining IS NOT NULL",
+        (since,),
+    ).fetchall():
+        key = (row["cell"], row["hour"])
+        observed[key] = max(observed.get(key, 0), int(row["raining"]))
+
+    pairs: list[dict[str, Any]] = []
+    for row in conn.execute(
+        f"SELECT cell, valid_hour, {', '.join(columns)} FROM forecast_log WHERE issued_hour >= ?",
+        (since,),
+    ).fetchall():
+        raining = observed.get((row["cell"], row["valid_hour"]))
+        if raining is None:
+            continue
+        pair = {column: row[column] for column in columns}
+        pair["raining"] = raining
+        pairs.append(pair)
+    return pairs
+
+
+def prune(conn: Any, now_utc: datetime) -> None:
+    """Blocking: drop log rows older than RETENTION_DAYS.
+
+    The forecast side goes by valid_hour because that is the column with an
+    index, so the delete only touches the rows it removes. A forecast is valid
+    at most 48 hours after it was issued, which is all the extra it keeps.
+    """
+    cutoff = (now_utc - timedelta(days=RETENTION_DAYS)).strftime(HOUR_FORMAT)
+    conn.execute("DELETE FROM forecast_log WHERE valid_hour < ?", (cutoff,))
+    conn.execute("DELETE FROM observation_log WHERE hour < ?", (cutoff,))
+    conn.commit()
 
 
 def _done(task: asyncio.Future) -> None:

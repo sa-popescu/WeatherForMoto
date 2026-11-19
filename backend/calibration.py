@@ -17,14 +17,22 @@ minimums below, the learned values are blended halfway with the hand-set ones
 rather than replacing them, and a database that is missing, empty or broken
 simply leaves the defaults in place. The maths here is pure; weather_service
 schedules the refresh and applies the result.
+
+The log is read once a day, by whichever instance gets there first. What it
+learned is kept in app_state, so every other instance and every cold start
+picks up the answer with a single row instead of reading the log again.
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
+from datetime import datetime, timezone
 from typing import Any, Iterable, Sequence
+
+import verification
 
 logger = logging.getLogger("weatherformoto.calibration")
 
@@ -42,8 +50,11 @@ LEARNED_SHARE = 0.5
 # Probability bins for the reliability curve, as fractions.
 BIN_EDGES: tuple[float, ...] = (0.0, 0.2, 0.4, 0.6, 0.8, 1.0)
 # How often the snapshot is recomputed, and how long a failure is held off.
-REFRESH_S = 6 * 3600
+# Daily is plenty: a day adds a few hundred pairs to a window of thousands.
+REFRESH_S = 24 * 3600
 RETRY_AFTER_FAILURE_S = 30 * 60
+# Where the snapshot is kept between processes (the app_state table).
+STATE_KEY = "calibration_snapshot"
 
 Pair = tuple[float, int]  # (forecast probability 0-1, observed 0 or 1)
 
@@ -209,6 +220,51 @@ def compute(rows: Iterable[dict[str, Any]], sources: Sequence[str], defaults: di
     )
 
 
+# --- the stored snapshot ----------------------------------------------------
+
+def _settings(defaults: dict[str, float]) -> dict[str, Any]:
+    """What a stored snapshot was computed with. A stored one made under other
+    settings (a deploy changed the hand-set weights, say) is not reused."""
+    return {"defaults": dict(defaults), "window_days": WINDOW_DAYS, "learned_share": LEARNED_SHARE}
+
+
+def to_stored(snapshot: Snapshot, defaults: dict[str, float]) -> str:
+    """The snapshot as the text kept in app_state."""
+    return json.dumps({
+        "computed_at": snapshot.computed_at,
+        "pairs": snapshot.pairs,
+        "weights": snapshot.weights,
+        "reliability": [[forecast, observed] for forecast, observed in snapshot.reliability],
+        "settings": _settings(defaults),
+    })
+
+
+def from_stored(text: str | None, defaults: dict[str, float], now: float) -> Snapshot | None:
+    """The stored snapshot, when it is still good to use; otherwise None.
+
+    None for nothing stored, something unreadable, other settings, or a
+    snapshot older than REFRESH_S. All of those mean "read the log again".
+    ``now`` is wall-clock seconds, like Snapshot.computed_at.
+    """
+    if not text:
+        return None
+    try:
+        data = json.loads(text)
+        if data["settings"] != _settings(defaults):
+            return None
+        computed_at = float(data["computed_at"])
+        if not 0 <= now - computed_at < REFRESH_S:
+            return None
+        return Snapshot(
+            weights={str(name): float(value) for name, value in data["weights"].items()},
+            reliability=tuple((float(forecast), float(observed)) for forecast, observed in data["reliability"]),
+            pairs=int(data["pairs"]),
+            computed_at=computed_at,
+        )
+    except (ValueError, TypeError, KeyError, AttributeError):
+        return None
+
+
 # --- the live snapshot ------------------------------------------------------
 
 _snapshot = Snapshot(weights={})
@@ -223,37 +279,82 @@ def current(defaults: dict[str, float]) -> Snapshot:
     return _snapshot
 
 
-def _read(since: str, sources: Sequence[str]) -> list[dict[str, Any]]:
-    """Blocking: the joined rows of the window. Raises if the tables are missing."""
+def _load_stored(defaults: dict[str, float]) -> Snapshot | None:
+    """Blocking: the snapshot another process left in app_state, if still fresh."""
+    from auth_alerts import get_app_state  # imported late: auth_alerts imports weather_service
+
+    return from_stored(get_app_state(STATE_KEY), defaults, time.time())
+
+
+def _store(snapshot: Snapshot, defaults: dict[str, float]) -> None:
+    """Blocking: leave the snapshot where the next process will find it."""
+    from auth_alerts import set_app_state
+
+    set_app_state(STATE_KEY, to_stored(snapshot, defaults))
+
+
+def _read(since: str, sources: Sequence[str]) -> list[dict[str, Any]] | None:
+    """Blocking: the forecast/observation pairs of the window.
+
+    None when the log tables are not there yet (the migration has not run).
+    """
     from auth_alerts import _connect, _has_column
 
     conn = _connect()
     try:
         if not _has_column(conn, "observation_log", "raining"):
-            return []
-        prob_columns = ", ".join(f"f.prob_{name.replace('-', '_')}" for name in sources)
-        return list(conn.execute(
-            f"""SELECT f.precip_prob, {prob_columns}, o.raining
-                FROM forecast_log f
-                JOIN (SELECT cell, hour, MAX(raining) AS raining FROM observation_log
-                      WHERE raining IS NOT NULL GROUP BY cell, hour) o
-                  ON o.cell = f.cell AND o.hour = f.valid_hour
-                WHERE f.issued_hour >= ?""",
-            (since,),
-        ).fetchall())
+            return None
+        columns = ("precip_prob", *(f"prob_{name.replace('-', '_')}" for name in sources))
+        return verification.rain_pairs(conn, since, columns)
     finally:
         conn.close()
 
 
+def _prune_log() -> None:
+    """Blocking: drop log rows nothing reads any more (verification.prune)."""
+    from auth_alerts import _connect
+
+    conn = _connect()
+    try:
+        verification.prune(conn, datetime.now(timezone.utc))
+    finally:
+        conn.close()
+
+
+def _after_reading(snapshot: Snapshot, defaults: dict[str, float]) -> None:
+    """Blocking: the two writes that follow a read of the log.
+
+    Neither is allowed to cost the snapshot that was just computed. If storing
+    fails, the next process reads the log itself; if pruning fails, the log is
+    a day longer.
+    """
+    for what, job in (("store", lambda: _store(snapshot, defaults)), ("log prune", _prune_log)):
+        try:
+            job()
+        except Exception as exc:
+            logger.warning("calibration %s failed: %s", what, type(exc).__name__)
+
+
 def _refresh(since: str, sources: Sequence[str], defaults: dict[str, float]) -> None:
-    """Blocking: read and replace the snapshot. Runs in a thread."""
+    """Blocking: bring the snapshot up to date. Runs in a thread.
+
+    A fresh snapshot in app_state is taken as it is. Only when there is none
+    does this process read the log, and then it stores the result for the rest.
+    """
     global _snapshot, _next_refresh, _refreshing
     try:
+        stored = _load_stored(defaults)
+        if stored is not None:
+            _snapshot = stored
+            age_s = max(0.0, time.time() - (stored.computed_at or 0.0))
+            _next_refresh = time.monotonic() + max(60.0, REFRESH_S - age_s)
+            return
         rows = _read(since, sources)
-        if rows:
+        if rows is not None:
             _snapshot = compute(rows, sources, defaults)
             logger.info("calibration refreshed from %d pairs; weights=%s",
                         _snapshot.pairs, _snapshot.weights)
+            _after_reading(_snapshot, defaults)
         _next_refresh = time.monotonic() + REFRESH_S
     except Exception as exc:  # a missing table, no credentials, a network blip
         logger.info("calibration refresh skipped: %s", type(exc).__name__)

@@ -1,8 +1,10 @@
 """Tests for what the verification log teaches (calibration.py). No network, no database."""
 
 import sys
+import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -122,6 +124,119 @@ class SnapshotTests(unittest.TestCase):
     def test_refresh_without_an_event_loop_does_nothing(self) -> None:
         calibration.refresh_soon("2026-01-01T00", ("ensemble",), {"ensemble": 3.0})
         self.assertFalse(calibration.current({"ensemble": 3.0}).learned)
+
+
+class StoredSnapshotTests(unittest.TestCase):
+    """The snapshot kept in app_state, so the log is read once a day and not per process."""
+
+    DEFAULTS = {"ensemble": 3.0, "models": 2.0}
+    NOW = 1_800_000_000.0
+
+    def _snapshot(self, age_s: float = 3600.0) -> calibration.Snapshot:
+        return calibration.Snapshot(
+            weights={"ensemble": 3.4, "models": 1.6},
+            reliability=((0.1, 0.05), (0.5, 0.38)),
+            pairs=7306,
+            computed_at=self.NOW - age_s,
+        )
+
+    def test_what_was_stored_comes_back_the_same(self) -> None:
+        original = self._snapshot()
+        text = calibration.to_stored(original, self.DEFAULTS)
+        back = calibration.from_stored(text, self.DEFAULTS, self.NOW)
+        self.assertIsNotNone(back)
+        self.assertEqual(back.as_meta(), original.as_meta())
+        self.assertEqual(back.computed_at, original.computed_at)
+
+    def test_a_day_old_snapshot_is_read_again_from_the_log(self) -> None:
+        text = calibration.to_stored(self._snapshot(age_s=calibration.REFRESH_S + 1), self.DEFAULTS)
+        self.assertIsNone(calibration.from_stored(text, self.DEFAULTS, self.NOW))
+
+    def test_a_deploy_that_changes_the_hand_set_weights_does_not_reuse_the_old_answer(self) -> None:
+        text = calibration.to_stored(self._snapshot(), self.DEFAULTS)
+        self.assertIsNone(calibration.from_stored(text, {"ensemble": 2.5, "models": 2.0}, self.NOW))
+
+    def test_nothing_stored_or_nonsense_stored_means_read_the_log(self) -> None:
+        for text in (None, "", "not json", "[]", '{"computed_at": "soon"}', '{"settings": 1}'):
+            self.assertIsNone(calibration.from_stored(text, self.DEFAULTS, self.NOW), text)
+
+
+class RefreshTests(unittest.TestCase):
+    """Which database work a refresh does. The database itself is faked."""
+
+    DEFAULTS = {"ensemble": 3.0, "models": 2.0}
+    SOURCES = ("ensemble", "models")
+    ROWS = [
+        {"precip_prob": 90, "prob_ensemble": 0.9, "prob_models": 0.5, "raining": 1},
+        {"precip_prob": 10, "prob_ensemble": 0.1, "prob_models": 0.5, "raining": 0},
+    ] * 60
+
+    def setUp(self) -> None:
+        calibration.reset_for_tests()
+        self.addCleanup(calibration.reset_for_tests)
+        self.stored: list[str] = []
+        self.read = mock.Mock(return_value=list(self.ROWS))
+        self.prune = mock.Mock()
+        self.in_state: str | None = None
+        for name, fake in (
+            ("_load_stored", lambda defaults: calibration.from_stored(self.in_state, defaults, time.time())),
+            ("_read", self.read),
+            ("_store", lambda snapshot, defaults: self.stored.append(calibration.to_stored(snapshot, defaults))),
+            ("_prune_log", self.prune),
+        ):
+            patcher = mock.patch.object(calibration, name, fake)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def _refresh(self) -> None:
+        calibration._refresh("2026-10-05T00", self.SOURCES, self.DEFAULTS)
+
+    def test_the_first_process_of_the_day_reads_the_log_and_leaves_the_answer(self) -> None:
+        self._refresh()
+        self.assertEqual(self.read.call_count, 1)
+        self.assertEqual(len(self.stored), 1)
+        self.prune.assert_called_once()
+        self.assertEqual(calibration.current(self.DEFAULTS).pairs, 120)
+        self.assertGreater(calibration._next_refresh, time.monotonic() + calibration.REFRESH_S - 60)
+
+    def test_every_other_process_takes_the_stored_answer_and_leaves_the_log_alone(self) -> None:
+        self._refresh()
+        learned = calibration.current(self.DEFAULTS).as_meta()
+        # A cold start: nothing in memory, the answer from an hour ago in app_state.
+        self.in_state = self.stored[0]
+        calibration.reset_for_tests()
+        self.read.reset_mock()
+        self.prune.reset_mock()
+
+        self._refresh()
+
+        self.read.assert_not_called()
+        self.prune.assert_not_called()
+        self.assertEqual(len(self.stored), 1)
+        self.assertEqual(calibration.current(self.DEFAULTS).as_meta(), learned)
+
+    def test_a_failed_write_does_not_cost_what_was_learned(self) -> None:
+        with mock.patch.object(calibration, "_store", side_effect=ValueError("writes are blocked")):
+            self._refresh()
+        self.assertTrue(calibration.current(self.DEFAULTS).learned)
+        # The prune is tried even though the store failed.
+        self.prune.assert_called_once()
+
+    def test_a_database_that_refuses_reads_leaves_the_defaults_and_backs_off(self) -> None:
+        self.read.side_effect = ValueError("reads are blocked")
+        self._refresh()
+        self.assertFalse(calibration.current(self.DEFAULTS).learned)
+        self.assertEqual(self.stored, [])
+        wait = calibration._next_refresh - time.monotonic()
+        self.assertLessEqual(wait, calibration.RETRY_AFTER_FAILURE_S)
+        self.assertGreater(wait, calibration.RETRY_AFTER_FAILURE_S - 60)
+
+    def test_before_the_migration_nothing_is_stored(self) -> None:
+        self.read.return_value = None
+        self._refresh()
+        self.assertEqual(self.stored, [])
+        self.prune.assert_not_called()
+        self.assertFalse(calibration.current(self.DEFAULTS).learned)
 
 
 if __name__ == "__main__":

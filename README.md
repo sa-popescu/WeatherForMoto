@@ -165,7 +165,8 @@ Organizare: `src/lib` (API tipizat, format, scor, geo), `src/state` (sesiune, lo
 
 ### Meta
 
-- `GET /health` - Status server
+- `GET /health` - Status server; răspunde 200 cât timp procesul e pornit, iar câmpul `database` spune dacă baza de date răspunde (`ok`, `unavailable`, sau `off` când nu e configurată)
+- `GET /health/db` - 200 dacă baza de date răspunde, 503 dacă nu (pentru un monitor)
 - `GET /meta/scoring` - Pragurile scorului, benzile de intensitate a ploii, matricea șanse × intensitate și regula de încredere între modele
 - `GET /` - Redirecționează către aplicație (`APP_BASE_URL`)
 - `GET /sw.js` - Service worker care îl retrage pe cel vechi de pe acest domeniu
@@ -236,6 +237,8 @@ Raportul citește jurnalul și arată, pe fiecare sursă și orizont, cât de bi
 cd backend
 python verify_report.py --days 30
 ```
+
+Jurnalul păstrează 90 de zile (`verification.RETENTION_DAYS`). `backend/calibration.py` îl citește o dată pe zi, învață din el ponderile surselor de ploaie și ține rezultatul în `app_state`, de unde îl iau celelalte instanțe fără să mai citească jurnalul. Turso taxează fiecare rând peste care trece o interogare, așa că potrivirea dintre prognoze și măsurători se face în Python (`verification.rain_pairs`), nu printr-un join în SQL.
 
 ## Deploy
 

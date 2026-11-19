@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import sqlite3
 import unittest
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import anm_nowcast
 import metar
@@ -372,6 +373,97 @@ class VerificationTests(unittest.TestCase):
         verification._seen.clear()
         verification.record({"cell": "x", "issued_hour": "h", "forecasts": [], "observations": []})
 
+
+    def _log(self) -> sqlite3.Connection:
+        """An empty log on SQLite, with rows as dicts like the Turso wrapper gives."""
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = lambda cursor, row: {d[0]: value for d, value in zip(cursor.description, row)}
+        for statement in (*verification.TABLES, *verification.INDEXES):
+            conn.execute(statement)
+        self.addCleanup(conn.close)
+        return conn
+
+    def _fill(self, conn: sqlite3.Connection, start: datetime, hours: int) -> None:
+        """Two cells logged every hour: all six leads, and up to three sources per hour."""
+        for step in range(hours):
+            issued = start + timedelta(hours=step)
+            for cell in ("44.45,26.10", "45.80,24.15"):
+                for lead in verification.LEAD_HOURS:
+                    valid = issued + timedelta(hours=lead)
+                    conn.execute(
+                        "INSERT INTO forecast_log (cell, issued_hour, valid_hour, lead_h, precip_prob, prob_ensemble) "
+                        "VALUES (?, ?, ?, ?, ?, ?)",
+                        (cell, issued.strftime(verification.HOUR_FORMAT), valid.strftime(verification.HOUR_FORMAT),
+                         lead, float((step * 7 + lead) % 100), ((step + lead) % 10) / 10),
+                    )
+                # One source sees rain now and then, one never does, one has no rain sensor.
+                for source, raining in (("official", int(step % 5 == 0)), ("metar", 0), ("netatmo", None)):
+                    if source == "metar" and step % 3 == 0:
+                        continue
+                    conn.execute(
+                        "INSERT INTO observation_log (cell, hour, source, raining) VALUES (?, ?, ?, ?)",
+                        (cell, issued.strftime(verification.HOUR_FORMAT), source, raining),
+                    )
+        conn.commit()
+
+    def test_pairs_match_what_the_sql_join_returned(self) -> None:
+        # rain_pairs replaced this join because of what it cost to run; the
+        # answer has to be the same, row for row.
+        conn = self._log()
+        self._fill(conn, datetime(2026, 9, 1, tzinfo=timezone.utc), hours=96)
+        since = "2026-09-02T00"
+        columns = ("lead_h", "precip_prob", "prob_ensemble")
+        joined = conn.execute(
+            """SELECT f.lead_h, f.precip_prob, f.prob_ensemble, o.raining
+               FROM forecast_log f
+               JOIN (SELECT cell, hour, MAX(raining) AS raining FROM observation_log
+                     WHERE raining IS NOT NULL GROUP BY cell, hour) o
+                 ON o.cell = f.cell AND o.hour = f.valid_hour
+               WHERE f.issued_hour >= ?""",
+            (since,),
+        ).fetchall()
+        pairs = verification.rain_pairs(conn, since, columns)
+
+        def ordered(rows: list[dict]) -> list[tuple]:
+            return sorted(tuple(row[name] for name in (*columns, "raining")) for row in rows)
+
+        self.assertGreater(len(pairs), 300)
+        self.assertEqual(ordered(pairs), ordered(joined))
+        self.assertEqual({row["raining"] for row in pairs}, {0, 1})
+
+    def test_reading_the_log_costs_what_the_log_holds_not_its_square(self) -> None:
+        conn = self._log()
+        self._fill(conn, datetime(2026, 9, 1, tzinfo=timezone.utc), hours=24 * 20)
+        steps = 0
+
+        def count() -> int:
+            nonlocal steps
+            steps += 1
+            return 0
+
+        conn.set_progress_handler(count, 100)
+        pairs = verification.rain_pairs(conn, "2026-09-01T00", ("precip_prob",))
+        conn.set_progress_handler(None, 0)
+        logged = conn.execute("SELECT COUNT(*) AS n FROM forecast_log").fetchone()["n"]
+        self.assertGreater(len(pairs), 5000)
+        # A few dozen VM steps per logged row. The join it replaced needed
+        # thousands per row on a log this size, and more as the log grew.
+        self.assertLess(steps * 100, logged * 60)
+
+    def test_prune_drops_only_what_is_past_keeping(self) -> None:
+        conn = self._log()
+        now = datetime(2026, 11, 19, 3, tzinfo=timezone.utc)
+        old = now - timedelta(days=verification.RETENTION_DAYS + 5)
+        self._fill(conn, old, hours=6)
+        self._fill(conn, now - timedelta(days=10), hours=6)
+        before = conn.execute("SELECT COUNT(*) AS n FROM forecast_log").fetchone()["n"]
+
+        verification.prune(conn, now)
+
+        cutoff = (now - timedelta(days=verification.RETENTION_DAYS)).strftime(verification.HOUR_FORMAT)
+        self.assertEqual(conn.execute("SELECT COUNT(*) AS n FROM forecast_log").fetchone()["n"], before // 2)
+        self.assertGreaterEqual(conn.execute("SELECT MIN(valid_hour) AS h FROM forecast_log").fetchone()["h"], cutoff)
+        self.assertGreaterEqual(conn.execute("SELECT MIN(hour) AS h FROM observation_log").fetchone()["h"], cutoff)
 
     def test_report_scores_each_source_against_what_fell(self) -> None:
         def row(ensemble: float, open_meteo: float, raining: int) -> dict:
