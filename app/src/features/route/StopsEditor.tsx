@@ -1,3 +1,4 @@
+import { useRef, type ChangeEvent } from 'react';
 import { fmt, useStrings } from '../../lib/i18n';
 import { Icon } from '../../ui/icons';
 import { Card, IconButton } from '../../ui/primitives';
@@ -9,6 +10,7 @@ import type { StopsState } from './useStopsState';
 
 // 2 to 10 stops. Normal mode edits the places; "Ordine" mode shows move up,
 // move down and remove buttons (no drag needed, works with gloves and keys).
+// "Importă GPX" opens the file picker; what happens to the file is the screen's job.
 
 type Strings = (typeof RS)['en'];
 
@@ -37,10 +39,23 @@ function roleLine(stop: StopDraft, role: StopRole, s: Strings): string {
   return stop.place && stop.region ? `${word} · ${stop.region}` : word;
 }
 
-export function StopsEditor({ state }: { state: StopsState }) {
+interface StopsEditorProps {
+  state: StopsState;
+  onImportGpx: (file: File) => void;
+}
+
+export function StopsEditor({ state, onImportGpx }: StopsEditorProps) {
   const s = useStrings(RS);
   const { stops, setStops, reorder, setReorder, updateText, pickSuggestion, useMyLocation, locating, appPlace } = state;
   const count = stops.length;
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  const onFile = (event: ChangeEvent<HTMLInputElement>): void => {
+    const file = event.target.files?.[0];
+    // Cleared so picking the same file again still fires a change.
+    event.target.value = '';
+    if (file) onImportGpx(file);
+  };
 
   return (
     <Card className="route-stops" aria-labelledby="route-stops-title">
@@ -48,9 +63,16 @@ export function StopsEditor({ state }: { state: StopsState }) {
         <h2 className="eyebrow" id="route-stops-title">
           {s.stopsTitle}
         </h2>
-        <button type="button" className="route-link-btn" aria-pressed={reorder} onClick={() => setReorder(!reorder)}>
-          {reorder ? s.reorderDone : s.reorder}
-        </button>
+        <span className="route-stops__tools">
+          <button type="button" className="route-link-btn" aria-label={s.importGpxAria} onClick={() => fileInput.current?.click()}>
+            {s.importGpx}
+          </button>
+          <button type="button" className="route-link-btn" aria-pressed={reorder} onClick={() => setReorder(!reorder)}>
+            {reorder ? s.reorderDone : s.reorder}
+          </button>
+        </span>
+        {/* No `accept`: phones do not know the .gpx type and would grey the files out. The content is checked instead. */}
+        <input ref={fileInput} type="file" hidden tabIndex={-1} aria-hidden="true" onChange={onFile} />
       </div>
       <ol className="route-stops__list">
         {stops.map((stop, index) => {
