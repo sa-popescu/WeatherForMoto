@@ -4260,7 +4260,7 @@ async def _collect_weather(
     rain_members, rain_by_source = _fuse_rain(hourly, ensemble, rain_ensemble=rain_ens_raw, pirate=pw_raw,
                                               owm_forecast=owm_forecast, met=met_raw,
                                               utc_offset_seconds=utc_offset, learned=learned)
-    # Off the request path: recomputed at most every few hours, in a thread.
+    # Off the request path: the log is read at most once a day, in a thread.
     calibration.refresh_soon(_calibration_since(), verification.RAIN_SOURCES, rain_fusion.WEIGHTS)
     _apply_rain_coverage(hourly, area_raw)
     current = _merge_current(om_data, owm_current, owm_air, om_air, met_norm, pw_norm,

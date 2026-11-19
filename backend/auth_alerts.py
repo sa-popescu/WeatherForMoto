@@ -27,7 +27,7 @@ import secrets
 import smtplib
 import time
 import unicodedata
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Coroutine, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
@@ -35,8 +35,9 @@ from typing import Any
 from urllib.parse import urlparse
 
 import httpx
-from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Query, Request, Response
 from fastapi.responses import HTMLResponse
+from fastapi.routing import APIRoute
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
 import last_good
@@ -310,7 +311,57 @@ class ResetPasswordPayload(BaseModel):
     new_password: str = Field(min_length=8, max_length=PASSWORD_MAX_LENGTH)
 
 
-router = APIRouter(tags=["account", "alerts"])
+# What the app is told while the database cannot be reached.
+DATABASE_DOWN_DETAIL = "Accounts, saved routes and hazard reports are temporarily unavailable. Weather still works."
+DATABASE_DOWN_RETRY_S = 300
+
+
+def is_database_outage(exc: BaseException) -> bool:
+    """True when ``exc`` says the database itself is out of reach.
+
+    libSQL raises a plain ValueError for everything, so the text is all there
+    is to go on. "Hrana" is the wire protocol: it reports a blocked plan (the
+    read quota ran out), a rejected token or a dropped connection, and also
+    plain statement errors, which carry an SQLite result code and are not an
+    outage. Only decides between a 500 and a 503 for a request that has
+    already failed, so a wrong guess costs a status code and nothing else.
+    """
+    text = str(exc)
+    if "Hrana" not in text:
+        return False
+    return 'code: "SQLITE_' not in text and 'code: "SQL_' not in text
+
+
+class _OutageAwareRoute(APIRoute):
+    """Answers 503 with a readable reason when the database is down.
+
+    Without this every account, alert and hazard request fails as a bare 500,
+    raised outside the CORS layer, so the app in the browser cannot even read
+    the status. Anything that is not an outage is raised again untouched.
+    """
+
+    def get_route_handler(self) -> Callable[[Request], Coroutine[Any, Any, Response]]:
+        handler = super().get_route_handler()
+
+        async def guarded(request: Request) -> Response:
+            try:
+                return await handler(request)
+            except HTTPException:
+                raise
+            except Exception as exc:
+                if not is_database_outage(exc):
+                    raise
+                logger.error("database unavailable on %s %s: %s", request.method, request.url.path, exc)
+                raise HTTPException(
+                    status_code=503,
+                    detail=DATABASE_DOWN_DETAIL,
+                    headers={"Retry-After": str(DATABASE_DOWN_RETRY_S)},
+                ) from exc
+
+        return guarded
+
+
+router = APIRouter(tags=["account", "alerts"], route_class=_OutageAwareRoute)
 
 
 def _utc_now() -> datetime:
@@ -696,6 +747,19 @@ def init_db() -> None:
 # ---------------------------------------------------------------------------
 # Generic key/value app state (persists across Cloud Run cold starts & instances)
 # ---------------------------------------------------------------------------
+
+def check_database() -> None:
+    """Blocking: one cheap read that proves the database answers; raises if not.
+
+    Reads a real table on purpose. A blocked plan refuses reads, and a bare
+    "SELECT 1" might not count as one.
+    """
+    conn = _connect()
+    try:
+        conn.execute("SELECT 1 FROM app_state LIMIT 1").fetchone()
+    finally:
+        conn.close()
+
 
 def get_app_state(key: str) -> str | None:
     """Return the stored value for ``key``, or None if absent."""
