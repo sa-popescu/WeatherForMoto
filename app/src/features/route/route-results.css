@@ -118,6 +118,96 @@
   padding: 0 10px;
 }
 
+/* ---- Compară zilele (bottom of the departure card) ---- */
+
+.route-compare {
+  margin-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.route-compare__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--tap);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-family: var(--font-num);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.route-compare__chevron {
+  transition: transform 0.2s ease;
+}
+
+.route-compare__chevron--open {
+  transform: rotate(180deg);
+}
+
+.route-compare__days {
+  display: flex;
+  gap: 8px;
+  margin: 2px -16px 0;
+  padding: 2px 16px 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.route-compare__days::-webkit-scrollbar {
+  display: none;
+}
+
+/* Same marks as the chart: dashed accent for the best, solid ink for the chosen. */
+.route-compare__day {
+  display: grid;
+  flex-shrink: 0;
+  gap: 2px;
+  min-width: 74px;
+  padding: 8px 10px;
+  border: 2px solid var(--line-2);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.route-compare__day:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.route-compare__day--top {
+  border-style: dashed;
+  border-color: var(--accent);
+}
+
+.route-compare__day--chosen {
+  border-style: solid;
+  border-color: var(--ink);
+}
+
+.route-compare__name {
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.route-compare__time {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.route-compare__score {
+  min-height: 1.2em;
+  font-size: 18px;
+  font-weight: 700;
+}
+
 /* ---- Map ---- */
 
 .route-map {

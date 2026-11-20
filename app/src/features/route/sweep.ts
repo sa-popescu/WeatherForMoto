@@ -65,6 +65,44 @@ export function departureSweep({ points, date, speedKmh, originOffsetSec, nowMs,
   });
 }
 
+/** One planner day in the comparison: its best departure, or why there is none. */
+export interface DayBest {
+  date: string;
+  best: SweepBar | null;
+  /** 'missing': the forecast does not reach the day yet, or a point has none; 'over': every departure is past. */
+  state: 'ready' | 'missing' | 'over';
+}
+
+export interface DayBestsInput {
+  points: readonly SweepPointInput[];
+  dates: readonly string[];
+  speedKmh: number;
+  originOffsetSec: number;
+  nowMs: number;
+  /** Ties on every day go to the time closest to this one, as on the chosen day. */
+  chosenTime: string;
+}
+
+/** "Compară zilele": the best departure of every planner day, from the hourly data already loaded. */
+export function dayBests({ points, dates, speedKmh, originOffsetSec, nowMs, chosenTime }: DayBestsInput): DayBest[] {
+  return dates.map((date) => {
+    const bars = departureSweep({ points, date, speedKmh, originOffsetSec, nowMs });
+    const best = bestBar(bars, chosenTime);
+    if (best) return { date, best, state: 'ready' };
+    return { date, best: null, state: bars.every((b) => b.past) ? 'over' : 'missing' };
+  });
+}
+
+/** The day with the highest best score; ties go to the earliest. Null when no day is ready. */
+export function bestDay(days: readonly DayBest[]): DayBest | null {
+  let top: DayBest | null = null;
+  for (const day of days) {
+    if (day.state !== 'ready' || day.best?.worst == null) continue;
+    if (top === null || day.best.worst > (top.best?.worst ?? -1)) top = day;
+  }
+  return top;
+}
+
 /**
  * Best departure: the highest worst-point score among future departures with
  * complete data. Ties go to the one closest to the chosen time, so the

@@ -1,4 +1,5 @@
 import { fmt, useLang, useStrings } from '../../lib/i18n';
+import { DayCompare } from './DayCompare';
 import { DepartureSweep } from './DepartureSweep';
 import { HazardList, useHazardText } from './HazardList';
 import { RouteActions, type ActionKind } from './RouteActions';
@@ -18,16 +19,22 @@ interface RouteResultsProps {
   active: boolean;
   route: RouteLine;
   derived: DerivedPlan;
+  /** The days the planner offers, for the day comparison. */
+  dates: readonly string[];
   departure: Departure;
   speed: number;
   weatherDone: boolean;
   hazards: HazardsState;
   signedIn: boolean;
   onAdopt: (time: string) => void;
+  /** A day picked in the comparison, with its best departure. */
+  onPickDay: (departure: Departure) => void;
+  onNeedWeek: () => void;
   onAction: (kind: ActionKind) => void;
 }
 
-export function RouteResults({ active, route, derived, departure, speed, weatherDone, hazards, signedIn, onAdopt, onAction }: RouteResultsProps) {
+export function RouteResults(props: RouteResultsProps) {
+  const { active, route, derived, dates, departure, speed, weatherDone, hazards, signedIn, onAdopt, onPickDay, onNeedWeek, onAction } = props;
   const s = useStrings(RS);
   const lang = useLang();
   const { summary: hazardText } = useHazardText();
@@ -43,6 +50,18 @@ export function RouteResults({ active, route, derived, departure, speed, weather
         chosenWorstName={derived.stats.worstName}
         ready={weatherDone}
         onAdopt={onAdopt}
+        footer={
+          <DayCompare
+            dates={dates}
+            departure={departure}
+            speed={speed}
+            points={derived.sweepPoints}
+            originOffsetSec={derived.originOffset}
+            loading={!weatherDone}
+            onNeedWeek={onNeedWeek}
+            onPick={onPickDay}
+          />
+        }
       />
       <RouteMap
         route={route}

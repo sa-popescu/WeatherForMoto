@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from 'react';
+import { useState, type CSSProperties, type ReactNode } from 'react';
 import { fmt, useStrings } from '../../lib/i18n';
 import { tierColor } from '../../lib/scoring';
 import { Button, Card, cx, Skeleton } from '../../ui/primitives';
@@ -16,6 +16,8 @@ interface DepartureSweepProps {
   chosenWorstName: string | null;
   ready: boolean;
   onAdopt: (time: string) => void;
+  /** Shown at the bottom of the card whether or not the chart is ready (the day comparison). */
+  footer?: ReactNode;
 }
 
 const CHART_MAX_PX = 92;
@@ -24,7 +26,7 @@ function barHeight(score: number | null): number {
   return Math.round(8 + ((score ?? 0) / 100) * (CHART_MAX_PX - 8));
 }
 
-export function DepartureSweep({ bars, best, chosenTime, chosenWorst, chosenWorstName, ready, onAdopt }: DepartureSweepProps) {
+export function DepartureSweep({ bars, best, chosenTime, chosenWorst, chosenWorstName, ready, onAdopt, footer }: DepartureSweepProps) {
   const s = useStrings(RS);
   const [keptKey, setKeptKey] = useState<string | null>(null);
   const key = `${chosenTime}|${best?.time}|${best?.worst}`;
@@ -111,6 +113,7 @@ export function DepartureSweep({ bars, best, chosenTime, chosenWorst, chosenWors
           <Button onClick={() => setKeptKey(key)}>{fmt(s.keep, { time: chosenTime })}</Button>
         </div>
       )}
+      {footer}
     </Card>
   );
 }
