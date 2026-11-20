@@ -17,12 +17,13 @@
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/s", "/s/*"]
   },
-  // The KV binding is left out until its namespace id is known. Wrangler's
-  // automatic provisioning (a binding with no id) created the namespace on the
-  // first preview build, but the production deploy then fails with "a
-  // namespace with this account ID and title already exists [code: 10014]"
-  // (cloudflare/workers-sdk#14284). With no binding the Worker answers 503 on
-  // /s and the app shares the full link, as before. To turn short links on,
-  // add the id from the Cloudflare dashboard (Storage & Databases, KV):
-  //   "kv_namespaces": [{ "binding": "SHORT_LINKS", "id": "<namespace id>" }]
+  // The namespace id is set explicitly. With no id, wrangler's automatic
+  // provisioning created the namespace on the first preview build and the
+  // production deploy then failed with "a namespace with this account ID and
+  // title already exists [code: 10014]" (cloudflare/workers-sdk#14284).
+  // Without this binding the Worker answers 503 on /s and the app shares the
+  // full link instead.
+  "kv_namespaces": [
+    { "binding": "SHORT_LINKS", "id": "dd8a399b7b4c49459a5c39a5916e698d" }
+  ]
 }
