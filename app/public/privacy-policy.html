@@ -93,7 +93,7 @@
 <body>
     <a class="back" href="/#/eu">‹ Înapoi la aplicație</a>
     <h1>Politica de confidențialitate — MotoMeteo</h1>
-    <p class="updated">Ultima actualizare: 21 septembrie 2026</p>
+    <p class="updated">Ultima actualizare: 20 noiembrie 2026</p>
 
     <p>MotoMeteo (WeatherForMoto) este un proiect personal, gratuit și necomercial: o aplicație meteo pentru
         motocicliști. Nu are reclame, nu vinde nimic și nu folosește instrumente de urmărire sau statistici de trafic.
@@ -105,13 +105,25 @@
         setările (temă, limbă) și starea alertelor. Le poți șterge oricând ștergând datele site-ului din browser.</p>
 
     <h2>2. Locația</h2>
-    <p>Aplicația citește poziția dispozitivului <strong>numai când apeși „Locația mea”</strong> (sau automat, doar
-        dacă ai permis deja accesul la locație pentru acest site). Coordonatele sunt folosite ca să aflăm vremea
-        pentru acel loc și numele lui. Nu păstrăm istoricul pozițiilor tale.</p>
+    <p>Aplicația citește poziția dispozitivului <strong>numai dacă îi permiți accesul la locație</strong>, din
+        browser sau din setările telefonului. Cu acest acord, o citește:</p>
+    <ul>
+        <li>când apeși „Locația mea”;</li>
+        <li>la deschiderea aplicației, dacă accesul e deja permis sau dacă e pornită opțiunea „Pornește cu locația
+            mea” din ecranul „Eu”;</li>
+        <li>când revii în aplicație după cel puțin 15 minute, dacă opțiunea e pornită.</li>
+    </ul>
+    <p>Opțiunea se pornește singură după ce folosești locația o dată, se oprește singură dacă refuzi accesul și o
+        poți opri oricând din ecranul „Eu”. Coordonatele sunt folosite ca să aflăm vremea pentru acel loc și numele
+        lui. Nu păstrăm istoricul pozițiilor tale.</p>
+    <p>Când partajezi un traseu, linkul conține opririle (nume și coordonate), ora plecării și, pentru un traseu
+        importat din GPX, drumul simplificat. O oprire luată din poziția GPS intră în link rotunjită la aproximativ
+        1 km. Toate acestea stau în partea linkului de după semnul #, pe care browserul nu o trimite niciunui
+        server, deci traseul partajat nu trece prin serverul nostru.</p>
     <p>Ca să verificăm cât de bine a nimerit fiecare sursă meteo, serverul păstrează un jurnal cu ce a prezis
         și ce au măsurat apoi stațiile. Jurnalul ține doar zona rotunjită la aproximativ 5 km și ora (UTC), fără
         nicio legătură cu tine, cu dispozitivul tău sau cu contul, și fără adresa IP. Se scrie cel mult o dată pe
-        oră pentru aceeași zonă.</p>
+        oră pentru aceeași zonă, iar înregistrările mai vechi de 90 de zile se șterg automat.</p>
 
     <h2>3. Cu cont</h2>
     <p>Dacă îți faci cont, păstrăm pe server:</p>
