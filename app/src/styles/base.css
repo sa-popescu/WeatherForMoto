@@ -7,9 +7,10 @@
 html,
 body {
   margin: 0;
-  min-height: 100%;
+  height: 100%;
 }
 
+/* The page itself never scrolls: .shell__main does (see the app shell below). */
 body {
   background: var(--bg);
   color: var(--ink);
@@ -18,10 +19,12 @@ body {
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
+  overflow: hidden;
   overscroll-behavior-y: none;
 }
 
-body.sheet-open {
+/* A bottom sheet keeps the content behind it still. */
+body.sheet-open .shell__main {
   overflow: hidden;
 }
 
@@ -77,10 +80,16 @@ textarea {
   white-space: nowrap;
 }
 
-/* ---- App shell ---- */
+/* ---- App shell ----
+   A column exactly as tall as the screen: the content area scrolls on its own
+   and the bottom nav is the column's last row, not a fixed bar over a
+   scrolling page. On iOS 26 a fixed bar can stay stuck mid-screen after the
+   keyboard (or the share sheet) closes (WebKit bug 297779); a bar in the
+   normal flow has nothing to get stuck to. */
 
 .shell {
-  min-height: 100dvh;
+  height: 100%;
+  height: 100dvh;
   max-width: 560px;
   margin: 0 auto;
   display: flex;
@@ -89,8 +98,11 @@ textarea {
 
 .shell__main {
   flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
   padding-top: var(--safe-top);
-  padding-bottom: calc(var(--nav-h) + var(--safe-bottom) + 20px);
+  padding-bottom: 20px;
 }
 
 .screen {
@@ -121,20 +133,16 @@ textarea {
   font-size: 14px;
 }
 
+/* The last row of the shell. Its height still matches --nav-h, which the map
+   and the toasts (both fixed) use to stay above it. */
 .bottom-nav {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  flex: none;
+  position: relative;
   z-index: 30;
-  max-width: 560px;
-  margin: 0 auto;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   padding: 6px 8px calc(6px + var(--safe-bottom));
-  background: color-mix(in srgb, var(--bg) 94%, transparent);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: var(--bg);
   border-top: 1px solid var(--line);
 }
 
