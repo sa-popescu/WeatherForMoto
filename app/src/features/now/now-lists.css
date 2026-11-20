@@ -40,8 +40,18 @@
 }
 
 .now-day__name {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   font-size: 15px;
   font-weight: 500;
+  white-space: nowrap;
+}
+
+.now-day__date {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--dim);
 }
 
 .now-day__mid {
