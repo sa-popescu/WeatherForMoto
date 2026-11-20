@@ -37,10 +37,18 @@ export interface SamplePoint {
   stopIndex: number | null;
 }
 
+/** Sunrise and sunset of one day at a point, local "YYYY-MM-DDTHH:MM" (null when the forecast has none). */
+export interface SunDay {
+  date: string;
+  sunrise: string | null;
+  sunset: string | null;
+}
+
 export interface PointForecast {
   hourly: HourlyWeather[];
   /** Offset of the point's own timezone; hourly times are local to it. */
   utcOffsetSeconds: number;
+  sun: SunDay[];
 }
 
 export type PointStatus = 'loading' | 'ready' | 'error';

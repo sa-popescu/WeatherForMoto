@@ -24,6 +24,7 @@ function row(km: number, name: string, windFrom: number | null, gust: number | n
     etaLocal: '2026-11-22T10:40',
     status: 'ready',
     slot: hour('2026-11-22T10:00', 70, { wind_direction_10m: windFrom, wind_gusts_kmh: gust }),
+    dark: null,
   };
 }
 

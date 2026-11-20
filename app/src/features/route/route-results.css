@@ -308,6 +308,12 @@
   color: var(--ink-2);
 }
 
+.route-wp__dark {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
 .route-wp__meta {
   font-size: 13px;
   color: var(--muted);

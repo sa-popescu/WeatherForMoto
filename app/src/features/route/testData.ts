@@ -38,5 +38,5 @@ export function hour(time: string, score: number | null, extra: Partial<HourlyWe
 /** A day of hourly slots whose score is given by `scoreAt(hour)`. */
 export function dayForecast(date: string, offsetSec: number, scoreAt: (h: number) => number | null): PointForecast {
   const hourly = Array.from({ length: 24 }, (_, h) => hour(`${date}T${String(h).padStart(2, '0')}:00`, scoreAt(h)));
-  return { hourly, utcOffsetSeconds: offsetSec };
+  return { hourly, utcOffsetSeconds: offsetSec, sun: [] };
 }

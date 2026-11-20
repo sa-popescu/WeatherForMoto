@@ -1,4 +1,5 @@
 import type { HourlyWeather } from '../../lib/types';
+import { darkAt, type DarkAt } from './daylight';
 import { departureUtcMs, etaUtcMs, localIsoAt, pickSlot } from './timing';
 import type { Departure, PointStatus, PointWeather, SamplePoint } from './types';
 
@@ -12,6 +13,8 @@ export interface TimelineRow {
   etaLocal: string;
   status: PointStatus;
   slot: HourlyWeather | null;
+  /** Reached before sunrise or after sunset there; null in daylight or before the forecast loads. */
+  dark: DarkAt | null;
 }
 
 export type WeatherById = Readonly<Record<string, PointWeather | undefined>>;
@@ -48,6 +51,7 @@ export function buildTimeline(
       etaLocal,
       status: state?.status ?? 'loading',
       slot: forecast ? pickSlot(forecast.hourly, etaLocal) : null,
+      dark: forecast ? darkAt(etaLocal, forecast.sun) : null,
     };
   });
 }

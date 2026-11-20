@@ -3,6 +3,7 @@ import { api, isAbort } from '../../lib/api';
 import { searchPlaces } from '../../lib/geo';
 import type { Lang } from '../../lib/i18n';
 import type { Place } from '../../lib/types';
+import { sunDays } from './daylight';
 import { routeSummit } from './elevation';
 import { fetchRoute, RouteError, type RouteErrorKind } from './osrm';
 import { nearestKnown } from './stops';
@@ -124,7 +125,10 @@ export function useRoutePlan() {
         try {
           const res = await api.weather({ name: p.name, lat: p.lat, lon: p.lon }, controller.signal, days);
           if (controller.signal.aborted) return;
-          settle(p.id, { status: 'ready', forecast: { hourly: res.data.hourly, utcOffsetSeconds: res.data.utc_offset_seconds } });
+          settle(p.id, {
+            status: 'ready',
+            forecast: { hourly: res.data.hourly, utcOffsetSeconds: res.data.utc_offset_seconds, sun: sunDays(res.data.daily ?? []) },
+          });
         } catch (err) {
           if (isAbort(err) || controller.signal.aborted) return;
           console.warn('[route] weather failed at', p.name, err);

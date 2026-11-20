@@ -5,6 +5,7 @@ import { tierColor } from '../../lib/scoring';
 import { CORE } from '../../i18n/core';
 import { Banner, cx, SectionLabel, Skeleton } from '../../ui/primitives';
 import { crossWarning, roadWinds, type CrossWarning, type RoadWind, type WindSide } from './crosswind';
+import { firstDark, type DarkAt } from './daylight';
 import type { TimelineRow } from './plan';
 import { rainLine } from './rainText';
 import { fmtKm, scoreWord } from './routeFormat';
@@ -14,7 +15,8 @@ import type { RouteLine } from './types';
 // "Vremea pe drum": when you reach each point, its temperature, gusts (and
 // the side they hit you from when they are strong, see crosswind.ts), the
 // rain line (chance + amount + intensity, never a bare percentage) and the
-// backend's moto score for that hour.
+// backend's moto score for that hour. Points reached in the dark are marked
+// (see daylight.ts).
 
 const SIDE_KEY = { head: 'windHead', tail: 'windTail', cross: 'windCross' } as const satisfies Record<WindSide, string>;
 
@@ -32,6 +34,28 @@ function CrossBanner({ warning }: { warning: CrossWarning }) {
   return (
     <Banner tone="warn" icon="wind">
       {more ? `${main} ${more}` : main}
+    </Banner>
+  );
+}
+
+/** The first point reached in the dark: leaving before sunrise or after sunset, or night falling on the way. */
+function DarkBanner({ row }: { row: TimelineRow & { dark: DarkAt } }) {
+  const s = useStrings(RS);
+  const lang = useLang();
+  const sun = hourOf(row.dark.sun);
+  const before = row.dark.kind === 'before-sunrise';
+  const text =
+    row.point.stopIndex === 0
+      ? fmt(before ? s.darkStartBefore : s.darkStartAfter, { place: row.point.name, sun })
+      : fmt(before ? s.darkOnRoadBefore : s.darkOnRoad, {
+          km: fmtKm(row.point.km, lang),
+          place: row.point.name,
+          eta: hourOf(row.etaLocal),
+          sun,
+        });
+  return (
+    <Banner tone="warn" icon="moon">
+      {text}
     </Banner>
   );
 }
@@ -74,9 +98,11 @@ export function WaypointList({ rows, route }: WaypointListProps) {
   const core = useStrings(CORE);
   const winds = useMemo(() => roadWinds(route, rows), [route, rows]);
   const warning = useMemo(() => crossWarning(rows, winds), [rows, winds]);
+  const dark = useMemo(() => firstDark(rows), [rows]);
   return (
     <section className="route-wp" aria-labelledby="route-wp-title">
       <SectionLabel id="route-wp-title">{s.wpTitle}</SectionLabel>
+      {dark && <DarkBanner row={dark} />}
       {warning && <CrossBanner warning={warning} />}
       <ol className="route-wp__list">
         {rows.map((row, i) => {
@@ -90,7 +116,10 @@ export function WaypointList({ rows, route }: WaypointListProps) {
                 {i < rows.length - 1 && <span className="route-wp__line" />}
               </span>
               <span className="route-wp__body">
-                <span className={cx('route-wp__name', row.point.stopIndex === null && 'route-wp__name--between')}>{row.point.name}</span>
+                <span className={cx('route-wp__name', row.point.stopIndex === null && 'route-wp__name--between')}>
+                  {row.point.name}
+                  {row.dark && <span className="route-wp__dark">{` · ${s.wpDark}`}</span>}
+                </span>
                 <RowBody row={row} wind={winds[i]} />
               </span>
               <span className="route-wp__score num" style={{ color }}>
