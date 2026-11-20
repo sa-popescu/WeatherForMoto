@@ -3,11 +3,12 @@ import { fmt, useLang, useStrings } from '../../lib/i18n';
 import { Card, Chip, IconButton, Segmented } from '../../ui/primitives';
 import { dayChipLabel } from './routeFormat';
 import { RS } from './strings';
-import { minutesOf, SPEEDS, STEP_MIN, timeOf, timesBetween, type Speed } from './timing';
+import { minutesOf, SPEEDS, STEADY_DAYS, STEP_MIN, timeOf, timesBetween, type Speed } from './timing';
 import type { Departure } from './types';
 
-// Day (today .. +6), time in 30-minute steps (origin local time) and the
-// average motorcycle pace used for every ETA.
+// Day (today and the next PLAN_DAYS - 1), time in 30-minute steps (origin
+// local time) and the average motorcycle pace used for every ETA. A day past
+// the first week gets a note that its forecast is only a rough guide.
 
 const ALL_TIMES = timesBetween('00:00', '23:30');
 
@@ -24,6 +25,7 @@ export function DepartureControls({ dates, departure, onDeparture, speed, onSpee
   const lang = useLang();
   const timeId = useId();
   const minutes = minutesOf(departure.time);
+  const farDay = dates.indexOf(departure.date) >= STEADY_DAYS;
 
   const shift = (delta: number): void => {
     const next = Math.min(minutesOf('23:30'), Math.max(0, minutes + delta));
@@ -46,6 +48,7 @@ export function DepartureControls({ dates, departure, onDeparture, speed, onSpee
             </Chip>
           ))}
         </div>
+        {farDay && <p className="route-dep__note">{fmt(s.farDayNote, { n: STEADY_DAYS })}</p>}
       </div>
       <div className="route-dep__group">
         <label className="route-dep__label num" htmlFor={timeId}>

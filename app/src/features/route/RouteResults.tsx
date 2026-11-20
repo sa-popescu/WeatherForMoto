@@ -29,12 +29,12 @@ interface RouteResultsProps {
   onAdopt: (time: string) => void;
   /** A day picked in the comparison, with its best departure. */
   onPickDay: (departure: Departure) => void;
-  onNeedWeek: () => void;
+  onNeedAllDays: () => void;
   onAction: (kind: ActionKind) => void;
 }
 
 export function RouteResults(props: RouteResultsProps) {
-  const { active, route, derived, dates, departure, speed, weatherDone, hazards, signedIn, onAdopt, onPickDay, onNeedWeek, onAction } = props;
+  const { active, route, derived, dates, departure, speed, weatherDone, hazards, signedIn, onAdopt, onPickDay, onNeedAllDays, onAction } = props;
   const s = useStrings(RS);
   const lang = useLang();
   const { summary: hazardText } = useHazardText();
@@ -58,7 +58,7 @@ export function RouteResults(props: RouteResultsProps) {
             points={derived.sweepPoints}
             originOffsetSec={derived.originOffset}
             loading={!weatherDone}
-            onNeedWeek={onNeedWeek}
+            onNeedAllDays={onNeedAllDays}
             onPick={onPickDay}
           />
         }

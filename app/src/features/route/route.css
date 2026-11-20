@@ -266,6 +266,11 @@
   color: var(--muted);
 }
 
+.route-dep__note {
+  font-size: 13px;
+  color: var(--muted);
+}
+
 .route-days {
   display: flex;
   gap: 8px;

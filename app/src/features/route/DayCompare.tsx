@@ -10,8 +10,8 @@ import type { Departure } from './types';
 
 // "Compară zilele", under the departure chart: the best departure of every
 // planner day and the worst score met along the route at that time. Closed
-// by default; opening it asks for the week of forecast when only three days
-// are loaded, since the other days cannot be compared without it.
+// by default; opening it asks for the longest forecast when a shorter one is
+// loaded, since the other days cannot be compared without it.
 
 interface DayCompareProps {
   dates: readonly string[];
@@ -21,18 +21,18 @@ interface DayCompareProps {
   originOffsetSec: number;
   /** The weather is still loading, so a day without data may still get it. */
   loading: boolean;
-  /** Called when the comparison opens; loads the whole week if it is not there yet. */
-  onNeedWeek: () => void;
+  /** Called when the comparison opens; loads every planner day if they are not there yet. */
+  onNeedAllDays: () => void;
   onPick: (departure: Departure) => void;
 }
 
-export function DayCompare({ dates, departure, speed, points, originOffsetSec, loading, onNeedWeek, onPick }: DayCompareProps) {
+export function DayCompare({ dates, departure, speed, points, originOffsetSec, loading, onNeedAllDays, onPick }: DayCompareProps) {
   const s = useStrings(RS);
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    if (open) onNeedWeek();
-  }, [open, onNeedWeek]);
+    if (open) onNeedAllDays();
+  }, [open, onNeedAllDays]);
 
   const days = useMemo(
     () => (open ? dayBests({ points, dates, speedKmh: speed, originOffsetSec, nowMs: Date.now(), chosenTime: departure.time }) : []),
