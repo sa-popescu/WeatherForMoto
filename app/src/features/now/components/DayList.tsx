@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { dayName, fmtTemp } from '../../../lib/format';
+import { dayMonth, dayName, fmtTemp } from '../../../lib/format';
 import { fmt, useLang, useStrings } from '../../../lib/i18n';
 import { tierColor } from '../../../lib/scoring';
 import type { DailyWeather } from '../../../lib/types';
@@ -54,11 +54,22 @@ function DayRow({ day, label, onOpen }: { day: DailyWeather; label: string; onOp
   const lang = useLang();
   const rain = dayRainLine(day, lang);
   const temps = `${fmtTemp(day.temp_max, lang)} / ${fmtTemp(day.temp_min, lang)}`;
+  const date = dayMonth(day.date, lang);
   const score = day.moto_score;
   return (
     <li>
-      <button type="button" className="now-day" onClick={onOpen} aria-haspopup="dialog" aria-label={fmt(s.dayAria, { day: label, score: score ?? '–', temps, rain: rain.text })}>
-        <span className="now-day__name">{label}</span>
+      <button
+        type="button"
+        className="now-day"
+        onClick={onOpen}
+        aria-haspopup="dialog"
+        aria-label={fmt(s.dayAria, { day: `${label} ${date}`, score: score ?? '–', temps, rain: rain.text })}
+      >
+        {/* The date sits under the day name, level with the rain line. */}
+        <span className="now-day__name">
+          {label}
+          <span className="now-day__date">{date}</span>
+        </span>
         <span className="now-day__mid">
           <span className="now-day__track">
             <span className="now-day__fill" style={{ width: `${score ?? 0}%`, background: tierColor(score) }} />
