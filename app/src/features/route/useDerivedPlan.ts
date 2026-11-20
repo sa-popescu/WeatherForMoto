@@ -14,15 +14,19 @@ export function useDerivedPlan(state: PlanState, departure: Departure, speed: nu
     const fallback = deviceOffsetSec();
     const rows = buildTimeline(points, weather, departure, speed, fallback);
     const sweepPoints = points.map((p) => ({ km: p.km, name: p.name, forecast: weather[p.id]?.forecast ?? null }));
+    const originOffset = originOffsetSec(points, weather, fallback);
     const bars = departureSweep({
       points: sweepPoints,
       date: departure.date,
       speedKmh: speed,
-      originOffsetSec: originOffsetSec(points, weather, fallback),
+      originOffsetSec: originOffset,
       nowMs: Date.now(),
     });
     return {
       rows,
+      // For the day comparison, which sweeps the other days only once it is opened.
+      sweepPoints,
+      originOffset,
       stats: routeStats(rows),
       segments: segmentScores(rows),
       bars,

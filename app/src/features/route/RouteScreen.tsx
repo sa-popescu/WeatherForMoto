@@ -33,6 +33,9 @@ import './route-results.css';
 
 type SheetKind = 'none' | 'save' | 'log' | 'hazard' | 'signin' | 'saved';
 
+/** The longer of the two forecast lengths the points load (see forecastDaysFor). */
+const FULL_WEEK_DAYS = 7;
+
 export default function RouteScreen({ active }: ScreenProps) {
   const s = useStrings(RS);
   const { status: authStatus } = useAuth();
@@ -78,6 +81,9 @@ export default function RouteScreen({ active }: ScreenProps) {
     [actions, calc, departure, signedIn],
   );
 
+  // Comparing days needs the forecast of the whole planner week at every point.
+  const needWeek = useCallback(() => ensureDays(FULL_WEEK_DAYS), [ensureDays]);
+
   const close = useCallback(() => setSheet('none'), []);
   const busy = plan.step === 'geocoding' || plan.step === 'routing';
 
@@ -119,12 +125,15 @@ export default function RouteScreen({ active }: ScreenProps) {
           active={active}
           route={plan.route}
           derived={derived}
+          dates={dates}
           departure={departure}
           speed={speed}
           weatherDone={plan.step === 'ready'}
           hazards={hazards}
           signedIn={signedIn}
           onAdopt={(time) => setDeparture((d) => ({ ...d, time }))}
+          onPickDay={setDeparture}
+          onNeedWeek={needWeek}
           onAction={onAction}
         />
       )}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bestBar, departureSweep, type SweepBar } from './sweep';
+import { bestBar, bestDay, dayBests, departureSweep, type SweepBar } from './sweep';
 import { dayForecast } from './testData';
 
 const RO = 3 * 3600;
@@ -62,5 +62,37 @@ describe('bestBar', () => {
     const bars = [bar('06:00', 99, { past: true }), bar('07:00', 95, { complete: false }), bar('07:30', null), bar('08:00', 50)];
     expect(bestBar(bars, '08:00')?.time).toBe('08:00');
     expect(bestBar([bar('06:00', 90, { past: true })], '06:00')).toBeNull();
+  });
+});
+
+describe('dayBests', () => {
+  // Two days of forecast: the 12th is wet in the valley from 10:00, the 13th dry all day; nothing for the 14th.
+  const twoDays = (scoreOn12: (h: number) => number, scoreOn13: (h: number) => number) => {
+    const a = dayForecast(DATE, RO, scoreOn12);
+    const b = dayForecast('2026-09-13', RO, scoreOn13);
+    return { ...a, hourly: [...a.hourly, ...b.hourly] };
+  };
+  const route = [
+    { km: 0, name: 'București', forecast: twoDays(() => 90, () => 90) },
+    { km: 150, name: 'Valea Oltului', forecast: twoDays((h) => (h >= 10 ? 55 : 80), () => 85) },
+  ];
+  const input = { points: route, speedKmh: 75, originOffsetSec: RO, chosenTime: '09:00' };
+
+  it('gives each day its best departure, or says why there is none', () => {
+    const days = dayBests({ ...input, dates: [DATE, '2026-09-13', '2026-09-14'], nowMs: BEFORE_DAWN });
+    expect(days.map((d) => [d.date, d.state, d.best?.time ?? null, d.best?.worst ?? null])).toEqual([
+      [DATE, 'ready', '07:30', 80],
+      ['2026-09-13', 'ready', '09:00', 85],
+      ['2026-09-14', 'missing', null, null],
+    ]);
+    expect(bestDay(days)?.date).toBe('2026-09-13');
+  });
+
+  it('calls a day over once every departure is past', () => {
+    const evening = Date.UTC(2026, 8, 12, 18, 0); // 21:00 in Romania
+    const days = dayBests({ ...input, dates: [DATE, '2026-09-13'], nowMs: evening });
+    expect(days[0]).toMatchObject({ state: 'over', best: null });
+    expect(days[1].state).toBe('ready');
+    expect(bestDay([days[0]])).toBeNull();
   });
 });
