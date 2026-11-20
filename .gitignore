@@ -35,6 +35,9 @@ ios/
 android/
 .capacitor/
 
+# Local state of `wrangler dev` (the short links Worker)
+.wrangler/
+
 Thumbs.db
 
 # Google Cloud SDK (installed locally, not part of the project)

@@ -73,7 +73,7 @@ WeatherForMoto/
 ├── scripts/build-pages.sh  # build-ul frontend-ului pentru Cloudflare
 ├── .github/                # CI, deploy API, redirect GitHub Pages, Dependabot
 ├── Dockerfile              # imaginea API-ului (Cloud Run)
-├── wrangler.jsonc          # Cloudflare static assets (dist/)
+├── wrangler.jsonc          # Cloudflare: static assets (dist/) + linkurile scurte de traseu (KV)
 ├── capacitor.config.json   # aplicația nativă (webDir: app/dist)
 ├── index.html, sw.js       # doar redirecționare + retragerea vechiului service worker
 ├── icons/, manifest.json, privacy-policy.html
@@ -278,6 +278,8 @@ Setup în dashboard-ul Cloudflare Pages (Connect to Git):
 - Build command: `sh scripts/build-pages.sh`
 - Build output directory: `dist`
 - Custom domain: `weatherformoto.bluemouse.cc` (mută CNAME-ul de pe vechiul Worker pe proiectul Pages)
+
+Linkuri scurte de traseu: Worker-ul are un singur script, `app/src/worker/shortLinks.ts`, care primește doar `/s` și `/s/*` (`run_worker_first` în `wrangler.jsonc`). `POST /s` păstrează planul unui traseu partajat în Workers KV (binding `SHORT_LINKS`) timp de 90 de zile, iar `GET /s/<id>` redirecționează către `/#/traseu?…`. Spațiul KV nu are ID în config: wrangler (4.45+) îl creează la primul deploy și îl ține legat după aceea. Dacă Worker-ul nu răspunde, aplicația trimite linkul lung, ca înainte.
 
 Pe backend (Cloud Run) setează `ALLOWED_ORIGINS` ca să includă originea frontend-ului:
 

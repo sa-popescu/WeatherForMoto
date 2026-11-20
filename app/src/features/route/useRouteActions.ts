@@ -13,6 +13,7 @@ import type { RouteStats } from './plan';
 import { buildRouteLink, type ShareStop } from './routeLink';
 import { fmtKm } from './routeFormat';
 import { savedTrackOf } from './savedTrack';
+import { shortRouteLink } from './shortLink';
 import { savedLabel } from './stops';
 import { rideMinutes } from './timing';
 import type { Departure, RouteLine, SamplePoint, StopDraft } from './types';
@@ -174,7 +175,8 @@ export function useRouteActions({ route, points, stops, stats, speed, onSavedCha
         toast(as.shareStale, { tone: 'error' });
         return;
       }
-      const url = buildRouteLink({ stops: shared, departure, speed, line: track ? track.coords : null });
+      // A long link (an imported road) goes out as a short one when the Worker answers in time.
+      const url = await shortRouteLink(buildRouteLink({ stops: shared, departure, speed, line: track ? track.coords : null }));
       const text = fmt(as.shareText, {
         route: routeName,
         day: `${dayName(departure.date, lang)} ${dayMonth(departure.date, lang)}`,

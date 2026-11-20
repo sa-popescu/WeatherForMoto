@@ -71,6 +71,11 @@ describe('route link', () => {
     expect(parseRouteLink('#/traseu?foo=1').kind).toBe('none');
   });
 
+  it('tells a short link that expired from a damaged one', () => {
+    expect(parseRouteLink('#/traseu?r=gone').kind).toBe('gone');
+    expect(parseRouteLink('#/traseu?r=2&p=1~2~A&p=3~4~B').kind).toBe('invalid');
+  });
+
   it('refuses a link it cannot trust', () => {
     const stop = (name: string): string => `p=45~25~${name}`;
     for (const hash of [

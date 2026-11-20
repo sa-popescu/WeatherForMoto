@@ -34,8 +34,8 @@ export function useOpenRouteLink(options: Options): void {
       if (parsed.kind === 'none') return;
       window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}${ROUTE_TAB_HASH}`);
       const { dates, speed, setDeparture, setSpeed, openShared, toast: show, as: text } = latest.current;
-      if (parsed.kind === 'invalid') {
-        show(text.linkInvalid, { tone: 'error' });
+      if (parsed.kind === 'invalid' || parsed.kind === 'gone') {
+        show(parsed.kind === 'gone' ? text.linkGone : text.linkInvalid, { tone: 'error' });
         return;
       }
 
