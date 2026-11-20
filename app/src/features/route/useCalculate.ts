@@ -1,5 +1,5 @@
-import { useCallback, useRef, useState } from 'react';
-import { distanceKm, reverseGeocode, searchPlaces } from '../../lib/geo';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { distanceKm, NOMINATIM_GAP_MS, reverseGeocode, searchPlaces } from '../../lib/geo';
 import { fmt, useLang, useStrings } from '../../lib/i18n';
 import type { Place, SavedRoute } from '../../lib/types';
 import { useToast } from '../../state/toast';
@@ -36,8 +36,8 @@ const EXAMPLE: Place[] = [
 /** Road distance is roughly 1.3 times the straight line; enough to size the forecast. */
 const ROAD_FACTOR = 1.3;
 
-/** Nominatim allows one request per second; the two ends of a track are looked up one after the other. */
-const REVERSE_GAP_MS = 1100;
+/** The two ends of a track are looked up one after the other, within Nominatim's limit. */
+const REVERSE_GAP_MS = NOMINATIM_GAP_MS;
 
 const pause = (ms: number): Promise<void> => new Promise((resolve) => window.setTimeout(resolve, ms));
 
@@ -73,6 +73,11 @@ export function useCalculate({ stopsState, calculate, calculateFromTrack, hasRou
   const nameBetween = useCallback<NameBetween>((road, previous) => road ?? fmt(s.afterStop, { stop: previous }), [s.afterStop]);
   // Heights are written without a thousands separator, as on road signs ("2145 m").
   const nameSummit = useCallback<NameSummit>((elevationM) => fmt(s.summitName, { m: String(elevationM) }), [s.summitName]);
+  // A track has no road names, so its points between stops are named after the nearest locality.
+  const trackNaming = useMemo(
+    () => ({ lang, nameBetween, nameSummit, nameNear: (locality: string) => fmt(s.nearPlace, { place: locality }) }),
+    [lang, nameBetween, nameSummit, s.nearPlace],
+  );
 
   /**
    * Forecast length needed for a ride of this many km. The departure and pace
@@ -96,9 +101,9 @@ export function useCalculate({ stopsState, calculate, calculateFromTrack, hasRou
       setFormError(null);
       setStops(drafts);
       setCalcKey(key);
-      void calculateFromTrack({ route, stops: places, days: daysFor(route.distanceKm, plan), nameBetween, nameSummit });
+      void calculateFromTrack({ route, stops: places, days: daysFor(route.distanceKm, plan), ...trackNaming });
     },
-    [calculateFromTrack, daysFor, nameBetween, nameSummit, setStops],
+    [calculateFromTrack, daysFor, setStops, trackNaming],
   );
 
   const run = useCallback(
@@ -116,7 +121,7 @@ export function useCalculate({ stopsState, calculate, calculateFromTrack, hasRou
       if (track && stopsKey(filled) === track.key) {
         // Untouched stops of an imported GPX: keep the road from the file.
         setCalcKey(track.key);
-        void calculateFromTrack({ route: track.route, stops: track.places, days: daysFor(track.route.distanceKm, plan), nameBetween, nameSummit });
+        void calculateFromTrack({ route: track.route, stops: track.places, days: daysFor(track.route.distanceKm, plan), ...trackNaming });
         return;
       }
       imported.current = null;
@@ -138,7 +143,7 @@ export function useCalculate({ stopsState, calculate, calculateFromTrack, hasRou
         },
       });
     },
-    [calculate, calculateFromTrack, daysFor, lang, nameBetween, nameSummit, s.needTwo, setStops],
+    [calculate, calculateFromTrack, daysFor, lang, nameBetween, nameSummit, s.needTwo, setStops, trackNaming],
   );
 
   const runExample = useCallback(() => run(EXAMPLE.map((p) => newStop(p))), [run]);

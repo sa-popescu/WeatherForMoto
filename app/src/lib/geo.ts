@@ -66,6 +66,9 @@ export async function geolocationPermission(): Promise<PermissionState | 'unsupp
 
 const reverseCache = new Map<string, string | null>();
 
+/** Nominatim allows one request per second: callers looking up several places wait this long between them. */
+export const NOMINATIM_GAP_MS = 1100;
+
 /** Human name for coordinates ("Floreasca", "Sibiu"), or null if unknown. */
 export async function reverseGeocode(lat: number, lon: number, lang: Lang, signal?: AbortSignal): Promise<string | null> {
   const key = `${lat.toFixed(3)},${lon.toFixed(3)},${lang}`;

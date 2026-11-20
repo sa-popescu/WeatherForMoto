@@ -9,7 +9,12 @@ import type { PlanState } from './useRoutePlan';
 // the departure or the speed changes (no new requests).
 
 export function useDerivedPlan(state: PlanState, departure: Departure, speed: number) {
-  const { points, weather } = state;
+  const { weather, placeNames } = state;
+  // Track points take the locality names as they come in (trackNames.ts).
+  const points = useMemo(
+    () => state.points.map((p) => (placeNames[p.id] ? { ...p, name: placeNames[p.id] } : p)),
+    [state.points, placeNames],
+  );
   return useMemo(() => {
     const fallback = deviceOffsetSec();
     const rows = buildTimeline(points, weather, departure, speed, fallback);

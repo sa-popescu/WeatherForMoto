@@ -9,6 +9,7 @@ import { fetchRoute, RouteError, type RouteErrorKind } from './osrm';
 import { nearestKnown } from './stops';
 import { runPool } from './pool';
 import { buildSamplePoints, withSummit, type NameBetween, type NameSummit } from './samples';
+import { nameTrackPoints } from './trackNames';
 import type { PointWeather, RouteLine, SamplePoint, StopDraft } from './types';
 
 // Orchestrates one calculation: resolve typed stops, route with OSRM, look for
@@ -28,9 +29,15 @@ export interface PlanState {
   weather: Record<string, PointWeather>;
   /** Forecast length loaded for the points. */
   days: number;
+  /**
+   * Better names for points of an imported track, by point id, as they come in
+   * (trackNames.ts). Kept apart from `points` so the hazards and the weather,
+   * which depend on where the points are, do not reload on every new name.
+   */
+  placeNames: Record<string, string>;
 }
 
-const INITIAL: PlanState = { step: 'idle', error: null, route: null, points: [], weather: {}, days: 0 };
+const INITIAL: PlanState = { step: 'idle', error: null, route: null, points: [], weather: {}, days: 0, placeNames: {} };
 
 /** A stop as it was resolved, with the county that tells homonyms apart. */
 export interface ResolvedStop extends Place {
@@ -52,8 +59,11 @@ export interface TrackInput {
   route: RouteLine;
   stops: readonly Place[];
   days: number;
+  lang: Lang;
   nameBetween: NameBetween;
   nameSummit: NameSummit;
+  /** The name of a point between stops, from the locality it is near. */
+  nameNear: (locality: string) => string;
 }
 
 /** The weather points of a route, plus its summit when one stands well above them. */
@@ -94,15 +104,32 @@ async function resolveStops(stops: readonly StopDraft[], lang: Lang, signal: Abo
 export function useRoutePlan() {
   const [state, setState] = useState<PlanState>(INITIAL);
   const controllerRef = useRef<AbortController | null>(null);
+  // The naming of track points has its own controller: reloading the weather
+  // for a longer forecast must not stop it, only a new calculation does.
+  const namesRef = useRef<AbortController | null>(null);
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  useEffect(() => () => controllerRef.current?.abort(), []);
+  useEffect(
+    () => () => {
+      controllerRef.current?.abort();
+      namesRef.current?.abort();
+    },
+    [],
+  );
 
   const fresh = useCallback((): AbortController => {
     controllerRef.current?.abort();
     const controller = new AbortController();
     controllerRef.current = controller;
+    return controller;
+  }, []);
+
+  /** Cancels the naming of the previous route's points; a new one is returned for the caller to use, or ignore. */
+  const freshNames = useCallback((): AbortController => {
+    namesRef.current?.abort();
+    const controller = new AbortController();
+    namesRef.current = controller;
     return controller;
   }, []);
 
@@ -143,6 +170,8 @@ export function useRoutePlan() {
   const calculate = useCallback(
     async ({ stops, days, lang, nameBetween, nameSummit, onResolved }: CalculateInput) => {
       const controller = fresh();
+      // A routed road names its points itself: nothing to look up.
+      freshNames();
       setState({ ...INITIAL, step: 'geocoding' });
       try {
         const places = await resolveStops(stops, lang, controller.signal);
@@ -162,13 +191,14 @@ export function useRoutePlan() {
         setState((s) => ({ ...s, step: 'error', error }));
       }
     },
-    [fresh, loadWeather],
+    [fresh, freshNames, loadWeather],
   );
 
   /** An imported track already is the road: no geocoding, no OSRM, only the summit lookup before the weather. */
   const calculateFromTrack = useCallback(
-    async ({ route, stops, days, nameBetween, nameSummit }: TrackInput) => {
+    async ({ route, stops, days, lang, nameBetween, nameSummit, nameNear }: TrackInput) => {
       const controller = fresh();
+      const naming = freshNames();
       // The summit lookup takes a moment (5 s at most); it shows as finding the road.
       setState({ ...INITIAL, step: 'routing' });
       let points: SamplePoint[];
@@ -182,9 +212,13 @@ export function useRoutePlan() {
       }
       if (controller.signal.aborted) return;
       setState({ ...INITIAL, step: 'weather', route, points });
+      // The points between stops get locality names one by one while the weather loads.
+      void nameTrackPoints(points, lang, naming.signal, (id, locality) =>
+        setState((s) => ({ ...s, placeNames: { ...s.placeNames, [id]: nameNear(locality) } })),
+      );
       await loadWeather(points, days, controller);
     },
-    [fresh, loadWeather],
+    [fresh, freshNames, loadWeather],
   );
 
   /** Reloads every point with a longer forecast when the departure moves further out. */
@@ -208,6 +242,7 @@ export function useRoutePlan() {
 
   const reset = useCallback(() => {
     controllerRef.current?.abort();
+    namesRef.current?.abort();
     setState(INITIAL);
   }, []);
 
