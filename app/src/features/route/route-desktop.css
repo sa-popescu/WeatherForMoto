@@ -1,0 +1,131 @@
+/* "Traseu" on a desktop (DESKTOP_QUERY in lib/useMediaQuery.ts).
+   RouteScreen groups its content in three columns: the plan (stops, day,
+   time, pace), the map with when to leave, and the road (weather at every
+   point, hazards, actions, ride stats).
+   - phone: the groups add no box, so the screen stays one column
+   - 1024 to 1279 px: two columns that scroll with the page, the map and the
+     road one under the other on the right
+   - from 1280 px: three columns as tall as the window, each scrolling on its
+     own, the map filling the middle one
+   Every rule starts with .screen.route so it wins over the phone rules
+   whatever order the stylesheets end up in. */
+
+.route-col {
+  display: contents;
+}
+
+@media (min-width: 1024px) {
+  /* :not([hidden]) keeps the hidden tab hidden (.screen[hidden] in base.css). */
+  .screen.route:not([hidden]) {
+    display: grid;
+    grid-template-columns: 340px minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+    align-items: start;
+    gap: 20px 24px;
+  }
+
+  .screen.route .route-col {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  .screen.route .route-col--plan {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+
+  .screen.route .route-col--map {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .screen.route .route-col--road {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  /* The map first, when to leave under it. */
+  .screen.route .route-col--map > .route-sweep {
+    order: 1;
+  }
+
+  .screen.route .route-map {
+    height: 420px;
+  }
+
+  /* All the days at once instead of a row that scrolls sideways. */
+  .screen.route .route-days {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+  }
+
+  .screen.route .route-days .chip {
+    justify-content: center;
+    min-width: 0;
+    padding: 0 4px;
+    white-space: nowrap;
+  }
+}
+
+@media (min-width: 1280px) {
+  /* The columns scroll, not the content area around them. */
+  .shell[data-tab='traseu'] .shell__main {
+    overflow: hidden;
+    padding-bottom: 0;
+  }
+
+  .screen.route:not([hidden]) {
+    height: 100%;
+    padding: 0;
+    grid-template-columns: 340px minmax(0, 1fr) 380px;
+    grid-template-rows: minmax(0, 1fr);
+    align-items: stretch;
+    gap: 0;
+  }
+
+  .screen.route .route-col {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    padding: 24px 20px;
+  }
+
+  .screen.route .route-col--plan {
+    grid-row: 1;
+    border-right: 1px solid var(--line);
+  }
+
+  /* On a short window the calculate button stays in reach at the bottom of
+     the plan, over a band of background that hides what scrolls under it. */
+  .screen.route .route-col--plan > .btn--primary {
+    position: sticky;
+    bottom: 16px;
+    z-index: 1;
+    box-shadow:
+      0 0 0 12px var(--bg),
+      0 24px 0 12px var(--bg);
+  }
+
+  .screen.route .route-col--map {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .screen.route .route-col--road {
+    grid-column: 3;
+    grid-row: 1;
+    border-left: 1px solid var(--line);
+  }
+
+  /* The map takes whatever height the column has left. */
+  .screen.route .route-map {
+    flex: 1 0 360px;
+    height: auto;
+  }
+}

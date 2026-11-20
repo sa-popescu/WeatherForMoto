@@ -8,7 +8,7 @@ import { DepartureControls } from './DepartureControls';
 import { HazardSheet } from './HazardSheet';
 import { RideStatsCard } from './RideStats';
 import type { ActionKind } from './RouteActions';
-import { RouteResults } from './RouteResults';
+import { RouteDetails, RouteOverview } from './RouteResults';
 import { RouteStatus } from './RouteStatus';
 import { SavedRoutesSheet } from './SavedRoutesSheet';
 import { LogRideSheet, SaveRouteSheet, SignInSheet } from './SimpleSheets';
@@ -38,6 +38,7 @@ import { useRoutePlan } from './useRoutePlan';
 import { useStopsState } from './useStopsState';
 import './route.css';
 import './route-results.css';
+import './route-desktop.css';
 
 // "Traseu": plan a ride of 2 to 10 stops and see the weather at every point
 // at the moment you get there, plus the best time to leave.
@@ -95,58 +96,65 @@ export default function RouteScreen({ active }: ScreenProps) {
   const close = useCallback(() => setSheet('none'), []);
   const busy = plan.step === 'geocoding' || plan.step === 'routing';
 
+  // Three column groups for the desktop layout (route-desktop.css): the plan,
+  // the map with when to leave, and the road. On a phone the groups add no box
+  // (display: contents), so the order below is the order on screen.
   return (
     <div className="screen route" hidden={!active}>
-      <header className="route-head">
-        <h1 className="route-head__title num">{s.title}</h1>
-        {signedIn && (
-          <button type="button" className="route-head__saved" onClick={() => setSheet('saved')}>
-            <Icon name="bookmark" size={18} />
-            {fmt(s.savedButton, { n: saved.data?.length ?? 0 })}
-          </button>
+      <div className="route-col route-col--plan">
+        <header className="route-head">
+          <h1 className="route-head__title num">{s.title}</h1>
+          {signedIn && (
+            <button type="button" className="route-head__saved" onClick={() => setSheet('saved')}>
+              <Icon name="bookmark" size={18} />
+              {fmt(s.savedButton, { n: saved.data?.length ?? 0 })}
+            </button>
+          )}
+        </header>
+
+        <StopsEditor state={stopsState} onImportGpx={(file) => void calc.importGpx(file)} />
+        {calc.formError && (
+          <Banner tone="error" icon="alert">
+            {calc.formError}
+          </Banner>
         )}
-      </header>
+        <DepartureControls dates={dates} departure={departure} onDeparture={setDeparture} speed={speed} onSpeed={setSpeed} />
+        <Button variant="primary" size="lg" full icon="route" busy={busy} onClick={() => calc.run(stopsState.stops)}>
+          {plan.route ? s.recalculate : s.calculate}
+        </Button>
+      </div>
 
-      <StopsEditor state={stopsState} onImportGpx={(file) => void calc.importGpx(file)} />
-      {calc.formError && (
-        <Banner tone="error" icon="alert">
-          {calc.formError}
-        </Banner>
-      )}
-      <DepartureControls dates={dates} departure={departure} onDeparture={setDeparture} speed={speed} onSpeed={setSpeed} />
-      <Button variant="primary" size="lg" full icon="route" busy={busy} onClick={() => calc.run(stopsState.stops)}>
-        {plan.route ? s.recalculate : s.calculate}
-      </Button>
-
-      <RouteStatus
-        state={plan}
-        settled={derived.settled}
-        failed={derived.failed}
-        stale={calc.stale}
-        onRetry={() => calc.run(stopsState.stops)}
-        onRetryWeather={retryFailed}
-        onExample={calc.runExample}
-      />
-
-      {plan.route && (
-        <RouteResults
-          active={active}
-          route={plan.route}
-          derived={derived}
-          dates={dates}
-          departure={departure}
-          speed={speed}
-          weatherDone={plan.step === 'ready'}
-          hazards={hazards}
-          signedIn={signedIn}
-          onAdopt={(time) => setDeparture((d) => ({ ...d, time }))}
-          onPickDay={setDeparture}
-          onNeedAllDays={needAllDays}
-          onAction={onAction}
+      <div className="route-col route-col--map">
+        <RouteStatus
+          state={plan}
+          settled={derived.settled}
+          failed={derived.failed}
+          stale={calc.stale}
+          onRetry={() => calc.run(stopsState.stops)}
+          onRetryWeather={retryFailed}
+          onExample={calc.runExample}
         />
-      )}
+        {plan.route && (
+          <RouteOverview
+            active={active}
+            route={plan.route}
+            derived={derived}
+            dates={dates}
+            departure={departure}
+            speed={speed}
+            weatherDone={plan.step === 'ready'}
+            hazards={hazards}
+            onAdopt={(time) => setDeparture((d) => ({ ...d, time }))}
+            onPickDay={setDeparture}
+            onNeedAllDays={needAllDays}
+          />
+        )}
+      </div>
 
-      {signedIn && <RideStatsCard state={rides} onRetry={rides.reload} />}
+      <div className="route-col route-col--road">
+        {plan.route && <RouteDetails route={plan.route} derived={derived} hazards={hazards} signedIn={signedIn} onAction={onAction} />}
+        {signedIn && <RideStatsCard state={rides} onRetry={rides.reload} />}
+      </div>
 
       <SignInSheet open={sheet === 'signin'} onClose={close} />
       <SaveRouteSheet

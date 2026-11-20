@@ -12,6 +12,7 @@ import { useClock } from './useClock';
 import { useNowModel } from './useNowModel';
 import { useRadarRain } from './useRadarRain';
 import './now.css';
+import './now-desktop.css';
 
 // "Acum": can I ride now? Verdict, 24 h timeline, rain, readouts, days.
 // The previous data stays on screen during refreshes (no skeleton flashes).

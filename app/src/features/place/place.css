@@ -79,6 +79,36 @@
   gap: 8px;
 }
 
+.place-head__search-text {
+  display: none;
+}
+
+/* Desktop (DESKTOP_QUERY in lib/useMediaQuery.ts): room for the search to
+   look like a field. It still opens the same place sheet. */
+@media (min-width: 1024px) {
+  .place-head__actions {
+    flex-direction: row-reverse;
+  }
+
+  .place-head__search.icon-btn {
+    justify-content: flex-start;
+    gap: 10px;
+    width: 300px;
+    padding: 0 14px;
+    border-color: var(--line-2);
+    color: var(--muted-2);
+  }
+
+  .place-head__search:hover {
+    color: var(--ink-2);
+  }
+
+  .place-head__search-text {
+    display: inline;
+    font-size: 15px;
+  }
+}
+
 /* ---- Place sheet ---- */
 
 .place-row {

@@ -5,7 +5,7 @@ import { fmt, useLang, useStrings } from '../../lib/i18n';
 import { usePlace } from '../../state/place';
 import { useToast } from '../../state/toast';
 import { Icon } from '../../ui/icons';
-import { IconButton, Spinner } from '../../ui/primitives';
+import { Spinner } from '../../ui/primitives';
 import { geoMessage } from './geoMessage';
 import { PlaceSheet } from './PlaceSheet';
 import { S_PLACE } from './strings';
@@ -98,7 +98,12 @@ export function PlaceHeader({ utcOffsetSeconds, sources, onSources, fetchedAt, r
         <button type="button" className="icon-btn" onClick={() => void onLocate()} disabled={locating} aria-label={locating ? s.locating : s.locate} title={s.locate}>
           {locating ? <Spinner size={20} /> : <Icon name="pin" size={22} />}
         </button>
-        <IconButton icon="search" label={s.search} onClick={() => setMode('search')} />
+        {/* An icon on a phone; on a desktop the label shows too and the button
+            reads like a search field (place.css). */}
+        <button type="button" className="icon-btn place-head__search" onClick={() => setMode('search')} aria-label={s.search} title={s.search}>
+          <Icon name="search" size={22} />
+          <span className="place-head__search-text">{s.search}</span>
+        </button>
       </div>
       <PlaceSheet open={mode !== 'closed'} focusSearch={mode === 'search'} onClose={() => setMode('closed')} />
     </header>
