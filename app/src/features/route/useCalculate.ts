@@ -5,7 +5,7 @@ import type { Place, SavedRoute } from '../../lib/types';
 import { useToast } from '../../state/toast';
 import { AS } from './actionStrings';
 import { GpxError, MAX_GPX_BYTES, parseGpx } from './gpx';
-import type { NameBetween } from './samples';
+import type { NameBetween, NameSummit } from './samples';
 import { MAX_STOPS, newStop, stopsKey } from './stops';
 import { RS } from './strings';
 import { SWEEP_LAST } from './sweep';
@@ -71,6 +71,8 @@ export function useCalculate({ stopsState, calculate, calculateFromTrack, hasRou
   const requestSeq = useRef(0);
 
   const nameBetween = useCallback<NameBetween>((road, previous) => road ?? fmt(s.afterStop, { stop: previous }), [s.afterStop]);
+  // Heights are written without a thousands separator, as on road signs ("2145 m").
+  const nameSummit = useCallback<NameSummit>((elevationM) => fmt(s.summitName, { m: String(elevationM) }), [s.summitName]);
 
   /**
    * Forecast length needed for a ride of this many km. The departure and pace
@@ -94,9 +96,9 @@ export function useCalculate({ stopsState, calculate, calculateFromTrack, hasRou
       setFormError(null);
       setStops(drafts);
       setCalcKey(key);
-      void calculateFromTrack({ route, stops: places, days: daysFor(route.distanceKm, plan), nameBetween });
+      void calculateFromTrack({ route, stops: places, days: daysFor(route.distanceKm, plan), nameBetween, nameSummit });
     },
-    [calculateFromTrack, daysFor, nameBetween, setStops],
+    [calculateFromTrack, daysFor, nameBetween, nameSummit, setStops],
   );
 
   const run = useCallback(
@@ -114,7 +116,7 @@ export function useCalculate({ stopsState, calculate, calculateFromTrack, hasRou
       if (track && stopsKey(filled) === track.key) {
         // Untouched stops of an imported GPX: keep the road from the file.
         setCalcKey(track.key);
-        void calculateFromTrack({ route: track.route, stops: track.places, days: daysFor(track.route.distanceKm, plan), nameBetween });
+        void calculateFromTrack({ route: track.route, stops: track.places, days: daysFor(track.route.distanceKm, plan), nameBetween, nameSummit });
         return;
       }
       imported.current = null;
@@ -126,6 +128,7 @@ export function useCalculate({ stopsState, calculate, calculateFromTrack, hasRou
         days: daysFor(straight * ROAD_FACTOR, plan),
         lang,
         nameBetween,
+        nameSummit,
         onResolved: (places) => {
           const resolved = filled.map((st, i) =>
             st.place ? st : { ...st, text: places[i].name, place: { name: places[i].name, lat: places[i].lat, lon: places[i].lon }, region: places[i].region },
@@ -135,7 +138,7 @@ export function useCalculate({ stopsState, calculate, calculateFromTrack, hasRou
         },
       });
     },
-    [calculate, calculateFromTrack, daysFor, lang, nameBetween, s.needTwo, setStops],
+    [calculate, calculateFromTrack, daysFor, lang, nameBetween, nameSummit, s.needTwo, setStops],
   );
 
   const runExample = useCallback(() => run(EXAMPLE.map((p) => newStop(p))), [run]);
