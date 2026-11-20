@@ -3,16 +3,17 @@ import { api, isAbort } from '../../lib/api';
 import { searchPlaces } from '../../lib/geo';
 import type { Lang } from '../../lib/i18n';
 import type { Place } from '../../lib/types';
+import { routeSummit } from './elevation';
 import { fetchRoute, RouteError, type RouteErrorKind } from './osrm';
 import { nearestKnown } from './stops';
 import { runPool } from './pool';
-import { buildSamplePoints, type NameBetween } from './samples';
+import { buildSamplePoints, withSummit, type NameBetween, type NameSummit } from './samples';
 import type { PointWeather, RouteLine, SamplePoint, StopDraft } from './types';
 
-// Orchestrates one calculation: resolve typed stops, route with OSRM, then
-// load the weather of every sample point (3 at a time, filling in as they
-// arrive). An imported GPX track skips the first two steps. A new calculation
-// or unmounting cancels everything in flight.
+// Orchestrates one calculation: resolve typed stops, route with OSRM, look for
+// a summit between the weather points, then load the weather of every point
+// (3 at a time, filling in as they arrive). An imported GPX track skips the
+// first two steps. A new calculation or unmounting cancels everything in flight.
 
 const WEATHER_CONCURRENCY = 3;
 
@@ -40,6 +41,7 @@ export interface CalculateInput {
   days: number;
   lang: Lang;
   nameBetween: NameBetween;
+  nameSummit: NameSummit;
   /** Receives the stops as resolved, so the editor can show what was used. */
   onResolved: (places: ResolvedStop[]) => void;
 }
@@ -50,6 +52,19 @@ export interface TrackInput {
   stops: readonly Place[];
   days: number;
   nameBetween: NameBetween;
+  nameSummit: NameSummit;
+}
+
+/** The weather points of a route, plus its summit when one stands well above them. */
+async function pointsFor(
+  route: RouteLine,
+  stops: readonly Place[],
+  names: { nameBetween: NameBetween; nameSummit: NameSummit },
+  signal: AbortSignal,
+): Promise<SamplePoint[]> {
+  const points = buildSamplePoints(route, stops, names.nameBetween);
+  const summit = await routeSummit(route, points.map((p) => p.km), signal);
+  return withSummit(points, summit, names.nameSummit);
 }
 
 async function resolveStops(stops: readonly StopDraft[], lang: Lang, signal: AbortSignal): Promise<ResolvedStop[]> {
@@ -122,7 +137,7 @@ export function useRoutePlan() {
   }, []);
 
   const calculate = useCallback(
-    async ({ stops, days, lang, nameBetween, onResolved }: CalculateInput) => {
+    async ({ stops, days, lang, nameBetween, nameSummit, onResolved }: CalculateInput) => {
       const controller = fresh();
       setState({ ...INITIAL, step: 'geocoding' });
       try {
@@ -132,7 +147,8 @@ export function useRoutePlan() {
         setState((s) => ({ ...s, step: 'routing' }));
         const route = await fetchRoute(places, controller.signal);
         if (controller.signal.aborted) return;
-        const points = buildSamplePoints(route, places, nameBetween);
+        const points = await pointsFor(route, places, { nameBetween, nameSummit }, controller.signal);
+        if (controller.signal.aborted) return;
         setState((s) => ({ ...s, route, points }));
         await loadWeather(points, days, controller);
       } catch (err) {
@@ -145,11 +161,22 @@ export function useRoutePlan() {
     [fresh, loadWeather],
   );
 
-  /** An imported track already is the road: no geocoding, no OSRM, straight to the weather. */
+  /** An imported track already is the road: no geocoding, no OSRM, only the summit lookup before the weather. */
   const calculateFromTrack = useCallback(
-    async ({ route, stops, days, nameBetween }: TrackInput) => {
+    async ({ route, stops, days, nameBetween, nameSummit }: TrackInput) => {
       const controller = fresh();
-      const points = buildSamplePoints(route, stops, nameBetween);
+      // The summit lookup takes a moment (5 s at most); it shows as finding the road.
+      setState({ ...INITIAL, step: 'routing' });
+      let points: SamplePoint[];
+      try {
+        points = await pointsFor(route, stops, { nameBetween, nameSummit }, controller.signal);
+      } catch (err) {
+        if (isAbort(err) || controller.signal.aborted) return;
+        console.warn('[route] track points failed', err);
+        setState((s) => ({ ...s, step: 'error', error: { kind: 'network' } }));
+        return;
+      }
+      if (controller.signal.aborted) return;
       setState({ ...INITIAL, step: 'weather', route, points });
       await loadWeather(points, days, controller);
     },
