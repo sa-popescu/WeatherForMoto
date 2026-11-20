@@ -2,6 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { api, ApiError, type HazardInput } from '../../lib/api';
 import { dayMonth, dayName } from '../../lib/format';
 import { fmt, useLang, useStrings } from '../../lib/i18n';
+import { shareLink } from '../../lib/share';
 import type { SavedRoute } from '../../lib/types';
 import { CORE } from '../../i18n/core';
 import { useAuth } from '../../state/auth';
@@ -25,23 +26,6 @@ export interface ShareRequest {
   track: RouteLine | null;
   /** The stops were edited after the route was calculated. */
   stale: boolean;
-}
-
-type ShareOutcome = 'shared' | 'copied' | 'cancelled';
-
-/** The phone's share sheet where there is one, the clipboard otherwise. Throws when neither works. */
-async function shareOrCopy(url: string, text: string): Promise<ShareOutcome> {
-  if (typeof navigator.share === 'function') {
-    try {
-      await navigator.share({ title: 'MotoMeteo', text, url });
-      return 'shared';
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') return 'cancelled';
-      console.warn('[route] native share failed, copying instead', err);
-    }
-  }
-  await navigator.clipboard.writeText(url);
-  return 'copied';
 }
 
 interface Options {
@@ -191,7 +175,7 @@ export function useRouteActions({ route, points, stops, stats, speed, onSavedCha
         km: fmtKm(route.distanceKm, lang),
       });
       try {
-        if ((await shareOrCopy(url, text)) === 'copied') toast(as.shareCopied, { tone: 'success' });
+        if ((await shareLink(url, text)) === 'copied') toast(as.shareCopied, { tone: 'success' });
       } catch (err) {
         console.warn('[route] share failed', err);
         toast(as.shareErr, { tone: 'error' });
