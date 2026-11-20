@@ -24,7 +24,8 @@ export interface AssetFetcher {
 }
 
 export interface Env {
-  SHORT_LINKS: KvStore;
+  /** Missing while wrangler.jsonc has no KV binding: short links are then off and the app shares full links. */
+  SHORT_LINKS?: KvStore;
   ASSETS: AssetFetcher;
 }
 
@@ -85,6 +86,7 @@ async function create(request: Request, env: Env, origin: string): Promise<Respo
     return json(400, { error: 'json' });
   }
   if (!isRouteQuery(query)) return json(400, { error: 'not-a-route' });
+  if (!env.SHORT_LINKS) return json(503, { error: 'store-missing' });
   const id = newId();
   try {
     await env.SHORT_LINKS.put(id, query, { expirationTtl: LINK_TTL_S });
@@ -95,16 +97,21 @@ async function create(request: Request, env: Env, origin: string): Promise<Respo
   return json(201, { url: `${origin}/s/${id}` });
 }
 
+function unavailable(): Response {
+  return new Response('Linkul nu poate fi deschis acum. Încearcă din nou peste câteva minute.', {
+    status: 503,
+    headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Retry-After': '60', ...COMMON_HEADERS },
+  });
+}
+
 async function open(id: string, env: Env, origin: string): Promise<Response> {
+  if (!env.SHORT_LINKS) return unavailable();
   let query: string | null;
   try {
     query = await env.SHORT_LINKS.get(id);
   } catch (err) {
     console.error('[short-links] read failed', err);
-    return new Response('Linkul nu poate fi deschis acum. Încearcă din nou peste câteva minute.', {
-      status: 503,
-      headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Retry-After': '60', ...COMMON_HEADERS },
-    });
+    return unavailable();
   }
   return redirect(origin, isRouteQuery(query) ? query : GONE_QUERY);
 }

@@ -279,7 +279,7 @@ Setup în dashboard-ul Cloudflare Pages (Connect to Git):
 - Build output directory: `dist`
 - Custom domain: `weatherformoto.bluemouse.cc` (mută CNAME-ul de pe vechiul Worker pe proiectul Pages)
 
-Linkuri scurte de traseu: Worker-ul are un singur script, `app/src/worker/shortLinks.ts`, care primește doar `/s` și `/s/*` (`run_worker_first` în `wrangler.jsonc`). `POST /s` păstrează planul unui traseu partajat în Workers KV (binding `SHORT_LINKS`) timp de 90 de zile, iar `GET /s/<id>` redirecționează către `/#/traseu?…`. Spațiul KV nu are ID în config: wrangler (4.45+) îl creează la primul deploy și îl ține legat după aceea. Dacă Worker-ul nu răspunde, aplicația trimite linkul lung, ca înainte.
+Linkuri scurte de traseu: Worker-ul are un singur script, `app/src/worker/shortLinks.ts`, care primește doar `/s` și `/s/*` (`run_worker_first` în `wrangler.jsonc`). `POST /s` păstrează planul unui traseu partajat în Workers KV (binding `SHORT_LINKS`) timp de 90 de zile, iar `GET /s/<id>` redirecționează către `/#/traseu?…`. Binding-ul KV are ID-ul spațiului scris în `wrangler.jsonc` (din dashboard: Storage & Databases › KV). Fără ID, crearea automată a lui wrangler pică la al doilea deploy din Workers Builds (eroarea 10014, cloudflare/workers-sdk#14284). Dacă binding-ul lipsește, `/s` răspunde 503 și aplicația trimite linkul lung.
 
 Pe backend (Cloud Run) setează `ALLOWED_ORIGINS` ca să includă originea frontend-ului:
 

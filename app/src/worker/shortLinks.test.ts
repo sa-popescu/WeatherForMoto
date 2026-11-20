@@ -57,6 +57,13 @@ describe('short links', () => {
     expect((await handle(post({ q: QUERY }, null), env)).status).toBe(201);
   });
 
+  it('says it is unavailable while the KV binding is missing', async () => {
+    const { env } = fakeEnv();
+    const bare: Env = { ASSETS: env.ASSETS };
+    expect((await handle(post({ q: QUERY }), bare)).status).toBe(503);
+    expect((await handle(new Request(`${ORIGIN}/s/Abcd1234`), bare)).status).toBe(503);
+  });
+
   it('leaves every other path to the static app', async () => {
     const { env, assets } = fakeEnv();
     const res = await handle(new Request(`${ORIGIN}/s/a/b`), env);
