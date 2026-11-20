@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import type { ScreenProps } from './features/types';
 import { CORE } from './i18n/core';
 import { useStrings } from './lib/i18n';
@@ -54,13 +54,15 @@ export default function App() {
   const [visited, setVisited] = useState<ReadonlySet<Tab>>(() => new Set([readTab()]));
   const resetToken = useMemo(() => new URLSearchParams(window.location.search).get('reset_token'), []);
   const [showReset, setShowReset] = useState(Boolean(resetToken));
+  // The content area scrolls, not the page (see .shell in base.css).
+  const mainRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     const onHash = (): void => {
       const next = readTab();
       setTab(next);
       setVisited((prev) => (prev.has(next) ? prev : new Set([...prev, next])));
-      window.scrollTo({ top: 0 });
+      mainRef.current?.scrollTo({ top: 0 });
     };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
@@ -106,7 +108,7 @@ export default function App() {
           {s.offline}
         </div>
       )}
-      <main className="shell__main" id="main">
+      <main className="shell__main" id="main" ref={mainRef}>
         {/* One Suspense boundary per tab: loading a new tab must not hide (and
             disconnect the effects of) the tabs already mounted. */}
         {TABS.filter((t) => visited.has(t)).map((t) => {
