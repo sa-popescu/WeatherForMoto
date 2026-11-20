@@ -250,12 +250,24 @@ export interface MeResponse {
   pushSubscriptions: number;
 }
 
+/** The road of a route imported from GPX, as the server keeps it (see features/route/savedTrack.ts). */
+export interface SavedTrack {
+  /** Points in `line`. */
+  count: number;
+  /** Encoded like the road in a route link (features/route/routeLink.ts). */
+  line: string;
+  /** [lat, lon] of each stop, in the order of SavedRoute.stops. */
+  stops: [number, number][];
+}
+
 export interface SavedRoute {
   id: number;
   name: string;
   stops: string[];
   total_distance_km: number | null;
   created_at: string;
+  /** Only routes imported from GPX have one; absent from older servers. */
+  track?: SavedTrack | null;
 }
 
 export interface RideLog {
