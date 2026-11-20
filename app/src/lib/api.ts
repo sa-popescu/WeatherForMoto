@@ -10,6 +10,7 @@ import type {
   Place,
   RideStats,
   SavedRoute,
+  SavedTrack,
   WeatherResponse,
 } from './types';
 
@@ -203,7 +204,10 @@ export const api = {
     json('/alerts/check-now', { method: 'POST', token, timeoutMs: WEATHER_TIMEOUT_MS }),
 
   routes: async (token: string): Promise<SavedRoute[]> => (await json<{ routes: SavedRoute[] }>('/me/routes', { token })).routes,
-  saveRoute: (token: string, route: { name: string; stops: string[]; total_distance_km?: number | null }): Promise<{ ok: boolean; route_id: number }> =>
+  saveRoute: (
+    token: string,
+    route: { name: string; stops: string[]; total_distance_km?: number | null; track?: SavedTrack | null },
+  ): Promise<{ ok: boolean; route_id: number }> =>
     json('/me/routes', { method: 'POST', token, body: route }),
   deleteRoute: (token: string, id: number): Promise<unknown> => json(`/me/routes/${id}`, { method: 'DELETE', token }),
   logRide: (token: string, ride: RideInput): Promise<{ ok: boolean; ride_id: number }> =>

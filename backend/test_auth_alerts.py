@@ -58,6 +58,8 @@ PUSH_SUB = {
     "endpoint": "https://fcm.googleapis.com/fcm/send/device-1",
     "keys": {"p256dh": "B" * 87, "auth": "A" * 22},
 }
+# The server keeps the encoded road as it is; only its shape is checked.
+TRACK = {"count": 3, "line": "Ab9-_xYz0QrS", "stops": [[45.1803, 23.6688], [45.7472, 23.6012]]}
 
 
 def _ip(address: str) -> dict[str, str]:
@@ -939,9 +941,17 @@ class UnmigratedSchemaTests(_Base):
             "ALTER TABLE users DROP COLUMN email_verified;"
             "DROP TABLE email_verification_tokens;"
             "ALTER TABLE alert_events DROP COLUMN delivered_at;"
+            "ALTER TABLE saved_routes DROP COLUMN track_json;"
         )
         conn.commit()
         aa._SCHEMA_CACHE.clear()
+
+    def test_gpx_route_is_saved_without_its_road(self) -> None:
+        token = self.signup("oldgpx@example.com")["token"]
+        body = {"name": "Transalpina", "stops": ["Novaci", "Șugag"], "track": TRACK}
+        self.assertEqual(self.client.post("/me/routes", json=body, headers=_auth(token)).status_code, 200)
+        routes = self.client.get("/me/routes", headers=_auth(token)).json()["routes"]
+        self.assertEqual([(r["stops"], r["track"]) for r in routes], [(["Novaci", "Șugag"], None)])
 
     def test_everything_keeps_working_with_legacy_behaviour(self) -> None:
         data = self.signup("old@example.com")
@@ -961,6 +971,42 @@ class UnmigratedSchemaTests(_Base):
                                   headers=_auth(token))
         self.assertTrue(changed.json()["email_verified"])
         self.assertEqual(self.client.delete("/me", headers=_auth(token)).status_code, 200)
+
+
+class SavedRouteTrackTests(_Base):
+    """A route imported from GPX keeps its road; the others keep only their stops."""
+
+    def save(self, token: str, **body: Any) -> Any:
+        payload = {"name": "Transalpina", "stops": ["Novaci", "Șugag"], **body}
+        return self.client.post("/me/routes", json=payload, headers=_auth(token))
+
+    def test_road_comes_back_as_saved(self) -> None:
+        token = self.signup("gpx@example.com")["token"]
+        self.assertEqual(self.save(token, track=TRACK).status_code, 200)
+        self.assertEqual(self.save(token, name="Fără drum").status_code, 200)
+        routes = self.client.get("/me/routes", headers=_auth(token)).json()["routes"]
+        # Newest first: the plain route, then the GPX one.
+        self.assertIsNone(routes[0]["track"])
+        self.assertEqual(routes[1]["track"], TRACK)
+
+    def test_road_must_match_the_stops(self) -> None:
+        token = self.signup("mismatch@example.com")["token"]
+        self.assertEqual(self.save(token, stops=["Novaci", "Rânca", "Șugag"], track=TRACK).status_code, 422)
+
+    def test_road_bounds(self) -> None:
+        token = self.signup("roadbounds@example.com")["token"]
+        for bad in ({"line": "AbC~d"}, {"count": 1001}, {"count": 1}, {"line": "A" * 12_001},
+                    {"stops": [[91.0, 23.5], [45.6, 23.8]]}, {"stops": [[45.2, 23.5]]}):
+            self.assertEqual(self.save(token, track={**TRACK, **bad}).status_code, 422, bad)
+
+    def test_damaged_road_is_left_out(self) -> None:
+        token = self.signup("damaged@example.com")["token"]
+        self.save(token, track=TRACK)
+        conn = self.db()
+        conn.execute("UPDATE saved_routes SET track_json = ?", ('{"count": 1}',))
+        conn.commit()
+        routes = self.client.get("/me/routes", headers=_auth(token)).json()["routes"]
+        self.assertEqual([(r["stops"], r["track"]) for r in routes], [(["Novaci", "Șugag"], None)])
 
 
 class RetiredEmailColumnsTests(_Base):

@@ -132,7 +132,13 @@ export default function RouteScreen({ active }: ScreenProps) {
       {signedIn && <RideStatsCard state={rides} onRetry={rides.reload} />}
 
       <SignInSheet open={sheet === 'signin'} onClose={close} />
-      <SaveRouteSheet open={sheet === 'save'} onClose={close} defaultName={actions.routeName} onSave={actions.saveRoute} />
+      <SaveRouteSheet
+        open={sheet === 'save'}
+        onClose={close}
+        defaultName={actions.routeName}
+        // Edited stops no longer sit on the imported road: save them by name only.
+        onSave={(name) => actions.saveRoute(name, calc.stale ? null : calc.sharedTrack())}
+      />
       {plan.route && (
         <LogRideSheet
           open={sheet === 'log'}

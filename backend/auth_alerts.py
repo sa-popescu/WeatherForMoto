@@ -264,10 +264,33 @@ class PushSubscriptionPayload(BaseModel):
     keys: PushKeysPayload
 
 
+class SavedTrackPayload(BaseModel):
+    """The road of a route imported from GPX, which no router would draw again.
+
+    `line` is the app's encoded polyline (see app/src/features/route/routeLink.ts):
+    `count` points, at most 1000, each coordinate at most 6 characters. The
+    server stores it as it is; the app decodes and checks it when loading.
+    `stops` are the coordinates of the named stops, in the order of `stops`
+    in the route, so the road can be cut into legs again.
+    """
+
+    count: int = Field(ge=2, le=1000)
+    line: str = Field(min_length=4, max_length=12_000, pattern=r"^[A-Za-z0-9_-]+$")
+    stops: list[tuple[float, float]] = Field(min_length=2, max_length=20)
+
+    @field_validator("stops")
+    @classmethod
+    def _check_coords(cls, value: list[tuple[float, float]]) -> list[tuple[float, float]]:
+        if any(abs(lat) > 90 or abs(lon) > 180 for lat, lon in value):
+            raise ValueError("Coordonatele unei opriri sunt în afara intervalului.")
+        return value
+
+
 class SavedRoutePayload(BaseModel):
     name: str = Field(min_length=2, max_length=80)
     stops: list[str] = Field(max_length=20)
     total_distance_km: float | None = Field(default=None, ge=0, le=5000)
+    track: SavedTrackPayload | None = None
 
     @field_validator("stops")
     @classmethod
@@ -737,6 +760,8 @@ def init_db() -> None:
             "rain_tolerance",
             "ALTER TABLE alert_prefs ADD COLUMN rain_tolerance TEXT NOT NULL DEFAULT 'medium'",
         )
+        # The road of a route imported from GPX (see SavedTrackPayload); NULL for the others.
+        _ensure_column(conn, "saved_routes", "track_json", "ALTER TABLE saved_routes ADD COLUMN track_json TEXT")
         conn.commit()
     finally:
         conn.close()
@@ -2219,12 +2244,28 @@ def delete_account(user: SessionUser = Depends(get_current_user)) -> dict[str, b
         conn.close()
 
 
+def _stored_track(raw: str | None, route_id: int) -> dict[str, Any] | None:
+    """The saved road of a GPX route, or None when there is none or it is damaged."""
+    if not raw:
+        return None
+    try:
+        return SavedTrackPayload.model_validate_json(raw).model_dump()
+    except ValueError as exc:
+        # The route still loads, by its stop names, like any other saved route.
+        logger.warning("saved route %s has a malformed track_json: %s", route_id, exc)
+        return None
+
+
 @router.get("/me/routes")
 def list_saved_routes(user: SessionUser = Depends(get_current_user)) -> dict[str, Any]:
     conn = _connect()
     try:
+        # Before the migration there is no road column: every route comes back without one.
+        has_track = _has_column(conn, "saved_routes", "track_json")
+        track_col = ", track_json" if has_track else ""
         rows = conn.execute(
-            "SELECT id, name, stops_json, total_distance_km, created_at FROM saved_routes WHERE user_id = ? ORDER BY id DESC",
+            f"SELECT id, name, stops_json, total_distance_km, created_at{track_col} "
+            "FROM saved_routes WHERE user_id = ? ORDER BY id DESC",
             (user.user_id,),
         ).fetchall()
         routes = []
@@ -2240,6 +2281,7 @@ def list_saved_routes(user: SessionUser = Depends(get_current_user)) -> dict[str
                 "stops": stops,
                 "total_distance_km": r["total_distance_km"],
                 "created_at": r["created_at"],
+                "track": _stored_track(r["track_json"], int(r["id"])) if has_track else None,
             })
         return {"routes": routes}
     finally:
@@ -2251,14 +2293,28 @@ def create_saved_route(payload: SavedRoutePayload, user: SessionUser = Depends(g
     cleaned_stops = [s.strip() for s in payload.stops if s and s.strip()]
     if len(cleaned_stops) < 2:
         raise HTTPException(status_code=422, detail="Ruta trebuie să conțină minim 2 opriri")
+    if payload.track is not None and len(payload.track.stops) != len(cleaned_stops):
+        raise HTTPException(status_code=422, detail="Drumul salvat nu se potrivește cu opririle traseului")
 
     conn = _connect()
     try:
         now = _utc_now().isoformat()
-        cur = conn.execute(
-            "INSERT INTO saved_routes(user_id, name, stops_json, total_distance_km, created_at) VALUES (?, ?, ?, ?, ?)",
-            (user.user_id, payload.name.strip(), json.dumps(cleaned_stops, ensure_ascii=False), payload.total_distance_km, now),
-        )
+        name = payload.name.strip()
+        stops_json = json.dumps(cleaned_stops, ensure_ascii=False)
+        if payload.track is not None and _has_column(conn, "saved_routes", "track_json"):
+            cur = conn.execute(
+                "INSERT INTO saved_routes(user_id, name, stops_json, total_distance_km, created_at, track_json) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (user.user_id, name, stops_json, payload.total_distance_km, now, payload.track.model_dump_json()),
+            )
+        else:
+            if payload.track is not None:
+                # Until the migration runs, a GPX route is kept by its stops, like the others.
+                logger.warning("saved_routes.track_json is missing; saving the route without its road")
+            cur = conn.execute(
+                "INSERT INTO saved_routes(user_id, name, stops_json, total_distance_km, created_at) VALUES (?, ?, ?, ?, ?)",
+                (user.user_id, name, stops_json, payload.total_distance_km, now),
+            )
         conn.commit()
         return {"ok": True, "route_id": int(cur.lastrowid)}
     finally:

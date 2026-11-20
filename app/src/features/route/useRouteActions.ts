@@ -12,6 +12,7 @@ import { buildGpx, gpxFileName } from './gpx';
 import type { RouteStats } from './plan';
 import { buildRouteLink, type ShareStop } from './routeLink';
 import { fmtKm } from './routeFormat';
+import { savedTrackOf } from './savedTrack';
 import { savedLabel } from './stops';
 import { rideMinutes } from './timing';
 import type { Departure, RouteLine, SamplePoint, StopDraft } from './types';
@@ -60,11 +61,17 @@ export function useRouteActions({ route, points, stops, stats, speed, onSavedCha
     [core.networkError, handleAuthError, toast],
   );
 
+  /** `road` is the imported GPX road the stops were calculated on, else null. */
   const saveRoute = useCallback(
-    async (name: string): Promise<boolean> => {
+    async (name: string, road: RouteLine | null): Promise<boolean> => {
       if (!token || !route) return false;
       try {
-        await api.saveRoute(token, { name: name.trim(), stops: stops.map(savedLabel).filter(Boolean), total_distance_km: round1(route.distanceKm) });
+        await api.saveRoute(token, {
+          name: name.trim(),
+          stops: stops.map(savedLabel).filter(Boolean),
+          total_distance_km: round1(route.distanceKm),
+          track: road ? savedTrackOf(road, stops) : null,
+        });
         toast(as.saveOk, { tone: 'success' });
         onSavedChange();
         return true;

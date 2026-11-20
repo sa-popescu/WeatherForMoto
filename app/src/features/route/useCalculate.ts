@@ -11,6 +11,7 @@ import { RS } from './strings';
 import { SWEEP_LAST } from './sweep';
 import { daysBetween, forecastDaysFor, minutesOf } from './timing';
 import { trackFromLink, type RouteLink } from './routeLink';
+import { trackFromSaved } from './savedTrack';
 import { planImport, type GpxPlan } from './track';
 import type { Departure, RouteLine, StopDraft } from './types';
 import type { CalculateInput, TrackInput } from './useRoutePlan';
@@ -141,6 +142,13 @@ export function useCalculate({ stopsState, calculate, calculateFromTrack, hasRou
 
   const loadSaved = useCallback(
     async (route: SavedRoute) => {
+      // A route imported from GPX comes back on its own road, with its stops where they were.
+      const road = trackFromSaved(route);
+      if (road) {
+        requestSeq.current += 1;
+        startTrack(road.route, road.places);
+        return;
+      }
       // Legacy routes can hold up to 20 stops: keep the first ones and the destination.
       const labels = route.stops.length > MAX_STOPS ? [...route.stops.slice(0, MAX_STOPS - 1), route.stops[route.stops.length - 1]] : route.stops;
       toast(as.savedLoading);
@@ -161,7 +169,7 @@ export function useCalculate({ stopsState, calculate, calculateFromTrack, hasRou
       }
       if (drafts.length >= 2) run(drafts);
     },
-    [as.savedLoadErr, as.savedLoading, lang, run, toast],
+    [as.savedLoadErr, as.savedLoading, lang, run, startTrack, toast],
   );
 
   const importGpx = useCallback(

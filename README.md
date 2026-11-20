@@ -206,7 +206,7 @@ Organizare: `src/lib` (API tipizat, format, scor, geo), `src/state` (sesiune, lo
 ### Route & ride data
 
 - `GET /me/routes` - Rute salvate
-- `POST /me/routes` - Salvează rută
+- `POST /me/routes` - Salvează rută (un traseu importat din GPX își păstrează și drumul, în `track`; coloana `saved_routes.track_json` apare după migrare)
 - `DELETE /me/routes/{route_id}` - Șterge rută
 - `POST /me/rides/log` - Log călătorie
 - `GET /me/rides/stats` - Statistici călătorii
