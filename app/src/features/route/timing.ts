@@ -1,3 +1,4 @@
+import { FORECAST_DAYS } from '../../lib/config';
 import { localNowIso } from '../../lib/format';
 import type { Departure } from './types';
 
@@ -8,7 +9,12 @@ export const SPEEDS = [60, 75, 90, 110] as const;
 export type Speed = (typeof SPEEDS)[number];
 export const DEFAULT_SPEED: Speed = 75;
 export const STEP_MIN = 30;
-export const PLAN_DAYS = 7;
+/** Departure days the planner offers: as many as the Acum tab's day list. */
+export const PLAN_DAYS = FORECAST_DAYS;
+/** Past this many days the forecast is only a rough guide (the Acum day list also shows 7 before "all"). */
+export const STEADY_DAYS = 7;
+/** The longest forecast the API gives: a late departure on the last planner day still fits in it. */
+export const MAX_FORECAST_DAYS = 16;
 
 /** "2026-09-12T08:30" at a place with the given offset -> UTC ms. */
 export function localIsoToUtcMs(localIso: string, offsetSec: number): number {
@@ -67,11 +73,14 @@ export function daysBetween(fromDate: string, toDate: string): number {
 
 /**
  * Forecast length to ask the API for: 3 days covers departures up to two days
- * out; anything that can end after the third day needs the 7-day forecast.
+ * out, 7 days a ride that ends within the week, and anything later gets the
+ * longest forecast. Three steps instead of the exact length, so moving the
+ * departure by a day rarely reloads every point.
  */
-export function forecastDaysFor(dayOffset: number, latestDepartureMin: number, rideHours: number): 3 | 7 {
+export function forecastDaysFor(dayOffset: number, latestDepartureMin: number, rideHours: number): 3 | 7 | typeof MAX_FORECAST_DAYS {
   const lastHour = dayOffset * 24 + latestDepartureMin / 60 + rideHours;
-  return lastHour < 72 ? 3 : 7;
+  if (lastHour < 3 * 24) return 3;
+  return lastHour < 7 * 24 ? 7 : MAX_FORECAST_DAYS;
 }
 
 /** The device's UTC offset, used only before any forecast has arrived. */

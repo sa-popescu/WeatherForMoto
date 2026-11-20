@@ -15,7 +15,18 @@ import { LogRideSheet, SaveRouteSheet, SignInSheet } from './SimpleSheets';
 import { StopsEditor } from './StopsEditor';
 import { RS } from './strings';
 import { SWEEP_LAST } from './sweep';
-import { daysBetween, defaultDeparture, DEFAULT_SPEED, deviceOffsetSec, forecastDaysFor, minutesOf, nextDates, rideMinutes, type Speed } from './timing';
+import {
+  daysBetween,
+  defaultDeparture,
+  DEFAULT_SPEED,
+  deviceOffsetSec,
+  forecastDaysFor,
+  MAX_FORECAST_DAYS,
+  minutesOf,
+  nextDates,
+  rideMinutes,
+  type Speed,
+} from './timing';
 import type { Departure } from './types';
 import { useRideStats, useSavedRoutes } from './useAccountData';
 import { useCalculate } from './useCalculate';
@@ -32,9 +43,6 @@ import './route-results.css';
 // at the moment you get there, plus the best time to leave.
 
 type SheetKind = 'none' | 'save' | 'log' | 'hazard' | 'signin' | 'saved';
-
-/** The longer of the two forecast lengths the points load (see forecastDaysFor). */
-const FULL_WEEK_DAYS = 7;
 
 export default function RouteScreen({ active }: ScreenProps) {
   const s = useStrings(RS);
@@ -81,8 +89,8 @@ export default function RouteScreen({ active }: ScreenProps) {
     [actions, calc, departure, signedIn],
   );
 
-  // Comparing days needs the forecast of the whole planner week at every point.
-  const needWeek = useCallback(() => ensureDays(FULL_WEEK_DAYS), [ensureDays]);
+  // Comparing days needs the forecast of every planner day at every point.
+  const needAllDays = useCallback(() => ensureDays(MAX_FORECAST_DAYS), [ensureDays]);
 
   const close = useCallback(() => setSheet('none'), []);
   const busy = plan.step === 'geocoding' || plan.step === 'routing';
@@ -133,7 +141,7 @@ export default function RouteScreen({ active }: ScreenProps) {
           signedIn={signedIn}
           onAdopt={(time) => setDeparture((d) => ({ ...d, time }))}
           onPickDay={setDeparture}
-          onNeedWeek={needWeek}
+          onNeedAllDays={needAllDays}
           onAction={onAction}
         />
       )}

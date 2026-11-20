@@ -6,8 +6,10 @@ import {
   etaUtcMs,
   forecastDaysFor,
   localIsoAt,
+  MAX_FORECAST_DAYS,
   nextDates,
   pickSlot,
+  PLAN_DAYS,
   rideMinutes,
   timesBetween,
 } from './timing';
@@ -54,6 +56,16 @@ describe('forecastDaysFor', () => {
   it('asks for 7 days further out or when the ride spills past day 3', () => {
     expect(forecastDaysFor(3, 8 * 60, 2)).toBe(7);
     expect(forecastDaysFor(2, 20 * 60, 5)).toBe(7);
+    expect(forecastDaysFor(6, 8 * 60, 4)).toBe(7);
+  });
+
+  it('asks for the longest forecast past the first week', () => {
+    expect(forecastDaysFor(6, 20 * 60, 5)).toBe(MAX_FORECAST_DAYS);
+    expect(forecastDaysFor(10, 8 * 60, 3)).toBe(MAX_FORECAST_DAYS);
+    // A late start on the last planner day, ending the next morning, still fits.
+    const lastHour = (PLAN_DAYS - 1) * 24 + 23.5 + 10;
+    expect(lastHour).toBeLessThan(MAX_FORECAST_DAYS * 24);
+    expect(forecastDaysFor(PLAN_DAYS - 1, 23.5 * 60, 10)).toBe(MAX_FORECAST_DAYS);
   });
 });
 
@@ -66,10 +78,18 @@ describe('dates and times', () => {
     expect(list[30]).toBe('20:00');
   });
 
-  it('lists the next seven dates at the given offset', () => {
+  it('lists the next dates at the given offset', () => {
     const lateEvening = Date.UTC(2026, 8, 11, 22, 30); // 01:30 on the 12th in Romania
     expect(nextDates(lateEvening, RO, 3)).toEqual(['2026-09-12', '2026-09-13', '2026-09-14']);
     expect(daysBetween('2026-09-12', '2026-09-14')).toBe(2);
+  });
+
+  it('offers two weeks of departure days, across a month end', () => {
+    const dates = nextDates(Date.UTC(2026, 10, 20, 15, 0), RO);
+    expect(dates).toHaveLength(14);
+    expect(dates[0]).toBe('2026-11-20');
+    expect(dates[10]).toBe('2026-11-30');
+    expect(dates[13]).toBe('2026-12-03');
   });
 
   it('defaults to the next half hour, or tomorrow morning late in the evening', () => {
