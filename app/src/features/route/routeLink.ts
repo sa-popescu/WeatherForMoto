@@ -9,8 +9,9 @@ import type { Departure, LatLon, RouteLine } from './types';
 // who opens it gets the same ride with the weather of the moment they look.
 //
 // Everything travels after the "#", which browsers never send to a server, so
-// the stops stay out of every access log on the way. Nothing is stored: the
-// link IS the plan. A route calculated by the router carries only its stops,
+// the stops stay out of every access log on the way: the link IS the plan. A
+// link too long to paste comfortably is swapped for a short one when shared
+// (shortLink.ts), which keeps this same query on Cloudflare for 90 days. A route calculated by the router carries only its stops,
 // because routing them again gives the same road. A route imported from GPX
 // carries its road too, simplified, because no router would draw it again.
 //
@@ -59,7 +60,11 @@ export interface RouteLink {
   line: LatLon[] | null;
 }
 
-export type ParsedRouteLink = { kind: 'none' } | { kind: 'invalid' } | { kind: 'route'; link: RouteLink };
+/** 'gone': a short link (shortLink.ts) that expired or never existed; the Worker sends it here as "r=gone". */
+export type ParsedRouteLink = { kind: 'none' } | { kind: 'invalid' } | { kind: 'gone' } | { kind: 'route'; link: RouteLink };
+
+/** The value of "r" in the address a dead short link opens (src/worker/shortLinks.ts). */
+const GONE_VERSION = 'gone';
 
 /** encodeURIComponent, plus the few characters it leaves that some chat apps cut a link at. */
 function encodePart(text: string): string {
@@ -255,6 +260,7 @@ export function parseRouteLink(hash: string): ParsedRouteLink {
   if (query === null) return { kind: 'none' };
   const params = new URLSearchParams(query);
   if (!params.has('r')) return { kind: 'none' };
+  if (params.get('r') === GONE_VERSION) return { kind: 'gone' };
   if (params.get('r') !== VERSION) return { kind: 'invalid' };
 
   const raw = params.getAll('p');

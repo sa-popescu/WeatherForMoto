@@ -116,10 +116,16 @@
     <p>Opțiunea se pornește singură după ce folosești locația o dată, se oprește singură dacă refuzi accesul și o
         poți opri oricând din ecranul „Eu”. Coordonatele sunt folosite ca să aflăm vremea pentru acel loc și numele
         lui. Nu păstrăm istoricul pozițiilor tale.</p>
-    <p>Când partajezi un traseu, linkul conține opririle (nume și coordonate), ora plecării și, pentru un traseu
-        importat din GPX, drumul simplificat. O oprire luată din poziția GPS intră în link rotunjită la aproximativ
-        1 km. Toate acestea stau în partea linkului de după semnul #, pe care browserul nu o trimite niciunui
-        server, deci traseul partajat nu trece prin serverul nostru.</p>
+    <p>Când partajezi un traseu, planul conține opririle (nume și coordonate), ora plecării, viteza și, pentru un
+        traseu importat din GPX, drumul simplificat. O oprire luată din poziția GPS intră în plan rotunjită la
+        aproximativ 1 km.</p>
+    <ul>
+        <li>un traseu scurt, cu câteva opriri, pleacă cu planul întreg în link, în partea de după semnul #, pe care
+            browserul nu o trimite niciunui server, deci nu trece prin serverul nostru;</li>
+        <li>un plan lung, de obicei unul cu drumul dintr-un GPX, primește un link scurt
+            (weatherformoto.bluemouse.cc/s/…): planul se păstrează la Cloudflare timp de 90 de zile, apoi se șterge
+            automat. Nu e legat de cont, de dispozitiv sau de adresa IP, iar oricine are linkul îl poate deschide.</li>
+    </ul>
     <p>Ca să verificăm cât de bine a nimerit fiecare sursă meteo, serverul păstrează un jurnal cu ce a prezis
         și ce au măsurat apoi stațiile. Jurnalul ține doar zona rotunjită la aproximativ 5 km și ora (UTC), fără
         nicio legătură cu tine, cu dispozitivul tău sau cu contul, și fără adresa IP. Se scrie cel mult o dată pe
@@ -178,7 +184,7 @@
                 </tr>
                 <tr>
                     <td>Cloudflare</td>
-                    <td>găzduirea paginilor aplicației</td>
+                    <td>găzduirea paginilor aplicației și a linkurilor scurte de traseu (90 de zile)</td>
                     <td>rețea globală</td>
                 </tr>
                 <tr>
