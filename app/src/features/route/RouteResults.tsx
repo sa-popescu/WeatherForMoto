@@ -53,7 +53,7 @@ export function RouteResults({ active, route, derived, departure, speed, weather
         active={active}
         summary={summary}
       />
-      <WaypointList rows={derived.rows} />
+      <WaypointList rows={derived.rows} route={route} />
       <HazardList state={hazards} />
       <RouteActions signedIn={signedIn} onAction={onAction} />
     </>

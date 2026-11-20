@@ -246,6 +246,11 @@
 
 /* ---- Vremea pe drum ---- */
 
+/* The crosswind warning, between the title and the points. */
+.route-wp > .banner {
+  margin-top: 10px;
+}
+
 .route-wp__list {
   margin: 10px 0 0;
   padding: 0;
