@@ -1,18 +1,42 @@
+import { useMemo } from 'react';
 import { fmtNumber, fmtTemp, hourOf } from '../../lib/format';
 import { fmt, useLang, useStrings } from '../../lib/i18n';
 import { tierColor } from '../../lib/scoring';
 import { CORE } from '../../i18n/core';
-import { cx, SectionLabel, Skeleton } from '../../ui/primitives';
+import { Banner, cx, SectionLabel, Skeleton } from '../../ui/primitives';
+import { crossWarning, roadWinds, type CrossWarning, type RoadWind, type WindSide } from './crosswind';
 import type { TimelineRow } from './plan';
 import { rainLine } from './rainText';
 import { fmtKm, scoreWord } from './routeFormat';
 import { RS } from './strings';
+import type { RouteLine } from './types';
 
-// "Vremea pe drum": when you reach each point, its temperature, gusts, the
+// "Vremea pe drum": when you reach each point, its temperature, gusts (and
+// the side they hit you from when they are strong, see crosswind.ts), the
 // rain line (chance + amount + intensity, never a bare percentage) and the
 // backend's moto score for that hour.
 
-function RowBody({ row }: { row: TimelineRow }) {
+const SIDE_KEY = { head: 'windHead', tail: 'windTail', cross: 'windCross' } as const satisfies Record<WindSide, string>;
+
+function CrossBanner({ warning }: { warning: CrossWarning }) {
+  const s = useStrings(RS);
+  const lang = useLang();
+  // The place goes in brackets after the km: it is a town, a road or "after <town>".
+  const main = fmt(s.crossWarn, {
+    place: warning.row.point.name,
+    km: fmtKm(warning.row.point.km, lang),
+    time: hourOf(warning.row.etaLocal),
+    v: fmtNumber(Math.round(warning.gustKmh), lang),
+  });
+  const more = warning.more === 0 ? '' : warning.more === 1 ? s.crossWarnOne : fmt(s.crossWarnMany, { n: warning.more });
+  return (
+    <Banner tone="warn" icon="wind">
+      {more ? `${main} ${more}` : main}
+    </Banner>
+  );
+}
+
+function RowBody({ row, wind }: { row: TimelineRow; wind: RoadWind | null }) {
   const s = useStrings(RS);
   const lang = useLang();
   const { slot } = row;
@@ -26,10 +50,11 @@ function RowBody({ row }: { row: TimelineRow }) {
   }
   if (!slot) return <span className="route-wp__meta">{row.status === 'error' ? s.wpError : s.wpNoData}</span>;
   const rain = rainLine(slot, lang);
+  const gust = fmtNumber(slot.wind_gusts_kmh == null ? null : Math.round(slot.wind_gusts_kmh), lang);
   const meta = [
     fmt(s.wpKm, { km: fmtKm(row.point.km, lang) }),
     fmtTemp(slot.temperature, lang),
-    fmt(s.wpGust, { v: fmtNumber(slot.wind_gusts_kmh == null ? null : Math.round(slot.wind_gusts_kmh), lang) }),
+    wind ? fmt(s.wpGustSide, { v: gust, side: s[SIDE_KEY[wind.side]] }) : fmt(s.wpGust, { v: gust }),
   ].join(' · ');
   return (
     <>
@@ -39,12 +64,20 @@ function RowBody({ row }: { row: TimelineRow }) {
   );
 }
 
-export function WaypointList({ rows }: { rows: readonly TimelineRow[] }) {
+interface WaypointListProps {
+  rows: readonly TimelineRow[];
+  route: RouteLine;
+}
+
+export function WaypointList({ rows, route }: WaypointListProps) {
   const s = useStrings(RS);
   const core = useStrings(CORE);
+  const winds = useMemo(() => roadWinds(route, rows), [route, rows]);
+  const warning = useMemo(() => crossWarning(rows, winds), [rows, winds]);
   return (
     <section className="route-wp" aria-labelledby="route-wp-title">
       <SectionLabel id="route-wp-title">{s.wpTitle}</SectionLabel>
+      {warning && <CrossBanner warning={warning} />}
       <ol className="route-wp__list">
         {rows.map((row, i) => {
           const score = row.slot?.moto_score ?? null;
@@ -58,7 +91,7 @@ export function WaypointList({ rows }: { rows: readonly TimelineRow[] }) {
               </span>
               <span className="route-wp__body">
                 <span className={cx('route-wp__name', row.point.stopIndex === null && 'route-wp__name--between')}>{row.point.name}</span>
-                <RowBody row={row} />
+                <RowBody row={row} wind={winds[i]} />
               </span>
               <span className="route-wp__score num" style={{ color }}>
                 {score == null ? (
