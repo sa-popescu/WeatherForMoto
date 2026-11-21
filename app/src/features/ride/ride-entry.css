@@ -17,6 +17,75 @@
   color: var(--muted);
 }
 
+/* ---- The rides on this phone (sheet) ---- */
+
+.ride-history__lead,
+.ride-history__empty {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.ride-history {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ride-history__row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+
+.ride-history__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ride-history__day {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.ride-history__tag {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ride-history__route,
+.ride-history__meta {
+  font-size: 14px;
+  color: var(--ink-2);
+}
+
+.ride-history__actions,
+.ride-history__confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.ride-history__confirm > p {
+  flex-basis: 100%;
+  font-size: 14px;
+}
+
 /* Under the route's map: just the button and one line. */
 .ride-entry--route {
   gap: 4px;

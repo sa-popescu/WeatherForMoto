@@ -1,10 +1,11 @@
 import type { GapFill } from './gapFill';
 import type { RideClock } from './logic/clock';
 import type { RideRoute } from './logic/follow';
+import { summaryFromPoints, type RideSummary } from './logic/summary';
 import type { RidePoint } from './logic/track';
 
 // Rides kept on the phone, in IndexedDB, so that a ride survives the app being
-// closed or killed mid-way. A ride is one record of metadata plus its points,
+// closed or killed mid-way, and finished rides stay to be looked at again. A ride is one record of metadata plus its points,
 // written in small chunks every few seconds: appending a chunk costs the same
 // at the first kilometre and at the three hundredth, unlike rewriting one
 // growing array. Nothing here leaves the device.
@@ -27,6 +28,21 @@ export interface RideMeta {
   seg: number;
   /** Gaps already filled along the road (absent in rides recorded before fills existed). */
   fills?: GapFill[];
+  /** The totals, written when the ride ends, so the list of rides needs no points. */
+  summary?: RideSummary;
+  /** Where the ride was going, when it followed a route. */
+  routeName?: string;
+  /** The ride's id in the account's ride log, once it was saved there. */
+  loggedId?: number;
+}
+
+/** A finished ride, as the list of rides shows it. */
+export interface RideListItem {
+  id: string;
+  startedAt: number;
+  summary: RideSummary;
+  routeName: string | null;
+  loggedId: number | null;
 }
 
 interface RideChunk {
@@ -127,14 +143,56 @@ async function loadRoute(db: IDBDatabase, rideId: string): Promise<RideRoute | n
   return record?.route ?? null;
 }
 
+async function allRides(db: IDBDatabase): Promise<RideMeta[]> {
+  const tx = db.transaction(RIDES, 'readonly');
+  return result(tx.objectStore(RIDES).getAll() as IDBRequest<RideMeta[]>);
+}
+
 /** The newest ride that was never finished, with its points and route, or null. */
 export async function findUnfinished(): Promise<(StoredRide & { nextSeq: number }) | null> {
   const db = await openDb();
-  const tx = db.transaction(RIDES, 'readonly');
-  const rides = await result(tx.objectStore(RIDES).getAll() as IDBRequest<RideMeta[]>);
-  const open = rides.filter((r) => r.status !== 'finished').sort((a, b) => b.createdAt - a.createdAt)[0];
+  const open = (await allRides(db)).filter((r) => r.status !== 'finished').sort((a, b) => b.createdAt - a.createdAt)[0];
   if (!open) return null;
-  const { points, nextSeq } = await loadPoints(db, open.id);
-  const route = await loadRoute(db, open.id);
-  return { meta: open, points, route, nextSeq };
+  return loadRideIn(db, open);
+}
+
+async function loadRideIn(db: IDBDatabase, meta: RideMeta): Promise<StoredRide & { nextSeq: number }> {
+  const { points, nextSeq } = await loadPoints(db, meta.id);
+  const route = await loadRoute(db, meta.id);
+  return { meta, points, route, nextSeq };
+}
+
+/** One stored ride with everything in it, or null if it is not there any more. */
+export async function loadRide(id: string): Promise<(StoredRide & { nextSeq: number }) | null> {
+  const db = await openDb();
+  const tx = db.transaction(RIDES, 'readonly');
+  const meta = await result(tx.objectStore(RIDES).get(id) as IDBRequest<RideMeta | undefined>);
+  return meta ? loadRideIn(db, meta) : null;
+}
+
+/** The finished rides on this phone, newest first. Rides that never got a GPS fix are left out. */
+export async function listFinished(): Promise<RideListItem[]> {
+  const db = await openDb();
+  const finished = (await allRides(db)).filter((r) => r.status === 'finished' && r.clock.startedAt !== null);
+  const items: RideListItem[] = [];
+  for (const meta of finished) {
+    let summary = meta.summary;
+    if (!summary) {
+      // A ride finished before summaries were kept: worked out once from its points.
+      const { points } = await loadPoints(db, meta.id);
+      summary = summaryFromPoints(points, new Map((meta.fills ?? []).map((f) => [f.t, f.roadM])), meta.clock);
+    }
+    items.push({ id: meta.id, startedAt: meta.clock.startedAt ?? meta.createdAt, summary, routeName: meta.routeName ?? null, loggedId: meta.loggedId ?? null });
+  }
+  return items.sort((a, b) => b.startedAt - a.startedAt);
+}
+
+/** Removes a ride for good: its metadata, its points and its route. */
+export async function deleteRide(id: string): Promise<void> {
+  const db = await openDb();
+  const tx = db.transaction([RIDES, CHUNKS, ROUTES], 'readwrite');
+  tx.objectStore(RIDES).delete(id);
+  tx.objectStore(CHUNKS).delete(IDBKeyRange.bound([id, 0], [id, Number.MAX_SAFE_INTEGER]));
+  tx.objectStore(ROUTES).delete(id);
+  await done(tx);
 }

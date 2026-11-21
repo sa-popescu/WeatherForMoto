@@ -313,6 +313,12 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+/* A row of actions inside the controls (the finished ride's GPX and account). */
+.ride-controls__row {
+  display: grid;
+  gap: 10px;
+}
+
 .ride-hold {
   position: relative;
   display: inline-flex;
