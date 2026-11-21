@@ -159,7 +159,13 @@ export default function RouteScreen({ active }: ScreenProps) {
           />
         )}
         {plan.route && !desktop && (
-          <RouteRideStart route={plan.route} destination={derived.rows[derived.rows.length - 1]?.point.name ?? s.title} speed={speed} />
+          <RouteRideStart
+            route={plan.route}
+            destination={derived.rows[derived.rows.length - 1]?.point.name ?? s.title}
+            speed={speed}
+            points={derived.rows.map((row) => row.point)}
+            weather={plan.weather}
+          />
         )}
       </div>
 

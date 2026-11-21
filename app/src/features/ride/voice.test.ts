@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { spokenDistance } from './voice';
+import { spokenDistance, spokenKmh, spokenMinutes, spokenWhere } from './voice';
 
 describe('spokenDistance', () => {
   it('says Romanian distances the way they are said', () => {
@@ -10,6 +10,17 @@ describe('spokenDistance', () => {
     expect(spokenDistance(112, 'ro')).toBe('112 kilometri');
     expect(spokenDistance(124.3, 'ro')).toBe('124 de kilometri');
     expect(spokenDistance(200, 'ro')).toBe('200 de kilometri');
+  });
+
+  it('says minutes, speeds and places the Romanian way', () => {
+    expect(spokenMinutes(1, 'ro')).toBe('un minut');
+    expect(spokenMinutes(15, 'ro')).toBe('15 minute');
+    expect(spokenMinutes(25, 'ro')).toBe('25 de minute');
+    expect(spokenKmh(62, 'ro')).toBe('62 de kilometri pe oră');
+    expect(spokenKmh(18, 'ro')).toBe('18 kilometri pe oră');
+    expect(spokenWhere('Pitești', 'ro')).toBe('pe la Pitești');
+    expect(spokenWhere('DN7', 'ro')).toBe('pe DN7');
+    expect(spokenWhere('A1', 'en')).toBe('on A1');
   });
 
   it('says English distances too', () => {

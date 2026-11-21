@@ -98,6 +98,9 @@
 }
 
 .ride-notes__note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 8px 12px;
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
@@ -113,6 +116,20 @@
 
 .ride-notes__note--error {
   border-color: color-mix(in srgb, var(--danger) 55%, transparent);
+}
+
+/* The weather ahead: rain blue, readable at a glance, its icon in front. */
+.ride-notes__note--ahead {
+  border-color: color-mix(in srgb, var(--rain) 60%, transparent);
+  background: color-mix(in srgb, var(--rain) 14%, var(--surface));
+  font-family: var(--font-num);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.ride-notes__note--ahead > svg {
+  flex-shrink: 0;
+  color: var(--rain-ink);
 }
 
 /* Off the route: the one note that has to be read at a glance. */

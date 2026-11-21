@@ -1,8 +1,9 @@
 import type { Lang } from '../../lib/i18n';
 import { GapFiller, plausibleRoad, type GapFill } from './gapFill';
 import { RouteGuide } from './guide';
-import { finishClock, NEW_CLOCK, pauseClock, resumeClock, type RideClock } from './logic/clock';
-import { fillFromRoute, type FollowState, type RideRoute } from './logic/follow';
+import type { AheadWarning } from './logic/ahead';
+import { averageKmh, finishClock, NEW_CLOCK, pauseClock, resumeClock, type RideClock } from './logic/clock';
+import { fillFromRoute, rideSpeedKmh, type FollowState, type RideRoute } from './logic/follow';
 import { msToKmh } from './logic/rideFormat';
 import {
   EMPTY_TOTALS,
@@ -54,6 +55,8 @@ export interface RideSnapshot {
   /** The route being followed (its line comes from getRoute()), or null on a free ride. */
   route: Pick<RideRoute, 'name' | 'distanceKm' | 'plannedKmh'> | null;
   follow: FollowState | null;
+  /** The first thing worth a warning in the weather ahead on the route, or null. */
+  ahead: AheadWarning | null;
   voice: boolean;
   wake: WakeState;
   saveFailed: boolean;
@@ -72,6 +75,7 @@ const IDLE: RideSnapshot = {
   fills: [],
   route: null,
   follow: null,
+  ahead: null,
   voice: true,
   wake: 'off',
   saveFailed: false,
@@ -395,9 +399,9 @@ class RideRecorder {
       const anchor = this.track.anchor;
       // Progress before this fix: where the route search starts for a gap it closes.
       const hintKm = this.guide?.follow.km ?? null;
+      let sentence: string | null = null;
       if (this.guide) {
-        const sentence = this.guide.onFix(fix, this.lang);
-        if (sentence) this.say(sentence);
+        sentence = this.guide.onFix(fix, this.lang);
         patch.follow = this.guide.follow;
       }
       const step = stepTrack(this.track, fix, this.meta.seg);
@@ -413,6 +417,15 @@ class RideRecorder {
         patch.totals = this.track.totals;
         patch.pointCount = this.points.length;
       }
+      if (this.guide) {
+        const { totals } = this.track;
+        const speed = rideSpeedKmh(averageKmh(totals.movingDistanceM, totals.movingMs), totals.movingMs, this.guide.route.plannedKmh);
+        // The route's own news (off it, back, arrived) goes first; the weather waits for the next fix.
+        const ahead = this.guide.weatherAhead(speed, now, this.lang, sentence === null);
+        patch.ahead = ahead.warning;
+        sentence ??= ahead.sentence;
+      }
+      if (sentence) this.say(sentence);
     }
     this.publish(patch);
   };

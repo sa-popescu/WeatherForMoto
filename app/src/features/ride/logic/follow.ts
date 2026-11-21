@@ -1,4 +1,5 @@
 import type { LatLon } from '../../route/types';
+import type { AheadPoint } from './ahead';
 import { MAX_ACCURACY_M, type RideFix } from './track';
 
 // Following a planned route or an imported GPX: where along it the rider is,
@@ -14,6 +15,8 @@ export interface RideRoute {
   distanceKm: number;
   /** The planner's average speed, for the arrival time before the ride has its own average. */
   plannedKmh: number;
+  /** The plan's forecasts at its weather points, for the warnings ahead (absent in older stored rides). */
+  ahead?: AheadPoint[];
 }
 
 export interface RouteFix {
@@ -182,9 +185,13 @@ export function fillFromRoute(route: RideRoute, from: LatLon, to: LatLon, hintKm
 const OWN_AVERAGE_AFTER_MS = 3 * 60_000;
 const MIN_OWN_AVERAGE_KMH = 10;
 
-/** Arrival time on the epoch clock: the ride's own moving average once it means something, else the planner's speed. */
-export function arrivalAt(remainingKm: number, ownAvgKmh: number | null, movingMs: number, plannedKmh: number, now: number): number {
+/** The speed to expect from here on: the ride's own moving average once it means something, else the planner's. */
+export function rideSpeedKmh(ownAvgKmh: number | null, movingMs: number, plannedKmh: number): number {
   const own = ownAvgKmh !== null && movingMs >= OWN_AVERAGE_AFTER_MS && ownAvgKmh >= MIN_OWN_AVERAGE_KMH;
-  const kmh = own ? ownAvgKmh : plannedKmh;
-  return now + (Math.max(0, remainingKm) / Math.max(1, kmh)) * 3_600_000;
+  return Math.max(1, own ? ownAvgKmh : plannedKmh);
+}
+
+/** Arrival time on the epoch clock, at the speed to expect (rideSpeedKmh). */
+export function arrivalAt(remainingKm: number, ownAvgKmh: number | null, movingMs: number, plannedKmh: number, now: number): number {
+  return now + (Math.max(0, remainingKm) / rideSpeedKmh(ownAvgKmh, movingMs, plannedKmh)) * 3_600_000;
 }

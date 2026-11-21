@@ -1,19 +1,26 @@
 import { fmt, type Lang } from '../../lib/i18n';
+import { aheadSentence } from './aheadText';
+import { warningAhead, type AheadWarning } from './logic/ahead';
 import { NEW_FOLLOW, projectOnRoute, stepFollow, type FollowState, type RideRoute } from './logic/follow';
 import type { RideFix } from './logic/track';
 import { RIDE_S } from './strings';
 import { spokenDistance } from './voice';
 
 // The ride's guide along a planned route: keeps the progress, and turns the
-// moments that matter (off the route, back on it, arrived) into sentences.
-// Saying them is the recorder's job, so the voice can be muted in one place.
+// moments that matter (off the route, back on it, arrived, weather ahead)
+// into sentences. Saying them is the recorder's job, so the voice can be
+// muted in one place.
 
 /** While off the route, a reminder this often. */
 const OFF_REMINDER_MS = 60_000;
+/** A warning ahead already said is said again once it is this close. */
+const NEAR_MIN = 10;
 
 export class RouteGuide {
   follow: FollowState = NEW_FOLLOW;
   private remindAt: number | null = null;
+  /** Warnings ahead already said: once when they show up, once more when near. */
+  private announced = new Map<string, 'far' | 'near'>();
 
   constructor(readonly route: RideRoute) {}
 
@@ -51,4 +58,24 @@ export class RouteGuide {
     }
     return null;
   }
+
+  /**
+   * The weather ahead at `speedKmh`, and a sentence the first time a warning
+   * shows up, then once more when it is close, never every second. With
+   * `canSpeak` false (something else is being said) the sentence waits.
+   */
+  weatherAhead(speedKmh: number, now: number, lang: Lang, canSpeak: boolean): { warning: AheadWarning | null; sentence: string | null } {
+    const points = this.route.ahead;
+    if (!points || points.length === 0 || this.follow.km === null || this.follow.arrived) return { warning: null, sentence: null };
+    const warning = warningAhead(points, this.follow.km, speedKmh, now);
+    if (!warning || !canSpeak) return { warning, sentence: null };
+    const said = this.announced.get(warning.key);
+    const near = warning.minutes <= NEAR_MIN;
+    if (said === undefined || (said === 'far' && near)) {
+      this.announced.set(warning.key, near ? 'near' : 'far');
+      return { warning, sentence: aheadSentence(warning, lang) };
+    }
+    return { warning, sentence: null };
+  }
+
 }
