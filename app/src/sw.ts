@@ -24,7 +24,8 @@ const WEATHER_CACHE = 'mm-weather-v1';
 // extrapolate the radar. The old cache held opaque copies, which a CORS request
 // cannot use: it is dropped on activation.
 const RADAR_TILE_CACHE = 'mm-radar-tiles-v2';
-const RETIRED_CACHES = ['mm-radar-tiles-v1'];
+// mm-tiles-v1 held the OpenStreetMap raster tiles, which no map uses any more.
+const RETIRED_CACHES = ['mm-radar-tiles-v1', 'mm-tiles-v1'];
 const WEATHER_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 const STAMP_HEADER = 'x-sw-cached-at';
 const LEGACY_CACHE_PREFIXES = ['motometeo-'];
@@ -93,18 +94,10 @@ registerRoute(
 
 // ---- Map tiles and radar ------------------------------------------------
 
-registerRoute(
-  ({ url }) => /basemaps\.cartocdn\.com$/.test(url.hostname) || /tile\.openstreetmap\.org$/.test(url.hostname),
-  new CacheFirst({
-    cacheName: 'mm-tiles-v1',
-    plugins: [new CacheableResponsePlugin({ statuses: [0, 200] }), new ExpirationPlugin({ maxEntries: 600, maxAgeSeconds: 14 * 24 * 3600 })],
-  }),
-);
-
-// The ride map (OpenFreeMap). The style and the tile index name the current
-// tile release, so they are refreshed in the background on every use; the
-// tiles, fonts and sprites under them never change and are kept a month, so a
-// road ridden before still has its map where the signal is weak.
+// Every map (ride, Traseu, Hartă) draws OpenFreeMap. The style and the tile
+// index name the current tile release, so they are refreshed in the background
+// on every use; the tiles, fonts and sprites under them never change and are
+// kept a month, so a road seen before still has its map where the signal is weak.
 const isOfmIndex = (url: URL): boolean => url.pathname.startsWith('/styles/') || url.pathname === '/planet';
 
 registerRoute(

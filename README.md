@@ -49,7 +49,7 @@ Vechiul frontend dintr-un singur fișier a fost retras: `index.html` și `sw.js`
 
 - Route planner cu 2-10 opriri, fiecare cu opțiunea „locația mea”
 - Route weather snapshots pe waypoint-uri estimate
-- Harta traseu (Leaflet)
+- Hărțile (tura, traseul, Hartă): MapLibre cu hărți vectoriale OpenFreeMap (date OpenStreetMap)
 - Hartă cu o singură bandă de timp, pe același scrubber, în două moduri:
 	- **Ploaie**: radarul observat (RainViewer, ultimele 2 ore) cu fulgerele văzute de satelit (EUMETSAT MTG Lightning Imager, la 5 minute), apoi radarul extrapolat 90 de minute (ultima imagine mutată pe direcția și viteza măsurate din ultimele cadre, block matching într-un Web Worker), care după 20 de minute se estompează treptat în ploaia din modelul ICON-EU al DWD (celule de ~7 km, la rezoluția modelului, citite ca valori prin WCS de pe `maps.dwd.de`), din 30 în 30 de minute pentru primele 6 ore, apoi orar;
 	- **Nori**: norii din satelit (EUMETSAT: masca de nori Meteosat pentru unde e înnorat, infraroșul MTG pentru cât de sus), extrapolați la fel, apoi prognoza de nebulozitate Open-Meteo pe o grilă;

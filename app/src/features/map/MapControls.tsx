@@ -1,4 +1,4 @@
-import type { Map as LeafletMap } from 'leaflet';
+import type { MapLibreMap } from 'maplibre-gl';
 import { useEffect, useId, useRef, useState } from 'react';
 import { fmt, useStrings } from '../../lib/i18n';
 import { usePlace } from '../../state/place';
@@ -20,7 +20,7 @@ const LOCATE_ERRORS = {
 } as const;
 
 interface Props {
-  map: LeafletMap | null;
+  map: MapLibreMap | null;
   prefs: LayerPrefs;
   onPrefs: (change: Partial<LayerPrefs>) => void;
   onRecenter: () => void;

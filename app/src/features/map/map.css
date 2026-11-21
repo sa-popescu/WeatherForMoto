@@ -23,14 +23,14 @@
   display: none;
 }
 
-/* z-index 0 keeps Leaflet's own pane stacking inside the canvas. */
+/* z-index 0 keeps the map's own stacking (canvas, markers, controls) inside it. */
 .map-canvas {
   position: absolute;
   inset: 0;
   z-index: 0;
 }
 
-.map-canvas.leaflet-container {
+.map-canvas.maplibregl-map {
   background: var(--surface-2);
   font-family: var(--font-body);
 }
@@ -40,29 +40,25 @@
   outline-offset: -4px;
 }
 
-/* Dark theme: plain OSM tiles darkened on the base layer only, so radar,
-   markers and controls keep their colours. Same values as the route map. */
-.map-screen--dark .leaflet-tile-pane .map-base {
-  filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9) saturate(0.6);
-}
-
 /* Attribution parked under the place chip, where no panel covers it. */
-.map-canvas .leaflet-top.leaflet-left {
+.map-canvas .maplibregl-ctrl-top-left {
   top: 56px;
 }
 
-.map-canvas .leaflet-left .leaflet-control-attribution {
-  margin-left: 12px;
-  padding: 1px 8px;
-  border-radius: 8px;
+.map-canvas .maplibregl-ctrl-top-left .maplibregl-ctrl-attrib {
+  margin: 0 0 0 12px;
   background: color-mix(in srgb, var(--bg) 80%, transparent);
   color: var(--muted);
   font-size: 10px;
   line-height: 1.6;
 }
 
-.map-canvas .leaflet-control-attribution a {
+.map-canvas .maplibregl-ctrl-attrib a {
   color: var(--ink-2);
+}
+
+[data-theme='dark'] .map-canvas .maplibregl-ctrl-attrib-button {
+  filter: invert(1);
 }
 
 /* ---- Top: place chip and controls ---- */

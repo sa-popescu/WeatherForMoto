@@ -127,12 +127,6 @@
 
 /* ---- Forecast field ---- */
 
-/* The overlay is a smoothed grid painted with its own alpha: no blend mode,
-   which used to wash the cloud field out to nothing over a pale map. */
-.map-forecast-overlay {
-  pointer-events: none;
-}
-
 .map-forecast-legend {
   display: flex;
   align-items: center;
