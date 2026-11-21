@@ -15,6 +15,7 @@ export const KEYS = {
   lastPlace: 'motoLastLoc',
   lastWeather: 'motoLastWeatherV1',
   followMe: 'motoFollowMeV1',
+  rideVoice: 'motoRideVoiceV1',
   installDismissed: 'pwaInstallDismissed',
 } as const;
 

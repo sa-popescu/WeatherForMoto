@@ -4,7 +4,7 @@ import { useDesktop } from '../../lib/useMediaQuery';
 import { useAuth } from '../../state/auth';
 import { Icon } from '../../ui/icons';
 import { Banner, Button } from '../../ui/primitives';
-import { RideEntry } from '../ride/RideEntry';
+import { RideEntry, RouteRideStart } from '../ride/RideEntry';
 import type { ScreenProps } from '../types';
 import { DepartureControls } from './DepartureControls';
 import { HazardSheet } from './HazardSheet';
@@ -157,6 +157,9 @@ export default function RouteScreen({ active }: ScreenProps) {
             onPickDay={setDeparture}
             onNeedAllDays={needAllDays}
           />
+        )}
+        {plan.route && !desktop && (
+          <RouteRideStart route={plan.route} destination={derived.rows[derived.rows.length - 1]?.point.name ?? s.title} speed={speed} />
         )}
       </div>
 

@@ -84,6 +84,9 @@ export const GAP_MS = 10_000;
 const RIDDEN_THROUGHOUT_SHARE = 0.5;
 /** Anything faster (360 km/h) is a GPS error. */
 const MAX_PLAUSIBLE_SPEED_MS = 100;
+/** Moving faster than twice the GPS speed plus this (54 km/h) between two fixes is a jump. */
+const JUMP_SPEED_FACTOR = 2;
+const JUMP_SPEED_SLACK_MS = 15;
 const TOP_SPEED_WINDOW = 3;
 
 export const EMPTY_TOTALS: RideTotals = {
@@ -131,6 +134,16 @@ function ridingMs(d: number, dt: number, reported: number | null): number {
   if (reported < MOVING_SPEED_MS) return 0;
   if (intervalSpeed >= reported * RIDDEN_THROUGHOUT_SHARE) return dt;
   return Math.min(dt, (d / reported) * 1000);
+}
+
+/**
+ * A position that moved much faster than the GPS's own speed says (a
+ * reflection off buildings can throw it 100 m aside) is dropped. If the
+ * rider really is there, the next fixes agree, or the gap logic takes over.
+ */
+function isJump(intervalSpeed: number, reported: number | null): boolean {
+  const ceiling = reported === null ? MAX_PLAUSIBLE_SPEED_MS : Math.min(MAX_PLAUSIBLE_SPEED_MS, reported * JUMP_SPEED_FACTOR + JUMP_SPEED_SLACK_MS);
+  return intervalSpeed > ceiling;
 }
 
 function jitterRadius(a: RideFix, b: RideFix): number {
@@ -201,6 +214,7 @@ export function stepTrack(state: TrackState, fix: RideFix, seg: number, roads?: 
     return { state: { ...state, last: still }, kept: still };
   }
   if (d < MIN_STEP_M) return { state, kept: null };
+  if (isJump(d / (dt / 1000), reported)) return { state, kept: null };
 
   const riding = ridingMs(d, dt, reported);
   const { recentSpeeds, top } = topSpeed(state, fix, d / (dt / 1000));

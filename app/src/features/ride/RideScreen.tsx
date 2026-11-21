@@ -56,6 +56,12 @@ export default function RideScreen() {
     rootRef.current?.focus();
   }, []);
 
+  // What is said follows the app's language, also for a ride picked up after a restart.
+  const lang = useLang();
+  useEffect(() => {
+    rideRecorder.setLang(lang);
+  }, [lang]);
+
   return (
     <div ref={rootRef} className="ride" role="dialog" aria-modal="true" aria-label={s.dialogLabel} tabIndex={-1}>
       {ride.phase === 'resume' ? (

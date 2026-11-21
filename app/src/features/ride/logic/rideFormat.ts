@@ -13,6 +13,13 @@ export function fmtDuration(ms: number): string {
   return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`;
 }
 
+/** Time left, in whole minutes: "18 min", "1 h 05". */
+export function fmtTimeLeft(ms: number): string {
+  const minutes = Math.max(0, Math.round(ms / 60_000));
+  if (minutes < 60) return `${minutes} min`;
+  return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')}`;
+}
+
 /** Distance in km: one decimal under 100 km ("12,4"), whole above ("134"). */
 export function fmtKm(metres: number, lang: Lang): string {
   const km = metres / 1000;

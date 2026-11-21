@@ -1,4 +1,4 @@
-/* The free ride card on "Traseu". */
+/* The ways into a ride on "Traseu": the free ride card, and the start on a route. */
 
 .ride-entry {
   display: flex;
@@ -15,4 +15,13 @@
   margin-top: 4px;
   font-size: 14px;
   color: var(--muted);
+}
+
+/* Under the route's map: just the button and one line. */
+.ride-entry--route {
+  gap: 4px;
+}
+
+.ride-entry--route .ride-entry__lead {
+  text-align: center;
 }

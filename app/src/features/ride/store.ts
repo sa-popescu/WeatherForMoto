@@ -1,5 +1,6 @@
 import type { GapFill } from './gapFill';
 import type { RideClock } from './logic/clock';
+import type { RideRoute } from './logic/follow';
 import type { RidePoint } from './logic/track';
 
 // Rides kept on the phone, in IndexedDB, so that a ride survives the app being
@@ -9,9 +10,11 @@ import type { RidePoint } from './logic/track';
 // growing array. Nothing here leaves the device.
 
 const DB_NAME = 'motometeo-rides';
-const DB_VERSION = 1;
+/** 2 added the planned route of a ride. */
+const DB_VERSION = 2;
 const RIDES = 'rides';
 const CHUNKS = 'chunks';
+const ROUTES = 'routes';
 
 export type RideStatus = 'recording' | 'paused' | 'finished';
 
@@ -32,9 +35,16 @@ interface RideChunk {
   points: RidePoint[];
 }
 
+interface StoredRoute {
+  rideId: string;
+  route: RideRoute;
+}
+
 export interface StoredRide {
   meta: RideMeta;
   points: RidePoint[];
+  /** The route the ride followed, if it followed one. */
+  route: RideRoute | null;
 }
 
 let dbPromise: Promise<IDBDatabase> | null = null;
@@ -51,6 +61,7 @@ function openDb(): Promise<IDBDatabase> {
       const db = request.result;
       if (!db.objectStoreNames.contains(RIDES)) db.createObjectStore(RIDES, { keyPath: 'id' });
       if (!db.objectStoreNames.contains(CHUNKS)) db.createObjectStore(CHUNKS, { keyPath: ['rideId', 'seq'] });
+      if (!db.objectStoreNames.contains(ROUTES)) db.createObjectStore(ROUTES, { keyPath: 'rideId' });
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error ?? new Error('Could not open the ride database'));
@@ -101,7 +112,22 @@ async function loadPoints(db: IDBDatabase, rideId: string): Promise<{ points: Ri
   return { points, nextSeq };
 }
 
-/** The newest ride that was never finished, with its points, or null. */
+/** Keeps the route a ride follows, once, at its start. */
+export async function saveRoute(rideId: string, route: RideRoute): Promise<void> {
+  const db = await openDb();
+  const tx = db.transaction(ROUTES, 'readwrite');
+  const record: StoredRoute = { rideId, route };
+  tx.objectStore(ROUTES).put(record);
+  await done(tx);
+}
+
+async function loadRoute(db: IDBDatabase, rideId: string): Promise<RideRoute | null> {
+  const tx = db.transaction(ROUTES, 'readonly');
+  const record = await result(tx.objectStore(ROUTES).get(rideId) as IDBRequest<StoredRoute | undefined>);
+  return record?.route ?? null;
+}
+
+/** The newest ride that was never finished, with its points and route, or null. */
 export async function findUnfinished(): Promise<(StoredRide & { nextSeq: number }) | null> {
   const db = await openDb();
   const tx = db.transaction(RIDES, 'readonly');
@@ -109,5 +135,6 @@ export async function findUnfinished(): Promise<(StoredRide & { nextSeq: number 
   const open = rides.filter((r) => r.status !== 'finished').sort((a, b) => b.createdAt - a.createdAt)[0];
   if (!open) return null;
   const { points, nextSeq } = await loadPoints(db, open.id);
-  return { meta: open, points, nextSeq };
+  const route = await loadRoute(db, open.id);
+  return { meta: open, points, route, nextSeq };
 }
