@@ -27,10 +27,13 @@ export default function NowScreen({ active }: ScreenProps) {
   const model = useNowModel(weather.data, nowMs, lang, radar);
   const [sheet, setSheet] = useState<NowSheetState>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [tableDate, setTableDate] = useState<string | null>(null);
 
-  // A new place starts from the default timeline hour, with no sheet open.
+  // A new place starts from the default timeline hour and today's hours, with
+  // no sheet open.
   useEffect(() => {
     setSelectedTime(null);
+    setTableDate(null);
     setSheet(null);
   }, [place]);
 
@@ -49,7 +52,15 @@ export default function NowScreen({ active }: ScreenProps) {
       <StatusBanners source={weather.source} offlineAgeMin={weather.offlineAgeMin} staleReason={weather.staleReason} failedRefresh={weather.error !== null && data !== null} errorDetail={weather.errorDetail} onRetry={weather.refresh} />
       {data && model ? (
         <>
-          <NowContent data={data} model={model} selectedTime={selectedTime} onSelectTime={setSelectedTime} onOpen={setSheet} />
+          <NowContent
+            data={data}
+            model={model}
+            selectedTime={selectedTime}
+            onSelectTime={setSelectedTime}
+            tableDate={tableDate}
+            onPickDay={setTableDate}
+            onOpen={setSheet}
+          />
           <NowSheets sheet={sheet} data={data} model={model} nowMs={nowMs} onClose={() => setSheet(null)} />
         </>
       ) : weather.status === 'error' ? (

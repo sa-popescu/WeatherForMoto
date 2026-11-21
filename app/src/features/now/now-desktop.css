@@ -120,4 +120,86 @@
     text-align: left;
     color: var(--ink-2);
   }
+
+  /* The card whose hours the table below shows (DayHours.tsx). */
+  .screen.now .now-day--picked,
+  .screen.now .now-day--picked:hover {
+    border-color: var(--accent);
+    box-shadow: inset 0 0 0 1px var(--accent);
+  }
+
+  /* ---- The picked day, hour by hour ---- */
+
+  .screen.now .now-dayhours__wrap {
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: var(--r-xl);
+    background: var(--surface);
+  }
+
+  .screen.now .now-hours--wide {
+    font-size: 15px;
+  }
+
+  .screen.now .now-hours--wide th,
+  .screen.now .now-hours--wide td {
+    padding: 8px 16px;
+  }
+
+  .screen.now .now-hours--wide thead th {
+    padding-block: 12px;
+  }
+
+  .screen.now .now-hours--wide tbody tr:last-child > * {
+    border-bottom: 0;
+  }
+
+  .screen.now .now-dayhours__row {
+    cursor: pointer;
+  }
+
+  .screen.now .now-dayhours__row:hover {
+    background: var(--surface-2);
+  }
+
+  .screen.now .now-dayhours__row--now > th {
+    box-shadow: inset 3px 0 0 var(--accent);
+  }
+
+  .screen.now .now-dayhours__hour {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: var(--tap);
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--ink);
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .screen.now .now-dayhours__now {
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+  }
+
+  .screen.now .now-dayhours__sky {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .screen.now .now-dayhours__pair {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .screen.now .now-dayhours__sub {
+    font-size: 12px;
+    color: var(--muted-2);
+  }
 }

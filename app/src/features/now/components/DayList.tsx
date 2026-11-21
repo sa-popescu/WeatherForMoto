@@ -15,10 +15,15 @@ interface DayListProps {
   daily: DailyWeather[];
   /** Today's date at the location. */
   today: string;
+  /**
+   * Desktop only: the day shown in the hour table below. Its card is marked,
+   * and a card then picks its day instead of opening a sheet.
+   */
+  picked?: string;
   onOpen: (date: string) => void;
 }
 
-export function DayList({ daily, today, onOpen }: DayListProps) {
+export function DayList({ daily, today, picked, onOpen }: DayListProps) {
   const s = useStrings(S_NOW);
   const lang = useLang();
   const [expanded, setExpanded] = useState(false);
@@ -42,14 +47,22 @@ export function DayList({ daily, today, onOpen }: DayListProps) {
       </SectionLabel>
       <ul className={cx('now-days', lang === 'en' && 'now-days--wide')}>
         {shown.map((d) => (
-          <DayRow key={d.date} day={d} label={label(d.date)} onOpen={() => onOpen(d.date)} />
+          <DayRow key={d.date} day={d} label={label(d.date)} picked={picked === undefined ? undefined : d.date === picked} onOpen={() => onOpen(d.date)} />
         ))}
       </ul>
     </section>
   );
 }
 
-function DayRow({ day, label, onOpen }: { day: DailyWeather; label: string; onOpen: () => void }) {
+interface DayRowProps {
+  day: DailyWeather;
+  label: string;
+  /** Undefined on a phone, where the row opens the day's sheet. */
+  picked: boolean | undefined;
+  onOpen: () => void;
+}
+
+function DayRow({ day, label, picked, onOpen }: DayRowProps) {
   const s = useStrings(S_NOW);
   const lang = useLang();
   const rain = dayRainLine(day, lang);
@@ -60,9 +73,10 @@ function DayRow({ day, label, onOpen }: { day: DailyWeather; label: string; onOp
     <li>
       <button
         type="button"
-        className="now-day"
+        className={cx('now-day', picked && 'now-day--picked')}
         onClick={onOpen}
-        aria-haspopup="dialog"
+        aria-haspopup={picked === undefined ? 'dialog' : undefined}
+        aria-pressed={picked}
         aria-label={fmt(s.dayAria, { day: `${label} ${date}`, score: score ?? '–', temps, rain: rain.text })}
       >
         {/* The date sits under the day name, level with the rain line. */}

@@ -63,38 +63,41 @@ function HourTable({ hours }: { hours: HourlyWeather[] }) {
           </tr>
         </thead>
         <tbody>
-          {hours.map((h) => {
-            const mm = Math.max(0, h.precipitation_mm ?? 0);
-            const p = h.precipitation_probability ?? 0;
-            const dry = p === 0 && mm < MEASURABLE_MM;
-            return (
-              <tr key={h.time} className={cx(h.is_day === false && 'now-hours__row--night')}>
-                <th scope="row" className="num">
-                  {hourOf(h.time)}
-                </th>
-                <td>
-                  <WeatherIcon code={h.weather_code} isDay={h.is_day} size={22} title={describeHour(h, lang)} />
-                </td>
-                <td className="num">{fmtTemp(h.temperature, lang)}</td>
-                <td className="num">{fmtNumber(h.wind_gusts_kmh, lang)}</td>
-                <td>
-                  {dry ? (
-                    <span className="now-hours__dry">{s.dry}</span>
-                  ) : (
-                    <span className="now-hours__rain num">
-                      {`${Math.round(p)}% · ${fmtMm(mm, lang)} mm/h`}
-                      {mm >= MEASURABLE_MM && <span className="now-hours__band">{bandWord(rainBandOf(mm), lang)}</span>}
-                    </span>
-                  )}
-                </td>
-                <td className="num now-hours__score" style={{ color: tierColor(h.moto_score) }}>
-                  {h.moto_score ?? '–'}
-                </td>
-              </tr>
-            );
-          })}
+          {hours.map((h) => (
+            <tr key={h.time} className={cx(h.is_day === false && 'now-hours__row--night')}>
+              <th scope="row" className="num">
+                {hourOf(h.time)}
+              </th>
+              <td>
+                <WeatherIcon code={h.weather_code} isDay={h.is_day} size={22} title={describeHour(h, lang)} />
+              </td>
+              <td className="num">{fmtTemp(h.temperature, lang)}</td>
+              <td className="num">{fmtNumber(h.wind_gusts_kmh, lang)}</td>
+              <td>
+                <RainCell hour={h} />
+              </td>
+              <td className="num now-hours__score" style={{ color: tierColor(h.moto_score) }}>
+                {h.moto_score ?? '–'}
+              </td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>
+  );
+}
+
+/** An hour's rain in a table row: "dry", or the chance and the amount, plus the band once it is measurable. */
+export function RainCell({ hour }: { hour: HourlyWeather }) {
+  const s = useStrings(S_SHEETS);
+  const lang = useLang();
+  const mm = Math.max(0, hour.precipitation_mm ?? 0);
+  const p = hour.precipitation_probability ?? 0;
+  if (p === 0 && mm < MEASURABLE_MM) return <span className="now-hours__dry">{s.dry}</span>;
+  return (
+    <span className="now-hours__rain num">
+      {`${Math.round(p)}% · ${fmtMm(mm, lang)} mm/h`}
+      {mm >= MEASURABLE_MM && <span className="now-hours__band">{bandWord(rainBandOf(mm), lang)}</span>}
+    </span>
   );
 }

@@ -1,9 +1,10 @@
 import { CORE } from '../../../i18n/core';
-import { fmtMm, fmtNumber, hourOf } from '../../../lib/format';
+import { fmtMm, fmtNumber, hourOf, weekdayWord } from '../../../lib/format';
 import { fmt, pick, type Lang } from '../../../lib/i18n';
 import { bandRange, rainBandOf } from '../../../lib/scoring';
 import type { RainBand } from '../../../lib/types';
 import { S_NOW } from '../strings';
+import { nextDate } from './daylight';
 import { TEXTS } from './texts';
 
 /** "300 m" under a kilometre, "1,2 km" / "12 km" above. */
@@ -12,10 +13,18 @@ export function fmtVisibility(metres: number, lang: Lang): string {
   return `${fmtNumber(metres / 1000, lang, metres < 10_000 ? 1 : 0)} km`;
 }
 
-/** "16:00" for the same day as `todayIso`, "mâine 16:00" for the next one. */
+/**
+ * "16:00" for the same day as `todayIso`, "mâine 16:00" for the next one and
+ * "marți 16:00" further out (the desktop hour table reaches the whole forecast).
+ */
 export function timeLabel(localIso: string, todayIso: string, lang: Lang): string {
   const hour = hourOf(localIso);
-  return localIso.slice(0, 10) === todayIso.slice(0, 10) ? hour : fmt(pick(TEXTS, lang).tomorrowAt, { hour });
+  const date = localIso.slice(0, 10);
+  const today = todayIso.slice(0, 10);
+  if (date === today) return hour;
+  const t = pick(TEXTS, lang);
+  if (date === nextDate(today)) return fmt(t.tomorrowAt, { hour });
+  return fmt(t.dayAt, { day: weekdayWord(date, lang), hour });
 }
 
 export function capitalize(text: string): string {
