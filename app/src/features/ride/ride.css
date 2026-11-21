@@ -1,0 +1,357 @@
+/* Ride screen: over the whole app, map in the middle, numbers and buttons at
+   the bottom where a thumb in a glove reaches. Colours come from the theme
+   tokens only. */
+
+.ride {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: calc(var(--safe-top) + 8px) 16px calc(var(--safe-bottom) + 12px);
+  background: var(--bg);
+  color: var(--ink);
+  outline: none;
+}
+
+/* ---- Top band ---- */
+
+.ride-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ride-notes__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 26px;
+}
+
+.ride-notes__gps {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-num);
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.ride-notes__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--dim);
+}
+
+.ride-notes__gps--ok .ride-notes__dot {
+  background: var(--t-ideal);
+}
+
+.ride-notes__gps--weak .ride-notes__dot {
+  background: var(--t-atentie);
+}
+
+.ride-notes__gps--waiting .ride-notes__dot,
+.ride-notes__gps--unavailable .ride-notes__dot {
+  background: var(--t-ok);
+  animation: ride-blink 1.2s ease-in-out infinite;
+}
+
+@keyframes ride-blink {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ride-notes__dot {
+    animation: none !important;
+  }
+}
+
+.ride-notes__tag {
+  padding: 2px 12px;
+  border-radius: 999px;
+  background: var(--t-ok);
+  color: var(--bg);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.ride-notes__note {
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.ride-notes__note--warn {
+  border-color: var(--warn-line);
+  background: var(--warn-bg);
+}
+
+.ride-notes__note--error {
+  border-color: color-mix(in srgb, var(--danger) 55%, transparent);
+}
+
+/* ---- Map ---- */
+
+.ride-map {
+  position: relative;
+  flex: 1;
+  min-height: 140px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+}
+
+.ride-map__canvas {
+  position: absolute;
+  inset: 0;
+  background: var(--surface-2);
+}
+
+[data-theme='dark'] .ride-map__base {
+  filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9) saturate(0.6);
+}
+
+.ride-map__line {
+  stroke: var(--accent);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ride-map__me {
+  stroke: var(--bg);
+  fill: var(--rain);
+  fill-opacity: 1;
+}
+
+/* Above Leaflet's panes (up to 700), under its controls. */
+.ride-map__recenter {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 750;
+}
+
+/* ---- Numbers ---- */
+
+.ride-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ride-gauges {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ride-speed {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+  line-height: 0.9;
+}
+
+.ride-speed__value {
+  font-size: clamp(72px, 24vw, 128px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.ride-speed__unit {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.ride-gauges__avg {
+  text-align: center;
+  font-size: 16px;
+  color: var(--ink-2);
+}
+
+.ride-gauges__title {
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.ride-gauges__note {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.ride-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.ride-stats--wide {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ride-stats__item {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+
+.ride-stats__label {
+  font-family: var(--font-num);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted-2);
+}
+
+.ride-stats__value {
+  margin: 2px 0 0;
+  font-size: 24px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ride-stats__unit {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+/* ---- Buttons ---- */
+
+.ride-controls {
+  display: grid;
+  gap: 10px;
+}
+
+.ride-controls--two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ride-hold {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap-lg);
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--danger) 55%, transparent);
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--danger);
+  cursor: pointer;
+  /* A held finger must not scroll, select text or open the iOS callout. */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.ride-hold__fill {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--danger) 28%, transparent);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.15s ease-out;
+}
+
+/* Fills in exactly HOLD_MS (RideControls.tsx). */
+.ride-hold--on .ride-hold__fill {
+  transform: scaleX(1);
+  transition: transform 1s linear;
+}
+
+.ride-hold__text {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-num);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.ride-hold__hint {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--muted);
+}
+
+/* ---- Picking up an unfinished ride ---- */
+
+.ride-resume {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  margin: auto 0;
+  padding: 24px 4px;
+  text-align: center;
+}
+
+.ride-resume > svg {
+  color: var(--accent);
+}
+
+.ride-resume__title {
+  font-size: 26px;
+  font-weight: 600;
+}
+
+.ride-resume__lead {
+  max-width: 36ch;
+  color: var(--ink-2);
+}
+
+.ride-resume__actions {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  max-width: 420px;
+  margin-top: 8px;
+}
+
+/* ---- A phone turned sideways (iOS does not keep the app upright) ---- */
+
+@media (orientation: landscape) and (max-height: 520px) {
+  .ride {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 42%);
+    grid-template-rows: auto minmax(0, 1fr);
+    padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px));
+  }
+
+  .ride-notes,
+  .ride-resume {
+    grid-column: 1 / -1;
+  }
+
+  .ride-panel {
+    overflow-y: auto;
+    justify-content: space-between;
+  }
+
+  .ride-speed__value {
+    font-size: clamp(56px, 18vh, 96px);
+  }
+}

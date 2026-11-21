@@ -1,4 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { rideRecorder } from './features/ride/recorder';
+import { useRide } from './features/ride/useRide';
 import type { ScreenProps } from './features/types';
 import { CORE } from './i18n/core';
 import { useStrings } from './lib/i18n';
@@ -15,6 +17,7 @@ const RouteScreen = lazy(() => import('./features/route/RouteScreen'));
 const MapScreen = lazy(() => import('./features/map/MapScreen'));
 const AccountScreen = lazy(() => import('./features/account/AccountScreen'));
 const ResetPasswordView = lazy(() => import('./features/account/ResetPasswordView'));
+const RideScreen = lazy(() => import('./features/ride/RideScreen'));
 
 type Tab = 'acum' | 'traseu' | 'harta' | 'eu';
 const TABS: readonly Tab[] = ['acum', 'traseu', 'harta', 'eu'];
@@ -56,6 +59,13 @@ export default function App() {
   const [showReset, setShowReset] = useState(Boolean(resetToken));
   // The content area scrolls, not the page (see .shell in base.css).
   const mainRef = useRef<HTMLElement>(null);
+  // A ride covers the whole app, tabs included, until it is closed.
+  const riding = useRide().phase !== 'idle';
+
+  // A ride the app was closed in the middle of is offered again at start-up.
+  useEffect(() => {
+    void rideRecorder.restoreUnfinished();
+  }, []);
 
   useEffect(() => {
     const onHash = (): void => {
@@ -102,36 +112,43 @@ export default function App() {
   }
 
   return (
-    // data-tab lets the desktop layout give Traseu the whole height of the window.
-    <div className="shell" data-tab={tab}>
-      {!online && (
-        <div className="offline-strip" role="status">
-          {s.offline}
-        </div>
+    <>
+      {/* data-tab lets the desktop layout give Traseu the whole height of the window. */}
+      <div className="shell" data-tab={tab} inert={riding}>
+        {!online && (
+          <div className="offline-strip" role="status">
+            {s.offline}
+          </div>
+        )}
+        <main className="shell__main" id="main" ref={mainRef}>
+          {/* One Suspense boundary per tab: loading a new tab must not hide (and
+              disconnect the effects of) the tabs already mounted. */}
+          {TABS.filter((t) => visited.has(t)).map((t) => {
+            const Screen = SCREENS[t];
+            return (
+              <Suspense key={t} fallback={t === tab ? <div className="screen-fallback">{s.loading}</div> : null}>
+                <Screen active={t === tab} />
+              </Suspense>
+            );
+          })}
+        </main>
+        <nav className="bottom-nav" aria-label={s.navLabel}>
+          <span className="bottom-nav__mark" aria-hidden="true">
+            <Icon name="gauge" size={30} strokeWidth={2} />
+          </span>
+          {navItems.map((item) => (
+            <a key={item.tab} href={`#/${item.tab}`} className="bottom-nav__item" aria-current={item.tab === tab ? 'page' : undefined}>
+              <Icon name={item.icon} />
+              {item.label}
+            </a>
+          ))}
+        </nav>
+      </div>
+      {riding && (
+        <Suspense fallback={null}>
+          <RideScreen />
+        </Suspense>
       )}
-      <main className="shell__main" id="main" ref={mainRef}>
-        {/* One Suspense boundary per tab: loading a new tab must not hide (and
-            disconnect the effects of) the tabs already mounted. */}
-        {TABS.filter((t) => visited.has(t)).map((t) => {
-          const Screen = SCREENS[t];
-          return (
-            <Suspense key={t} fallback={t === tab ? <div className="screen-fallback">{s.loading}</div> : null}>
-              <Screen active={t === tab} />
-            </Suspense>
-          );
-        })}
-      </main>
-      <nav className="bottom-nav" aria-label={s.navLabel}>
-        <span className="bottom-nav__mark" aria-hidden="true">
-          <Icon name="gauge" size={30} strokeWidth={2} />
-        </span>
-        {navItems.map((item) => (
-          <a key={item.tab} href={`#/${item.tab}`} className="bottom-nav__item" aria-current={item.tab === tab ? 'page' : undefined}>
-            <Icon name={item.icon} />
-            {item.label}
-          </a>
-        ))}
-      </nav>
-    </div>
+    </>
   );
 }
