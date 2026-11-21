@@ -202,4 +202,150 @@
     font-size: 12px;
     color: var(--muted-2);
   }
+
+  /* ---- Favourites over 7 days (FavoritesCompare.tsx) ---- */
+
+  .screen.now .now-compare__intro {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+  }
+
+  .screen.now .now-compare__lead {
+    margin: 0;
+    max-width: 70ch;
+    font-size: 14px;
+    color: var(--ink-2);
+  }
+
+  .screen.now .now-compare__progress {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+    font-size: 14px;
+    color: var(--muted);
+  }
+
+  .screen.now .now-compare__intro > .btn {
+    flex-shrink: 0;
+  }
+
+  .screen.now .now-compare__wrap {
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: var(--r-xl);
+    background: var(--surface);
+  }
+
+  .screen.now .now-compare__table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+  }
+
+  .screen.now .now-compare__table th,
+  .screen.now .now-compare__table td {
+    padding: 6px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: middle;
+  }
+
+  .screen.now .now-compare__table tbody tr:last-child > * {
+    border-bottom: 0;
+  }
+
+  .screen.now .now-compare__table thead th {
+    padding-block: 12px;
+    font-family: var(--font-num);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted-2);
+    text-align: left;
+  }
+
+  /* The place column, wider than the day columns that share the rest. */
+  .screen.now .now-compare__table thead th:first-child {
+    width: 240px;
+    padding-left: 16px;
+  }
+
+  .screen.now .now-compare__table thead .now-compare__day {
+    text-align: center;
+  }
+
+  .screen.now .now-compare__date {
+    display: block;
+    margin-top: 2px;
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--dim);
+  }
+
+  .screen.now .now-compare__place {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    width: 100%;
+    min-height: var(--tap);
+    padding: 4px 10px;
+    border: 0;
+    border-radius: var(--r-sm);
+    background: none;
+    color: var(--ink);
+    font-size: 15px;
+    font-weight: 500;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .screen.now .now-compare__name {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .screen.now .now-compare__nodata {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--dim);
+  }
+
+  .screen.now .now-compare__cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 52px;
+    border: 1px solid transparent;
+    border-radius: var(--r-sm);
+    background: none;
+    font-size: 20px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .screen.now .now-compare__place:hover,
+  .screen.now .now-compare__cell:hover:not(:disabled) {
+    background: var(--surface-2);
+  }
+
+  .screen.now .now-compare__cell:disabled {
+    cursor: default;
+  }
+
+  .screen.now .now-compare__cell--best,
+  .screen.now .now-compare__cell--best:hover:not(:disabled) {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+  }
 }

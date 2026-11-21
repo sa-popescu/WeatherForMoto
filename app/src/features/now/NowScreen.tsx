@@ -1,9 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLang } from '../../lib/i18n';
-import { usePlace } from '../../state/place';
+import type { Place } from '../../lib/types';
+import { useDesktop } from '../../lib/useMediaQuery';
+import { samePlace, usePlace } from '../../state/place';
 import { useWeather } from '../../state/weather';
 import { PlaceHeader } from '../place/PlaceHeader';
 import type { ScreenProps } from '../types';
+import { FavoritesCompare } from './components/FavoritesCompare';
 import { NowContent } from './components/NowContent';
 import { NowSheets, type NowSheetState } from './components/NowSheets';
 import { NowSkeleton } from './components/NowSkeleton';
@@ -20,7 +23,7 @@ import './now-desktop.css';
 export default function NowScreen({ active }: ScreenProps) {
   const weather = useWeather();
   const lang = useLang();
-  const { place } = usePlace();
+  const { place, setPlace } = usePlace();
   const nowMs = useClock(active);
   const radarPlace = weather.data ? { lat: weather.data.latitude, lon: weather.data.longitude } : null;
   const radar = useRadarRain(radarPlace, active, nowMs);
@@ -28,18 +31,50 @@ export default function NowScreen({ active }: ScreenProps) {
   const [sheet, setSheet] = useState<NowSheetState>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [tableDate, setTableDate] = useState<string | null>(null);
+  const desktop = useDesktop();
+  const screenRef = useRef<HTMLDivElement>(null);
+  // A favourite picked in the comparison, while its forecast loads: the day
+  // to show in the hour table, and where to scroll once it is on screen.
+  const pendingDate = useRef<string | null>(null);
+  const pendingScroll = useRef<ScrollTarget | null>(null);
+  const data = weather.data;
 
-  // A new place starts from the default timeline hour and today's hours, with
-  // no sheet open.
+  // A new place starts from the default timeline hour and today's hours (or
+  // the day picked in the comparison), with no sheet open.
   useEffect(() => {
     setSelectedTime(null);
-    setTableDate(null);
+    setTableDate(pendingDate.current);
+    pendingDate.current = null;
     setSheet(null);
   }, [place]);
 
-  const data = weather.data;
+  // A new place shows a skeleton until its forecast arrives, so the scroll
+  // waits for the forecast rather than aiming at the skeleton.
+  useEffect(() => {
+    if (!data || !pendingScroll.current) return;
+    scrollWithin(screenRef.current, pendingScroll.current);
+    pendingScroll.current = null;
+  }, [data]);
+
+  // A favourite clicked in the comparison: show it from the top, or from the
+  // day cards when a day was clicked, since that day's hours sit under them.
+  const showFavorite = useCallback(
+    (fav: Place, date: string | null) => {
+      const where: ScrollTarget = date ? 'days' : 'top';
+      if (samePlace(fav, place)) {
+        setTableDate(date);
+        scrollWithin(screenRef.current, where);
+        return;
+      }
+      pendingDate.current = date;
+      pendingScroll.current = where;
+      setPlace(fav, 'favorite');
+    },
+    [place, setPlace],
+  );
+
   return (
-    <div className="screen now" hidden={!active}>
+    <div className="screen now" hidden={!active} ref={screenRef}>
       <PlaceHeader
         utcOffsetSeconds={data?.utc_offset_seconds ?? null}
         sources={data?.current.sources?.length ?? null}
@@ -68,6 +103,16 @@ export default function NowScreen({ active }: ScreenProps) {
       ) : (
         <NowSkeleton />
       )}
+      {/* Outside the forecast above, so its results outlive a change of place. */}
+      {desktop && <FavoritesCompare onShow={showFavorite} />}
     </div>
   );
+}
+
+type ScrollTarget = 'top' | 'days';
+
+function scrollWithin(screen: HTMLElement | null, where: ScrollTarget): void {
+  // The day cards' section, so its title stays in view above the cards.
+  const target = where === 'days' ? screen?.querySelector('.now-days')?.closest('section') : screen;
+  target?.scrollIntoView({ block: 'start', behavior: 'smooth' });
 }
