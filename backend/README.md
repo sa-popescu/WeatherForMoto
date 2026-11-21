@@ -16,6 +16,7 @@ saved routes, ride logs and rider-reported hazards. It runs on Google Cloud Run
 | `metar.py` | Romanian airport METAR from NOAA AWC: present weather code and visibility |
 | `meteoalarm.py` | Meteoalarm CAP county warnings |
 | `anm_nowcast.py` | ANM nowcasting warnings with their drawn polygons |
+| `db_quota.py` | daily look at the monthly Turso quota, email at 80% and 95% |
 | `migrate_to_turso.py` | one-off copy of a legacy SQLite file into Turso |
 | `entrypoint.sh` | container start (uvicorn, no access log) |
 
@@ -71,3 +72,7 @@ workflow manually with `run_migrations`.
 
 Alert dispatch runs hourly from the Cloud Scheduler job `mm-dispatch-alerts`,
 which calls `POST /alerts/dispatch-all` with the `X-Dispatch-Secret` header.
+Once a day the same call also asks the Turso Platform API how much of the
+month's quota is used and mails `QUOTA_ALERT_EMAIL` at 80% and 95%, so the
+database is never blocked by surprise again. The platform token comes from the
+`mm-turso-platform-token` secret.
