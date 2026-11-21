@@ -25,10 +25,15 @@ export interface RidePoint extends RideFix {
   seg: number;
   /** A heartbeat kept while standing: it moves the time on, not the distance. */
   still?: boolean;
+  /** The first point after a stretch with no position (see GAP_MS). */
+  gap?: boolean;
 }
 
+/** Road distance across a gap, by the time of the point that closed it (see gapFill.ts). */
+export type GapRoads = ReadonlyMap<number, number>;
+
 export interface RideTotals {
-  /** Everything ridden, including straight lines across GPS gaps. */
+  /** Everything ridden, across GPS gaps too (along the road when known, else in a straight line). */
   distanceM: number;
   /** The part of distanceM covered while actually moving. */
   movingDistanceM: number;
@@ -63,10 +68,14 @@ const MIN_STEP_M = 3;
 /** Without a reported speed, a move inside the fixes' own accuracy is treated as jitter. */
 const JITTER_MIN_M = 5;
 const JITTER_MAX_M = 25;
-/** While standing, one point this often keeps the time line going. */
-export const HEARTBEAT_MS = 15_000;
-/** No point for longer than this, while recording, is a gap. */
-export const GAP_MS = 30_000;
+/** While standing, one point this often keeps the time line going (well under GAP_MS). */
+export const HEARTBEAT_MS = 5_000;
+/**
+ * No point kept for longer than this, while recording, is a gap: the signal
+ * was lost or the phone hid the app. At 50 km/h that is about 140 m, enough
+ * to cut a corner, so a gap is filled along the road afterwards.
+ */
+export const GAP_MS = 10_000;
 /**
  * An interval whose average speed is at least this share of the speed at its
  * end was ridden all along. Slower, it held a stop (a light, a junction), and
@@ -147,10 +156,13 @@ function startSegment(state: TrackState, point: RidePoint): StepResult {
   return { state: { ...state, last: point, anchor: point, recentSpeeds: [] }, kept: point };
 }
 
-/** No position for a while: count the straight line, and the time as riding if the line says so. */
-function crossGap(state: TrackState, point: RidePoint, last: RidePoint, anchor: RidePoint): StepResult {
+/**
+ * No position for a while: count the road distance across it when known, the
+ * straight line until then, and the time as riding if that distance says so.
+ */
+function crossGap(state: TrackState, point: RidePoint, last: RidePoint, anchor: RidePoint, roadM: number | undefined): StepResult {
   const dt = point.t - last.t;
-  const d = metresBetween(anchor, point);
+  const d = roadM ?? metresBetween(anchor, point);
   const moved = d / (dt / 1000) >= MOVING_SPEED_MS;
   const t = state.totals;
   const totals: RideTotals = {
@@ -161,14 +173,16 @@ function crossGap(state: TrackState, point: RidePoint, last: RidePoint, anchor: 
     gapCount: t.gapCount + 1,
     gapMs: t.gapMs + dt,
   };
-  return { state: { totals, last: point, anchor: point, recentSpeeds: [] }, kept: point };
+  const kept: RidePoint = { ...point, gap: true };
+  return { state: { totals, last: kept, anchor: kept, recentSpeeds: [] }, kept };
 }
 
 /**
  * Feeds one fix to the track. `seg` is the recorder's current segment. Returns
- * the new state and the point to keep, if any.
+ * the new state and the point to keep, if any. `roads` holds the road distance
+ * of the gaps already filled.
  */
-export function stepTrack(state: TrackState, fix: RideFix, seg: number): StepResult {
+export function stepTrack(state: TrackState, fix: RideFix, seg: number, roads?: GapRoads): StepResult {
   if (fix.acc > MAX_ACCURACY_M) return { state, kept: null };
   const { last, anchor } = state;
   const point: RidePoint = { t: fix.t, lat: fix.lat, lon: fix.lon, acc: fix.acc, speed: fix.speed, alt: fix.alt, seg };
@@ -176,7 +190,7 @@ export function stepTrack(state: TrackState, fix: RideFix, seg: number): StepRes
 
   const dt = fix.t - last.t;
   if (dt <= 0) return { state, kept: null };
-  if (dt > GAP_MS) return crossGap(state, point, last, anchor);
+  if (dt > GAP_MS) return crossGap(state, point, last, anchor, roads?.get(fix.t));
 
   const d = metresBetween(anchor, fix);
   const reported = reportedSpeed(fix);
@@ -201,9 +215,43 @@ export function stepTrack(state: TrackState, fix: RideFix, seg: number): StepRes
   return { state: { totals, last: point, anchor: point, recentSpeeds }, kept: point };
 }
 
-/** Rebuilds the track from the stored points, for a ride picked up after a reload. */
-export function foldPoints(points: readonly RidePoint[]): TrackState {
+/**
+ * Rebuilds the track from the stored points: for a ride picked up after a
+ * reload, and whenever a gap gets its road distance.
+ */
+export function foldPoints(points: readonly RidePoint[], roads?: GapRoads): TrackState {
   let state = EMPTY_TRACK;
-  for (const p of points) state = stepTrack(state, p, p.seg).state;
+  for (const p of points) state = stepTrack(state, p, p.seg, roads).state;
   return state;
+}
+
+/** A gap in the track: from the last point that moved before it to the point that closed it. */
+export interface TrackGap {
+  /** Time of the point that closed the gap (the key of GapRoads). */
+  t: number;
+  from: { lat: number; lon: number };
+  to: { lat: number; lon: number };
+  straightM: number;
+}
+
+/** The gaps of a stored track, for filling the ones a reload left without a road. */
+export function listGaps(points: readonly RidePoint[]): TrackGap[] {
+  const gaps: TrackGap[] = [];
+  let state = EMPTY_TRACK;
+  for (const p of points) {
+    const anchor = state.anchor;
+    const step = stepTrack(state, p, p.seg);
+    state = step.state;
+    if (step.kept?.gap && anchor) gaps.push(gapOf(anchor, step.kept));
+  }
+  return gaps;
+}
+
+export function gapOf(anchor: RidePoint, point: RidePoint): TrackGap {
+  return {
+    t: point.t,
+    from: { lat: anchor.lat, lon: anchor.lon },
+    to: { lat: point.lat, lon: point.lon },
+    straightM: metresBetween(anchor, point),
+  };
 }

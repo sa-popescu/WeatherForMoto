@@ -62,7 +62,7 @@ export default function RideScreen() {
         <ResumePrompt ride={ride} />
       ) : (
         <>
-          <RideNotes ride={ride} />
+          <RideNotes ride={ride} now={now} />
           <RideMap ride={ride} />
           <div className="ride-panel">
             <RideGauges ride={ride} now={now} />

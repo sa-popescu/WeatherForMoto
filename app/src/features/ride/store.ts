@@ -1,3 +1,4 @@
+import type { GapFill } from './gapFill';
 import type { RideClock } from './logic/clock';
 import type { RidePoint } from './logic/track';
 
@@ -21,6 +22,8 @@ export interface RideMeta {
   clock: RideClock;
   /** The recorder's current segment (it grows after each pause). */
   seg: number;
+  /** Gaps already filled along the road (absent in rides recorded before fills existed). */
+  fills?: GapFill[];
 }
 
 interface RideChunk {

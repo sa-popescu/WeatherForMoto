@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EMPTY_TRACK, foldPoints, GAP_MS, HEARTBEAT_MS, liveSpeedMs, stepTrack, type RideFix, type RidePoint, type TrackState } from './track';
+import { EMPTY_TRACK, foldPoints, GAP_MS, HEARTBEAT_MS, listGaps, liveSpeedMs, stepTrack, type RideFix, type RidePoint, type TrackState } from './track';
 
 // One degree of latitude is about 111.2 km, so 0.0001° north is about 11.1 m.
 const LAT0 = 44.4;
@@ -96,6 +96,30 @@ describe('stepTrack', () => {
     expect(state.totals.distanceM).toBeCloseTo(400, -1);
     expect(state.totals.movingMs).toBe(20_000);
     expect(state.totals.gapCount).toBe(0);
+  });
+});
+
+describe('gaps along the road', () => {
+  const before = steady(10, 20);
+  const after = steady(10, 20, 10_000 + 120_000, 200 + 2400);
+
+  it('marks the point that closes a gap, and lists the gap from the last moving point', () => {
+    const { kept } = ride([...before, ...after]);
+    const closing = kept.filter((p) => p.gap);
+    expect(closing).toHaveLength(1);
+    const gaps = listGaps(kept);
+    expect(gaps).toHaveLength(1);
+    expect(gaps[0].t).toBe(closing[0].t);
+    expect(gaps[0].straightM).toBeCloseTo(2400, -1);
+    expect(gaps[0].from.lat).toBeCloseTo(kept[kept.indexOf(closing[0]) - 1].lat, 9);
+  });
+
+  it('counts the road distance across a gap once it is known', () => {
+    const { state, kept } = ride([...before, ...after]);
+    const gapT = kept.find((p) => p.gap)!.t;
+    const withRoad = foldPoints(kept, new Map([[gapT, 3100]]));
+    expect(withRoad.totals.distanceM - state.totals.distanceM).toBeCloseTo(3100 - 2400, -1);
+    expect(withRoad.totals.movingDistanceM - state.totals.movingDistanceM).toBeCloseTo(3100 - 2400, -1);
   });
 });
 
