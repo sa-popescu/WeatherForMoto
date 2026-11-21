@@ -1,15 +1,17 @@
-import * as L from 'leaflet';
+import { Marker, type MapLibreMap } from 'maplibre-gl';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, isAbort } from '../../lib/api';
 import type { Hazard } from '../../lib/types';
 import { hazardMarkerHtml } from './hazardGlyphs';
 import { hazardTypeOf, mergeHazards, radiusFromBounds } from './hazards';
+import { markerElement } from './markerElement';
 
 // Hazard reports around the visible map. Fetches once the map settles
 // (debounced moveend), keeps every report seen this session keyed by id, and
-// mirrors them as markers reachable with Tab and opened with Enter.
+// mirrors them as markers reachable with Tab and opened with Enter or Space.
 
 const MOVE_DEBOUNCE_MS = 600;
+const MARKER_PX = 44;
 
 interface Options {
   fetching: boolean;
@@ -23,23 +25,31 @@ export interface HazardLayerState {
   refresh: () => void;
 }
 
-function markerIcon(hazard: Hazard): L.DivIcon {
-  return L.divIcon({
-    className: 'map-hazard',
-    html: hazardMarkerHtml(hazardTypeOf(hazard.hazard_type), hazard.severity),
-    iconSize: [44, 44],
-    iconAnchor: [22, 22],
-  });
-}
-
 const round4 = (value: number): number => Math.round(value * 1e4) / 1e4;
 
-export function useHazardLayer(map: L.Map | null, { fetching, shown, onSelect, labelFor }: Options): HazardLayerState {
+function hazardMarker(hazard: Hazard, label: string, select: () => void): Marker {
+  const el = markerElement('map-hazard', hazardMarkerHtml(hazardTypeOf(hazard.hazard_type), hazard.severity), MARKER_PX, MARKER_PX);
+  el.tabIndex = 0;
+  el.setAttribute('role', 'button');
+  el.setAttribute('aria-label', label);
+  el.addEventListener('click', (event) => {
+    // The map would take the click as a pick of that point otherwise.
+    event.stopPropagation();
+    select();
+  });
+  el.addEventListener('keydown', (event: KeyboardEvent) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    select();
+  });
+  return new Marker({ element: el }).setLngLat([hazard.lon, hazard.lat]);
+}
+
+export function useHazardLayer(map: MapLibreMap | null, { fetching, shown, onSelect, labelFor }: Options): HazardLayerState {
   const [hazards, setHazards] = useState<ReadonlyMap<number, Hazard>>(() => new Map());
   const [failed, setFailed] = useState(false);
   const [refreshes, setRefreshes] = useState(0);
-  const group = useRef<L.LayerGroup | null>(null);
-  const markers = useRef(new Map<number, L.Marker>());
+  const markers = useRef(new Map<number, Marker>());
   const latest = useRef({ hazards, onSelect, labelFor });
   latest.current = { hazards, onSelect, labelFor };
 
@@ -79,62 +89,37 @@ export function useHazardLayer(map: L.Map | null, { fetching, shown, onSelect, l
     };
   }, [map, fetching, refreshes]);
 
+  // Mirror the known hazards as markers while the layer is on.
   useEffect(() => {
-    if (!map) return undefined;
-    const layerGroup = L.layerGroup();
+    if (!map) return;
+    for (const [id, marker] of markers.current) {
+      if (shown && hazards.has(id)) continue;
+      marker.remove();
+      markers.current.delete(id);
+    }
+    if (!shown) return;
+    for (const hazard of hazards.values()) {
+      if (markers.current.has(hazard.id)) continue;
+      const id = hazard.id;
+      const select = (): void => latest.current.onSelect(latest.current.hazards.get(id) ?? hazard);
+      markers.current.set(id, hazardMarker(hazard, latest.current.labelFor(hazard), select).addTo(map));
+    }
+  }, [map, hazards, shown]);
+
+  // A new map (theme switch) or leaving: the markers go with the old one.
+  useEffect(() => {
     const own = markers.current;
-    group.current = layerGroup;
     return () => {
-      layerGroup.remove();
-      group.current = null;
+      for (const marker of own.values()) marker.remove();
       own.clear();
     };
   }, [map]);
-
-  useEffect(() => {
-    if (!map || !group.current) return;
-    if (shown) group.current.addTo(map);
-    else group.current.remove();
-  }, [map, shown]);
-
-  // Mirror the known hazards as markers.
-  useEffect(() => {
-    const layerGroup = group.current;
-    if (!layerGroup) return;
-    for (const [id, marker] of markers.current) {
-      if (hazards.has(id)) continue;
-      layerGroup.removeLayer(marker);
-      markers.current.delete(id);
-    }
-    for (const hazard of hazards.values()) {
-      if (markers.current.has(hazard.id)) continue;
-      const marker = L.marker([hazard.lat, hazard.lon], { icon: markerIcon(hazard), keyboard: true, riseOnHover: true });
-      const id = hazard.id;
-      const select = (): void => latest.current.onSelect(latest.current.hazards.get(id) ?? hazard);
-      // Leaflet makes keyboard markers focusable (role=button) but only maps Enter
-      // to popups, so Enter and Space are wired here. The element is rebuilt on
-      // every add, so the listener never doubles up.
-      marker.on('add', () => {
-        const element = marker.getElement();
-        if (!element) return;
-        element.setAttribute('aria-label', latest.current.labelFor(hazard));
-        element.addEventListener('keydown', (event: KeyboardEvent) => {
-          if (event.key !== 'Enter' && event.key !== ' ') return;
-          event.preventDefault();
-          select();
-        });
-      });
-      marker.on('click', select);
-      markers.current.set(id, marker);
-      layerGroup.addLayer(marker);
-    }
-  }, [map, hazards]);
 
   // Language change: rename the markers.
   useEffect(() => {
     for (const [id, marker] of markers.current) {
       const hazard = latest.current.hazards.get(id);
-      if (hazard) marker.getElement()?.setAttribute('aria-label', labelFor(hazard));
+      if (hazard) marker.getElement().setAttribute('aria-label', labelFor(hazard));
     }
   }, [labelFor]);
 

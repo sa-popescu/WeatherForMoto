@@ -1,4 +1,4 @@
-import type { Map as LeafletMap } from 'leaflet';
+import type { MapLibreMap } from 'maplibre-gl';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { modelFrame, nowcastFrame, pictureFrame } from './bandFrames';
 import { EUMETSAT_ATTRIBUTION, imageTime, IR_CLOUDS, LIGHTNING, recentTimes } from './eumetsat';
@@ -7,7 +7,6 @@ import { HOUR_S, iconEuCovers } from './iconEu';
 import { geometryKey } from './mercator';
 import { gridSource, iconEuSource, type ModelSource } from './modelField';
 import { CLOUD_MAX_SPEED_KMH, RAIN_MAX_SPEED_KMH } from './nowcast';
-import { PANES } from './panes';
 import { cachedCloudPicture, cloudPicture, radarPicture } from './pictures';
 import type { RadarFrame } from './radar';
 import { buildTimeline, entryDelayMs, nextIndex, planBand, startIndex, utcTimeSec, type TimelineEntry } from './timeline';
@@ -97,7 +96,7 @@ function useClock(running: boolean): number {
   return now;
 }
 
-export function useMapTimeline(map: LeafletMap | null, { fetching, radar, lightning, kind, opacity, autoPlay }: Options): MapTimeline {
+export function useMapTimeline(map: MapLibreMap | null, { fetching, radar, lightning, kind, opacity, autoPlay }: Options): MapTimeline {
   const nowMs = useClock(fetching);
   const cloudView = kind === 'cloud';
   const rainView = kind === 'rain';
@@ -254,7 +253,7 @@ export function useMapTimeline(map: LeafletMap | null, { fetching, radar, lightn
     time: lightningShown ? imageTime(LIGHTNING, current.timeSec, lightningLatest) : null,
     next: lightning && nextObserved ? imageTime(LIGHTNING, nextObserved.timeSec, lightningLatest) : null,
     opacity: 1,
-    pane: PANES.lightning,
+    slot: 'lightning',
   });
 
   const satelliteTime = cloudView && onObserved && satelliteLatest !== null ? imageTime(IR_CLOUDS, current.timeSec, satelliteLatest) : null;
@@ -265,7 +264,7 @@ export function useMapTimeline(map: LeafletMap | null, { fetching, radar, lightn
     // cloudVersion marks pictures arriving in the shared cache.
     [geometry, gkey, satelliteTime, cloudVersion],
   );
-  useFieldLayer(map, { frame: observedClouds, geometry, opacity, pane: PANES.clouds, attribution: EUMETSAT_ATTRIBUTION });
+  useFieldLayer(map, { frame: observedClouds, geometry, opacity, slot: 'clouds', attribution: EUMETSAT_ATTRIBUTION });
 
   const aheadFrame = useMemo(() => {
     if (!geometry || !current || current.source === 'radar') return null;
@@ -275,7 +274,7 @@ export function useMapTimeline(map: LeafletMap | null, { fetching, radar, lightn
     frame: aheadFrame,
     geometry,
     opacity,
-    pane: PANES.ahead,
+    slot: 'ahead',
     attribution: rainView ? RAIN_AHEAD_ATTRIBUTION : CLOUDS_AHEAD_ATTRIBUTION,
   });
 

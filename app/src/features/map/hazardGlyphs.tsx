@@ -34,7 +34,7 @@ const GLYPHS: Record<HazardType, readonly string[]> = {
 const SVG_ATTRS =
   'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"';
 
-/** Marker HTML for L.divIcon. Built only from constants, never from report text. */
+/** Marker HTML for a map marker element. Built only from constants, never from report text. */
 export function hazardMarkerHtml(type: HazardType, severity: number): string {
   const paths = GLYPHS[type].map((d) => `<path d="${d}"/>`).join('');
   return `<span class="map-hazard__pin map-tone--${severityTone(severity)}"><svg width="22" height="22" ${SVG_ATTRS}>${paths}</svg></span>`;

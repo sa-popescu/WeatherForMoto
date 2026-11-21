@@ -18,10 +18,12 @@ import type { MapTimeline } from './useMapTimeline';
 /** Label every sixth entry, so the row stays readable on a phone. */
 const LABEL_STEP = 6;
 
-/** Minutes, up to an hour and a half out; hours beyond that. */
+/** Minutes, up to an hour and a half either way; hours beyond that, ago or ahead. */
 function relativeText(s: (typeof MAP_STRINGS)['ro'], timeSec: number, nowSec: number): string {
   const minutes = Math.round((timeSec - nowSec) / 60);
   if (Math.abs(minutes) <= 90) return radarOffsetText(s, minutes);
+  // The oldest radar frames are two hours back: "acum 2 h", not "peste -2 h".
+  if (minutes < 0) return fmt(s.agoH, { n: Math.round(-minutes / 60) });
   return fmt(s.forecastAhead, { h: Math.round(minutes / 60) });
 }
 

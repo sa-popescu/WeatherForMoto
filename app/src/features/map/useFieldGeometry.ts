@@ -1,6 +1,7 @@
-import type { Map as LeafletMap } from 'leaflet';
+import type { MapLibreMap } from 'maplibre-gl';
 import { useEffect, useState } from 'react';
 import { fieldGeometry, geometryServes, type Box, type FieldGeometry } from './mercator';
+import { tileZoom } from './useMainMap';
 
 // The canvas the rain ahead is painted on: the view with room around it, at
 // the zoom of the radar tiles. It only changes when the view leaves it or
@@ -8,14 +9,15 @@ import { fieldGeometry, geometryServes, type Box, type FieldGeometry } from './m
 
 const DEBOUNCE_MS = 400;
 
-function viewOf(map: LeafletMap): Box | null {
+function viewOf(map: MapLibreMap): Box | null {
+  // The map stays north up and flat, so its bounds are exactly what shows.
   const bounds = map.getBounds();
   const view = { south: bounds.getSouth(), west: bounds.getWest(), north: bounds.getNorth(), east: bounds.getEast() };
   // A hidden map measures 0 x 0; there is nothing to size a canvas on.
   return view.north > view.south && view.east > view.west ? view : null;
 }
 
-export function useFieldGeometry(map: LeafletMap | null, enabled: boolean): FieldGeometry | null {
+export function useFieldGeometry(map: MapLibreMap | null, enabled: boolean): FieldGeometry | null {
   const [geometry, setGeometry] = useState<FieldGeometry | null>(null);
 
   useEffect(() => {
@@ -24,7 +26,7 @@ export function useFieldGeometry(map: LeafletMap | null, enabled: boolean): Fiel
     const update = (): void => {
       const view = viewOf(map);
       if (!view) return;
-      const zoom = map.getZoom();
+      const zoom = tileZoom(map);
       setGeometry((current) => (current && geometryServes(current, view, zoom) ? current : fieldGeometry(view, zoom)));
     };
     const schedule = (): void => {
@@ -32,10 +34,12 @@ export function useFieldGeometry(map: LeafletMap | null, enabled: boolean): Fiel
       timer = window.setTimeout(update, DEBOUNCE_MS);
     };
     update();
-    map.on('moveend zoomend resize', schedule);
+    map.on('moveend', schedule);
+    map.on('resize', schedule);
     return () => {
       window.clearTimeout(timer);
-      map.off('moveend zoomend resize', schedule);
+      map.off('moveend', schedule);
+      map.off('resize', schedule);
     };
   }, [map, enabled]);
 

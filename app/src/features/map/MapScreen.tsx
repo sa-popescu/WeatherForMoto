@@ -1,4 +1,4 @@
-import type { LeafletMouseEvent } from 'leaflet';
+import type { LngLat, MapMouseEvent } from 'maplibre-gl';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { PlaceSuggestion } from '../../lib/geo';
 import { fmt, useLang, useStrings } from '../../lib/i18n';
@@ -22,8 +22,9 @@ import { ReportSheet } from './ReportSheet';
 import { TimelinePanel } from './TimelinePanel';
 import { MAP_STRINGS } from './strings';
 import { usePageVisible, usePrefersReducedMotion } from './useEnvironment';
+import { onLongPress } from './longPress';
 import { useHazardLayer } from './useHazardLayer';
-import { REGIONAL_ZOOM, useLeafletMap } from './useLeafletMap';
+import { REGIONAL_ZOOM, useMainMap } from './useMainMap';
 import { useMapTimeline } from './useMapTimeline';
 import { usePickedMarker, usePlaceView, usePointMarker } from './usePlaceView';
 import { usePointWeather, type PickedPoint } from './usePointWeather';
@@ -53,7 +54,7 @@ export default function MapScreen({ active }: ScreenProps) {
   const layersId = useId();
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const { map, baseLoading } = useLeafletMap(containerRef, { center: place, active });
+  const { map, baseLoading } = useMainMap(containerRef, { center: place, active, theme });
   const recenter = usePlaceView(map, place, reducedMotion);
   const [prefs, setPrefs] = useLayerPrefs();
   const timeline = useMapTimeline(map, {
@@ -79,14 +80,20 @@ export default function MapScreen({ active }: ScreenProps) {
   // Long-press (touch) or right-click picks the report position directly.
   useEffect(() => {
     if (!map) return undefined;
-    const onContextMenu = (event: LeafletMouseEvent): void => {
-      const at = event.latlng.wrap();
+    const pickAt = (lngLat: LngLat): void => {
+      const at = lngLat.wrap();
       setPicking(false);
       setReportAt({ lat: at.lat, lon: at.lng });
     };
+    const onContextMenu = (event: MapMouseEvent): void => {
+      event.preventDefault();
+      pickAt(event.lngLat);
+    };
     map.on('contextmenu', onContextMenu);
+    const stopLongPress = onLongPress(map, pickAt);
     return () => {
       map.off('contextmenu', onContextMenu);
+      stopLongPress();
     };
   }, [map]);
 
@@ -98,8 +105,11 @@ export default function MapScreen({ active }: ScreenProps) {
   usePointMarker(map, desktop ? point : null);
   useEffect(() => {
     if (!map || !desktop || picking) return undefined;
-    const onClick = (event: LeafletMouseEvent): void => {
-      const at = event.latlng.wrap();
+    const onClick = (event: MapMouseEvent): void => {
+      // A click on a marker (a hazard) is the marker's, not a point to look at.
+      const target = event.originalEvent.target;
+      if (target instanceof Element && target.closest('.maplibregl-marker')) return;
+      const at = event.lngLat.wrap();
       setPoint({ lat: at.lat, lon: at.lng, name: null });
     };
     map.on('click', onClick);
@@ -112,8 +122,8 @@ export default function MapScreen({ active }: ScreenProps) {
     setPoint({ lat: hit.lat, lon: hit.lon, name: hit.name });
     if (!map) return;
     const zoom = Math.max(map.getZoom(), REGIONAL_ZOOM);
-    if (reducedMotion) map.setView([hit.lat, hit.lon], zoom, { animate: false });
-    else map.flyTo([hit.lat, hit.lon], zoom, { duration: 0.8 });
+    if (reducedMotion) map.jumpTo({ center: [hit.lon, hit.lat], zoom });
+    else map.flyTo({ center: [hit.lon, hit.lat], zoom, duration: 800 });
   };
   const openInNow = (name: string): void => {
     if (!point) return;
@@ -165,7 +175,7 @@ export default function MapScreen({ active }: ScreenProps) {
   const pickBar = <PickBar onCancel={() => setPicking(false)} onConfirm={confirmPick} />;
 
   // The canvas stays the first child in both layouts, so switching between
-  // them never remounts the element the Leaflet map lives in.
+  // them never remounts the element the map lives in.
   return (
     <div className={cx('map-screen', desktop && 'map-screen--desk', theme === 'dark' && 'map-screen--dark')} hidden={!active}>
       <div ref={containerRef} className="map-canvas" aria-label={s.mapLabel} />

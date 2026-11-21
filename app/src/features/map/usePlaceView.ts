@@ -1,37 +1,37 @@
-import * as L from 'leaflet';
+import { Marker, type MapLibreMap } from 'maplibre-gl';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Place } from '../../lib/types';
 import type { LatLon } from './hazards';
-import { REGIONAL_ZOOM } from './useLeafletMap';
+import { markerElement } from './markerElement';
+import { REGIONAL_ZOOM } from './useMainMap';
 
 // Keeps the map on the app's current place: a marker that follows it, a
 // flight to it whenever the place changes, and a recenter action. Also the
-// temporary pin shown while a hazard report is being written.
+// temporary pin shown while a hazard report is being written, and the ring on
+// the point whose weather the desktop panel shows.
 
-const PLACE_ICON = L.divIcon({
-  className: 'map-place',
-  html: '<span class="map-place__halo"></span><span class="map-place__dot"></span>',
-  iconSize: [28, 28],
-  iconAnchor: [14, 14],
-});
+const PLACE_HTML = '<span class="map-place__halo"></span><span class="map-place__dot"></span>';
+const PICK_HTML = '<span class="map-pick__pin"></span>';
+const POINT_HTML = '<span class="map-point-mark__ring"></span><span class="map-point-mark__dot"></span>';
 
-const PICK_ICON = L.divIcon({ className: 'map-pick', html: '<span class="map-pick__pin"></span>', iconSize: [36, 40], iconAnchor: [18, 36] });
+/** The pick pin's tip sits 4 px above the bottom of its 36 x 40 box. */
+const PICK_TIP_OFFSET: [number, number] = [0, 4];
 
 function sameSpot(a: LatLon, b: LatLon): boolean {
   return Math.abs(a.lat - b.lat) < 1e-4 && Math.abs(a.lon - b.lon) < 1e-4;
 }
 
 /** Returns `recenter`, which flies back to the current place. */
-export function usePlaceView(map: L.Map | null, place: Place, reducedMotion: boolean): () => void {
+export function usePlaceView(map: MapLibreMap | null, place: Place, reducedMotion: boolean): () => void {
   const [recenterRequests, setRecenterRequests] = useState(0);
   // The map is created centred on the first place.
   const shown = useRef<LatLon>({ lat: place.lat, lon: place.lon });
   const handledRequests = useRef(0);
-  const marker = useRef<L.Marker | null>(null);
+  const marker = useRef<Marker | null>(null);
 
   useEffect(() => {
     if (!map) return undefined;
-    const created = L.marker([shown.current.lat, shown.current.lon], { icon: PLACE_ICON, interactive: false, keyboard: false }).addTo(map);
+    const created = new Marker({ element: markerElement('map-place', PLACE_HTML, 28, 28) }).setLngLat([shown.current.lon, shown.current.lat]).addTo(map);
     marker.current = created;
     return () => {
       created.remove();
@@ -41,33 +41,26 @@ export function usePlaceView(map: L.Map | null, place: Place, reducedMotion: boo
 
   useEffect(() => {
     if (!map) return;
-    marker.current?.setLatLng([place.lat, place.lon]);
+    marker.current?.setLngLat([place.lon, place.lat]);
     const requested = recenterRequests !== handledRequests.current;
     handledRequests.current = recenterRequests;
     if (!requested && sameSpot(shown.current, place)) return;
     shown.current = { lat: place.lat, lon: place.lon };
     const zoom = Math.max(map.getZoom(), REGIONAL_ZOOM);
-    // flyTo needs a measured map; while the tab is hidden it would compute NaN.
-    const hidden = map.getSize().x === 0;
-    if (reducedMotion || hidden) map.setView([place.lat, place.lon], zoom, { animate: false });
-    else map.flyTo([place.lat, place.lon], zoom, { duration: 0.8 });
+    // A flight needs a measured map; while the tab is hidden it would compute NaN.
+    const hidden = map.getContainer().clientWidth === 0;
+    if (reducedMotion || hidden) map.jumpTo({ center: [place.lon, place.lat], zoom });
+    else map.flyTo({ center: [place.lon, place.lat], zoom, duration: 800 });
   }, [map, place, recenterRequests, reducedMotion]);
 
   return useCallback(() => setRecenterRequests((n) => n + 1), []);
 }
 
-const POINT_ICON = L.divIcon({
-  className: 'map-point-mark',
-  html: '<span class="map-point-mark__ring"></span><span class="map-point-mark__dot"></span>',
-  iconSize: [32, 32],
-  iconAnchor: [16, 16],
-});
-
 /** Ring on the point whose weather the desktop panel shows. */
-export function usePointMarker(map: L.Map | null, at: LatLon | null): void {
+export function usePointMarker(map: MapLibreMap | null, at: LatLon | null): void {
   useEffect(() => {
     if (!map || !at) return undefined;
-    const ring = L.marker([at.lat, at.lon], { icon: POINT_ICON, interactive: false, keyboard: false, zIndexOffset: 900 }).addTo(map);
+    const ring = new Marker({ element: markerElement('map-point-mark', POINT_HTML, 32, 32) }).setLngLat([at.lon, at.lat]).addTo(map);
     return () => {
       ring.remove();
     };
@@ -75,10 +68,12 @@ export function usePointMarker(map: L.Map | null, at: LatLon | null): void {
 }
 
 /** Pin on the spot being reported, while the report sheet is open. */
-export function usePickedMarker(map: L.Map | null, at: LatLon | null): void {
+export function usePickedMarker(map: MapLibreMap | null, at: LatLon | null): void {
   useEffect(() => {
     if (!map || !at) return undefined;
-    const pin = L.marker([at.lat, at.lon], { icon: PICK_ICON, interactive: false, keyboard: false, zIndexOffset: 1000 }).addTo(map);
+    const pin = new Marker({ element: markerElement('map-pick', PICK_HTML, 36, 40), anchor: 'bottom', offset: PICK_TIP_OFFSET })
+      .setLngLat([at.lon, at.lat])
+      .addTo(map);
     return () => {
       pin.remove();
     };

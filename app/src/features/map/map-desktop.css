@@ -16,7 +16,7 @@
 }
 
 /* No place chip over the map here: the attribution moves up to the corner. */
-.map-screen--desk .map-canvas .leaflet-top.leaflet-left {
+.map-screen--desk .map-canvas .maplibregl-ctrl-top-left {
   top: 12px;
 }
 

@@ -1,4 +1,4 @@
-import type { Map as LeafletMap } from 'leaflet';
+import type { MapLibreMap } from 'maplibre-gl';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { isAbort } from '../../lib/api';
 import {
@@ -39,13 +39,15 @@ export interface ForecastGrid {
   reload: () => void;
 }
 
-function paddedBounds(map: LeafletMap): GridBounds {
-  const b = map.getBounds().pad(PAD);
+function paddedBounds(map: MapLibreMap): GridBounds {
+  const b = map.getBounds();
+  const latPad = (b.getNorth() - b.getSouth()) * PAD;
+  const lonPad = (b.getEast() - b.getWest()) * PAD;
   return {
-    south: Math.max(-85, b.getSouth()),
-    west: Math.max(-180, b.getWest()),
-    north: Math.min(85, b.getNorth()),
-    east: Math.min(180, b.getEast()),
+    south: Math.max(-85, b.getSouth() - latPad),
+    west: Math.max(-180, b.getWest() - lonPad),
+    north: Math.min(85, b.getNorth() + latPad),
+    east: Math.min(180, b.getEast() + lonPad),
   };
 }
 
@@ -54,7 +56,7 @@ function paddedBounds(map: LeafletMap): GridBounds {
  * painted on), so the forecast covers exactly what the pictures before it
  * covered; without it the grid follows the view.
  */
-export function useForecastData(map: LeafletMap | null, fetching: boolean, box: GridBounds | null = null): ForecastGrid {
+export function useForecastData(map: MapLibreMap | null, fetching: boolean, box: GridBounds | null = null): ForecastGrid {
   const [status, setStatus] = useState<ForecastStatus>('idle');
   const [data, setData] = useState<ForecastData | null>(null);
   const [bounds, setBounds] = useState<GridBounds | null>(null);
@@ -130,11 +132,12 @@ export function useForecastData(map: LeafletMap | null, fetching: boolean, box: 
     };
 
     void load();
-    map.on('moveend zoomend', schedule);
+    // A zoom ends with a moveend too.
+    map.on('moveend', schedule);
     return () => {
       window.clearTimeout(timer);
       controller.abort();
-      map.off('moveend zoomend', schedule);
+      map.off('moveend', schedule);
     };
     // boxKey: a new pinned area is a new grid.
   }, [map, fetching, attempt, boxKey]);
