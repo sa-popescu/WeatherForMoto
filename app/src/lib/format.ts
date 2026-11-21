@@ -8,7 +8,11 @@ const LOCALE: Record<Lang, string> = { ro: 'ro-RO', en: 'en-GB' };
 
 export function fmtNumber(value: number | null | undefined, lang: Lang, decimals = 0): string {
   if (value == null || !Number.isFinite(value)) return '–';
-  return value.toLocaleString(LOCALE[lang], { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  // toLocaleString keeps the minus on a value that rounds to zero from below
+  // (-0,3 at no decimals reads "-0"), so anything under half of the last shown
+  // digit is written as a plain zero.
+  const shown = Math.abs(value) < 0.5 * 10 ** -decimals ? 0 : value;
+  return shown.toLocaleString(LOCALE[lang], { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 }
 
 /** Rain amount: one decimal under 10 mm, whole numbers above ("0,2", "12"). */
