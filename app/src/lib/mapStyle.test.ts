@@ -1,6 +1,6 @@
 import type { StyleSpecification } from 'maplibre-gl';
 import { describe, expect, it } from 'vitest';
-import { appStyle, brighterDarkRoads, localNames } from './mapStyle';
+import { appStyle, brighterDarkRoads, localNames, readableDarkLabels } from './mapStyle';
 
 const style = {
   version: 8,
@@ -26,6 +26,23 @@ describe('map style', () => {
     expect(road.paint['line-color']).not.toBe('#181818');
     expect(road.paint['line-opacity']).toBe(1);
     expect(road.paint['line-width']).toBe(2);
+  });
+
+  it('makes the street and place names of the dark style readable', () => {
+    const dark = {
+      version: 8,
+      sources: {},
+      layers: [
+        { id: 'highway_name_other', type: 'symbol', source: 'x', layout: { 'text-size': 10 }, paint: { 'text-color': 'rgba(80, 78, 78, 1)' } },
+        { id: 'place_city', type: 'symbol', source: 'x', layout: { 'text-size': 10 }, paint: { 'text-color': 'rgb(101,101,101)' } },
+      ],
+    } as unknown as StyleSpecification;
+    const [street, city] = readableDarkLabels(dark).layers as Array<{ paint: Record<string, unknown>; layout: Record<string, unknown> }>;
+    expect(street.paint['text-color']).not.toBe('rgba(80, 78, 78, 1)');
+    expect(street.layout['text-size']).not.toBe(10);
+    expect(city.paint['text-color']).not.toBe('rgb(101,101,101)');
+    // Place names keep their own sizes.
+    expect(city.layout['text-size']).toBe(10);
   });
 
   it('changes the roads only in the dark theme', () => {

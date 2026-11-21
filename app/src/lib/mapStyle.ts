@@ -1,4 +1,4 @@
-import type { LayerSpecification, StyleSpecification } from 'maplibre-gl';
+import type { ExpressionSpecification, LayerSpecification, StyleSpecification } from 'maplibre-gl';
 import type { Theme } from '../state/settings';
 
 // Changes the app makes to the OpenFreeMap styles before a map draws them.
@@ -51,8 +51,44 @@ export function brighterDarkRoads(style: StyleSpecification): StyleSpecification
   };
 }
 
+interface LabelLook {
+  color: string;
+  halo: string;
+  haloWidth: number;
+  /** Text size, px, or one that grows with the zoom. */
+  size?: number | ExpressionSpecification;
+}
+
+/** Street names: a touch larger as the map zooms in, readable at a glance on the handlebar. */
+const STREET_NAME_SIZE: ExpressionSpecification = ['interpolate', ['linear'], ['zoom'], 13, 12, 16, 14, 19, 16];
+
+/**
+ * Labels of the dark style. As published, street names are dark grey 10 px on
+ * black and place names barely lighter, so on a phone they do not show at all.
+ */
+function darkLabel(id: string): LabelLook | null {
+  if (id === 'highway_name_other') return { color: '#d4d7dd', halo: '#0c0c0c', haloWidth: 1.6, size: STREET_NAME_SIZE };
+  if (id === 'highway_name_motorway') return { color: '#e2cc9c', halo: '#0c0c0c', haloWidth: 1.6, size: 11 };
+  if (id === 'water_name') return { color: '#8fa3bf', halo: '#0c0c0c', haloWidth: 1.4 };
+  if (id.startsWith('place_')) return { color: '#c3c7ce', halo: 'rgba(0, 0, 0, 0.85)', haloWidth: 1.6 };
+  return null;
+}
+
+export function readableDarkLabels(style: StyleSpecification): StyleSpecification {
+  return {
+    ...style,
+    layers: style.layers.map((layer) => {
+      const look = layer.type === 'symbol' ? darkLabel(layer.id) : null;
+      if (!look || layer.type !== 'symbol') return layer;
+      const paint = { ...layer.paint, 'text-color': look.color, 'text-halo-color': look.halo, 'text-halo-width': look.haloWidth };
+      const layout = look.size === undefined ? layer.layout : { ...layer.layout, 'text-size': look.size };
+      return { ...layer, paint, layout } as LayerSpecification;
+    }),
+  };
+}
+
 /** Everything the app changes in a style, for the given theme. */
 export function appStyle(style: StyleSpecification, theme: Theme): StyleSpecification {
   const named = localNames(style);
-  return theme === 'dark' ? brighterDarkRoads(named) : named;
+  return theme === 'dark' ? readableDarkLabels(brighterDarkRoads(named)) : named;
 }
