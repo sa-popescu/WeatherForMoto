@@ -96,6 +96,18 @@ textarea {
   flex-direction: column;
 }
 
+/* Installed on the iOS home screen, 100dvh can come out short by the height of
+   the status bar (WebKit bug 301994), which leaves an empty band under the
+   nav. Adding the top inset back covers that case; 100vh caps it at the
+   screen height where dvh is right. When iOS draws its own band over the top
+   instead, the inset reads 0 and 100dvh is already the right height. A
+   browser tab keeps plain 100dvh, since there 100vh counts the toolbars. */
+@media (display-mode: standalone) {
+  .shell {
+    height: min(100vh, calc(100dvh + var(--safe-top)));
+  }
+}
+
 .shell__main {
   flex: 1;
   min-height: 0;
