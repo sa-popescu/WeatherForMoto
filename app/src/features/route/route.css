@@ -398,3 +398,43 @@
   align-items: flex-start;
   gap: 10px;
 }
+
+/* A file dragged over the screen (useFileDrop.ts): where to let it go. It
+   lets the pointer through, so the drag events still reach the window. */
+.route-drop {
+  position: fixed;
+  inset: 0 0 calc(var(--nav-h) + var(--safe-bottom));
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  pointer-events: none;
+}
+
+.route-drop__box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: min(520px, 100%);
+  padding: 48px 24px;
+  border: 2px dashed var(--accent);
+  border-radius: var(--r-xl);
+  background: var(--surface);
+  color: var(--accent);
+  font-size: 18px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.route-drop__box span {
+  color: var(--ink);
+}
+
+@media (min-width: 1024px) {
+  .route-drop {
+    left: var(--rail-w);
+  }
+}
