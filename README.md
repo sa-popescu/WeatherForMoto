@@ -125,6 +125,7 @@ Organizare: `src/lib` (API tipizat, format, scor, geo), `src/state` (sesiune, lo
 - `PORT` (implicit: `8000`)
 - `PIRATE_WEATHER_API_KEY`
 - `WEATHERXM_API_KEY` (stații fizice WeatherXM PRO — prioritate maximă când există stație în zonă)
+- `TOMTOM_API_KEY` (traseele urbane cu trafic live, `/route/urban`; pe Cloud Run vine din secretul `mm-tomtom-key`. Fără ea, aplicația face traseul fără trafic)
 - `APP_BASE_URL` (URL public al aplicației, folosit în emailurile de cont)
 - `API_BASE_URL` (URL public al backend-ului, pentru linkurile de confirmare a adresei; implicit URL-ul run.app)
 - `MET_NORWAY_USER_AGENT` (identificator cerut de MET Norway; are o valoare implicită reală)

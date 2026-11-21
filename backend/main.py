@@ -21,6 +21,9 @@ GET /geocode?city=Cluj-Napoca
 GET /meta/scoring
     The moto score model (label thresholds, rain intensity bands, impact
     matrix, caps) exactly as the backend applies it.
+
+GET /route/urban?points=44.43,26.10;44.44,26.11
+    Motorcycle routes with live traffic and turn instructions (TomTom).
 """
 
 import logging
@@ -58,7 +61,8 @@ from weather_service import (  # noqa: E402
     set_http_client,
     set_verification_sink,
 )
-from auth_alerts import router as auth_alerts_router, check_database, init_db  # noqa: E402
+from auth_alerts import router as auth_alerts_router, check_database, init_db, _client_ip  # noqa: E402
+import urban_route  # noqa: E402
 import verification  # noqa: E402
 
 # ---------------------------------------------------------------------------
@@ -588,6 +592,36 @@ async def route_multi(
         ) from exc
 
     return data
+
+
+@app.get("/route/urban", tags=["route"])
+async def route_urban(
+    request: Request,
+    points: Annotated[str, Query(description="'lat,lon;lat,lon[;...]' from the start to the destination, 2 to 5 points")],
+    alternatives: int = Query(default=urban_route.MAX_ALTERNATIVES, ge=0, le=urban_route.MAX_ALTERNATIVES),
+):
+    """
+    Motorcycle routes with live traffic, from TomTom: the line, the time with
+    and without traffic, the traffic stretches and coded turn instructions.
+    Up to two alternatives between a start and a destination. When there is
+    no such route the reason is in ``detail`` (no-key, busy, quota, no-route,
+    upstream), and the app plans without traffic instead.
+    """
+    try:
+        coords = urban_route.parse_points(points)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    # Without a key there is nothing to spend the client's budget on.
+    if not urban_route.TOMTOM_API_KEY:
+        raise HTTPException(status_code=503, detail="no-key")
+    if not urban_route.budget.allow(_client_ip(request), time.time()):
+        raise HTTPException(status_code=429, detail="busy")
+    async with http_client_scope() as client:
+        try:
+            return await urban_route.fetch_urban_routes(client, coords, alternatives)
+        except urban_route.UrbanRouteUnavailable as exc:
+            status = 404 if exc.reason == "no-route" else 503
+            raise HTTPException(status_code=status, detail=exc.reason) from None
 
 
 # ---------------------------------------------------------------------------
