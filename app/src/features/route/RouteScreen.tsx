@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { fmt, useStrings } from '../../lib/i18n';
+import { useDesktop } from '../../lib/useMediaQuery';
 import { useAuth } from '../../state/auth';
 import { Icon } from '../../ui/icons';
 import { Banner, Button } from '../../ui/primitives';
+import { RideEntry } from '../ride/RideEntry';
 import type { ScreenProps } from '../types';
 import { DepartureControls } from './DepartureControls';
 import { HazardSheet } from './HazardSheet';
@@ -55,6 +57,7 @@ export default function RouteScreen({ active }: ScreenProps) {
   const [departure, setDeparture] = useState<Departure>(() => defaultDeparture(Date.now(), deviceOffsetSec()));
   const [speed, setSpeed] = useState<Speed>(DEFAULT_SPEED);
   const [sheet, setSheet] = useState<SheetKind>('none');
+  const desktop = useDesktop();
 
   const stopsState = useStopsState();
   const { state: plan, calculate, calculateFromTrack, ensureDays, retryFailed } = useRoutePlan();
@@ -126,6 +129,8 @@ export default function RouteScreen({ active }: ScreenProps) {
         <Button variant="primary" size="lg" full icon="route" busy={busy} onClick={() => calc.run(stopsState.stops)}>
           {plan.route ? s.recalculate : s.calculate}
         </Button>
+        {/* A ride is recorded by a phone on the handlebar, not by a computer. */}
+        {!desktop && <RideEntry />}
       </div>
 
       <div className="route-col route-col--map">
