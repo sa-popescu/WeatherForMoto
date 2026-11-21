@@ -25,9 +25,11 @@ interface Props {
   onPrefs: (change: Partial<LayerPrefs>) => void;
   onRecenter: () => void;
   hazardsFailed: boolean;
+  /** False on a desktop, where the layers sit in the side panel instead of a pop-up. */
+  showLayers?: boolean;
 }
 
-export function MapControls({ map, prefs, onPrefs, onRecenter, hazardsFailed }: Props) {
+export function MapControls({ map, prefs, onPrefs, onRecenter, hazardsFailed, showLayers = true }: Props) {
   const s = useStrings(MAP_STRINGS);
   const toast = useToast();
   const { place, locate, locating, locateError } = usePlace();
@@ -70,15 +72,19 @@ export function MapControls({ map, prefs, onPrefs, onRecenter, hazardsFailed }: 
 
   return (
     <div className="map-controls" ref={root} role="group" aria-label={s.controls}>
-      <IconButton
-        icon="layers"
-        label={s.layers}
-        className="map-ctl"
-        aria-expanded={layersOpen}
-        aria-controls={panelId}
-        onClick={() => setLayersOpen((open) => !open)}
-      />
-      {layersOpen && <LayersPanel id={panelId} prefs={prefs} onPrefs={onPrefs} hazardsFailed={hazardsFailed} />}
+      {showLayers && (
+        <>
+          <IconButton
+            icon="layers"
+            label={s.layers}
+            className="map-ctl"
+            aria-expanded={layersOpen}
+            aria-controls={panelId}
+            onClick={() => setLayersOpen((open) => !open)}
+          />
+          {layersOpen && <LayersPanel id={panelId} prefs={prefs} onPrefs={onPrefs} hazardsFailed={hazardsFailed} />}
+        </>
+      )}
       <button
         type="button"
         className="icon-btn map-ctl"

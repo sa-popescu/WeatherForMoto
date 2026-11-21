@@ -1,6 +1,7 @@
 import type { LeafletMouseEvent } from 'leaflet';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { fmt, useStrings } from '../../lib/i18n';
+import { useDesktop } from '../../lib/useMediaQuery';
 import type { Hazard } from '../../lib/types';
 import { useAuth } from '../../state/auth';
 import { usePlace } from '../../state/place';
@@ -11,6 +12,7 @@ import type { ScreenProps } from '../types';
 import { HazardSheet } from './HazardSheet';
 import { hazardLabelKey, severityKey, type LatLon } from './hazards';
 import { useLayerPrefs } from './layerPrefs';
+import { LayersPanel } from './LayersPanel';
 import { MapControls } from './MapControls';
 import { PickBar } from './PickBar';
 import { ReportSheet } from './ReportSheet';
@@ -26,6 +28,7 @@ import './map-markers.css';
 import './map-radar.css';
 import './map-scrubber.css';
 import './map-sheets.css';
+import './map-desktop.css';
 
 // "Hartă": full-height map with one band of time, from the oldest radar frame
 // to the last forecast hour, plus rider-reported hazards. The shell keeps this
@@ -40,6 +43,9 @@ export default function MapScreen({ active }: ScreenProps) {
   const pageVisible = usePageVisible();
   const reducedMotion = usePrefersReducedMotion();
   const onScreen = active && pageVisible;
+
+  const desktop = useDesktop();
+  const layersId = useId();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const { map, baseLoading } = useLeafletMap(containerRef, { center: place, active });
@@ -100,17 +106,29 @@ export default function MapScreen({ active }: ScreenProps) {
   };
   const loading = baseLoading || timeline.tilesLoading;
 
+  const placeChip = (
+    <div className="map-chip" role="status">
+      {loading ? <Spinner size={18} /> : <Icon name="pin" size={18} />}
+      <span className="map-chip__name">{place.name}</span>
+      {loading && <span className="visually-hidden">{s.loadingMap}</span>}
+    </div>
+  );
+  const reportButton = (
+    <Button icon="alert" className="map-report" disabled={!map} onClick={startReport}>
+      {s.reportHere}
+    </Button>
+  );
+  const pickBar = <PickBar onCancel={() => setPicking(false)} onConfirm={confirmPick} />;
+
+  // The canvas stays the first child in both layouts, so switching between
+  // them never remounts the element the Leaflet map lives in.
   return (
-    <div className={cx('map-screen', theme === 'dark' && 'map-screen--dark')} hidden={!active}>
+    <div className={cx('map-screen', desktop && 'map-screen--desk', theme === 'dark' && 'map-screen--dark')} hidden={!active}>
       <div ref={containerRef} className="map-canvas" aria-label={s.mapLabel} />
 
       <div className="map-top">
-        <div className="map-chip" role="status">
-          {loading ? <Spinner size={18} /> : <Icon name="pin" size={18} />}
-          <span className="map-chip__name">{place.name}</span>
-          {loading && <span className="visually-hidden">{s.loadingMap}</span>}
-        </div>
-        <MapControls map={map} prefs={prefs} onPrefs={setPrefs} onRecenter={recenter} hazardsFailed={hazards.failed} />
+        {!desktop && placeChip}
+        <MapControls map={map} prefs={prefs} onPrefs={setPrefs} onRecenter={recenter} hazardsFailed={hazards.failed} showLayers={!desktop} />
       </div>
 
       {picking && (
@@ -119,18 +137,30 @@ export default function MapScreen({ active }: ScreenProps) {
         </span>
       )}
 
-      <div className="map-bottom">
-        {picking ? (
-          <PickBar onCancel={() => setPicking(false)} onConfirm={confirmPick} />
-        ) : (
-          <>
-            <Button icon="alert" className="map-report" disabled={!map} onClick={startReport}>
-              {s.reportHere}
-            </Button>
+      {desktop ? (
+        // Desktop: a fixed panel on the right with the place, the layers, the
+        // report button and the band of time (map-desktop.css).
+        <>
+          {picking && <div className="map-bottom">{pickBar}</div>}
+          <div className="map-side">
+            {placeChip}
+            <LayersPanel id={layersId} prefs={prefs} onPrefs={setPrefs} hazardsFailed={hazards.failed} />
+            {reportButton}
             <TimelinePanel timeline={timeline} />
-          </>
-        )}
-      </div>
+          </div>
+        </>
+      ) : (
+        <div className="map-bottom">
+          {picking ? (
+            pickBar
+          ) : (
+            <>
+              {reportButton}
+              <TimelinePanel timeline={timeline} />
+            </>
+          )}
+        </div>
+      )}
 
       <HazardSheet hazard={selected} onClose={() => setSelected(null)} />
       <ReportSheet at={reportAt} onClose={() => setReportAt(null)} onReported={hazards.refresh} />

@@ -67,6 +67,18 @@ export function RouteMap({ route, rows, segments, hazards, hazardText, active, s
     };
   }, []);
 
+  // On a desktop the map fills what its column has left, so it grows and
+  // shrinks when the card above it does (the day comparison opening, say).
+  // Leaflet itself only follows window resizes.
+  useEffect(() => {
+    const map = mapRef.current;
+    const el = elRef.current;
+    if (!map || !el || typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(() => map.invalidateSize());
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return undefined;

@@ -1,0 +1,123 @@
+/* "Acum" on a desktop (DESKTOP_QUERY in lib/useMediaQuery.ts). The same
+   components as on a phone, spread out: the header, banners and warnings
+   across the top, the score card next to the next 24 hours, then the days as
+   a row of cards (two rows once all of them are shown).
+   Every rule starts with .screen.now so it wins over the phone rules
+   whatever order the stylesheets end up in. */
+
+@media (min-width: 1024px) {
+  /* :not([hidden]) keeps the hidden tab hidden (.screen[hidden] in base.css). */
+  .screen.now:not([hidden]) {
+    display: grid;
+    grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
+    gap: 20px;
+    max-width: 1360px;
+    margin-inline: auto;
+  }
+
+  /* Everything spans both columns except the score card and the timeline,
+     which follow each other in the markup and so share a row. */
+  .screen.now > * {
+    grid-column: 1 / -1;
+  }
+
+  .screen.now > .now-hero {
+    grid-column: 1;
+  }
+
+  .screen.now > .now-tl {
+    grid-column: 2;
+  }
+
+  .screen.now .now-hero {
+    justify-content: center;
+    padding: 22px;
+    border-radius: var(--r-xl);
+    border: 1px solid var(--line);
+    background: var(--surface);
+  }
+
+  /* A fixed size: the button around it shrinks to fit, so a percentage
+     would have nothing to resolve against. */
+  .screen.now .now-hero .gauge {
+    width: 260px;
+  }
+
+  .screen.now .now-hero__verdict {
+    font-size: 28px;
+  }
+
+  /* The grid gap spaces the blocks; their phone margins would add to it. */
+  .screen.now > .now-tl,
+  .screen.now > .now-section {
+    margin-top: 0;
+  }
+
+  /* ---- Days as cards ---- */
+
+  .screen.now .now-days {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 12px;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    overflow: visible;
+  }
+
+  .screen.now .now-days li + li {
+    border-top: 0;
+  }
+
+  .screen.now .now-day {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto 1fr auto;
+    grid-template-areas:
+      'name score'
+      'mid mid'
+      'temps temps';
+    align-items: start;
+    gap: 12px 8px;
+    height: 100%;
+    min-height: 0;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    background: var(--surface);
+  }
+
+  .screen.now .now-day:hover {
+    border-color: var(--line-2);
+  }
+
+  .screen.now .now-day:focus-visible {
+    outline-offset: 2px;
+  }
+
+  .screen.now .now-day__name {
+    grid-area: name;
+  }
+
+  .screen.now .now-day__score {
+    grid-area: score;
+    font-size: 30px;
+    line-height: 1;
+  }
+
+  .screen.now .now-day__mid {
+    grid-area: mid;
+    gap: 8px;
+  }
+
+  /* A card is narrow: the rain line wraps instead of being cut. */
+  .screen.now .now-day__rain {
+    white-space: normal;
+    line-height: 1.35;
+  }
+
+  .screen.now .now-day__temps {
+    grid-area: temps;
+    text-align: left;
+    color: var(--ink-2);
+  }
+}

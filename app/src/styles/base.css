@@ -170,6 +170,79 @@ textarea {
   font-weight: 700;
 }
 
+/* The app mark at the top of the desktop rail; the phone nav has no room. */
+.bottom-nav__mark {
+  display: none;
+}
+
+/* ---- Desktop shell ----
+   From 1024 px (DESKTOP_QUERY in lib/useMediaQuery.ts) the shell is a grid:
+   the nav turns into a narrow rail of icons down the left edge and the
+   content area takes the rest of the width. Everything above stays the
+   phone layout; each tab spreads its own content in its *-desktop.css. */
+
+@media (min-width: 1024px) {
+  .shell {
+    max-width: none;
+    display: grid;
+    grid-template-columns: var(--rail-w) minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .offline-strip {
+    grid-column: 2;
+    grid-row: 1;
+    padding-top: calc(8px + var(--safe-top));
+  }
+
+  .shell__main {
+    grid-column: 2;
+    grid-row: 2;
+    padding-bottom: 32px;
+  }
+
+  .screen {
+    padding-inline: 32px;
+    padding-top: 24px;
+  }
+
+  .bottom-nav {
+    grid-column: 1;
+    grid-row: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: calc(18px + var(--safe-top)) 10px 18px;
+    border-top: 0;
+    border-right: 1px solid var(--line);
+    background: var(--surface-2);
+  }
+
+  .bottom-nav__mark {
+    display: flex;
+    margin-bottom: 18px;
+    color: var(--accent);
+  }
+
+  .bottom-nav__item {
+    width: 56px;
+    margin-top: 0;
+    border-top: 0;
+    border-radius: 16px;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+  }
+
+  .bottom-nav__item:not([aria-current='page']):hover {
+    color: var(--ink);
+  }
+
+  .bottom-nav__item[aria-current='page'] {
+    background: var(--surface-3);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

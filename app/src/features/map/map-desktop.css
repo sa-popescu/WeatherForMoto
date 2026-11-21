@@ -1,0 +1,85 @@
+/* "Hartă" on a desktop. MapScreen adds .map-screen--desk when DESKTOP_QUERY
+   (lib/useMediaQuery.ts) matches: the map fills the window next to the rail,
+   with a fixed panel on the right for the place, the layers, the report
+   button and the band of time. The canvas stops at the panel, so the map
+   centre (where a report lands) is the middle of what you see. */
+
+.map-screen.map-screen--desk {
+  --map-side-w: 360px;
+  left: var(--rail-w);
+  max-width: none;
+  margin-inline: 0;
+}
+
+.map-screen--desk .map-canvas {
+  right: var(--map-side-w);
+}
+
+/* No place chip over the map here: the attribution moves up to the corner. */
+.map-screen--desk .map-canvas .leaflet-top.leaflet-left {
+  top: 12px;
+}
+
+.map-screen--desk .map-top {
+  right: calc(var(--map-side-w) + 12px);
+  justify-content: flex-end;
+}
+
+.map-screen--desk .map-crosshair {
+  left: calc((100% - var(--map-side-w)) / 2);
+}
+
+/* While picking a spot, the bar sits over the map, centred. */
+.map-screen--desk .map-bottom {
+  right: calc(var(--map-side-w) + 12px);
+  align-items: center;
+}
+
+.map-screen--desk .map-pickbar {
+  align-self: center;
+  width: min(520px, 100%);
+}
+
+.map-side {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  width: var(--map-side-w);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 18px;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  border-left: 1px solid var(--line);
+  background: var(--surface-2);
+}
+
+.map-side .map-chip {
+  align-self: stretch;
+  flex-shrink: 0;
+}
+
+/* The layers panel is a pop-up on a phone; here it is part of the panel. */
+.map-side .map-layers {
+  position: static;
+  width: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.map-side .map-report.btn {
+  flex-shrink: 0;
+  width: 100%;
+}
+
+/* The band of time sits at the bottom of the panel. */
+.map-side .map-panel {
+  flex-shrink: 0;
+  margin-top: auto;
+  background: var(--surface);
+}

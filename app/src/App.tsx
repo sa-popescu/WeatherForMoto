@@ -102,7 +102,8 @@ export default function App() {
   }
 
   return (
-    <div className="shell">
+    // data-tab lets the desktop layout give Traseu the whole height of the window.
+    <div className="shell" data-tab={tab}>
       {!online && (
         <div className="offline-strip" role="status">
           {s.offline}
@@ -121,6 +122,9 @@ export default function App() {
         })}
       </main>
       <nav className="bottom-nav" aria-label={s.navLabel}>
+        <span className="bottom-nav__mark" aria-hidden="true">
+          <Icon name="gauge" size={30} strokeWidth={2} />
+        </span>
         {navItems.map((item) => (
           <a key={item.tab} href={`#/${item.tab}`} className="bottom-nav__item" aria-current={item.tab === tab ? 'page' : undefined}>
             <Icon name={item.icon} />

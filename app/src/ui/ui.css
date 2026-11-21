@@ -338,6 +338,14 @@
   pointer-events: none;
 }
 
+/* Desktop (DESKTOP_QUERY in lib/useMediaQuery.ts): centred on the content,
+   not on the window, since the nav rail takes the left edge. */
+@media (min-width: 1024px) {
+  .toasts {
+    left: var(--rail-w);
+  }
+}
+
 /* With a bottom sheet open, toasts move to the top so they never cover it. */
 body.sheet-open .toasts {
   top: calc(var(--safe-top) + 12px);

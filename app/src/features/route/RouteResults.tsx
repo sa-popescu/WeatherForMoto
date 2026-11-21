@@ -14,8 +14,11 @@ import { WaypointList } from './WaypointList';
 
 // Everything below the calculate button once a route exists, in the order of
 // the Cockpit design: when to leave, map, weather on the road, hazards, actions.
+// It comes in two parts because the desktop layout puts them in different
+// columns (route-desktop.css): the overview (when to leave and the map) and
+// the details along the road. On a phone they simply follow each other.
 
-interface RouteResultsProps {
+interface RouteOverviewProps {
   active: boolean;
   route: RouteLine;
   derived: DerivedPlan;
@@ -25,16 +28,15 @@ interface RouteResultsProps {
   speed: number;
   weatherDone: boolean;
   hazards: HazardsState;
-  signedIn: boolean;
   onAdopt: (time: string) => void;
   /** A day picked in the comparison, with its best departure. */
   onPickDay: (departure: Departure) => void;
   onNeedAllDays: () => void;
-  onAction: (kind: ActionKind) => void;
 }
 
-export function RouteResults(props: RouteResultsProps) {
-  const { active, route, derived, dates, departure, speed, weatherDone, hazards, signedIn, onAdopt, onPickDay, onNeedAllDays, onAction } = props;
+/** When to leave (with the day comparison) and the map of the route. */
+export function RouteOverview(props: RouteOverviewProps) {
+  const { active, route, derived, dates, departure, speed, weatherDone, hazards, onAdopt, onPickDay, onNeedAllDays } = props;
   const s = useStrings(RS);
   const lang = useLang();
   const { summary: hazardText } = useHazardText();
@@ -72,6 +74,22 @@ export function RouteResults(props: RouteResultsProps) {
         active={active}
         summary={summary}
       />
+    </>
+  );
+}
+
+interface RouteDetailsProps {
+  route: RouteLine;
+  derived: DerivedPlan;
+  hazards: HazardsState;
+  signedIn: boolean;
+  onAction: (kind: ActionKind) => void;
+}
+
+/** The weather at every point along the road, the hazards on it and the actions. */
+export function RouteDetails({ route, derived, hazards, signedIn, onAction }: RouteDetailsProps) {
+  return (
+    <>
       <WaypointList rows={derived.rows} route={route} />
       <HazardList state={hazards} />
       <RouteActions signedIn={signedIn} onAction={onAction} />

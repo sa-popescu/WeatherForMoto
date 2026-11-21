@@ -46,12 +46,21 @@
   --tap: 48px;
   --tap-lg: 56px;
   --nav-h: 68px;
+  --rail-w: 76px;
   --gutter: 20px;
 
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 
   color-scheme: dark;
+}
+
+/* Desktop layout (DESKTOP_QUERY in lib/useMediaQuery.ts): the nav is a rail
+   on the left, so the map and the toasts keep nothing free at the bottom. */
+@media (min-width: 1024px) {
+  :root {
+    --nav-h: 0px;
+  }
 }
 
 :root[data-theme='day'] {
