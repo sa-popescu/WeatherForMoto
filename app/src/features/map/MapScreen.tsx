@@ -1,6 +1,7 @@
 import type { LeafletMouseEvent } from 'leaflet';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { fmt, useStrings } from '../../lib/i18n';
+import type { PlaceSuggestion } from '../../lib/geo';
+import { fmt, useLang, useStrings } from '../../lib/i18n';
 import { useDesktop } from '../../lib/useMediaQuery';
 import type { Hazard } from '../../lib/types';
 import { useAuth } from '../../state/auth';
@@ -14,15 +15,18 @@ import { hazardLabelKey, severityKey, type LatLon } from './hazards';
 import { useLayerPrefs } from './layerPrefs';
 import { LayersPanel } from './LayersPanel';
 import { MapControls } from './MapControls';
+import { MapSearch } from './MapSearch';
 import { PickBar } from './PickBar';
+import { PointCard } from './PointCard';
 import { ReportSheet } from './ReportSheet';
 import { TimelinePanel } from './TimelinePanel';
 import { MAP_STRINGS } from './strings';
 import { usePageVisible, usePrefersReducedMotion } from './useEnvironment';
 import { useHazardLayer } from './useHazardLayer';
-import { useLeafletMap } from './useLeafletMap';
+import { REGIONAL_ZOOM, useLeafletMap } from './useLeafletMap';
 import { useMapTimeline } from './useMapTimeline';
-import { usePickedMarker, usePlaceView } from './usePlaceView';
+import { usePickedMarker, usePlaceView, usePointMarker } from './usePlaceView';
+import { usePointWeather, type PickedPoint } from './usePointWeather';
 import './map.css';
 import './map-markers.css';
 import './map-radar.css';
@@ -37,7 +41,8 @@ import './map-desktop.css';
 
 export default function MapScreen({ active }: ScreenProps) {
   const s = useStrings(MAP_STRINGS);
-  const { place } = usePlace();
+  const lang = useLang();
+  const { place, setPlace } = usePlace();
   const { theme } = useSettings();
   const { token } = useAuth();
   const pageVisible = usePageVisible();
@@ -85,6 +90,40 @@ export default function MapScreen({ active }: ScreenProps) {
     };
   }, [map]);
 
+  // Desktop: a click on the map shows the weather there in the side panel.
+  // Not while a report spot is being picked, and never on a phone, where a
+  // tap is for moving the map.
+  const [point, setPoint] = useState<PickedPoint | null>(null);
+  const pointWeather = usePointWeather(point, lang);
+  usePointMarker(map, desktop ? point : null);
+  useEffect(() => {
+    if (!map || !desktop || picking) return undefined;
+    const onClick = (event: LeafletMouseEvent): void => {
+      const at = event.latlng.wrap();
+      setPoint({ lat: at.lat, lon: at.lng, name: null });
+    };
+    map.on('click', onClick);
+    return () => {
+      map.off('click', onClick);
+    };
+  }, [map, desktop, picking]);
+
+  const pickFound = (hit: PlaceSuggestion): void => {
+    setPoint({ lat: hit.lat, lon: hit.lon, name: hit.name });
+    if (!map) return;
+    const zoom = Math.max(map.getZoom(), REGIONAL_ZOOM);
+    if (reducedMotion) map.setView([hit.lat, hit.lon], zoom, { animate: false });
+    else map.flyTo([hit.lat, hit.lon], zoom, { duration: 0.8 });
+  };
+  const openInNow = (name: string): void => {
+    if (!point) return;
+    setPlace({ name, lat: point.lat, lon: point.lon }, 'search');
+    window.location.hash = '#/acum';
+  };
+  // While the band plays, the card stays on the current hour instead of
+  // jumping along with the animation.
+  const momentSec = timeline.playing || !timeline.current ? Date.now() / 1000 : timeline.current.timeSec;
+
   // Leaving the tab drops any half-finished interaction.
   useEffect(() => {
     if (active) return;
@@ -92,6 +131,11 @@ export default function MapScreen({ active }: ScreenProps) {
     setSelected(null);
     setReportAt(null);
   }, [active]);
+
+  // The point belongs to the desktop panel: a phone layout drops it.
+  useEffect(() => {
+    if (!desktop) setPoint(null);
+  }, [desktop]);
 
   const mapCentre = (): LatLon | null => {
     if (!map) return null;
@@ -138,12 +182,18 @@ export default function MapScreen({ active }: ScreenProps) {
       )}
 
       {desktop ? (
-        // Desktop: a fixed panel on the right with the place, the layers, the
-        // report button and the band of time (map-desktop.css).
+        // Desktop: a fixed panel on the right with the search, the weather at
+        // the picked point, the layers, the report button and the band of
+        // time (map-desktop.css).
         <>
           {picking && <div className="map-bottom">{pickBar}</div>}
           <div className="map-side">
-            {placeChip}
+            <MapSearch near={place} loading={loading} onPick={pickFound} />
+            {point ? (
+              <PointCard weather={pointWeather} momentSec={momentSec} onOpen={openInNow} onClose={() => setPoint(null)} />
+            ) : (
+              <p className="map-point-hint">{s.pointHint}</p>
+            )}
             <LayersPanel id={layersId} prefs={prefs} onPrefs={setPrefs} hazardsFailed={hazards.failed} />
             {reportButton}
             <TimelinePanel timeline={timeline} />
