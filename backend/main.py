@@ -161,8 +161,19 @@ app = FastAPI(
 )
 
 # CORS: restrict to known frontend origins instead of a wildcard. Set
-# ALLOWED_ORIGINS (comma-separated) to override; the regex also permits the
-# Cloudflare Pages domains used for the static frontend deployment.
+# ALLOWED_ORIGINS (comma-separated) to override. The regex also permits the
+# preview builds of the frontend, so a pull request can be tried with live
+# weather before it is merged:
+# - Workers Builds previews, "<version or branch>-weatherformoto" under this
+#   account's own workers.dev subdomain (no other account can use it)
+# - the older Cloudflare Pages previews, "*.weatherformoto.pages.dev"
+PREVIEW_ORIGIN_REGEX = (
+    r"https://("
+    r"([a-z0-9-]+-)?weatherformoto\.spopescu\.workers\.dev"
+    r"|([a-z0-9-]+\.)*weatherformoto\.pages\.dev"
+    r")"
+)
+
 ALLOWED_ORIGINS = [
     o.strip()
     for o in os.getenv(
@@ -174,7 +185,7 @@ ALLOWED_ORIGINS = [
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    allow_origin_regex=r"https://([a-z0-9-]+\.)*weatherformoto\.pages\.dev",
+    allow_origin_regex=PREVIEW_ORIGIN_REGEX,
     allow_credentials=False,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
