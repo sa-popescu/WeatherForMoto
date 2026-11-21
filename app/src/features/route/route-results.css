@@ -226,34 +226,43 @@
   inset: 0;
 }
 
-.route-map .leaflet-container {
-  background: var(--surface-2);
+.route-map .maplibregl-map {
   font-family: var(--font-body);
 }
 
-.route-map .leaflet-bar {
+/* The + and - buttons, sized for gloves and in the theme's colours. */
+.route-map .maplibregl-ctrl-group {
   border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  background: var(--surface);
   box-shadow: none;
 }
 
-.route-map .leaflet-bar a,
-.route-map .leaflet-touch .leaflet-bar a {
+.route-map .maplibregl-ctrl-group button {
   width: var(--tap);
   height: var(--tap);
-  line-height: var(--tap);
+}
+
+.route-map .maplibregl-ctrl-group button + button {
+  border-top: 1px solid var(--line);
+}
+
+[data-theme='dark'] .route-map .maplibregl-ctrl-icon {
+  filter: invert(1);
+}
+
+.route-map__tip .maplibregl-popup-content {
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
   background: var(--surface);
   color: var(--ink);
-  border-bottom-color: var(--line);
+  font-family: var(--font-body);
+  font-size: 13px;
 }
 
-.route-map .leaflet-control-attribution {
-  background: color-mix(in srgb, var(--bg) 80%, transparent);
-  color: var(--muted);
-  font-size: 10px;
-}
-
-.route-map .leaflet-control-attribution a {
-  color: var(--muted);
+.route-map__tip .maplibregl-popup-tip {
+  border-top-color: var(--surface);
 }
 
 .route-map__summary,
@@ -302,31 +311,15 @@
 .route-map__swatch--atentie { background: var(--t-atentie); }
 .route-map__swatch--evita { background: var(--t-evita); }
 
-/* Leaflet sets stroke/fill as SVG attributes; CSS wins over attributes. */
-/* OSM tiles are light: the dark theme darkens only the base layer (same values as the Map tab). */
-[data-theme='dark'] .route-map__base { filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9) saturate(0.6); }
-
-.route-map__casing { stroke: var(--bg); stroke-opacity: 0.9; }
-.route-map__seg { stroke-linecap: round; stroke-opacity: 1; }
-.route-map__seg--ideal { stroke: var(--t-ideal); }
-.route-map__seg--ok { stroke: var(--t-ok); }
-.route-map__seg--atentie { stroke: var(--t-atentie); }
-.route-map__seg--evita { stroke: var(--t-evita); }
-.route-map__seg--none { stroke: var(--dim); }
-
-.route-map__pt { fill: var(--bg); fill-opacity: 1; stroke: var(--ink); stroke-opacity: 1; }
-.route-map__pt--origin { stroke: var(--accent); }
-.route-map__pt--destination { fill: var(--ink); stroke: var(--bg); }
-.route-map__pt--sample.route-map__pt--ideal { stroke: var(--t-ideal); }
-.route-map__pt--sample.route-map__pt--ok { stroke: var(--t-ok); }
-.route-map__pt--sample.route-map__pt--atentie { stroke: var(--t-atentie); }
-.route-map__pt--sample.route-map__pt--evita { stroke: var(--t-evita); }
-.route-map__pt--sample.route-map__pt--none { stroke: var(--dim); }
+/* The route's own colours live in routeMapLayers.ts: MapLibre paints them, read from these tokens. */
 
 .route-map__hz {
+  display: block;
+  padding: 0;
   color: var(--t-atentie);
   background: none;
   border: 0;
+  cursor: pointer;
 }
 
 .route-map__hz--sev4,
