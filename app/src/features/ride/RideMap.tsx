@@ -7,7 +7,8 @@ import { useSettings } from '../../state/settings';
 import { IconButton } from '../../ui/primitives';
 import { rideRecorder, type RideSnapshot } from './recorder';
 import { bearingDeg, boundsOf, routeParts, trackLines } from './rideMapData';
-import { addRideLayers, createRideMap, foldAttribution, setLines } from './rideMapSetup';
+import { foldAttribution } from '../../lib/vectorMap';
+import { addRideLayers, createRideMap, setLines } from './rideMapSetup';
 import { RIDE_S } from './strings';
 
 // The ride map, drawn like a navigation app: a vector map, the route ahead in

@@ -1,9 +1,8 @@
-import type { StyleSpecification } from 'maplibre-gl';
 import { describe, expect, it } from 'vitest';
 import { cumulativeKm } from '../route/geometry';
 import type { RideRoute } from './logic/follow';
 import type { RidePoint } from './logic/track';
-import { bearingDeg, boundsOf, localNames, multiLine, routeParts, trackLines } from './rideMapData';
+import { bearingDeg, boundsOf, multiLine, routeParts, trackLines } from './rideMapData';
 
 function pt(t: number, lat: number, lon: number, extra: Partial<RidePoint> = {}): RidePoint {
   return { t, lat, lon, acc: 5, speed: 10, alt: null, seg: 0, ...extra };
@@ -63,21 +62,5 @@ describe('map helpers', () => {
   it('frames positions and leaves out lines too short to draw', () => {
     expect(boundsOf([{ lat: 45, lon: 25 }, { lat: 44, lon: 26 }])).toEqual([25, 44, 26, 45]);
     expect(multiLine([[[25, 45]]]).features).toHaveLength(0);
-  });
-
-  it('labels places by their local name instead of the English one', () => {
-    const style = {
-      version: 8,
-      sources: {},
-      layers: [
-        { id: 'place', type: 'symbol', source: 'x', layout: { 'text-field': ['coalesce', ['get', 'name_en'], ['get', 'name']] } },
-        { id: 'shield', type: 'symbol', source: 'x', layout: { 'text-field': ['get', 'ref'] } },
-        { id: 'water', type: 'fill', source: 'x' },
-      ],
-    } as unknown as StyleSpecification;
-    const out = localNames(style);
-    expect(JSON.stringify(out.layers[0])).not.toContain('name_en');
-    expect(out.layers[1]).toBe(style.layers[1]);
-    expect(out.layers[2]).toBe(style.layers[2]);
   });
 });

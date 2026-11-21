@@ -1,5 +1,4 @@
 import type { FeatureCollection, MultiLineString } from 'geojson';
-import type { StyleSpecification } from 'maplibre-gl';
 import type { LatLon } from '../route/types';
 import type { GapFill } from './gapFill';
 import { routeSlice, type RideRoute } from './logic/follow';
@@ -82,20 +81,3 @@ export function boundsOf(points: readonly LatLon[]): [number, number, number, nu
   return [west, south, east, north];
 }
 
-const LOCAL_NAME = ['coalesce', ['get', 'name:latin'], ['get', 'name']];
-
-/**
- * The OpenFreeMap styles label places in English when they can ("Bucharest");
- * the ride map uses the local names, the ones on the road signs ("București").
- */
-export function localNames(style: StyleSpecification): StyleSpecification {
-  return {
-    ...style,
-    layers: style.layers.map((layer) => {
-      if (layer.type !== 'symbol' || !layer.layout) return layer;
-      const field = layer.layout['text-field'];
-      if (field === undefined || !JSON.stringify(field).includes('name_en')) return layer;
-      return { ...layer, layout: { ...layer.layout, 'text-field': LOCAL_NAME } } as typeof layer;
-    }),
-  };
-}
