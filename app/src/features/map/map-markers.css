@@ -75,6 +75,33 @@
   transform: rotate(-45deg);
 }
 
+/* The point whose weather the desktop panel shows: a ring, unlike the
+   filled dot of the app's own place. */
+.map-point-mark {
+  pointer-events: none;
+}
+
+.map-point-mark__ring {
+  position: absolute;
+  inset: 0;
+  border: 3px solid var(--accent);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 2px var(--bg),
+    inset 0 0 0 2px var(--bg);
+}
+
+.map-point-mark__dot {
+  position: absolute;
+  left: 11px;
+  top: 11px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--bg);
+}
+
 .map-tone--low {
   color: var(--t-ok);
 }

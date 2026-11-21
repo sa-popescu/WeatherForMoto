@@ -56,6 +56,24 @@ export function usePlaceView(map: L.Map | null, place: Place, reducedMotion: boo
   return useCallback(() => setRecenterRequests((n) => n + 1), []);
 }
 
+const POINT_ICON = L.divIcon({
+  className: 'map-point-mark',
+  html: '<span class="map-point-mark__ring"></span><span class="map-point-mark__dot"></span>',
+  iconSize: [32, 32],
+  iconAnchor: [16, 16],
+});
+
+/** Ring on the point whose weather the desktop panel shows. */
+export function usePointMarker(map: L.Map | null, at: LatLon | null): void {
+  useEffect(() => {
+    if (!map || !at) return undefined;
+    const ring = L.marker([at.lat, at.lon], { icon: POINT_ICON, interactive: false, keyboard: false, zIndexOffset: 900 }).addTo(map);
+    return () => {
+      ring.remove();
+    };
+  }, [map, at]);
+}
+
 /** Pin on the spot being reported, while the report sheet is open. */
 export function usePickedMarker(map: L.Map | null, at: LatLon | null): void {
   useEffect(() => {
