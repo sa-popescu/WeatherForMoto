@@ -3,6 +3,7 @@ import { useStrings } from '../../lib/i18n';
 import { Icon } from '../../ui/icons';
 import { Button, cx } from '../../ui/primitives';
 import { rideRecorder, type RidePhase } from './recorder';
+import { RideSummaryActions } from './RideSummaryActions';
 import { RIDE_S } from './strings';
 
 // The buttons under the numbers: large, for gloves. Stop has to be held for a
@@ -76,15 +77,7 @@ function HoldToStop() {
 
 export function RideControls({ phase }: { phase: RidePhase }) {
   const s = useStrings(RIDE_S);
-  if (phase === 'finished') {
-    return (
-      <div className="ride-controls">
-        <Button variant="primary" size="lg" full icon="check" onClick={() => rideRecorder.close()}>
-          {s.close}
-        </Button>
-      </div>
-    );
-  }
+  if (phase === 'finished') return <RideSummaryActions />;
   return (
     <div className="ride-controls ride-controls--two">
       {phase === 'paused' ? (

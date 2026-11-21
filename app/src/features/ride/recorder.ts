@@ -21,7 +21,8 @@ import {
   type TrackGap,
   type TrackState,
 } from './logic/track';
-import { findUnfinished, saveProgress, saveRoute, type RideMeta, type RideStatus } from './store';
+import { summaryOf } from './logic/summary';
+import { findUnfinished, loadRide, saveProgress, saveRoute, type RideMeta, type RideStatus } from './store';
 import { RIDE_S } from './strings';
 import { rememberVoice, speak, voiceWanted } from './voice';
 
@@ -57,6 +58,10 @@ export interface RideSnapshot {
   follow: FollowState | null;
   /** The first thing worth a warning in the weather ahead on the route, or null. */
   ahead: AheadWarning | null;
+  /** The ride on screen, as stored on the phone. */
+  rideId: string | null;
+  /** Its id in the account's ride log, once saved there. */
+  loggedId: number | null;
   voice: boolean;
   wake: WakeState;
   saveFailed: boolean;
@@ -76,6 +81,8 @@ const IDLE: RideSnapshot = {
   route: null,
   follow: null,
   ahead: null,
+  rideId: null,
+  loggedId: null,
   voice: true,
   wake: 'off',
   saveFailed: false,
@@ -152,7 +159,7 @@ class RideRecorder {
     if (this.snapshot.phase !== 'idle') return;
     const now = Date.now();
     this.lang = lang;
-    this.meta = { id: `ride-${now.toString(36)}`, createdAt: now, status: 'recording', clock: NEW_CLOCK, seg: 0 };
+    this.meta = { id: `ride-${now.toString(36)}`, createdAt: now, status: 'recording', clock: NEW_CLOCK, seg: 0, routeName: route?.name };
     this.track = EMPTY_TRACK;
     this.points = [];
     this.fills = [];
@@ -161,7 +168,7 @@ class RideRecorder {
     this.lastFix = null;
     this.guide = route ? new RouteGuide(route) : null;
     this.beginFilling([]);
-    this.publish({ ...IDLE, phase: 'recording', voice: this.voiceOn, ...this.routeInfo() });
+    this.publish({ ...IDLE, phase: 'recording', voice: this.voiceOn, rideId: this.meta.id, ...this.routeInfo() });
     this.say(this.guide ? this.guide.startSentence(lang) : RIDE_S[lang].sayStart);
     if (route) {
       saveRoute(this.meta.id, route).catch((err: unknown) => {
@@ -195,6 +202,50 @@ class RideRecorder {
     this.setMeta('finished', finishClock(this.meta.clock, Date.now()));
     this.goQuiet();
     this.publish({ phase: 'finished', clock: this.meta.clock, speedKmh: null });
+    this.flush();
+  }
+
+  /** Opens a stored, finished ride on the ride screen: its map and its summary, no GPS. */
+  async review(id: string): Promise<boolean> {
+    if (this.snapshot.phase !== 'idle') return false;
+    try {
+      const found = await loadRide(id);
+      if (!found || found.points.length === 0 || this.snapshot.phase !== 'idle') return false;
+      this.meta = found.meta;
+      this.points = found.points;
+      this.fills = found.meta.fills ?? [];
+      this.track = foldPoints(found.points, this.roads());
+      this.nextSeq = found.nextSeq;
+      this.unsaved = [];
+      this.guide = found.route ? new RouteGuide(found.route) : null;
+      const last = found.points[found.points.length - 1];
+      this.guide?.resumeAt(last);
+      this.beginFilling([]);
+      this.publish({
+        ...IDLE,
+        phase: 'finished',
+        rideId: found.meta.id,
+        loggedId: found.meta.loggedId ?? null,
+        totals: this.track.totals,
+        clock: found.meta.clock,
+        pointCount: found.points.length,
+        fills: this.fills,
+        position: { lat: last.lat, lon: last.lon },
+        voice: this.voiceOn,
+        ...this.routeInfo(),
+      });
+      return true;
+    } catch (err) {
+      console.warn('[ride] could not open a stored ride', err);
+      return false;
+    }
+  }
+
+  /** Notes that the ride on screen is now in the account's ride log. */
+  markLogged(rideId: string, loggedId: number): void {
+    if (!this.meta || this.meta.id !== rideId) return;
+    this.meta = { ...this.meta, loggedId };
+    this.publish({ loggedId });
     this.flush();
   }
 
@@ -241,6 +292,8 @@ class RideRecorder {
       this.publish({
         ...IDLE,
         phase: 'resume',
+        rideId: found.meta.id,
+        loggedId: found.meta.loggedId ?? null,
         totals: this.track.totals,
         clock: found.meta.clock,
         pointCount: found.points.length,
@@ -286,7 +339,10 @@ class RideRecorder {
   }
 
   private setMeta(status: RideStatus, clock: RideClock): void {
-    if (this.meta) this.meta = { ...this.meta, status, clock };
+    if (!this.meta) return;
+    this.meta = { ...this.meta, status, clock };
+    // A finished ride keeps its totals, so the list of rides needs no points.
+    if (status === 'finished') this.meta.summary = summaryOf(this.track.totals, clock);
   }
 
   // ---- Gaps along the road ----
@@ -331,6 +387,7 @@ class RideRecorder {
     this.meta = { ...this.meta, fills: this.fills };
     // The road distance takes the place of the straight line in the totals.
     this.track = foldPoints(this.points, this.roads());
+    if (this.meta.status === 'finished') this.meta = { ...this.meta, summary: summaryOf(this.track.totals, this.meta.clock) };
     this.publish({ totals: this.track.totals, fills: this.fills });
     this.flush();
   }
