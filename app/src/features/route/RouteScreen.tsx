@@ -31,6 +31,7 @@ import type { Departure } from './types';
 import { useRideStats, useSavedRoutes } from './useAccountData';
 import { useCalculate } from './useCalculate';
 import { useDerivedPlan } from './useDerivedPlan';
+import { useFileDrop } from './useFileDrop';
 import { useOpenRouteLink } from './useOpenRouteLink';
 import { useRouteActions } from './useRouteActions';
 import { useRouteHazards } from './useRouteHazards';
@@ -89,6 +90,9 @@ export default function RouteScreen({ active }: ScreenProps) {
     },
     [actions, calc, departure, signedIn],
   );
+
+  // A GPX file dragged onto the screen imports like the button does.
+  const dragging = useFileDrop(active, (file) => void calc.importGpx(file));
 
   // Comparing days needs the forecast of every planner day at every point.
   const needAllDays = useCallback(() => ensureDays(MAX_FORECAST_DAYS), [ensureDays]);
@@ -155,6 +159,15 @@ export default function RouteScreen({ active }: ScreenProps) {
         {plan.route && <RouteDetails route={plan.route} derived={derived} hazards={hazards} signedIn={signedIn} onAction={onAction} />}
         {signedIn && <RideStatsCard state={rides} onRetry={rides.reload} />}
       </div>
+
+      {dragging && (
+        <div className="route-drop" aria-hidden="true">
+          <div className="route-drop__box">
+            <Icon name="route" size={40} />
+            <span>{s.dropGpx}</span>
+          </div>
+        </div>
+      )}
 
       <SignInSheet open={sheet === 'signin'} onClose={close} />
       <SaveRouteSheet
