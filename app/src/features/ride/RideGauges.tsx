@@ -1,12 +1,15 @@
-import { useLang, useStrings } from '../../lib/i18n';
+import { useLang, useStrings, type Lang } from '../../lib/i18n';
 import { averageKmh, elapsedMs } from './logic/clock';
-import { fmtDuration, fmtKm, fmtKmh, msToKmh } from './logic/rideFormat';
+import { arrivalAt } from './logic/follow';
+import { fmtClockTime, fmtDuration, fmtKm, fmtKmh, fmtTimeLeft, msToKmh } from './logic/rideFormat';
 import type { RideSnapshot } from './recorder';
 import { RIDE_S } from './strings';
 
 // The numbers of the ride. While riding: the speed as large as the screen
-// allows, the averages under it, then distance and time. Once finished: the
-// whole summary in one grid.
+// allows, the averages under it, then distance and time (or, on a route, what
+// is left of it). Once finished: the whole summary in one grid.
+
+type RideText = { [K in keyof (typeof RIDE_S)['ro']]: string };
 
 /** A speed older than this is not "now" any more. */
 const LIVE_SPEED_STALE_MS = 5_000;
@@ -66,7 +69,8 @@ export function RideGauges({ ride, now }: { ride: RideSnapshot; now: number }) {
   // A weak position still comes with a usable speed: the GPS measures it apart.
   const fresh = ride.lastFixAt !== null && now - ride.lastFixAt <= LIVE_SPEED_STALE_MS && (ride.gps === 'ok' || ride.gps === 'weak');
   const speed = fresh ? ride.speedKmh : null;
-  const stats: Stat[] = [
+  const onRoute = ride.route !== null && ride.follow !== null;
+  const stats: Stat[] = onRoute ? routeStats(ride, avgMoving, now, lang, s) : [
     { key: 'distance', label: s.distance, value: fmtKm(totals.distanceM, lang), unit: s.km },
     { key: 'moving', label: s.movingTime, value: fmtDuration(totals.movingMs) },
     { key: 'total', label: s.totalTime, value: fmtDuration(elapsed) },
@@ -78,9 +82,25 @@ export function RideGauges({ ride, now }: { ride: RideSnapshot; now: number }) {
         <span className="ride-speed__unit num">{s.kmh}</span>
       </div>
       <p className="ride-gauges__avg num">
+        {/* On a route the grid is about what is left, so what was ridden moves up here. */}
+        {onRoute && `${fmtKm(totals.distanceM, lang)} ${s.km} · `}
         {s.avgMoving} {fmtKmh(avgMoving, lang)} · {s.topSpeed} {fmtKmh(top, lang)}
       </p>
       <StatGrid stats={stats} />
     </section>
   );
+}
+
+/** What is left of the route: distance, time and the arrival on this phone's clock. */
+function routeStats(ride: RideSnapshot, avgMoving: number | null, now: number, lang: Lang, s: RideText): Stat[] {
+  const route = ride.route;
+  const km = ride.follow?.km ?? 0;
+  const remainingKm = route ? Math.max(0, route.distanceKm - km) : 0;
+  const arrival = route ? arrivalAt(remainingKm, avgMoving, ride.totals.movingMs, route.plannedKmh, now) : now;
+  const known = ride.follow?.km !== null && ride.follow?.km !== undefined;
+  return [
+    { key: 'remaining', label: s.remaining, value: fmtKm(remainingKm * 1000, lang), unit: s.km },
+    { key: 'left', label: s.timeLeft, value: known ? fmtTimeLeft(arrival - now) : '–' },
+    { key: 'arrival', label: s.arrival, value: known ? fmtClockTime(arrival, lang) : '–' },
+  ];
 }

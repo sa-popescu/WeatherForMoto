@@ -1,5 +1,8 @@
-import { GapFiller, type GapFill } from './gapFill';
+import type { Lang } from '../../lib/i18n';
+import { GapFiller, plausibleRoad, type GapFill } from './gapFill';
+import { RouteGuide } from './guide';
 import { finishClock, NEW_CLOCK, pauseClock, resumeClock, type RideClock } from './logic/clock';
+import { fillFromRoute, type FollowState, type RideRoute } from './logic/follow';
 import { msToKmh } from './logic/rideFormat';
 import {
   EMPTY_TOTALS,
@@ -17,7 +20,9 @@ import {
   type TrackGap,
   type TrackState,
 } from './logic/track';
-import { findUnfinished, saveProgress, type RideMeta, type RideStatus } from './store';
+import { findUnfinished, saveProgress, saveRoute, type RideMeta, type RideStatus } from './store';
+import { RIDE_S } from './strings';
+import { rememberVoice, speak, voiceWanted } from './voice';
 
 // The ride recorder: one per app and outside React, so the GPS, the screen
 // lock and the saving go on whatever the screens do. React reads it through
@@ -46,6 +51,10 @@ export interface RideSnapshot {
   pointCount: number;
   /** Gaps filled along the road so far; a new array whenever one is added. */
   fills: readonly GapFill[];
+  /** The route being followed (its line comes from getRoute()), or null on a free ride. */
+  route: Pick<RideRoute, 'name' | 'distanceKm' | 'plannedKmh'> | null;
+  follow: FollowState | null;
+  voice: boolean;
   wake: WakeState;
   saveFailed: boolean;
 }
@@ -61,9 +70,18 @@ const IDLE: RideSnapshot = {
   clock: NEW_CLOCK,
   pointCount: 0,
   fills: [],
+  route: null,
+  follow: null,
+  voice: true,
   wake: 'off',
   saveFailed: false,
 };
+
+export interface StartOptions {
+  lang: Lang;
+  /** A planned route or an imported GPX to follow; none for a free ride. */
+  route?: RideRoute;
+}
 
 /** New points go to the phone's storage this often. */
 const FLUSH_MS = 5_000;
@@ -81,6 +99,9 @@ class RideRecorder {
   private points: RidePoint[] = [];
   private fills: GapFill[] = [];
   private filler: GapFiller | null = null;
+  private guide: RouteGuide | null = null;
+  private lang: Lang = 'ro';
+  private voiceOn = voiceWanted();
   private unsaved: RidePoint[] = [];
   private nextSeq = 0;
   private lastFix: RideFix | null = null;
@@ -101,10 +122,32 @@ class RideRecorder {
     return this.points;
   }
 
-  /** Starts a new ride. The clock starts with the first usable GPS fix. */
-  start(): void {
+  getRoute(): RideRoute | null {
+    return this.guide?.route ?? null;
+  }
+
+  /** The language of what is said; the ride screen keeps it current. */
+  setLang(lang: Lang): void {
+    this.lang = lang;
+  }
+
+  /** Turns the spoken announcements on or off, and remembers it on this phone. */
+  setVoice(on: boolean): void {
+    this.voiceOn = on;
+    rememberVoice(on);
+    this.publish({ voice: on });
+    // Called from a tap, which is also what lets iPhone speak later on.
+    if (on) speak(RIDE_S[this.lang].sayVoiceOn, this.lang);
+  }
+
+  /**
+   * Starts a new ride. The clock starts with the first usable GPS fix. Call it
+   * from the Start tap: the first sentence said there is what lets iPhone speak.
+   */
+  start({ lang, route }: StartOptions): void {
     if (this.snapshot.phase !== 'idle') return;
     const now = Date.now();
+    this.lang = lang;
     this.meta = { id: `ride-${now.toString(36)}`, createdAt: now, status: 'recording', clock: NEW_CLOCK, seg: 0 };
     this.track = EMPTY_TRACK;
     this.points = [];
@@ -112,8 +155,16 @@ class RideRecorder {
     this.unsaved = [];
     this.nextSeq = 0;
     this.lastFix = null;
+    this.guide = route ? new RouteGuide(route) : null;
     this.beginFilling([]);
-    this.publish({ ...IDLE, phase: 'recording' });
+    this.publish({ ...IDLE, phase: 'recording', voice: this.voiceOn, ...this.routeInfo() });
+    this.say(this.guide ? this.guide.startSentence(lang) : RIDE_S[lang].sayStart);
+    if (route) {
+      saveRoute(this.meta.id, route).catch((err: unknown) => {
+        console.warn('[ride] could not keep the route on this phone', err);
+        this.publish({ saveFailed: true });
+      });
+    }
     this.goLive();
     this.flush();
   }
@@ -148,6 +199,7 @@ class RideRecorder {
     if (this.snapshot.phase !== 'finished') return;
     this.filler?.stop();
     this.filler = null;
+    this.guide = null;
     this.meta = null;
     this.track = EMPTY_TRACK;
     this.points = [];
@@ -174,9 +226,14 @@ class RideRecorder {
       this.fills = found.meta.fills ?? [];
       this.track = foldPoints(found.points, this.roads());
       this.nextSeq = found.nextSeq;
-      // Gaps the app was closed before filling get another try.
-      this.beginFilling(listGaps(found.points).filter((g) => !this.fills.some((f) => f.t === g.t)));
       const last = found.points[found.points.length - 1];
+      this.guide = found.route ? new RouteGuide(found.route) : null;
+      this.guide?.resumeAt(last);
+      // Gaps the app was closed before filling get another try.
+      this.beginFilling([]);
+      for (const gap of listGaps(found.points)) {
+        if (!this.fills.some((f) => f.t === gap.t)) this.queueGap(gap, null);
+      }
       this.publish({
         ...IDLE,
         phase: 'resume',
@@ -186,6 +243,8 @@ class RideRecorder {
         fills: this.fills,
         position: { lat: last.lat, lon: last.lon },
         lastFixAt: last.t,
+        voice: this.voiceOn,
+        ...this.routeInfo(),
       });
     } catch (err) {
       console.warn('[ride] could not look for an unfinished ride', err);
@@ -208,6 +267,7 @@ class RideRecorder {
     } else {
       this.publish({ phase: 'recording' });
     }
+    this.say(RIDE_S[this.lang].sayContinue);
     this.goLive();
     this.flush();
   }
@@ -239,6 +299,26 @@ class RideRecorder {
     });
     this.filler = filler;
     for (const gap of pending) filler.add(gap);
+  }
+
+  /**
+   * A gap on the followed route takes the route's own line, at once and with
+   * no request; anywhere else it waits for the road service.
+   */
+  private queueGap(gap: TrackGap, hintKm: number | null): void {
+    const own = this.guide ? fillFromRoute(this.guide.route, gap.from, gap.to, hintKm) : null;
+    if (own && plausibleRoad(gap, own.roadM)) this.applyFill({ t: gap.t, ...own });
+    else this.filler?.add(gap);
+  }
+
+  private routeInfo(): Pick<RideSnapshot, 'route' | 'follow'> {
+    if (!this.guide) return { route: null, follow: null };
+    const { name, distanceKm, plannedKmh } = this.guide.route;
+    return { route: { name, distanceKm, plannedKmh }, follow: this.guide.follow };
+  }
+
+  private say(text: string): void {
+    if (this.voiceOn) speak(text, this.lang);
   }
 
   private applyFill(fill: GapFill): void {
@@ -313,12 +393,19 @@ class RideRecorder {
     };
     if (this.snapshot.phase === 'recording' && this.meta) {
       const anchor = this.track.anchor;
+      // Progress before this fix: where the route search starts for a gap it closes.
+      const hintKm = this.guide?.follow.km ?? null;
+      if (this.guide) {
+        const sentence = this.guide.onFix(fix, this.lang);
+        if (sentence) this.say(sentence);
+        patch.follow = this.guide.follow;
+      }
       const step = stepTrack(this.track, fix, this.meta.seg);
       this.track = step.state;
       if (step.kept) {
         this.points.push(step.kept);
         this.unsaved.push(step.kept);
-        if (step.kept.gap && anchor) this.filler?.add(gapOf(anchor, step.kept));
+        if (step.kept.gap && anchor) this.queueGap(gapOf(anchor, step.kept), hintKm);
         if (this.meta.clock.startedAt === null) {
           this.meta = { ...this.meta, clock: { ...this.meta.clock, startedAt: step.kept.t } };
           patch.clock = this.meta.clock;

@@ -61,6 +61,13 @@ describe('stepTrack', () => {
     expect(state.totals.distanceM).toBeCloseTo(300, -1);
   });
 
+  it('drops a position thrown far aside, and goes on from the good ones', () => {
+    const fixes = steady(10, 20).map((f, i) => (i === 5 ? { fix: { ...f.fix, lat: f.fix.lat + 150 / M_PER_DEG } } : f));
+    const { state, kept } = ride(fixes);
+    expect(kept).toHaveLength(10);
+    expect(state.totals.distanceM).toBeCloseTo(200, -1);
+  });
+
   it('treats a move inside the accuracy as jitter when the GPS gives no speed', () => {
     const { state } = ride([{ fix: fix(0, 0, { acc: 15 }) }, { fix: fix(5000, 10, { acc: 15 }) }]);
     expect(state.totals.distanceM).toBe(0);

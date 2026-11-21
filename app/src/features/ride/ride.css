@@ -73,6 +73,20 @@
   }
 }
 
+.ride-notes__side {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ride-notes__voice {
+  color: var(--accent);
+}
+
+.ride-notes__voice--off {
+  color: var(--dim);
+}
+
 .ride-notes__tag {
   padding: 2px 12px;
   border-radius: 999px;
@@ -99,6 +113,16 @@
 
 .ride-notes__note--error {
   border-color: color-mix(in srgb, var(--danger) 55%, transparent);
+}
+
+/* Off the route: the one note that has to be read at a glance. */
+.ride-notes__note--off {
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 18%, var(--surface));
+  font-family: var(--font-num);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
 /* ---- Map ---- */
@@ -132,6 +156,14 @@
 .ride-map__line--gap {
   stroke-dasharray: 1 9;
   stroke-opacity: 0.85;
+}
+
+/* The planned route, wide and faint under the line ridden. */
+.ride-map__plan {
+  stroke: var(--rain);
+  stroke-opacity: 0.45;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .ride-map__me {

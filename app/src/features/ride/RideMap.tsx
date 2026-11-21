@@ -9,7 +9,8 @@ import { RIDE_S } from './strings';
 // Map of the ride: OpenStreetMap tiles (darkened by CSS in the dark theme, as
 // on the route map), the line ridden so far as the GPS gave it (one fix a
 // second, so it follows the road by itself), a break at each pause, a dotted
-// line along the most likely road across each gap, and the current position.
+// line along the most likely road across each gap, the current position, and
+// the planned route under it all when the ride follows one.
 // It follows the rider until the map is dragged; a button brings the following
 // back. Finished, it shows the whole ride.
 
@@ -57,7 +58,14 @@ export function RideMap({ ride }: { ride: RideSnapshot }) {
     const map = L.map(elRef.current, { zoomControl: false, zoomAnimation: !still, fadeAnimation: !still, markerZoomAnimation: !still });
     map.attributionControl.setPrefix(false);
     L.tileLayer(TILE_URL, { maxZoom: 19, attribution: ATTRIBUTION, className: 'ride-map__base' }).addTo(map);
-    map.setView(ROMANIA, 6);
+    // A followed route lies under everything, and frames the map until the first fix.
+    const route = rideRecorder.getRoute();
+    if (route) {
+      const line = L.polyline(route.coords.map((c): L.LatLngTuple => [c.lat, c.lon]), { className: 'ride-map__plan', weight: 9, interactive: false }).addTo(map);
+      map.fitBounds(line.getBounds(), { padding: [24, 24], animate: false });
+    } else {
+      map.setView(ROMANIA, 6);
+    }
     // Dragging means "let me look around": stop following until asked.
     map.on('dragstart', () => setFollowing(false));
     mapRef.current = map;
