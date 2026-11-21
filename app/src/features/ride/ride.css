@@ -128,6 +128,12 @@
   stroke-linejoin: round;
 }
 
+/* Across a gap: dots, since that stretch is reconstructed, not measured. */
+.ride-map__line--gap {
+  stroke-dasharray: 1 9;
+  stroke-opacity: 0.85;
+}
+
 .ride-map__me {
   stroke: var(--bg);
   fill: var(--rain);

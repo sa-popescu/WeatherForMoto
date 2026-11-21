@@ -1,6 +1,22 @@
+import { GapFiller, type GapFill } from './gapFill';
 import { finishClock, NEW_CLOCK, pauseClock, resumeClock, type RideClock } from './logic/clock';
 import { msToKmh } from './logic/rideFormat';
-import { EMPTY_TOTALS, EMPTY_TRACK, foldPoints, liveSpeedMs, MAX_ACCURACY_M, stepTrack, type RideFix, type RidePoint, type RideTotals, type TrackState } from './logic/track';
+import {
+  EMPTY_TOTALS,
+  EMPTY_TRACK,
+  foldPoints,
+  gapOf,
+  listGaps,
+  liveSpeedMs,
+  MAX_ACCURACY_M,
+  stepTrack,
+  type RideFix,
+  type RidePoint,
+  type GapRoads,
+  type RideTotals,
+  type TrackGap,
+  type TrackState,
+} from './logic/track';
 import { findUnfinished, saveProgress, type RideMeta, type RideStatus } from './store';
 
 // The ride recorder: one per app and outside React, so the GPS, the screen
@@ -9,7 +25,8 @@ import { findUnfinished, saveProgress, type RideMeta, type RideStatus } from './
 //
 // A web app only gets positions while it is open with the screen on. When the
 // phone hides it, the next position after coming back is far away in time:
-// the track counts that as a gap (see logic/track.ts) instead of a jump.
+// the track counts that as a gap (see logic/track.ts) instead of a jump, and
+// GapFiller (gapFill.ts) then puts the most likely road across it.
 
 export type RidePhase = 'idle' | 'resume' | 'recording' | 'paused' | 'finished';
 export type GpsState = 'waiting' | 'ok' | 'weak' | 'denied' | 'unavailable' | 'unsupported';
@@ -27,6 +44,8 @@ export interface RideSnapshot {
   clock: RideClock;
   /** Grows with every kept point, so the map knows when to draw. */
   pointCount: number;
+  /** Gaps filled along the road so far; a new array whenever one is added. */
+  fills: readonly GapFill[];
   wake: WakeState;
   saveFailed: boolean;
 }
@@ -41,6 +60,7 @@ const IDLE: RideSnapshot = {
   totals: EMPTY_TOTALS,
   clock: NEW_CLOCK,
   pointCount: 0,
+  fills: [],
   wake: 'off',
   saveFailed: false,
 };
@@ -59,6 +79,8 @@ class RideRecorder {
   private meta: RideMeta | null = null;
   private track: TrackState = EMPTY_TRACK;
   private points: RidePoint[] = [];
+  private fills: GapFill[] = [];
+  private filler: GapFiller | null = null;
   private unsaved: RidePoint[] = [];
   private nextSeq = 0;
   private lastFix: RideFix | null = null;
@@ -86,9 +108,11 @@ class RideRecorder {
     this.meta = { id: `ride-${now.toString(36)}`, createdAt: now, status: 'recording', clock: NEW_CLOCK, seg: 0 };
     this.track = EMPTY_TRACK;
     this.points = [];
+    this.fills = [];
     this.unsaved = [];
     this.nextSeq = 0;
     this.lastFix = null;
+    this.beginFilling([]);
     this.publish({ ...IDLE, phase: 'recording' });
     this.goLive();
     this.flush();
@@ -122,9 +146,12 @@ class RideRecorder {
   /** Leaves the summary of a finished ride. The ride stays stored on the phone. */
   close(): void {
     if (this.snapshot.phase !== 'finished') return;
+    this.filler?.stop();
+    this.filler = null;
     this.meta = null;
     this.track = EMPTY_TRACK;
     this.points = [];
+    this.fills = [];
     this.unsaved = [];
     this.lastFix = null;
     this.publish(IDLE);
@@ -144,8 +171,11 @@ class RideRecorder {
       }
       this.meta = found.meta;
       this.points = found.points;
-      this.track = foldPoints(found.points);
+      this.fills = found.meta.fills ?? [];
+      this.track = foldPoints(found.points, this.roads());
       this.nextSeq = found.nextSeq;
+      // Gaps the app was closed before filling get another try.
+      this.beginFilling(listGaps(found.points).filter((g) => !this.fills.some((f) => f.t === g.t)));
       const last = found.points[found.points.length - 1];
       this.publish({
         ...IDLE,
@@ -153,6 +183,7 @@ class RideRecorder {
         totals: this.track.totals,
         clock: found.meta.clock,
         pointCount: found.points.length,
+        fills: this.fills,
         position: { lat: last.lat, lon: last.lon },
         lastFixAt: last.t,
       });
@@ -192,6 +223,32 @@ class RideRecorder {
 
   private setMeta(status: RideStatus, clock: RideClock): void {
     if (this.meta) this.meta = { ...this.meta, status, clock };
+  }
+
+  // ---- Gaps along the road ----
+
+  private roads(): GapRoads {
+    return new Map(this.fills.map((f) => [f.t, f.roadM]));
+  }
+
+  private beginFilling(pending: readonly TrackGap[]): void {
+    this.filler?.stop();
+    const rideId = this.meta?.id;
+    const filler = new GapFiller((fill) => {
+      if (this.meta?.id === rideId) this.applyFill(fill);
+    });
+    this.filler = filler;
+    for (const gap of pending) filler.add(gap);
+  }
+
+  private applyFill(fill: GapFill): void {
+    if (!this.meta || this.fills.some((f) => f.t === fill.t)) return;
+    this.fills = [...this.fills, fill];
+    this.meta = { ...this.meta, fills: this.fills };
+    // The road distance takes the place of the straight line in the totals.
+    this.track = foldPoints(this.points, this.roads());
+    this.publish({ totals: this.track.totals, fills: this.fills });
+    this.flush();
   }
 
   private publish(patch: Partial<RideSnapshot>): void {
@@ -255,11 +312,13 @@ class RideRecorder {
       position: { lat, lon },
     };
     if (this.snapshot.phase === 'recording' && this.meta) {
+      const anchor = this.track.anchor;
       const step = stepTrack(this.track, fix, this.meta.seg);
       this.track = step.state;
       if (step.kept) {
         this.points.push(step.kept);
         this.unsaved.push(step.kept);
+        if (step.kept.gap && anchor) this.filler?.add(gapOf(anchor, step.kept));
         if (this.meta.clock.startedAt === null) {
           this.meta = { ...this.meta, clock: { ...this.meta.clock, startedAt: step.kept.t } };
           patch.clock = this.meta.clock;

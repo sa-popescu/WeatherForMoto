@@ -7,9 +7,11 @@ import { rideRecorder, type RideSnapshot } from './recorder';
 import { RIDE_S } from './strings';
 
 // Map of the ride: OpenStreetMap tiles (darkened by CSS in the dark theme, as
-// on the route map), the line ridden so far, one line per segment so a pause
-// leaves a break, and the current position. It follows the rider until the map
-// is dragged; a button brings the following back. Finished, it shows the whole ride.
+// on the route map), the line ridden so far as the GPS gave it (one fix a
+// second, so it follows the road by itself), a break at each pause, a dotted
+// line along the most likely road across each gap, and the current position.
+// It follows the rider until the map is dragged; a button brings the following
+// back. Finished, it shows the whole ride.
 
 const TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 const ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
@@ -23,8 +25,18 @@ function prefersReducedMotion(): boolean {
   return typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
-interface SegmentLine {
+/** The dotted line across a gap: straight at first, along the road once its fill arrives. */
+interface Connector {
+  line: L.Polyline;
+  from: L.LatLngTuple;
+  to: L.LatLngTuple;
+  filled: boolean;
+}
+
+/** The last point drawn, and the line it went on. */
+interface DrawHead {
   seg: number;
+  at: L.LatLngTuple;
   line: L.Polyline;
 }
 
@@ -32,7 +44,8 @@ export function RideMap({ ride }: { ride: RideSnapshot }) {
   const s = useStrings(RIDE_S);
   const elRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
-  const linesRef = useRef<SegmentLine[]>([]);
+  const headRef = useRef<DrawHead | null>(null);
+  const connectorsRef = useRef(new Map<number, Connector>());
   const drawnRef = useRef(0);
   const meRef = useRef<L.CircleMarker | null>(null);
   const [following, setFollowing] = useState(true);
@@ -54,13 +67,15 @@ export function RideMap({ ride }: { ride: RideSnapshot }) {
       observer?.disconnect();
       map.remove();
       mapRef.current = null;
-      linesRef.current = [];
+      headRef.current = null;
+      connectorsRef.current = new Map();
       drawnRef.current = 0;
       meRef.current = null;
     };
   }, []);
 
-  // Draw only the points kept since the last time.
+  // Draw only the points kept since the last time. A pause breaks the line; a
+  // gap breaks it too and gets a dotted connector.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -69,15 +84,32 @@ export function RideMap({ ride }: { ride: RideSnapshot }) {
       const p = points[i];
       // Heartbeats while standing would only scribble GPS jitter.
       if (p.still) continue;
-      let current = linesRef.current[linesRef.current.length - 1];
-      if (!current || current.seg !== p.seg) {
-        current = { seg: p.seg, line: L.polyline([], { className: 'ride-map__line', weight: 5, interactive: false }).addTo(map) };
-        linesRef.current.push(current);
+      const at: L.LatLngTuple = [p.lat, p.lon];
+      const head = headRef.current;
+      const sameSeg = head !== null && head.seg === p.seg;
+      let line = head?.line;
+      if (!line || !sameSeg || p.gap) {
+        if (p.gap && head && sameSeg) {
+          const connector = L.polyline([head.at, at], { className: 'ride-map__line ride-map__line--gap', weight: 4, interactive: false }).addTo(map);
+          connectorsRef.current.set(p.t, { line: connector, from: head.at, to: at, filled: false });
+        }
+        line = L.polyline([], { className: 'ride-map__line', weight: 5, interactive: false }).addTo(map);
       }
-      current.line.addLatLng([p.lat, p.lon]);
+      line.addLatLng(at);
+      headRef.current = { seg: p.seg, at, line };
     }
     drawnRef.current = points.length;
   }, [ride.pointCount]);
+
+  // A gap's connector follows the road once its fill is in.
+  useEffect(() => {
+    for (const fill of ride.fills) {
+      const connector = connectorsRef.current.get(fill.t);
+      if (!connector || connector.filled) continue;
+      connector.line.setLatLngs([connector.from, ...fill.coords.map((c): L.LatLngTuple => [c.lat, c.lon]), connector.to]);
+      connector.filled = true;
+    }
+  }, [ride.fills, ride.pointCount]);
 
   // The current position, and following it.
   const lat = ride.position?.lat;

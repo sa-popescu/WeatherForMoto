@@ -1,6 +1,7 @@
 import { fmtNumber } from '../../lib/format';
 import { fmt, useLang, useStrings } from '../../lib/i18n';
 import { cx } from '../../ui/primitives';
+import { GAP_MS } from './logic/track';
 import type { RideSnapshot } from './recorder';
 import { RIDE_S } from './strings';
 
@@ -11,27 +12,30 @@ import { RIDE_S } from './strings';
 /** Gaps shorter than this in total are not worth a note. */
 const GAP_NOTE_MIN_MS = 60_000;
 
-function GpsLine({ ride }: { ride: RideSnapshot }) {
+function GpsLine({ ride, now }: { ride: RideSnapshot; now: number }) {
   const s = useStrings(RIDE_S);
   const lang = useLang();
   const metres = ride.accuracyM === null ? '' : fmtNumber(Math.round(ride.accuracyM), lang);
+  // Some phones simply stop sending positions instead of reporting an error.
+  const stale = ride.lastFixAt !== null && now - ride.lastFixAt > GAP_MS;
+  const state = stale && (ride.gps === 'ok' || ride.gps === 'weak') ? 'waiting' : ride.gps;
   const text =
-    ride.gps === 'ok'
+    state === 'ok'
       ? fmt(s.gpsOk, { m: metres })
-      : ride.gps === 'weak'
+      : state === 'weak'
         ? fmt(s.gpsWeak, { m: metres })
-        : ride.gps === 'unavailable'
+        : state === 'unavailable'
           ? s.gpsUnavailable
           : s.gpsWaiting;
   return (
-    <p className={cx('ride-notes__gps', `ride-notes__gps--${ride.gps}`)} role="status">
+    <p className={cx('ride-notes__gps', `ride-notes__gps--${state}`)} role="status">
       <span className="ride-notes__dot" aria-hidden="true" />
       {text}
     </p>
   );
 }
 
-export function RideNotes({ ride }: { ride: RideSnapshot }) {
+export function RideNotes({ ride, now }: { ride: RideSnapshot; now: number }) {
   const s = useStrings(RIDE_S);
   const live = ride.phase === 'recording' || ride.phase === 'paused';
   const gapMinutes = Math.round(ride.totals.gapMs / 60_000);
@@ -48,7 +52,7 @@ export function RideNotes({ ride }: { ride: RideSnapshot }) {
   return (
     <div className="ride-notes">
       <div className="ride-notes__row">
-        {showGps ? <GpsLine ride={ride} /> : <span />}
+        {showGps ? <GpsLine ride={ride} now={now} /> : <span />}
         {ride.phase === 'paused' && <span className="ride-notes__tag num">{s.pausedTag}</span>}
       </div>
       {notes.map((n) => (
