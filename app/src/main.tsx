@@ -21,6 +21,7 @@ import App from './App';
 // Registers the beforeinstallprompt listener at start-up, before the Eu tab is ever opened.
 import './features/account/installPrompt';
 import { api } from './lib/api';
+import { keepPhonesUpright } from './lib/orientation';
 import { initServiceWorker } from './lib/pwa';
 import { setScoringMeta } from './lib/scoring';
 import { Providers } from './state/providers';
@@ -37,6 +38,7 @@ createRoot(rootElement).render(
 );
 
 initServiceWorker();
+keepPhonesUpright();
 
 // Live scoring constants replace the bundled copy when the API answers.
 api

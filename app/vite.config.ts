@@ -38,7 +38,9 @@ export default defineConfig(({ mode }) => {
           start_url: '/#/acum',
           scope: '/',
           display: 'standalone',
-          orientation: 'portrait-primary',
+          // Any, so a tablet can turn to landscape and get the desktop layout;
+          // phones are kept upright from lib/orientation.ts where allowed.
+          orientation: 'any',
           background_color: '#0b0c0a',
           theme_color: '#0b0c0a',
           categories: ['weather', 'navigation', 'lifestyle'],
