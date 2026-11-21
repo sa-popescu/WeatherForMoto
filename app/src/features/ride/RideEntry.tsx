@@ -1,6 +1,7 @@
 import { useLang, useStrings } from '../../lib/i18n';
 import { Button, Card } from '../../ui/primitives';
-import type { RouteLine } from '../route/types';
+import type { PointWeather, RouteLine, SamplePoint } from '../route/types';
+import { aheadPoints } from './logic/ahead';
 import { rideRecorder } from './recorder';
 import { RIDE_S } from './strings';
 import './ride-entry.css';
@@ -31,16 +32,27 @@ interface RouteRideStartProps {
   destination: string;
   /** The planner's average speed, km/h. */
   speed: number;
+  /** The plan's weather points (with their final names) and their forecasts, for the warnings ahead. */
+  points: readonly SamplePoint[];
+  weather: Readonly<Record<string, PointWeather | undefined>>;
 }
 
 /** A ride along the route on screen, planned or imported from a GPX. */
-export function RouteRideStart({ route, destination, speed }: RouteRideStartProps) {
+export function RouteRideStart({ route, destination, speed, points, weather }: RouteRideStartProps) {
   const s = useStrings(RIDE_S);
   const lang = useLang();
   const start = (): void =>
     rideRecorder.start({
       lang,
-      route: { name: destination, coords: route.coords, cumKm: route.cumKm, distanceKm: route.distanceKm, plannedKmh: speed },
+      route: {
+        name: destination,
+        coords: route.coords,
+        cumKm: route.cumKm,
+        distanceKm: route.distanceKm,
+        plannedKmh: speed,
+        // The forecasts go along as they are now, so the warnings work without a connection.
+        ahead: aheadPoints(points, weather, Date.now()),
+      },
     });
   return (
     <div className="ride-entry ride-entry--route">

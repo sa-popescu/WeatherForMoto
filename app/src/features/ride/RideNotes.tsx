@@ -1,6 +1,9 @@
 import { fmtNumber } from '../../lib/format';
 import { fmt, useLang, useStrings } from '../../lib/i18n';
+import { Icon, type IconName } from '../../ui/icons';
 import { cx, IconButton } from '../../ui/primitives';
+import { aheadLine } from './aheadText';
+import type { AheadKind } from './logic/ahead';
 import { GAP_MS } from './logic/track';
 import { rideRecorder, type RideSnapshot } from './recorder';
 import { RIDE_S } from './strings';
@@ -8,11 +11,13 @@ import { voiceAvailable } from './voice';
 
 // The band at the top of the ride screen: the GPS state and the voice switch
 // on one line, then only the notes that need doing something (off the route,
-// location refused, screen may go dark, the ride cannot be saved) or that
-// change how to read the numbers (gaps, arrived).
+// weather ahead, location refused, screen may go dark, the ride cannot be
+// saved) or that change how to read the numbers (gaps, arrived).
 
 /** Gaps shorter than this in total are not worth a note. */
 const GAP_NOTE_MIN_MS = 60_000;
+
+const AHEAD_ICON: Record<AheadKind, IconName> = { rain: 'drop', gust: 'wind', frost: 'thermo', score: 'alert' };
 
 function GpsLine({ ride, now }: { ride: RideSnapshot; now: number }) {
   const s = useStrings(RIDE_S);
@@ -42,11 +47,12 @@ export function RideNotes({ ride, now }: { ride: RideSnapshot; now: number }) {
   const lang = useLang();
   const live = ride.phase === 'recording' || ride.phase === 'paused';
   const gapMinutes = Math.round(ride.totals.gapMs / 60_000);
-  const notes: Array<{ key: string; tone: 'off' | 'warn' | 'error' | 'info'; text: string }> = [];
+  const notes: Array<{ key: string; tone: 'off' | 'ahead' | 'warn' | 'error' | 'info'; text: string; icon?: IconName }> = [];
   const follow = ride.follow;
   if (live && follow?.off && follow.offM !== null) {
     notes.push({ key: 'off', tone: 'off', text: fmt(s.offRoute, { m: fmtNumber(Math.round(follow.offM / 10) * 10, lang) }) });
   }
+  if (live && ride.ahead) notes.push({ key: 'ahead', tone: 'ahead', text: aheadLine(ride.ahead, lang), icon: AHEAD_ICON[ride.ahead.kind] });
   if (follow?.arrived && ride.route) notes.push({ key: 'arrived', tone: 'info', text: fmt(s.arrivedNote, { name: ride.route.name }) });
   if (ride.gps === 'denied') notes.push({ key: 'denied', tone: 'error', text: s.gpsDenied });
   if (ride.gps === 'unsupported') notes.push({ key: 'unsupported', tone: 'error', text: s.gpsUnsupported });
@@ -76,7 +82,8 @@ export function RideNotes({ ride, now }: { ride: RideSnapshot; now: number }) {
       </div>
       {notes.map((n) => (
         <p key={n.key} className={cx('ride-notes__note', `ride-notes__note--${n.tone}`)} role={n.tone === 'error' || n.tone === 'off' ? 'alert' : undefined}>
-          {n.text}
+          {n.icon && <Icon name={n.icon} size={20} />}
+          <span>{n.text}</span>
         </p>
       ))}
     </div>
