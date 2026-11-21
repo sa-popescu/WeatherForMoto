@@ -64,7 +64,19 @@ export default defineConfig(({ mode }) => {
     ],
     server: { proxy, port: 5173 },
     preview: { proxy, port: 4173 },
-    build: { target: 'es2020', sourcemap: true },
+    build: {
+      target: 'es2020',
+      sourcemap: true,
+      // MapLibre (the ride map) is about 1 MB on its own. It gets its own chunk,
+      // so its hash, and the copy the service worker keeps, only change when
+      // the library does, not with every change to the ride screen.
+      chunkSizeWarningLimit: 1100,
+      rollupOptions: {
+        output: {
+          manualChunks: (id: string) => (id.includes('node_modules/maplibre-gl/') ? 'maplibre' : undefined),
+        },
+      },
+    },
     test: { environment: 'node', include: ['src/**/*.test.ts'] },
   };
 });

@@ -142,42 +142,56 @@
   background: var(--surface-2);
 }
 
-[data-theme='dark'] .ride-map__base {
-  filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9) saturate(0.6);
-}
+/* The line colours live in rideMapSetup.ts: MapLibre draws them, not CSS. */
 
-.ride-map__line {
-  stroke: var(--accent);
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-/* Across a gap: dots, since that stretch is reconstructed, not measured. */
-.ride-map__line--gap {
-  stroke-dasharray: 1 9;
-  stroke-opacity: 0.85;
-}
-
-/* The planned route, wide and faint under the line ridden. */
-.ride-map__plan {
-  stroke: var(--rain);
-  stroke-opacity: 0.45;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.ride-map__me {
-  stroke: var(--bg);
-  fill: var(--rain);
-  fill-opacity: 1;
-}
-
-/* Above Leaflet's panes (up to 700) and clear of the attribution line. */
+/* Bottom left, clear of the attribution button on the right. */
 .ride-map__recenter {
   position: absolute;
-  right: 10px;
-  bottom: 28px;
-  z-index: 750;
+  left: 10px;
+  bottom: 10px;
+  z-index: 3;
+}
+
+.ride-map__problem {
+  position: absolute;
+  inset: auto 10px 10px;
+  z-index: 3;
+  padding: 8px 12px;
+  border: 1px solid var(--warn-line);
+  border-radius: var(--r-sm);
+  background: var(--warn-bg);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+/* The rider: a dot until the direction is known, then an arrow turned with the road. */
+.ride-me {
+  width: 40px;
+  height: 40px;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.5));
+}
+
+.ride-me svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.ride-me__dot,
+.ride-me__arrow {
+  fill: #4c8dff;
+  stroke: #ffffff;
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+
+.ride-me__arrow,
+.ride-me--heading .ride-me__dot {
+  display: none;
+}
+
+.ride-me--heading .ride-me__arrow {
+  display: inline;
 }
 
 /* ---- Numbers ---- */

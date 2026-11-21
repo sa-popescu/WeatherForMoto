@@ -1,150 +1,174 @@
-import 'leaflet/dist/leaflet.css';
-import * as L from 'leaflet';
+import 'maplibre-gl/dist/maplibre-gl.css';
+import { Marker, type MapLibreMap } from 'maplibre-gl';
 import { useEffect, useRef, useState } from 'react';
+import { distanceKm } from '../../lib/geo';
 import { useStrings } from '../../lib/i18n';
+import { useSettings } from '../../state/settings';
 import { IconButton } from '../../ui/primitives';
 import { rideRecorder, type RideSnapshot } from './recorder';
+import { bearingDeg, boundsOf, routeParts, trackLines } from './rideMapData';
+import { addRideLayers, createRideMap, foldAttribution, setLines } from './rideMapSetup';
 import { RIDE_S } from './strings';
 
-// Map of the ride: OpenStreetMap tiles (darkened by CSS in the dark theme, as
-// on the route map), the line ridden so far as the GPS gave it (one fix a
-// second, so it follows the road by itself), a break at each pause, a dotted
-// line along the most likely road across each gap, the current position, and
-// the planned route under it all when the ride follows one.
-// It follows the rider until the map is dragged; a button brings the following
-// back. Finished, it shows the whole ride.
+// The ride map, drawn like a navigation app: a vector map, the route ahead in
+// blue and the part behind faded, the line ridden as the GPS gave it (one fix a
+// second, so it follows the road), dots along the most likely road across each
+// gap, and an arrow for the rider. While following, the map turns with the
+// direction of travel and tilts, with the arrow low on the screen so more of
+// the road ahead shows. A drag, a turn or a tilt by hand stops the following
+// until the button brings it back. Finished, it shows the whole ride, north up.
 
-const TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-const ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
-const ROMANIA: L.LatLngTuple = [45.9, 24.9];
 /** Street level, where the next junction is in view. */
 const FOLLOW_ZOOM = 16;
-/** Below this the map is too far out to follow; the first fix zooms in. */
-const MIN_FOLLOW_ZOOM = 13;
+const FOLLOW_PITCH = 50;
+/** The arrow sits this far down the map (share of its height, from the top padding). */
+const FOLLOW_OFFSET = 0.4;
+/** A move shorter than this keeps the last direction (GPS noise while slow). */
+const HEADING_STEP_M = 8;
+
+type MapProblem = 'none' | 'offline' | 'webgl';
 
 function prefersReducedMotion(): boolean {
   return typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
-/** The dotted line across a gap: straight at first, along the road once its fill arrives. */
-interface Connector {
-  line: L.Polyline;
-  from: L.LatLngTuple;
-  to: L.LatLngTuple;
-  filled: boolean;
-}
-
-/** The last point drawn, and the line it went on. */
-interface DrawHead {
-  seg: number;
-  at: L.LatLngTuple;
-  line: L.Polyline;
+/** The rider: a dot until the direction is known, then an arrow. Static markup only. */
+function riderElement(): HTMLElement {
+  const el = document.createElement('div');
+  el.className = 'ride-me';
+  el.innerHTML =
+    '<svg viewBox="0 0 40 40" aria-hidden="true"><circle class="ride-me__dot" cx="20" cy="20" r="9"/><path class="ride-me__arrow" d="M20 4 32 34 20 27 8 34Z"/></svg>';
+  return el;
 }
 
 export function RideMap({ ride }: { ride: RideSnapshot }) {
   const s = useStrings(RIDE_S);
+  const { theme } = useSettings();
   const elRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<L.Map | null>(null);
-  const headRef = useRef<DrawHead | null>(null);
-  const connectorsRef = useRef(new Map<number, Connector>());
-  const drawnRef = useRef(0);
-  const meRef = useRef<L.CircleMarker | null>(null);
+  const mapRef = useRef<MapLibreMap | null>(null);
+  const markerRef = useRef<Marker | null>(null);
+  const headingRef = useRef<{ from: { lat: number; lon: number } | null; bearing: number | null }>({ from: null, bearing: null });
+  const zoomRef = useRef(FOLLOW_ZOOM);
+  const [ready, setReady] = useState(false);
+  const [problem, setProblem] = useState<MapProblem>('none');
   const [following, setFollowing] = useState(true);
   const finished = ride.phase === 'finished';
 
   useEffect(() => {
-    if (!elRef.current) return undefined;
-    const still = prefersReducedMotion();
-    const map = L.map(elRef.current, { zoomControl: false, zoomAnimation: !still, fadeAnimation: !still, markerZoomAnimation: !still });
-    map.attributionControl.setPrefix(false);
-    L.tileLayer(TILE_URL, { maxZoom: 19, attribution: ATTRIBUTION, className: 'ride-map__base' }).addTo(map);
-    // A followed route lies under everything, and frames the map until the first fix.
-    const route = rideRecorder.getRoute();
-    if (route) {
-      const line = L.polyline(route.coords.map((c): L.LatLngTuple => [c.lat, c.lon]), { className: 'ride-map__plan', weight: 9, interactive: false }).addTo(map);
-      map.fitBounds(line.getBounds(), { padding: [24, 24], animate: false });
-    } else {
-      map.setView(ROMANIA, 6);
+    const el = elRef.current;
+    if (!el) return undefined;
+    let map: MapLibreMap;
+    try {
+      map = createRideMap(el, theme);
+    } catch (err) {
+      // No WebGL: the ride still records, only the map is missing.
+      console.warn('[ride] the map cannot be drawn on this device', err);
+      setProblem('webgl');
+      return undefined;
     }
-    // Dragging means "let me look around": stop following until asked.
-    map.on('dragstart', () => setFollowing(false));
     mapRef.current = map;
-    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => map.invalidateSize());
-    observer?.observe(elRef.current);
+    let loaded = false;
+    map.on('load', () => {
+      loaded = true;
+      setProblem('none');
+      addRideLayers(map, theme, rideRecorder.getRoute() !== null);
+      foldAttribution(map);
+      setReady(true);
+    });
+    map.on('error', (e) => {
+      console.warn('[ride] map error', e.error);
+      // Before the style is in, an error means no map at all (no network); later ones are single tiles.
+      if (!loaded) setProblem('offline');
+    });
+    const byHand = (e: { originalEvent?: unknown }): void => {
+      if (e.originalEvent) setFollowing(false);
+    };
+    map.on('dragstart', byHand);
+    map.on('rotatestart', byHand);
+    map.on('pitchstart', byHand);
+    map.on('zoomend', (e) => {
+      if (e.originalEvent) zoomRef.current = map.getZoom();
+    });
+    const route = rideRecorder.getRoute();
+    if (route) map.fitBounds(boundsOf(route.coords), { padding: 32, duration: 0 });
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => map.resize());
+    observer?.observe(el);
     return () => {
       observer?.disconnect();
+      markerRef.current?.remove();
+      markerRef.current = null;
       map.remove();
       mapRef.current = null;
-      headRef.current = null;
-      connectorsRef.current = new Map();
-      drawnRef.current = 0;
-      meRef.current = null;
+      setReady(false);
     };
-  }, []);
+  }, [theme]);
 
-  // Draw only the points kept since the last time. A pause breaks the line; a
-  // gap breaks it too and gets a dotted connector.
+  // The line ridden and the gaps, redrawn with every kept point or new fill.
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
-    const points = rideRecorder.getPoints();
-    for (let i = drawnRef.current; i < points.length; i += 1) {
-      const p = points[i];
-      // Heartbeats while standing would only scribble GPS jitter.
-      if (p.still) continue;
-      const at: L.LatLngTuple = [p.lat, p.lon];
-      const head = headRef.current;
-      const sameSeg = head !== null && head.seg === p.seg;
-      let line = head?.line;
-      if (!line || !sameSeg || p.gap) {
-        if (p.gap && head && sameSeg) {
-          const connector = L.polyline([head.at, at], { className: 'ride-map__line ride-map__line--gap', weight: 4, interactive: false }).addTo(map);
-          connectorsRef.current.set(p.t, { line: connector, from: head.at, to: at, filled: false });
-        }
-        line = L.polyline([], { className: 'ride-map__line', weight: 5, interactive: false }).addTo(map);
-      }
-      line.addLatLng(at);
-      headRef.current = { seg: p.seg, at, line };
-    }
-    drawnRef.current = points.length;
-  }, [ride.pointCount]);
+    if (!map || !ready) return;
+    const lines = trackLines(rideRecorder.getPoints(), ride.fills);
+    setLines(map, 'ride-track', lines.solid);
+    setLines(map, 'ride-gaps', lines.gaps);
+  }, [ready, ride.pointCount, ride.fills]);
 
-  // A gap's connector follows the road once its fill is in.
+  // The route, split at the progress (to 10 m, so it is not redrawn for nothing).
+  const progress = ride.follow?.km == null ? null : Math.round(ride.follow.km * 100) / 100;
   useEffect(() => {
-    for (const fill of ride.fills) {
-      const connector = connectorsRef.current.get(fill.t);
-      if (!connector || connector.filled) continue;
-      connector.line.setLatLngs([connector.from, ...fill.coords.map((c): L.LatLngTuple => [c.lat, c.lon]), connector.to]);
-      connector.filled = true;
-    }
-  }, [ride.fills, ride.pointCount]);
+    const map = mapRef.current;
+    const route = rideRecorder.getRoute();
+    if (!map || !ready || !route) return;
+    const parts = routeParts(route, progress);
+    setLines(map, 'ride-plan-done', [parts.done]);
+    setLines(map, 'ride-plan-ahead', [parts.ahead]);
+  }, [ready, progress]);
 
-  // The current position, and following it.
+  // The rider, and the camera following them.
   const lat = ride.position?.lat;
   const lon = ride.position?.lon;
   useEffect(() => {
     const map = mapRef.current;
     if (!map || lat === undefined || lon === undefined) return;
-    const here: L.LatLngTuple = [lat, lon];
-    if (meRef.current) meRef.current.setLatLng(here);
-    else meRef.current = L.circleMarker(here, { radius: 9, weight: 3, className: 'ride-map__me', interactive: false }).addTo(map);
+    const here = { lat, lon };
+    const heading = headingRef.current;
+    if (!heading.from) heading.from = here;
+    else if (distanceKm(heading.from, here) * 1000 >= HEADING_STEP_M) {
+      heading.bearing = bearingDeg(heading.from, here);
+      heading.from = here;
+    }
+    if (!markerRef.current) {
+      markerRef.current = new Marker({ element: riderElement(), rotationAlignment: 'map', pitchAlignment: 'map' }).setLngLat([lon, lat]).addTo(map);
+    } else {
+      markerRef.current.setLngLat([lon, lat]);
+    }
+    markerRef.current.setRotation(heading.bearing ?? 0);
+    markerRef.current.getElement().classList.toggle('ride-me--heading', heading.bearing !== null);
     if (!following || finished) return;
-    const zoom = map.getZoom() < MIN_FOLLOW_ZOOM ? FOLLOW_ZOOM : map.getZoom();
-    map.setView(here, zoom, { animate: !prefersReducedMotion() });
+    map.easeTo({
+      center: [lon, lat],
+      zoom: zoomRef.current,
+      bearing: heading.bearing ?? map.getBearing(),
+      pitch: FOLLOW_PITCH,
+      padding: { top: map.getContainer().clientHeight * FOLLOW_OFFSET, right: 0, bottom: 0, left: 0 },
+      duration: prefersReducedMotion() ? 0 : 900,
+      easing: (t) => t,
+    });
   }, [lat, lon, following, finished]);
 
-  // Finished: the whole ride in view.
+  // Finished: the whole ride in view, flat and north up.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !finished) return;
     const points = rideRecorder.getPoints();
     if (points.length < 2) return;
-    map.fitBounds(L.latLngBounds(points.map((p): L.LatLngTuple => [p.lat, p.lon])), { padding: [24, 24], animate: false });
+    map.setPadding({ top: 0, right: 0, bottom: 0, left: 0 });
+    map.fitBounds(boundsOf(points), { padding: 32, bearing: 0, pitch: 0, duration: 0 });
   }, [finished]);
 
   return (
     <section className="ride-map" aria-label={s.mapLabel}>
       <div ref={elRef} className="ride-map__canvas" />
+      {problem !== 'none' && <p className="ride-map__problem">{problem === 'webgl' ? s.mapNoWebgl : s.mapOffline}</p>}
       {!following && !finished && (
         <IconButton icon="locate" label={s.recenter} tone="accent" className="ride-map__recenter" onClick={() => setFollowing(true)} />
       )}

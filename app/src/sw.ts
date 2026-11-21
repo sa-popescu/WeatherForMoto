@@ -101,6 +101,28 @@ registerRoute(
   }),
 );
 
+// The ride map (OpenFreeMap). The style and the tile index name the current
+// tile release, so they are refreshed in the background on every use; the
+// tiles, fonts and sprites under them never change and are kept a month, so a
+// road ridden before still has its map where the signal is weak.
+const isOfmIndex = (url: URL): boolean => url.pathname.startsWith('/styles/') || url.pathname === '/planet';
+
+registerRoute(
+  ({ url }) => url.hostname === 'tiles.openfreemap.org' && isOfmIndex(url),
+  new StaleWhileRevalidate({
+    cacheName: 'mm-vector-style-v1',
+    plugins: [new CacheableResponsePlugin({ statuses: [200] }), new ExpirationPlugin({ maxEntries: 10 })],
+  }),
+);
+
+registerRoute(
+  ({ url }) => url.hostname === 'tiles.openfreemap.org' && !isOfmIndex(url),
+  new CacheFirst({
+    cacheName: 'mm-vector-tiles-v1',
+    plugins: [new CacheableResponsePlugin({ statuses: [200] }), new ExpirationPlugin({ maxEntries: 1500, maxAgeSeconds: 30 * 24 * 3600 })],
+  }),
+);
+
 registerRoute(
   ({ url }) => url.hostname === 'api.rainviewer.com',
   new NetworkFirst({
