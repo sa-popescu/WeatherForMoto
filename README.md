@@ -288,7 +288,7 @@ gcloud run services update weatherformoto --region europe-west1 \
   --set-env-vars ALLOWED_ORIGINS=https://weatherformoto.bluemouse.cc
 ```
 
-Domeniile `*.weatherformoto.pages.dev` (preview-uri Pages) sunt permise automat de backend.
+Preview-urile frontend-ului sunt permise automat de backend, ca un PR să poată fi încercat cu vremea live înainte de merge: cele din Workers Builds (`<versiune sau branch>-weatherformoto.spopescu.workers.dev`) și cele vechi din Pages (`*.weatherformoto.pages.dev`). Un preview vorbește cu API-ul și baza de date de producție.
 
 > Cheia OpenWeatherMap nu mai este expusă în client. Este folosită doar server-side de backend; calea browser-direct (fallback când backend-ul nu răspunde) rulează fără ea, pe Open-Meteo.
 

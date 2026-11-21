@@ -35,6 +35,39 @@ class FrontendRoutesTest(unittest.TestCase):
         self.assertIn("no-store", response.headers["cache-control"])
 
 
+class PreviewCorsTest(unittest.TestCase):
+    """Preview builds of the frontend may call the API; other workers.dev sites may not."""
+
+    def setUp(self) -> None:
+        self.client = TestClient(main.app)
+
+    def allowed_origin(self, origin: str) -> str | None:
+        response = self.client.options(
+            "/health", headers={"Origin": origin, "Access-Control-Request-Method": "GET"}
+        )
+        return response.headers.get("access-control-allow-origin")
+
+    def test_preview_builds_are_allowed(self) -> None:
+        for origin in (
+            "https://f0362958-weatherformoto.spopescu.workers.dev",
+            "https://claude-standalone-shell-height-weatherformoto.spopescu.workers.dev",
+            "https://weatherformoto.spopescu.workers.dev",
+            "https://abc123.weatherformoto.pages.dev",
+        ):
+            with self.subTest(origin=origin):
+                self.assertEqual(self.allowed_origin(origin), origin)
+
+    def test_lookalike_origins_are_refused(self) -> None:
+        for origin in (
+            "https://weatherformoto.someone-else.workers.dev",
+            "https://x-weatherformoto.spopescu.workers.dev.evil.example",
+            "http://f0362958-weatherformoto.spopescu.workers.dev",
+            "https://notweatherformoto.spopescu.workers.dev",
+        ):
+            with self.subTest(origin=origin):
+                self.assertIsNone(self.allowed_origin(origin))
+
+
 class HealthTest(unittest.TestCase):
     """/health stays 200 whatever the database does; /health/db is the strict one."""
 
