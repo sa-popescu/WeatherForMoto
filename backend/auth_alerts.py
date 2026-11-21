@@ -40,6 +40,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.routing import APIRoute
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
+import db_quota
 import last_good
 import verification
 from weather_service import get_weather, _haversine_km
@@ -3086,6 +3087,15 @@ def _purge_stale_rows() -> dict[str, int]:
     return purged
 
 
+def _check_db_quota() -> dict[str, Any]:
+    """Blocking: the daily look at the Turso quota (db_quota), never raising."""
+    try:
+        return db_quota.check(get_app_state, set_app_state, _send_email)
+    except Exception as exc:
+        logger.warning("db quota check failed: %s", exc)
+        return {"checked": False, "reason": "error"}
+
+
 def _list_alert_users() -> list[dict[str, Any]]:
     """Blocking: only users who can actually receive something, meaning alerts
     on, a home location and at least one push device."""
@@ -3110,6 +3120,7 @@ async def alerts_dispatch_all(
     await asyncio.to_thread(_verify_dispatch_secret, request, x_dispatch_secret)
 
     purged = await asyncio.to_thread(_purge_stale_rows)
+    db_quota_result = await asyncio.to_thread(_check_db_quota)
     users = await asyncio.to_thread(_list_alert_users)
     semaphore = asyncio.Semaphore(DISPATCH_CONCURRENCY)
 
@@ -3133,4 +3144,5 @@ async def alerts_dispatch_all(
         "events": total_events,
         "failed_users": failed,
         "purged": purged,
+        "db_quota": db_quota_result,
     }
