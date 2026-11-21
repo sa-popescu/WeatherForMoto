@@ -59,6 +59,11 @@ export function dayName(localDateIso: string, lang: Lang, style: 'short' | 'long
   return text.charAt(0).toUpperCase() + text.slice(1).replace('.', '');
 }
 
+/** The weekday as it reads inside a sentence: "marți", "Tuesday". */
+export function weekdayWord(localDateIso: string, lang: Lang): string {
+  return dateFromLocalIso(localDateIso).toLocaleDateString(LOCALE[lang], { weekday: 'long', timeZone: 'UTC' });
+}
+
 /** "11 sept" / "11 Sept" */
 export function dayMonth(localDateIso: string, lang: Lang): string {
   return dateFromLocalIso(localDateIso)

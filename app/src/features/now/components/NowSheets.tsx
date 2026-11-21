@@ -1,4 +1,5 @@
 import type { WeatherResponse } from '../../../lib/types';
+import { hoursOfDay } from '../logic/dayHours';
 import type { NowModel } from '../useNowModel';
 import { DaySheet } from './DaySheet';
 import { HourSheet } from './HourSheet';
@@ -42,9 +43,7 @@ export function NowSheets({ sheet, data, model, nowMs, onClose }: NowSheetsProps
     case 'day': {
       const day = data.daily.find((d) => d.date === sheet.date);
       if (!day) return null;
-      // Today starts at the current hour; other days show all their hours.
-      const hours = data.hourly.filter((h) => h.time.startsWith(day.date) && h.time >= model.nowIso);
-      return <DaySheet day={day} hours={hours} onClose={onClose} />;
+      return <DaySheet day={day} hours={hoursOfDay(data.hourly, day.date, model.nowIso)} onClose={onClose} />;
     }
   }
 }
