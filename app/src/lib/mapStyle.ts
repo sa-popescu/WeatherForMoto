@@ -87,6 +87,33 @@ export function readableDarkLabels(style: StyleSpecification): StyleSpecificatio
   };
 }
 
+/** The OpenMapTiles source layer of roads, railways and their bridges. */
+const ROADS = 'transportation';
+
+/**
+ * The label layer the app's own lines (routes, the ride, radar) go under: the
+ * first label drawn after the last road or railway line, so they cover the
+ * roads but not the street names.
+ *
+ * Counted from the last road, not the last line of any kind: the dark style
+ * draws the street names before the county and country borders, and going
+ * under the first label after a border put the route over the street names.
+ * Some labels (water names) come before the roads, and going under those
+ * would put the lines under the roads too. A style without road layers falls
+ * back to the last line.
+ */
+export function labelLayerAboveRoads(layers: readonly LayerSpecification[]): string | undefined {
+  let lastRoad = -1;
+  let lastLine = -1;
+  layers.forEach((layer, i) => {
+    if (layer.type !== 'line') return;
+    lastLine = i;
+    if (layer['source-layer'] === ROADS) lastRoad = i;
+  });
+  const after = lastRoad >= 0 ? lastRoad : lastLine;
+  return layers.slice(after + 1).find((layer) => layer.type === 'symbol')?.id;
+}
+
 /** Everything the app changes in a style, for the given theme. */
 export function appStyle(style: StyleSpecification, theme: Theme): StyleSpecification {
   const named = localNames(style);

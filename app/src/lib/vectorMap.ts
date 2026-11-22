@@ -1,7 +1,7 @@
 import { MapLibreMap, setWorkerUrl, type MapOptions } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import type { Theme } from '../state/settings';
-import { appStyle } from './mapStyle';
+import { appStyle, labelLayerAboveRoads } from './mapStyle';
 
 // The app's base map, shared by the ride screen, Traseu and Hartă: MapLibre
 // with OpenFreeMap vector tiles (OpenStreetMap data, free, no key), dark with
@@ -30,16 +30,9 @@ export function createVectorMap(container: HTMLElement, theme: Theme, options: P
   });
 }
 
-/**
- * The layer the app's own lines go under: the first label drawn after the
- * last road line, so they cover the roads but not the street names. The
- * styles draw some labels (water names) before the roads; going under those
- * would put the lines under the roads too.
- */
+/** The layer the app's own lines go under, so they cover the roads but not the street names (see labelLayerAboveRoads). */
 export function labelsAboveRoads(map: MapLibreMap): string | undefined {
-  const layers = map.getStyle().layers;
-  const lastLine = layers.reduce((last, layer, i) => (layer.type === 'line' ? i : last), -1);
-  return layers.slice(lastLine + 1).find((layer) => layer.type === 'symbol')?.id;
+  return labelLayerAboveRoads(map.getStyle().layers);
 }
 
 /**
