@@ -605,3 +605,13 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ---- Roads closed in winter (SeasonalRoads.tsx) ---- */
+
+.route-season__link {
+  margin-top: 4px;
+  font-size: 14px;
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
