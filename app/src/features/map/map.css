@@ -153,10 +153,22 @@
   top: 0;
   right: calc(var(--tap) + 8px);
   width: min(300px, calc(100vw - 96px));
+  /* No taller than the map on screen (12 px clear at the top and bottom),
+     scrolling inside when the phone is short, so every switch stays in reach. */
+  max-height: calc(100vh - var(--safe-top) - var(--view-switch-h) - var(--nav-h) - var(--safe-bottom) - 24px);
+  max-height: calc(100dvh - var(--safe-top) - var(--view-switch-h) - var(--nav-h) - var(--safe-bottom) - 24px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 12px 16px 8px;
   border: 1px solid var(--line-2);
   border-radius: var(--r-lg);
   background: var(--surface);
+}
+
+/* The open panel sits over the bottom row (report button, radar timeline),
+   which comes later in the page at the same level and was drawn over it. */
+.map-top:has(.map-layers) {
+  z-index: 3;
 }
 
 .map-layers__opacity {
