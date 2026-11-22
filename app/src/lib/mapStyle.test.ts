@@ -1,6 +1,6 @@
-import type { StyleSpecification } from 'maplibre-gl';
+import type { LayerSpecification, StyleSpecification } from 'maplibre-gl';
 import { describe, expect, it } from 'vitest';
-import { appStyle, brighterDarkRoads, localNames, readableDarkLabels } from './mapStyle';
+import { appStyle, brighterDarkRoads, labelLayerAboveRoads, localNames, readableDarkLabels } from './mapStyle';
 
 const style = {
   version: 8,
@@ -48,5 +48,46 @@ describe('map style', () => {
   it('changes the roads only in the dark theme', () => {
     expect(appStyle(style, 'day').layers[2]).toBe(style.layers[2]);
     expect(appStyle(style, 'dark').layers[2]).not.toBe(style.layers[2]);
+  });
+});
+
+describe('where the app draws its lines', () => {
+  type Row = [id: string, type: string, sourceLayer?: string];
+  const layers = (rows: Row[]) =>
+    rows.map(([id, type, sourceLayer]) => ({ id, type, source: 'x', ...(sourceLayer ? { 'source-layer': sourceLayer } : {}) })) as unknown as LayerSpecification[];
+
+  it('goes under the street names of the dark style, which come before the borders', () => {
+    // The order of OpenFreeMap "dark", trimmed.
+    const dark = layers([
+      ['water_name', 'symbol', 'water_name'],
+      ['highway_minor', 'line', 'transportation'],
+      ['road_oneway', 'symbol', 'transportation'],
+      ['railway_dashline', 'line', 'transportation'],
+      ['highway_name_other', 'symbol', 'transportation_name'],
+      ['highway_name_motorway', 'symbol', 'transportation_name'],
+      ['boundary_state', 'line', 'boundary'],
+      ['boundary_country_z5-', 'line', 'boundary'],
+      ['place_other', 'symbol', 'place'],
+    ]);
+    expect(labelLayerAboveRoads(dark)).toBe('highway_name_other');
+  });
+
+  it('keeps the day style as it was: under the first label after the bridges', () => {
+    // The order of OpenFreeMap "liberty", trimmed.
+    const liberty = layers([
+      ['highway_minor', 'line', 'transportation'],
+      ['road_one_way_arrow', 'symbol', 'transportation'],
+      ['bridge_transit_rail_hatching', 'line', 'transportation'],
+      ['building', 'fill', 'building'],
+      ['boundary_disputed', 'line', 'boundary'],
+      ['waterway_line_label', 'symbol', 'waterway'],
+      ['highway-name-path', 'symbol', 'transportation_name'],
+    ]);
+    expect(labelLayerAboveRoads(liberty)).toBe('waterway_line_label');
+  });
+
+  it('falls back to the last line in a style without roads, and to the top with no label after it', () => {
+    expect(labelLayerAboveRoads(layers([['coast', 'line'], ['label', 'symbol']]))).toBe('label');
+    expect(labelLayerAboveRoads(layers([['label', 'symbol'], ['highway_minor', 'line', 'transportation']]))).toBeUndefined();
   });
 });
