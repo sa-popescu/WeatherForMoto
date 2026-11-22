@@ -615,3 +615,78 @@
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+
+/* ---- Fuel stops (FuelStops.tsx, and the pumps on the route map) ---- */
+
+.route-fuel__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.route-fuel__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.route-fuel__item > svg {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.route-fuel__item--gap {
+  border-color: var(--warn-line);
+  background: var(--warn-bg);
+}
+
+.route-fuel__item--gap > svg {
+  color: var(--t-atentie);
+}
+
+.route-fuel__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.route-fuel__title {
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.route-fuel__meta {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.route-fuel__link {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.route-map__fuel {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 2px solid var(--bg);
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-ink);
+  cursor: pointer;
+}

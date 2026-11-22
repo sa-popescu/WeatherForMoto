@@ -133,6 +133,18 @@ registerRoute(
   }),
 );
 
+// ---- App data -------------------------------------------------------------
+
+// The fuel stations (features/route/fuel.ts) change once a month: the copy
+// kept here answers at once, offline too, and is refreshed in the background.
+registerRoute(
+  ({ url, sameOrigin }) => sameOrigin && url.pathname.startsWith('/data/'),
+  new StaleWhileRevalidate({
+    cacheName: 'mm-app-data-v1',
+    plugins: [new CacheableResponsePlugin({ statuses: [200] }), new ExpirationPlugin({ maxEntries: 5 })],
+  }),
+);
+
 // ---- Lifecycle ------------------------------------------------------------
 
 async function legacyCacheNames(): Promise<string[]> {

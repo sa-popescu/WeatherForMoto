@@ -1,4 +1,4 @@
-import { useMemo, type CSSProperties } from 'react';
+import type { CSSProperties } from 'react';
 import { fmt, useLang, useStrings, type Lang } from '../../lib/i18n';
 import { tierColor } from '../../lib/scoring';
 import type { Place } from '../../lib/types';
@@ -6,12 +6,12 @@ import { Icon } from '../../ui/icons';
 import { Button, cx, Spinner } from '../../ui/primitives';
 import { aheadLine } from '../ride/aheadText';
 import { fmtKm, fmtTimeLeft } from '../ride/logic/rideFormat';
-import { localDay, seasonalRoadsOnRoute, seasonRisk, type SeasonRisk } from '../route/seasonalClosures';
-import { SEASONAL_S } from '../route/seasonalStrings';
+import { localDay, seasonRisk, type SeasonRisk } from '../route/seasonalClosures';
 import { DepartureStrip } from './DepartureStrip';
 import type { DepartureOption } from './logic/departures';
 import type { RouteOutlook } from './logic/driveWeather';
 import { mainRoad, type DriveRoute } from './logic/driveRoute';
+import { RouteNotes } from './RouteNotes';
 import type { RoutesState } from './useDriveRoutes';
 import { DRIVE_S } from './strings';
 
@@ -35,14 +35,6 @@ function weatherWords(outlook: RouteOutlook | undefined, s: DriveText, lang: Lan
   return { short: outlook.worstScore === null ? s.weatherFailed : s.weatherClear, warning: null };
 }
 
-/** The high roads on the route that are usually closed, or may be, that day: one line, or null. */
-function useSeasonalLine(route: DriveRoute, risk: SeasonRisk): string | null {
-  const s = useStrings(SEASONAL_S);
-  const roads = useMemo(() => seasonalRoadsOnRoute(route.line.coords), [route]);
-  if (risk === 'open' || roads.length === 0) return null;
-  return roads.map((road) => fmt(risk === 'closed' ? s.shortClosed : s.shortMaybe, { name: road.name })).join(' · ');
-}
-
 interface RouteOptionProps {
   route: DriveRoute;
   outlook: RouteOutlook | undefined;
@@ -57,7 +49,6 @@ function RouteOption({ route, outlook, season, fastest, selected, onSelect }: Ro
   const lang = useLang();
   const road = mainRoad(route);
   const weather = weatherWords(outlook, s, lang);
-  const seasonal = useSeasonalLine(route, season);
   const score = outlook?.settled ? outlook.worstScore : null;
   const delayed = route.source === 'tomtom' && route.delayS >= 60;
   return (
@@ -85,12 +76,7 @@ function RouteOption({ route, outlook, season, fastest, selected, onSelect }: Ro
             {weather.warning}
           </span>
         )}
-        {seasonal && (
-          <span className={cx('drive-option__warning', season === 'closed' && 'drive-option__warning--closed')}>
-            <Icon name="alert" size={14} />
-            {seasonal}
-          </span>
-        )}
+        <RouteNotes route={route} season={season} />
       </button>
     </li>
   );
