@@ -12,6 +12,7 @@ import { buildRouteLink } from '../route/routeLink';
 import type { NameBetween } from '../route/samples';
 import { DEFAULT_SPEED, defaultDeparture, deviceOffsetSec } from '../route/timing';
 import type { ScreenProps } from '../types';
+import { DriveLocate } from './DriveLocate';
 import { boundsOf, setDriveData } from './driveMapLayers';
 import { DriveRoutes } from './DriveRoutes';
 import { DriveSearch, type SearchPurpose } from './DriveSearch';
@@ -45,6 +46,8 @@ export default function DriveScreen({ active }: ScreenProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [departMs, setDepartMs] = useState<number | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const [recenterAt, setRecenterAt] = useState(0);
+  const recentered = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const topRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -61,8 +64,15 @@ export default function DriveScreen({ active }: ScreenProps) {
 
   // The map: the routes and both ends, framed when new routes arrive, or the place on screen before that.
   useEffect(() => {
-    if (map && mapReady) setDriveData(map, ready?.routes ?? [], selectedId, place, destination);
-  }, [map, mapReady, ready, selectedId, place, destination]);
+    if (map && mapReady) setDriveData(map, ready?.routes ?? [], selectedId, place, destination, fromGps);
+  }, [map, mapReady, ready, selectedId, place, destination, fromGps]);
+  // "Locația mea": back to the place on screen, also when it has not moved but the map has.
+  useEffect(() => {
+    if (!map || !mapReady || destination || recenterAt === recentered.current) return;
+    recentered.current = recenterAt;
+    map.easeTo({ center: [place.lon, place.lat], zoom: Math.max(map.getZoom(), HOME_ZOOM), duration: 500 });
+  }, [map, mapReady, destination, recenterAt, place.lat, place.lon]);
+  const recenter = useCallback(() => setRecenterAt((n) => n + 1), []);
   useEffect(() => {
     if (!map || !mapReady || !active) return;
     if (!destination) {
@@ -168,7 +178,12 @@ export default function DriveScreen({ active }: ScreenProps) {
             onDetailed={openDetailed}
           />
         ) : (
-          <DriveWeatherCard active={active} />
+          <>
+            <div className="drive-tools">
+              <DriveLocate onRecenter={recenter} />
+            </div>
+            <DriveWeatherCard active={active} />
+          </>
         )}
       </div>
     </div>

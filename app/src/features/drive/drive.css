@@ -217,6 +217,28 @@
   z-index: 2;
 }
 
+/* "Locația mea", right above the card. The row lets the map be dragged
+   through it; only the button takes taps. */
+.drive-tools {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 10px;
+  pointer-events: none;
+}
+
+.drive-locate.icon-btn {
+  pointer-events: auto;
+  border-color: var(--line-2);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  box-shadow: 0 2px 10px rgb(0 0 0 / 0.25);
+}
+
+/* Lit while the map shows the rider's own position. */
+.drive-locate.icon-btn[aria-pressed='true'] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .drive-weather {
   display: flex;
   align-items: center;

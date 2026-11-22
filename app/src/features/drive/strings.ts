@@ -77,6 +77,7 @@ export const DRIVE_S = defineStrings(
     retry: 'Încearcă din nou',
     afterStop: 'după {stop}',
     myPosition: 'Poziția mea',
+    locate: 'Locația mea',
   },
   {
     mapLabel: 'Route map',
@@ -153,5 +154,6 @@ export const DRIVE_S = defineStrings(
     retry: 'Try again',
     afterStop: 'after {stop}',
     myPosition: 'My position',
+    locate: 'My location',
   },
 );
