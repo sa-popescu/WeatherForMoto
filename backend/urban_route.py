@@ -13,6 +13,9 @@ The free plan allows 2,500 requests a day. A per-client window and a daily
 budget per instance keep the app well under that; past either, the caller
 gets a clear "busy" answer and the app falls back to its route without
 traffic (OSRM).
+
+A departure later than now (``depart_at``) gets TomTom's predicted traffic
+for that moment, which is how the app compares departure times.
 """
 
 from __future__ import annotations
@@ -21,7 +24,7 @@ import logging
 import os
 import time
 from collections import deque
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import httpx
@@ -36,9 +39,14 @@ TOMTOM_TIMEOUT_S = 12.0
 MAX_POINTS = 5
 MAX_ALTERNATIVES = 2
 
-# Per client (IP): enough to plan, compare and reroute a few times on a ride.
-CLIENT_MAX_REQUESTS = 30
+# Per client (IP): a destination costs up to six requests (the routes, then
+# five departure times to compare), so this is about ten destinations, or a
+# few reroutes on a ride, in ten minutes.
+CLIENT_MAX_REQUESTS = 60
 CLIENT_WINDOW_S = 10 * 60
+# A departure this close to now is now; further out than this TomTom has no prediction worth asking.
+DEPART_NOW_SLACK = timedelta(minutes=2)
+DEPART_MAX_AHEAD = timedelta(days=7)
 # Per instance and UTC day, under the free plan's 2,500 with room for retries.
 DAILY_MAX_REQUESTS = 2_000
 
@@ -116,15 +124,34 @@ def parse_points(text: str) -> list[tuple[float, float]]:
     return points
 
 
-def tomtom_request(points: list[tuple[float, float]], alternatives: int) -> tuple[str, dict[str, Any]]:
-    """URL and query for a motorcycle route with live traffic and coded turn instructions."""
+def parse_depart_at(text: str | None, now: datetime) -> datetime | None:
+    """
+    A departure as an ISO time with its offset ("2026-11-22T15:30:00Z"), or
+    None for now. A time in the past or within two minutes counts as now;
+    one without an offset, or more than a week away, is a ValueError.
+    """
+    if text is None or not text.strip() or text.strip() == "now":
+        return None
+    try:
+        when = datetime.fromisoformat(text.strip())
+    except ValueError as exc:
+        raise ValueError("depart_at is not an ISO time") from exc
+    if when.tzinfo is None:
+        raise ValueError("depart_at needs a time zone offset")
+    if when - now > DEPART_MAX_AHEAD:
+        raise ValueError("depart_at is more than a week away")
+    return None if when - now <= DEPART_NOW_SLACK else when.astimezone(timezone.utc)
+
+
+def tomtom_request(points: list[tuple[float, float]], alternatives: int, depart_at: datetime | None = None) -> tuple[str, dict[str, Any]]:
+    """URL and query for a motorcycle route with live (or, later, predicted) traffic and coded turn instructions."""
     locations = ":".join(f"{lat:.6f},{lon:.6f}" for lat, lon in points)
     params: dict[str, Any] = {
         "key": TOMTOM_API_KEY,
         "travelMode": "motorcycle",
         "routeType": "fastest",
         "traffic": "true",
-        "departAt": "now",
+        "departAt": depart_at.strftime("%Y-%m-%dT%H:%M:%SZ") if depart_at else "now",
         # Alternatives are only offered between two points.
         "maxAlternatives": max(0, min(MAX_ALTERNATIVES, alternatives)) if len(points) == 2 else 0,
         "computeTravelTimeFor": "all",
@@ -198,11 +225,13 @@ def parse_tomtom(body: Any) -> list[dict[str, Any]]:
     return usable
 
 
-async def fetch_urban_routes(client: httpx.AsyncClient, points: list[tuple[float, float]], alternatives: int) -> dict[str, Any]:
+async def fetch_urban_routes(
+    client: httpx.AsyncClient, points: list[tuple[float, float]], alternatives: int, depart_at: datetime | None = None
+) -> dict[str, Any]:
     """Asks TomTom once; raises UrbanRouteUnavailable with a reason the app can act on."""
     if not TOMTOM_API_KEY:
         raise UrbanRouteUnavailable("no-key")
-    url, params = tomtom_request(points, alternatives)
+    url, params = tomtom_request(points, alternatives, depart_at)
     started = time.monotonic()
     try:
         response = await client.get(url, params=params, timeout=TOMTOM_TIMEOUT_S)
@@ -227,4 +256,9 @@ async def fetch_urban_routes(client: httpx.AsyncClient, points: list[tuple[float
         raise UrbanRouteUnavailable("upstream") from None
     routes = parse_tomtom(body)
     logger.info("TomTom routes: %d in %.0f ms", len(routes), (time.monotonic() - started) * 1000)
-    return {"source": "tomtom", "attribution": ATTRIBUTION, "routes": routes}
+    return {
+        "source": "tomtom",
+        "attribution": ATTRIBUTION,
+        "depart_at": depart_at.strftime("%Y-%m-%dT%H:%M:%SZ") if depart_at else None,
+        "routes": routes,
+    }

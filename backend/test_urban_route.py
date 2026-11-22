@@ -2,6 +2,7 @@
 
 import asyncio
 import unittest
+from datetime import datetime, timedelta, timezone
 from unittest import mock
 
 import httpx
@@ -74,6 +75,29 @@ class ParseTest(unittest.TestCase):
     def test_no_route(self) -> None:
         with self.assertRaises(urban_route.UrbanRouteUnavailable):
             urban_route.parse_tomtom({"routes": []})
+
+
+NOW = datetime(2026, 11, 22, 9, 0, tzinfo=timezone.utc)
+
+
+class DepartAtTest(unittest.TestCase):
+    def test_now_and_the_near_past_are_now(self) -> None:
+        for text in (None, "", "now", "2026-11-22T09:01:00Z", "2026-11-22T08:30:00+00:00"):
+            with self.subTest(text=text):
+                self.assertIsNone(urban_route.parse_depart_at(text, NOW))
+
+    def test_later_is_kept_in_utc(self) -> None:
+        when = urban_route.parse_depart_at("2026-11-22T13:30:00+02:00", NOW)
+        self.assertEqual(when, datetime(2026, 11, 22, 11, 30, tzinfo=timezone.utc))
+        _, params = urban_route.tomtom_request([(44.4, 26.1), (44.5, 26.2)], 0, when)
+        self.assertEqual(params["departAt"], "2026-11-22T11:30:00Z")
+        _, plain = urban_route.tomtom_request([(44.4, 26.1), (44.5, 26.2)], 0)
+        self.assertEqual(plain["departAt"], "now")
+
+    def test_refuses_what_it_cannot_place(self) -> None:
+        for text in ("tomorrow", "2026-11-22T13:30:00", "2026-12-05T10:00:00Z"):
+            with self.subTest(text=text), self.assertRaises(ValueError):
+                urban_route.parse_depart_at(text, NOW)
 
 
 class BudgetTest(unittest.TestCase):
@@ -156,6 +180,16 @@ class EndpointTest(unittest.TestCase):
             response = self.client.get("/route/urban", params={"points": "44.4,26.1;44.5,26.2"})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["routes"][0]["distance_m"], 2839)
+
+    def test_departure_reaches_tomtom(self) -> None:
+        later = (datetime.now(timezone.utc) + timedelta(hours=3)).replace(microsecond=0)
+        fetch = mock.AsyncMock(return_value={"source": "tomtom", "attribution": "© TomTom", "depart_at": None, "routes": []})
+        with mock.patch.object(urban_route, "TOMTOM_API_KEY", "test-key"), mock.patch.object(urban_route, "fetch_urban_routes", fetch):
+            ok = self.client.get("/route/urban", params={"points": "44.4,26.1;44.5,26.2", "alternatives": 0, "depart_at": later.isoformat()})
+            bad = self.client.get("/route/urban", params={"points": "44.4,26.1;44.5,26.2", "depart_at": "2026-11-22T13:30:00"})
+        self.assertEqual(ok.status_code, 200)
+        self.assertEqual(fetch.call_args.args[2:], (0, later))
+        self.assertEqual(bad.status_code, 422)
 
     def test_busy(self) -> None:
         urban_route.budget = urban_route.RequestBudget(per_client=1, window_s=600, daily=2000)
