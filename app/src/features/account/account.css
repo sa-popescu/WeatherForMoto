@@ -832,3 +832,24 @@
 .acct-reset {
   padding-top: 32px;
 }
+
+/* Offline maps (OfflineMapsRow.tsx): a second line under the label, and a text button. */
+.acct-row__sub {
+  display: block;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.acct-row__action {
+  flex-shrink: 0;
+  min-height: 40px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--danger);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}

@@ -9,6 +9,7 @@ import { promptInstall, useInstallState } from '../installPrompt';
 import { currentIsIos } from '../lib/platform';
 import { APP } from '../strings/app';
 import { Group, LabeledSegmented, Note } from '../ui/controls';
+import { OfflineMapsRow } from './OfflineMapsRow';
 import { version as APP_VERSION } from '../../../../package.json';
 
 const LANGUAGES: ReadonlyArray<{ value: Lang; label: string }> = [
@@ -65,6 +66,7 @@ export function AppSection() {
           <span className="acct-row__label">{s.privacy}</span>
           <Icon name="chevronRight" size={20} className="acct-row__chevron" />
         </a>
+        <OfflineMapsRow />
         <div className="acct-row acct-row--static">
           <Icon name="info" size={22} />
           <span className="acct-row__label">{s.version}</span>
