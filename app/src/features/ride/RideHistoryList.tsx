@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { fmt, useLang, useStrings, type Lang } from '../../lib/i18n';
 import { useToast } from '../../state/toast';
-import { Sheet } from '../../ui/Sheet';
-import { Button } from '../../ui/primitives';
+import { Button, Skeleton } from '../../ui/primitives';
 import { averageKmh } from './logic/clock';
 import { fmtClockTime, fmtDuration, fmtKm, fmtKmh } from './logic/rideFormat';
 import { rideRecorder } from './recorder';
@@ -10,8 +9,8 @@ import { deleteRide, type RideListItem } from './store';
 import { RIDE_S } from './strings';
 import type { RideHistory } from './useRideHistory';
 
-// The rides kept on this phone: open one on the ride screen (map, summary,
-// GPX, saving to the account), or delete it after a confirmation.
+// The rides kept on this phone, on "Ture": open one on the ride screen (map,
+// summary, GPX, saving to the account), or delete it after a confirmation.
 
 function rideDay(startedAt: number, lang: Lang): string {
   const day = new Date(startedAt).toLocaleDateString(lang === 'en' ? 'en-GB' : 'ro-RO', { weekday: 'short', day: 'numeric', month: 'short' }).replace(/\./g, '');
@@ -79,18 +78,22 @@ function RideRow({ item, onOpen, onDeleted }: RowProps) {
   );
 }
 
-export function RideHistorySheet({ open, onClose, history }: { open: boolean; onClose: () => void; history: RideHistory }) {
+/** The rides on this phone, newest first, as a section of "Ture". */
+export function RideHistoryList({ history }: { history: RideHistory }) {
   const s = useStrings(RIDE_S);
   const toast = useToast();
 
   const openRide = async (id: string): Promise<void> => {
-    onClose();
     if (!(await rideRecorder.review(id))) toast(s.reviewErr, { tone: 'error' });
   };
 
   return (
-    <Sheet open={open} onClose={onClose} title={s.historyTitle}>
+    <section className="ride-history-section" aria-labelledby="ride-history-title">
+      <h2 className="eyebrow" id="ride-history-title">
+        {s.historyTitle}
+      </h2>
       <p className="ride-history__lead">{s.historyLead}</p>
+      {history.status === 'loading' && history.items.length === 0 && <Skeleton height={96} radius={14} />}
       {history.status === 'error' && <p className="ride-history__empty">{s.historyFailed}</p>}
       {history.status === 'ready' && history.items.length === 0 && <p className="ride-history__empty">{s.historyEmpty}</p>}
       <ul className="ride-history">
@@ -98,6 +101,6 @@ export function RideHistorySheet({ open, onClose, history }: { open: boolean; on
           <RideRow key={item.id} item={item} onOpen={() => void openRide(item.id)} onDeleted={history.reload} />
         ))}
       </ul>
-    </Sheet>
+    </section>
   );
 }

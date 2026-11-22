@@ -35,7 +35,8 @@ export default defineConfig(({ mode }) => {
           description: 'Vremea și drumul pentru motocicliști: scor moto pe ore, trasee cu trafic live și vremea pe care o prinzi pe drum.',
           lang: 'ro',
           dir: 'ltr',
-          start_url: '/#/acum',
+          // No hash: the shell opens on its home view, "Drum" (App.tsx).
+          start_url: '/',
           scope: '/',
           display: 'standalone',
           // Any, so a tablet can turn to landscape and get the desktop layout;
@@ -50,8 +51,9 @@ export default defineConfig(({ mode }) => {
             { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
           ],
           shortcuts: [
-            { name: 'Traseu', url: '/#/traseu', icons: [{ src: '/icon-192.png', sizes: '192x192' }] },
-            { name: 'Hartă', url: '/#/harta', icons: [{ src: '/icon-192.png', sizes: '192x192' }] },
+            { name: 'Vreme', url: '/#/acum', icons: [{ src: '/icon-192.png', sizes: '192x192' }] },
+            { name: 'Hartă radar', url: '/#/harta', icons: [{ src: '/icon-192.png', sizes: '192x192' }] },
+            { name: 'Ture', url: '/#/ture', icons: [{ src: '/icon-192.png', sizes: '192x192' }] },
           ],
         },
         injectManifest: {

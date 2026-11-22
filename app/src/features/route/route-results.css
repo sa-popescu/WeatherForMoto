@@ -502,60 +502,6 @@
   color: var(--t-atentie);
 }
 
-/* ---- Ride stats ---- */
-
-.route-stats__grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin: 10px 0 0;
-}
-
-.route-stat {
-  padding: 10px 12px;
-  border-radius: var(--r-md);
-  border: 1px solid var(--line);
-  background: var(--surface-2);
-}
-
-.route-stat dt {
-  font-size: 12px;
-  color: var(--muted-2);
-}
-
-.route-stat dd {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-}
-
-.route-stats__sub {
-  margin-top: 14px;
-}
-
-.route-rides {
-  margin: 6px 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.route-rides__row {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 10px 0;
-  border-top: 1px solid var(--line);
-}
-
-.route-rides__name {
-  font-weight: 500;
-}
-
-.route-rides__meta {
-  font-size: 13px;
-  color: var(--muted);
-}
-
 /* ---- Sheet contents ---- */
 
 .route-fieldset {

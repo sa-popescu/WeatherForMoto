@@ -1,23 +1,19 @@
-import { useState } from 'react';
-import { fmt, useLang, useStrings } from '../../lib/i18n';
+import { useLang, useStrings } from '../../lib/i18n';
 import { Button, Card } from '../../ui/primitives';
 import type { PointWeather, RouteLine, SamplePoint } from '../route/types';
 import { aheadPoints } from './logic/ahead';
 import { rideRecorder } from './recorder';
-import { RideHistorySheet } from './RideHistorySheet';
 import { RIDE_S } from './strings';
-import { useRideHistory } from './useRideHistory';
 import './ride-entry.css';
 
-// The ways into a ride, on "Traseu". The ride screen itself opens over the
-// app (App.tsx). Both start from a tap, which iPhone needs before it speaks.
+// The ways into a ride: the free ride on "Ture", the start on a route on
+// "Traseu". The ride screen itself opens over the app (App.tsx). Both start
+// from a tap, which iPhone needs before it speaks.
 
-/** A ride with no route: speed, distance and time. And the way to the rides already kept. */
+/** A ride with no route: speed, distance, time and the lean. */
 export function RideEntry() {
   const s = useStrings(RIDE_S);
   const lang = useLang();
-  const history = useRideHistory();
-  const [historyOpen, setHistoryOpen] = useState(false);
   return (
     <Card className="ride-entry">
       <div>
@@ -27,12 +23,6 @@ export function RideEntry() {
       <Button size="lg" full icon="play" onClick={() => rideRecorder.start({ lang })}>
         {s.entryStart}
       </Button>
-      {history.items.length > 0 && (
-        <Button variant="ghost" full icon="clock" onClick={() => setHistoryOpen(true)}>
-          {fmt(s.historyButton, { n: history.items.length })}
-        </Button>
-      )}
-      <RideHistorySheet open={historyOpen} onClose={() => setHistoryOpen(false)} history={history} />
     </Card>
   );
 }

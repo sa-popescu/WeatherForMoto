@@ -7,24 +7,41 @@ import { useStrings } from './lib/i18n';
 import { applyUpdate, onUpdateReady } from './lib/pwa';
 import { useToast } from './state/toast';
 import { Icon, type IconName } from './ui/icons';
+import { ViewSwitch } from './ui/ViewSwitch';
 
-// App shell: four tabs driven by the URL hash (#/acum, #/traseu, #/harta,
-// #/eu) so they work as deep links and PWA shortcuts. A tab stays mounted
-// after its first visit, so scroll position and map state survive switching.
+// App shell: four tabs (Drum, Vreme, Ture, Eu) over five views driven by the
+// URL hash (#/traseu, #/acum, #/harta, #/ture, #/eu), so every view works as a
+// deep link and older links keep working. "Vreme" holds two views, the
+// forecast and the radar map, with a switch between them. A view stays
+// mounted after its first visit, so scroll position and map state survive
+// switching.
 
 const NowScreen = lazy(() => import('./features/now/NowScreen'));
 const RouteScreen = lazy(() => import('./features/route/RouteScreen'));
 const MapScreen = lazy(() => import('./features/map/MapScreen'));
+const RidesScreen = lazy(() => import('./features/ride/RidesScreen'));
 const AccountScreen = lazy(() => import('./features/account/AccountScreen'));
 const ResetPasswordView = lazy(() => import('./features/account/ResetPasswordView'));
 const RideScreen = lazy(() => import('./features/ride/RideScreen'));
 
-type Tab = 'acum' | 'traseu' | 'harta' | 'eu';
-const TABS: readonly Tab[] = ['acum', 'traseu', 'harta', 'eu'];
+type View = 'traseu' | 'acum' | 'harta' | 'ture' | 'eu';
+type Tab = 'drum' | 'vreme' | 'ture' | 'eu';
+type WeatherView = Extract<View, 'acum' | 'harta'>;
 
-function readTab(): Tab {
+const VIEWS: readonly View[] = ['traseu', 'acum', 'harta', 'ture', 'eu'];
+/** Where the app opens without a link to somewhere else. */
+const HOME: View = 'traseu';
+const TAB_OF: Record<View, Tab> = { traseu: 'drum', acum: 'vreme', harta: 'vreme', ture: 'ture', eu: 'eu' };
+
+function readView(): View {
   const key = window.location.hash.replace(/^#\/?/, '').split(/[/?]/)[0];
-  return (TABS as readonly string[]).includes(key) ? (key as Tab) : 'acum';
+  if (key === 'drum') return 'traseu';
+  if (key === 'vreme') return 'acum';
+  return (VIEWS as readonly string[]).includes(key) ? (key as View) : HOME;
+}
+
+function isWeatherView(view: View): view is WeatherView {
+  return view === 'acum' || view === 'harta';
 }
 
 function useOnline(): boolean {
@@ -42,10 +59,11 @@ function useOnline(): boolean {
   return online;
 }
 
-const SCREENS: Record<Tab, React.ComponentType<ScreenProps>> = {
-  acum: NowScreen,
+const SCREENS: Record<View, React.ComponentType<ScreenProps>> = {
   traseu: RouteScreen,
+  acum: NowScreen,
   harta: MapScreen,
+  ture: RidesScreen,
   eu: AccountScreen,
 };
 
@@ -53,8 +71,13 @@ export default function App() {
   const s = useStrings(CORE);
   const toast = useToast();
   const online = useOnline();
-  const [tab, setTab] = useState<Tab>(readTab);
-  const [visited, setVisited] = useState<ReadonlySet<Tab>>(() => new Set([readTab()]));
+  const [view, setView] = useState<View>(readView);
+  const [visited, setVisited] = useState<ReadonlySet<View>>(() => new Set([readView()]));
+  // "Vreme" in the nav goes back to whichever of its views was open last.
+  const [weatherView, setWeatherView] = useState<WeatherView>(() => {
+    const first = readView();
+    return isWeatherView(first) ? first : 'acum';
+  });
   const resetToken = useMemo(() => new URLSearchParams(window.location.search).get('reset_token'), []);
   const [showReset, setShowReset] = useState(Boolean(resetToken));
   // The content area scrolls, not the page (see .shell in base.css).
@@ -69,8 +92,9 @@ export default function App() {
 
   useEffect(() => {
     const onHash = (): void => {
-      const next = readTab();
-      setTab(next);
+      const next = readView();
+      setView(next);
+      if (isWeatherView(next)) setWeatherView(next);
       setVisited((prev) => (prev.has(next) ? prev : new Set([...prev, next])));
       mainRef.current?.scrollTo({ top: 0 });
     };
@@ -83,11 +107,12 @@ export default function App() {
     [toast, s.updateReady, s.updateNow],
   );
 
-  const navItems: { tab: Tab; icon: IconName; label: string }[] = [
-    { tab: 'acum', icon: 'gauge', label: s.tabNow },
-    { tab: 'traseu', icon: 'route', label: s.tabRoute },
-    { tab: 'harta', icon: 'map', label: s.tabMap },
-    { tab: 'eu', icon: 'user', label: s.tabMe },
+  const tab = TAB_OF[view];
+  const navItems: { tab: Tab; href: string; icon: IconName; label: string }[] = [
+    { tab: 'drum', href: '#/traseu', icon: 'route', label: s.tabDrive },
+    { tab: 'vreme', href: `#/${weatherView}`, icon: 'sun', label: s.tabWeather },
+    { tab: 'ture', href: '#/ture', icon: 'bike', label: s.tabRides },
+    { tab: 'eu', href: '#/eu', icon: 'user', label: s.tabMe },
   ];
 
   if (showReset && resetToken) {
@@ -101,7 +126,7 @@ export default function App() {
                 // Drop the token from the URL so it is not kept in history.
                 window.history.replaceState(null, '', `${window.location.pathname}#/eu`);
                 setShowReset(false);
-                setTab('eu');
+                setView('eu');
                 setVisited((prev) => new Set([...prev, 'eu']));
               }}
             />
@@ -113,21 +138,31 @@ export default function App() {
 
   return (
     <>
-      {/* data-tab lets the desktop layout give Traseu the whole height of the window. */}
-      <div className="shell" data-tab={tab} inert={riding}>
+      {/* data-tab holds the view: the desktop layout gives Traseu the whole
+          height of the window, and the radar map starts under the switch. */}
+      <div className="shell" data-tab={view} inert={riding}>
         {!online && (
           <div className="offline-strip" role="status">
             {s.offline}
           </div>
         )}
         <main className="shell__main" id="main" ref={mainRef}>
-          {/* One Suspense boundary per tab: loading a new tab must not hide (and
-              disconnect the effects of) the tabs already mounted. */}
-          {TABS.filter((t) => visited.has(t)).map((t) => {
-            const Screen = SCREENS[t];
+          {isWeatherView(view) && (
+            <ViewSwitch
+              label={s.weatherViews}
+              items={[
+                { href: '#/acum', label: s.weatherForecast, current: view === 'acum' },
+                { href: '#/harta', label: s.weatherRadar, current: view === 'harta' },
+              ]}
+            />
+          )}
+          {/* One Suspense boundary per view: loading a new one must not hide (and
+              disconnect the effects of) the views already mounted. */}
+          {VIEWS.filter((v) => visited.has(v)).map((v) => {
+            const Screen = SCREENS[v];
             return (
-              <Suspense key={t} fallback={t === tab ? <div className="screen-fallback">{s.loading}</div> : null}>
-                <Screen active={t === tab} />
+              <Suspense key={v} fallback={v === view ? <div className="screen-fallback">{s.loading}</div> : null}>
+                <Screen active={v === view} />
               </Suspense>
             );
           })}
@@ -137,7 +172,7 @@ export default function App() {
             <Icon name="gauge" size={30} strokeWidth={2} />
           </span>
           {navItems.map((item) => (
-            <a key={item.tab} href={`#/${item.tab}`} className="bottom-nav__item" aria-current={item.tab === tab ? 'page' : undefined}>
+            <a key={item.tab} href={item.href} className="bottom-nav__item" aria-current={item.tab === tab ? 'page' : undefined}>
               <Icon name={item.icon} />
               {item.label}
             </a>

@@ -1,4 +1,19 @@
-/* The ways into a ride on "Traseu": the free ride card, and the start on a route. */
+/* "Ture" (the free ride card and the rides on this phone), and the start on a
+   route under the map on "Traseu". */
+
+.rides__title {
+  padding-top: 6px;
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.ride-history-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
 
 .ride-entry {
   display: flex;
@@ -17,7 +32,7 @@
   color: var(--muted);
 }
 
-/* ---- The rides on this phone (sheet) ---- */
+/* ---- The rides on this phone ---- */
 
 .ride-history__lead,
 .ride-history__empty {

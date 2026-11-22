@@ -8,8 +8,9 @@ import { serverTimeMs } from './hazards';
 import { fmtDuration, fmtKm } from './routeFormat';
 import { RS } from './strings';
 import type { Loadable } from './useAccountData';
+import './ride-stats.css';
 
-// Totals and the last few rides of the signed-in rider.
+// Totals and the last few rides of the signed-in rider, on "Ture".
 
 const RECENT = 5;
 
@@ -27,14 +28,14 @@ export function RideStatsCard({ state, onRetry }: { state: Loadable<RideStats>; 
       </h2>
       {state.status === 'loading' && !stats && <Skeleton height={120} radius={14} />}
       {state.status === 'error' && !stats && (
-        <div className="route-inline-error">
-          <p className="route-note">{as.statsErr}</p>
+        <div className="route-stats__error">
+          <p className="route-stats__note">{as.statsErr}</p>
           <Button icon="refresh" onClick={onRetry}>
             {core.retry}
           </Button>
         </div>
       )}
-      {stats && stats.rides === 0 && <p className="route-note">{as.statsEmpty}</p>}
+      {stats && stats.rides === 0 && <p className="route-stats__note">{as.statsEmpty}</p>}
       {stats && stats.rides > 0 && (
         <>
           <dl className="route-stats__grid">
