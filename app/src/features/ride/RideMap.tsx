@@ -113,7 +113,8 @@ export function RideMap({ ride }: { ride: RideSnapshot }) {
     setLines(map, 'ride-gaps', lines.gaps);
   }, [ready, ride.pointCount, ride.fills]);
 
-  // The route, split at the progress (to 10 m, so it is not redrawn for nothing).
+  // The route, split at the progress (to 10 m, so it is not redrawn for
+  // nothing), and drawn again when a new route replaces it (ride.route).
   const progress = ride.follow?.km == null ? null : Math.round(ride.follow.km * 100) / 100;
   useEffect(() => {
     const map = mapRef.current;
@@ -122,7 +123,7 @@ export function RideMap({ ride }: { ride: RideSnapshot }) {
     const parts = routeParts(route, progress);
     setLines(map, 'ride-plan-done', [parts.done]);
     setLines(map, 'ride-plan-ahead', [parts.ahead]);
-  }, [ready, progress]);
+  }, [ready, progress, ride.route]);
 
   // The rider, and the camera following them.
   const lat = ride.position?.lat;

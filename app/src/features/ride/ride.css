@@ -142,6 +142,56 @@
   letter-spacing: 0.02em;
 }
 
+/* ---- Next turn (routes from "Drum") ---- */
+
+.ride-turn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: var(--r-md);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.ride-turn__arrow {
+  display: flex;
+  flex: none;
+}
+
+.ride-turn__text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ride-turn__dist {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+/* Two lines at most: long street names wrap instead of being cut. */
+.ride-turn__what {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.ride-turn__then {
+  display: flex;
+  flex: none;
+  padding: 6px;
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--accent-ink) 14%, transparent);
+}
+
 /* ---- Map ---- */
 
 .ride-map {

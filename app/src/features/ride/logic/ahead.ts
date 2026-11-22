@@ -23,6 +23,9 @@ export interface AheadSlot {
 export interface AheadPoint {
   km: number;
   name: string;
+  /** Where the point is, so a new route can place it again (absent in older stored rides). */
+  lat?: number;
+  lon?: number;
   utcOffsetSeconds: number;
   slots: AheadSlot[];
 }
@@ -72,7 +75,7 @@ export function aheadPoints(points: readonly SamplePoint[], weather: Readonly<Re
     const from = localNowIso(forecast.utcOffsetSeconds, nowMs - 3_600_000).slice(0, 13);
     const to = localNowIso(forecast.utcOffsetSeconds, nowMs + HOURS_KEPT * 3_600_000).slice(0, 13);
     const slots = forecast.hourly.filter((h) => h.time.slice(0, 13) >= from && h.time.slice(0, 13) <= to).map(toAheadSlot);
-    if (slots.length > 0) out.push({ km: p.km, name: p.name, utcOffsetSeconds: forecast.utcOffsetSeconds, slots });
+    if (slots.length > 0) out.push({ km: p.km, name: p.name, lat: p.lat, lon: p.lon, utcOffsetSeconds: forecast.utcOffsetSeconds, slots });
   }
   return out.sort((a, b) => a.km - b.km);
 }

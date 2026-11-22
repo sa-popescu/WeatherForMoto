@@ -1,6 +1,7 @@
 import type { LatLon } from '../../route/types';
 import type { AheadPoint } from './ahead';
 import { MAX_ACCURACY_M, type RideFix } from './track';
+import type { RouteTurn } from './turns';
 
 // Following a planned route or an imported GPX: where along it the rider is,
 // how far off it, and when that is worth saying out loud. All distances along
@@ -17,6 +18,10 @@ export interface RideRoute {
   plannedKmh: number;
   /** The plan's forecasts at its weather points, for the warnings ahead (absent in older stored rides). */
   ahead?: AheadPoint[];
+  /** The turns, for turn by turn (routes from "Drum" with TomTom only). */
+  turns?: RouteTurn[];
+  /** Where the route goes: with it, leaving the route asks for a new one from where the rider is ("Drum" only). */
+  destination?: LatLon;
 }
 
 export interface RouteFix {
