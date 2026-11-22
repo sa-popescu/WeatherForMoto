@@ -2,6 +2,7 @@ import { localNowIso } from '../../../lib/format';
 import { distanceKm } from '../../../lib/geo';
 import type { Place } from '../../../lib/types';
 import { aheadPoints, warningAhead, type AheadWarning } from '../../ride/logic/ahead';
+import { darkAt } from '../../route/daylight';
 import { buildSamplePoints, type NameBetween } from '../../route/samples';
 import { pickSlot } from '../../route/timing';
 import type { PointWeather, SamplePoint } from '../../route/types';
@@ -65,6 +66,8 @@ export interface RouteOutlook {
   warning: AheadWarning | null;
   /** The lowest moto score met on the way, or null before any forecast. */
   worstScore: number | null;
+  /** Some point is reached before sunrise or after sunset. */
+  dark: boolean;
 }
 
 /**
@@ -78,11 +81,15 @@ export function routeOutlook(points: readonly SamplePoint[], weather: WeatherByI
   });
   const ahead = aheadPoints(points, weather, departMs);
   const warning = speedKmh > 0 ? warningAhead(ahead, 0, speedKmh, departMs, Math.ceil(rideMin) + 1) : null;
+  const reachedAt = (km: number): number => departMs + (speedKmh > 0 ? (km / speedKmh) * 3_600_000 : 0);
   let worstScore: number | null = null;
   for (const p of ahead) {
-    const at = departMs + (speedKmh > 0 ? (p.km / speedKmh) * 3_600_000 : 0);
-    const score = pickSlot(p.slots, localNowIso(p.utcOffsetSeconds, at))?.score ?? null;
+    const score = pickSlot(p.slots, localNowIso(p.utcOffsetSeconds, reachedAt(p.km)))?.score ?? null;
     if (score !== null) worstScore = worstScore === null ? score : Math.min(worstScore, score);
   }
-  return { settled, warning, worstScore };
+  const dark = points.some((p) => {
+    const forecast = weather[p.id]?.forecast;
+    return forecast ? darkAt(localNowIso(forecast.utcOffsetSeconds, reachedAt(p.km)), forecast.sun) !== null : false;
+  });
+  return { settled, warning, worstScore, dark };
 }
