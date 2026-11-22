@@ -31,6 +31,7 @@ from collections.abc import Callable, Coroutine, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
+from email.utils import formataddr
 from typing import Any
 from urllib.parse import urlparse
 
@@ -59,6 +60,8 @@ SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER = os.getenv("SMTP_USER")
 SMTP_PASS = os.getenv("SMTP_PASS")
 SMTP_FROM = os.getenv("SMTP_FROM", SMTP_USER or "weatherformoto@bluemouse.cc")
+# The name mail apps show instead of the bare address.
+SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "Motonor")
 BREVO_API_KEY = os.getenv("BREVO_API_KEY", "")
 OWM_API_KEY = os.getenv("OPENWEATHERMAP_API_KEY", "")
 # OWASP 2023 guidance for PBKDF2-HMAC-SHA256. Older hashes keep their own
@@ -1156,10 +1159,27 @@ def _is_trusted_link(url: str) -> bool:
     return False
 
 
+# The app's "Cockpit" colours (app/src/styles/tokens.css), for emails and the
+# pages links from emails open. Literal values: email clients ignore CSS
+# variables.
+BRAND_BG = "#0b0c0a"
+BRAND_SURFACE = "#141612"
+BRAND_LINE = "#262a22"
+BRAND_INK = "#eef1e8"
+BRAND_INK_2 = "#cfd3c7"
+BRAND_MUTED = "#8d9386"
+BRAND_ACCENT = "#b4f03c"
+
+
+def _brand_logo_url() -> str:
+    """The app icon (the dial with the M), served by the app itself."""
+    return f"{APP_BASE_URL}/icon-192.png"
+
+
 def _html_link(url: str, label: str | None = None) -> str:
     safe_url = html.escape(url, quote=True)
     safe_label = html.escape(label, quote=True) if label else safe_url
-    return f'<a href="{safe_url}" style="color:#f97316;text-decoration:underline;">{safe_label}</a>'
+    return f'<a href="{safe_url}" style="color:{BRAND_ACCENT};text-decoration:underline;">{safe_label}</a>'
 
 
 def _text_to_html(text: str, trusted_links: Sequence[str] = ()) -> str:
@@ -1182,22 +1202,30 @@ def _text_to_html(text: str, trusted_links: Sequence[str] = ()) -> str:
             lines_html.append("<br>")
 
     body_inner = "\n".join(lines_html)
-    app_link = _html_link(APP_BASE_URL)
+    app_link = _html_link(APP_BASE_URL, APP_BASE_URL.split("://", 1)[-1])
+    logo = html.escape(_brand_logo_url(), quote=True)
+    # Tables and inline styles only, so Outlook draws it like the rest; the
+    # logo has a fixed size and an alt text for clients that block images.
     return f"""<!DOCTYPE html>
-<html><head><meta charset="utf-8"></head>
-<body style="margin:0;padding:0;background:#111827;font-family:Arial,sans-serif;color:#e5e7eb;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#111827;padding:32px 0;">
+<html lang="ro"><head><meta charset="utf-8">
+<meta name="color-scheme" content="dark"><meta name="supported-color-schemes" content="dark"></head>
+<body style="margin:0;padding:0;background:{BRAND_BG};font-family:Arial,Helvetica,sans-serif;color:{BRAND_INK_2};">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{BRAND_BG};padding:32px 0;">
     <tr><td align="center">
-      <table width="560" cellpadding="0" cellspacing="0" style="background:#1f2937;border-radius:12px;overflow:hidden;max-width:560px;width:100%;">
-        <tr><td style="background:#111827;padding:20px 32px;border-bottom:2px solid #f97316;">
-          <span style="font-size:20px;font-weight:bold;letter-spacing:2px;color:#f97316;">MOTO /// METEO</span>
-          <span style="font-size:11px;color:#9ca3af;margin-left:12px;">Motonor</span>
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:{BRAND_SURFACE};border:1px solid {BRAND_LINE};border-radius:14px;overflow:hidden;max-width:560px;width:100%;">
+        <tr><td style="background:{BRAND_BG};padding:18px 28px;border-bottom:2px solid {BRAND_ACCENT};">
+          <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+            <td style="padding:0 12px 0 0;vertical-align:middle;">
+              <img src="{logo}" width="40" height="40" alt="Motonor" style="display:block;width:40px;height:40px;border:0;border-radius:10px;">
+            </td>
+            <td style="vertical-align:middle;font-size:20px;font-weight:bold;letter-spacing:4px;color:{BRAND_INK};">MOTONOR</td>
+          </tr></table>
         </td></tr>
-        <tr><td style="padding:28px 32px;font-size:14px;line-height:1.7;color:#d1d5db;">
+        <tr><td style="padding:28px;font-size:15px;line-height:1.6;color:{BRAND_INK_2};">
           {body_inner}
         </td></tr>
-        <tr><td style="padding:16px 32px;background:#111827;font-size:11px;color:#6b7280;border-top:1px solid #374151;">
-          Echipa Motonor &nbsp;·&nbsp; {app_link}
+        <tr><td style="padding:16px 28px;background:{BRAND_BG};font-size:12px;color:{BRAND_MUTED};border-top:1px solid {BRAND_LINE};">
+          Motonor &nbsp;·&nbsp; {app_link}
         </td></tr>
       </table>
     </td></tr>
@@ -1215,7 +1243,7 @@ def _send_email(email: str, subject: str, text: str, links: Sequence[str] = ()) 
     if BREVO_API_KEY:
         logger.info("_send_email: using Brevo API, to=%s", _mask_email(email))
         payload: dict[str, Any] = {
-            "sender": {"email": SMTP_FROM},
+            "sender": {"name": SMTP_FROM_NAME, "email": SMTP_FROM},
             "to": [{"email": email}],
             "subject": subject,
             "textContent": text,
@@ -1240,7 +1268,7 @@ def _send_email(email: str, subject: str, text: str, links: Sequence[str] = ()) 
     logger.info("_send_email: using SMTP host=%s to=%s", SMTP_HOST, _mask_email(email))
     msg = EmailMessage()
     msg["Subject"] = subject
-    msg["From"] = SMTP_FROM
+    msg["From"] = formataddr((SMTP_FROM_NAME, SMTP_FROM))
     msg["To"] = email
     msg.set_content(text)
     msg.add_alternative(html_body, subtype="html")
@@ -1304,15 +1332,20 @@ def _html_page(
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{html.escape(title)} · Motonor</title>
 <style>
-  body{{margin:0;padding:32px 16px;background:#111827;color:#e5e7eb;font-family:Arial,sans-serif;}}
-  main{{max-width:480px;margin:0 auto;background:#1f2937;border-radius:12px;padding:28px;border-top:3px solid #f97316;}}
-  h1{{font-size:20px;margin:0 0 12px;color:#f97316;}}
+  body{{margin:0;padding:32px 16px;background:{BRAND_BG};color:{BRAND_INK_2};font-family:Arial,Helvetica,sans-serif;}}
+  main{{max-width:480px;margin:0 auto;background:{BRAND_SURFACE};border:1px solid {BRAND_LINE};border-radius:14px;
+    padding:28px;border-top:3px solid {BRAND_ACCENT};}}
+  .brand{{display:flex;align-items:center;gap:12px;margin:0 0 20px;font-size:18px;font-weight:bold;
+    letter-spacing:4px;color:{BRAND_INK};}}
+  .brand img{{width:36px;height:36px;border-radius:9px;}}
+  h1{{font-size:20px;margin:0 0 12px;color:{BRAND_INK};}}
   p{{line-height:1.6;margin:0 0 20px;}}
-  a{{color:#f97316;}}
-  button{{background:#f97316;color:#111827;border:0;border-radius:8px;padding:10px 18px;
+  a{{color:{BRAND_ACCENT};}}
+  button{{background:{BRAND_ACCENT};color:{BRAND_BG};border:0;border-radius:8px;padding:10px 18px;
     font-size:15px;font-weight:bold;cursor:pointer;margin:0 0 20px;}}
 </style></head>
 <body><main>
+  <div class="brand"><img src="{html.escape(_brand_logo_url(), quote=True)}" alt="">MOTONOR</div>
   <h1>{html.escape(title)}</h1>
   <p>{html.escape(message)}</p>
   {form}
@@ -1323,13 +1356,13 @@ def _html_page(
         status_code=status_code,
         # The request URL carries a secret token: never cache it, never leak it
         # through the Referer header when the user follows the link to the app.
-        # The page needs no scripts: lock it down to inline styles and a
-        # same-origin form (this overrides the app-wide baseline CSP).
+        # The page needs no scripts: lock it down to inline styles, the app's
+        # icon and a same-origin form (this overrides the app-wide baseline CSP).
         headers={
             "Cache-Control": "no-store",
             "Referrer-Policy": "no-referrer",
             "Content-Security-Policy": (
-                "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; "
+                f"default-src 'none'; style-src 'unsafe-inline'; img-src {APP_BASE_URL}; form-action 'self'; "
                 "base-uri 'none'; frame-ancestors 'none'"
             ),
         },
