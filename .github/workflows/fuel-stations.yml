@@ -1,0 +1,68 @@
+name: Fuel stations
+
+# Once a month: every fuel station in Romania and the countries around it
+# (Moldova, Bulgaria, Hungary, Serbia), from OpenStreetMap, as the small file
+# the planner reads to suggest where to fill up (app/public/data/
+# fuel-stations.json). The map data comes from the Geofabrik extracts, made
+# for downloads like this, instead of the public Overpass server, which asks
+# apps not to depend on it. Committed to main only when a station changed;
+# that push deploys the app like any other.
+
+on:
+  schedule:
+    - cron: '30 3 3 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fuel-stations
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: Fuel stations from OpenStreetMap
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install osmium
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq osmium-tool
+
+      - name: Download the extracts
+        run: |
+          set -euo pipefail
+          mkdir -p osm
+          for area in romania moldova bulgaria hungary serbia; do
+            curl --fail --silent --show-error --location --retry 3 --retry-delay 30 \
+              --user-agent "Motonor fuel stations (https://github.com/${GITHUB_REPOSITORY})" \
+              --output "osm/${area}.osm.pbf" "https://download.geofabrik.de/europe/${area}-latest.osm.pbf"
+          done
+          ls -lh osm
+
+      - name: Keep the fuel stations
+        run: |
+          set -euo pipefail
+          for f in osm/*.osm.pbf; do
+            osmium tags-filter "$f" nwr/amenity=fuel --overwrite -o "${f%.osm.pbf}.fuel.pbf"
+          done
+          osmium merge osm/*.fuel.pbf --overwrite -o osm/fuel.pbf
+          osmium export osm/fuel.pbf -f geojsonseq --overwrite -o osm/fuel.geojsonseq
+          python3 scripts/fuel_stations.py osm/fuel.geojsonseq app/public/data/fuel-stations.json
+
+      - name: Commit when it changed
+        run: |
+          set -euo pipefail
+          git add app/public/data/fuel-stations.json
+          if git diff --cached --quiet; then
+            echo "No station changed."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Data: fuel stations from OpenStreetMap ($(date -u +%Y-%m-%d))"
+          git push
