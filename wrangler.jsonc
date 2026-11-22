@@ -4,10 +4,12 @@
   // Run and the frontend calls it via CONFIGURED_BACKEND_URL, so the HTML loads
   // instantly even when the Cloud Run backend is cold.
   //
-  // The only server code here is the short route links (app/src/worker/shortLinks.ts):
+  // The server code here is the short route links (app/src/worker/shortLinks.ts):
   // POST /s stores a shared ride plan in Workers KV for 90 days, GET /s/<id>
-  // redirects to it. `run_worker_first` sends only those two paths to the
-  // script; every other request is a static file, served as before.
+  // redirects to it; and the old address's redirect (app/src/worker/moved.ts),
+  // which sends page loads on weatherformoto.bluemouse.cc to motonor.bluemouse.cc.
+  // `run_worker_first` sends only those paths and the pages to the script;
+  // every other request is a static file, served as before.
   "name": "weatherformoto",
   "compatibility_date": "2026-07-01",
   "main": "app/src/worker/index.ts",
@@ -15,7 +17,7 @@
     "directory": "./dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/s", "/s/*"]
+    "run_worker_first": ["/s", "/s/*", "/", "/index.html", "/privacy-policy.html"]
   },
   // The namespace id is set explicitly. With no id, wrangler's automatic
   // provisioning created the namespace on the first preview build and the
