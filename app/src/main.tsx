@@ -20,6 +20,7 @@ import './ui/ui.css';
 import App from './App';
 // Registers the beforeinstallprompt listener at start-up, before the Eu tab is ever opened.
 import './features/account/installPrompt';
+import { receiveMove } from './features/move/move';
 import { api } from './lib/api';
 import { keepPhonesUpright } from './lib/orientation';
 import { initServiceWorker } from './lib/pwa';
@@ -29,13 +30,17 @@ import { Providers } from './state/providers';
 const rootElement = document.getElementById('root');
 if (!rootElement) throw new Error('Missing #root element');
 
-createRoot(rootElement).render(
-  <StrictMode>
-    <Providers>
-      <App />
-    </Providers>
-  </StrictMode>,
-);
+// What a move from the old address carries is taken in before anything reads
+// the settings (features/move); without one this returns at once.
+void receiveMove().finally(() => {
+  createRoot(rootElement).render(
+    <StrictMode>
+      <Providers>
+        <App />
+      </Providers>
+    </StrictMode>,
+  );
+});
 
 initServiceWorker();
 keepPhonesUpright();

@@ -15,7 +15,7 @@ import type { Departure, LatLon, RouteLine } from './types';
 // because routing them again gives the same road. A route imported from GPX
 // carries its road too, simplified, because no router would draw it again.
 //
-//   https://weatherformoto.bluemouse.cc/#/traseu?r=1&t=2026-11-22T08:00&k=75
+//   https://motonor.bluemouse.cc/#/traseu?r=1&t=2026-11-22T08:00&k=75
 //     &p=44.4268~26.1025~Bucure%C8%99ti&p=45.7983~24.1256~Sibiu&n=412&l=...
 
 export const ROUTE_TAB_HASH = '#/traseu';

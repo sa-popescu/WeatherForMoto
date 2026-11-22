@@ -1,6 +1,6 @@
 name: GitHub Pages redirect
 
-# The app now lives on https://weatherformoto.bluemouse.cc (Cloudflare).
+# The app now lives on https://motonor.bluemouse.cc (Cloudflare).
 # GitHub Pages only serves a redirect there, plus a service worker that
 # retires the old app's worker for people who installed it from this URL.
 
@@ -38,19 +38,19 @@ jobs:
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <title>MotoMeteo s-a mutat</title>
-            <meta http-equiv="refresh" content="0; url=https://weatherformoto.bluemouse.cc/">
-            <link rel="canonical" href="https://weatherformoto.bluemouse.cc/">
+            <meta http-equiv="refresh" content="0; url=https://motonor.bluemouse.cc/">
+            <link rel="canonical" href="https://motonor.bluemouse.cc/">
             <style>body{font-family:system-ui,sans-serif;background:#0b0c0a;color:#eef1e8;display:grid;place-items:center;min-height:100vh;margin:0;padding:24px;text-align:center}a{color:#b4f03c}</style>
           </head>
           <body>
-            <p>MotoMeteo s-a mutat la <a href="https://weatherformoto.bluemouse.cc/">weatherformoto.bluemouse.cc</a>.</p>
+            <p>MotoMeteo se numește acum Motonor și s-a mutat la <a href="https://motonor.bluemouse.cc/">motonor.bluemouse.cc</a>.</p>
           </body>
           </html>
           EOF
           cp dist/index.html dist/404.html
           cat > dist/sw.js <<'EOF'
           // Retire the old app's service worker on this origin and send open windows to the new home.
-          const APP_URL = 'https://weatherformoto.bluemouse.cc/';
+          const APP_URL = 'https://motonor.bluemouse.cc/';
           self.addEventListener('install', () => self.skipWaiting());
           self.addEventListener('activate', (event) => {
             event.waitUntil((async () => {

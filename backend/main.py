@@ -106,7 +106,7 @@ MAX_ROUTE_STOPS = 10
 
 # Path to the frontend index.html (one level above the backend/ directory)
 # The frontend lives on the static host; this origin (run.app) serves the API.
-APP_BASE_URL: str = os.getenv("APP_BASE_URL", "https://weatherformoto.bluemouse.cc").rstrip("/")
+APP_BASE_URL: str = os.getenv("APP_BASE_URL", "https://motonor.bluemouse.cc").rstrip("/")
 
 _REPO_ROOT = pathlib.Path(__file__).parent.parent
 INDEX_HTML = _REPO_ROOT / "index.html"
@@ -182,7 +182,7 @@ PREVIEW_ORIGIN_REGEX = (
 ALLOWED_ORIGINS = [
     o.strip()
     for o in os.getenv(
-        "ALLOWED_ORIGINS", "https://weatherformoto.bluemouse.cc"
+        "ALLOWED_ORIGINS", "https://motonor.bluemouse.cc,https://weatherformoto.bluemouse.cc"
     ).split(",")
     if o.strip()
 ]

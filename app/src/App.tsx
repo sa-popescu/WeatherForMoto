@@ -1,4 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { MoveBanner } from './features/move/MoveBanner';
+import { onOldAddress } from './features/move/move';
 import { rideRecorder } from './features/ride/recorder';
 import { useRide } from './features/ride/useRide';
 import type { ScreenProps } from './features/types';
@@ -85,6 +87,8 @@ export default function App() {
   const mainRef = useRef<HTMLElement>(null);
   // A ride covers the whole app, tabs included, until it is closed.
   const riding = useRide().phase !== 'idle';
+  // The app moved to motonor.bluemouse.cc: the old address offers to move there.
+  const oldAddress = useMemo(onOldAddress, []);
 
   // A ride the app was closed in the middle of is offered again at start-up.
   useEffect(() => {
@@ -148,6 +152,7 @@ export default function App() {
           </div>
         )}
         <main className="shell__main" id="main" ref={mainRef}>
+          {oldAddress && <MoveBanner />}
           {isWeatherView(view) && (
             <ViewSwitch
               label={s.weatherViews}

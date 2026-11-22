@@ -1138,7 +1138,7 @@ def _pw_icon_to_wmo(icon: str | None) -> int | None:
 # Shared HTTP client, response cache and time budget
 # ---------------------------------------------------------------------------
 # MET Norway's terms require an identifying User-Agent (app + contact URL).
-DEFAULT_MET_USER_AGENT = "WeatherForMoto/1.0 (+https://weatherformoto.bluemouse.cc)"
+DEFAULT_MET_USER_AGENT = "Motonor/1.0 (+https://motonor.bluemouse.cc)"
 # The old placeholder default; MET Norway may throttle or block it.
 _PLACEHOLDER_USER_AGENT_MARKER = "github.com/user/"
 
@@ -1397,7 +1397,7 @@ def _ttl_from_expires(expires_header: str | None) -> float:
 # ---------------------------------------------------------------------------
 WIKIDATA_API = "https://www.wikidata.org/w/api.php"
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
-NOMINATIM_HEADERS = {"User-Agent": "WeatherForMoto/1.0 (weatherformoto@bluemouse.cc)"}
+NOMINATIM_HEADERS = {"User-Agent": "Motonor/1.0 (weatherformoto@bluemouse.cc)"}
 # Nominatim's usage policy allows at most one request per second.
 NOMINATIM_MIN_INTERVAL_S = 1.1
 _nominatim_lock: asyncio.Lock | None = None

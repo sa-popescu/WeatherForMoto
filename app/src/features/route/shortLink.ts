@@ -3,7 +3,7 @@ import { ROUTE_TAB_HASH } from './routeLink';
 
 // A long route link (an imported GPX road makes it run to a few thousand
 // characters) is swapped for a short one before it is shared:
-// https://weatherformoto.bluemouse.cc/s/K7f3qXa2, kept for 90 days by the
+// https://motonor.bluemouse.cc/s/K7f3qXa2, kept for 90 days by the
 // Worker in front of the app (src/worker/shortLinks.ts). A short link is not
 // worth a server round trip; when the Worker cannot be reached (offline, a
 // development server) the long link is shared, as before.

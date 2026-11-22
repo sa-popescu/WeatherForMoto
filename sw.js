@@ -1,7 +1,7 @@
 // Retires the old MotoMeteo service worker wherever this root file is served
 // (GitHub Pages branch deploy): clears its caches, unregisters, and sends open
 // windows to the app's new home. The app's real worker is built from app/src/sw.ts.
-const APP_URL = 'https://weatherformoto.bluemouse.cc/';
+const APP_URL = 'https://motonor.bluemouse.cc/';
 
 self.addEventListener('install', () => self.skipWaiting());
 

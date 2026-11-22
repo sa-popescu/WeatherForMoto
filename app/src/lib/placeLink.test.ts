@@ -4,7 +4,7 @@ import { parsePlaceLink, placeLinkUrl } from './placeLink';
 describe('place links', () => {
   it('round-trips a landmark with its coordinates', () => {
     const url = new URL(placeLinkUrl({ name: 'Promenada Mall & Co', lat: 44.478191, lon: 26.103413 }));
-    expect(url.origin).toBe('https://weatherformoto.bluemouse.cc');
+    expect(url.origin).toBe('https://motonor.bluemouse.cc');
     expect(parsePlaceLink(url.searchParams)).toEqual({ kind: 'place', place: { name: 'Promenada Mall & Co', lat: 44.4782, lon: 26.1034 } });
   });
 

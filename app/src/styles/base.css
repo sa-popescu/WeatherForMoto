@@ -145,6 +145,56 @@ textarea {
   font-size: 14px;
 }
 
+/* On the old address only: the card that moves the app to motonor.bluemouse.cc
+   (features/move). Fixed above the nav, so it shows over the maps too. */
+.move-banner {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(var(--nav-h) + var(--safe-bottom) + 12px);
+  z-index: 35;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 536px;
+  margin-inline: auto;
+  padding: 16px;
+  border: 1px solid var(--accent);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.4);
+}
+
+.move-banner__title {
+  font-family: var(--font-num);
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.move-banner__lead,
+.move-banner__warn {
+  font-size: 14px;
+  color: var(--ink-2);
+}
+
+.move-banner__warn {
+  color: var(--t-atentie);
+}
+
+.move-banner__actions {
+  display: flex;
+  gap: 8px;
+}
+
+@media (min-width: 1024px) {
+  .move-banner {
+    left: calc(var(--rail-w) + 24px);
+    right: auto;
+    bottom: 24px;
+    width: 460px;
+  }
+}
+
 /* "Vreme": the switch between the forecast and the radar map, at the top of
    the content. The map is fixed, so it starts under the switch. */
 .shell {

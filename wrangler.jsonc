@@ -1,5 +1,5 @@
 {
-  // Cloudflare Worker that serves the WeatherForMoto static frontend from the
+  // Cloudflare Worker that serves the Motonor static frontend from the
   // edge (built into ./dist by scripts/build-pages.sh). The API stays on Cloud
   // Run and the frontend calls it via CONFIGURED_BACKEND_URL, so the HTML loads
   // instantly even when the Cloud Run backend is cold.

@@ -68,7 +68,7 @@ PBKDF2_ITERATIONS = int(os.getenv("PBKDF2_ITERATIONS", "600000"))
 # database leak alone does not allow offline brute force of the 6-digit codes.
 AUTH_CODE_PEPPER = os.getenv("AUTH_CODE_PEPPER", "")
 # Public URL of the static frontend (Cloudflare), used for links back to the app.
-APP_BASE_URL = os.getenv("APP_BASE_URL", "https://weatherformoto.bluemouse.cc").rstrip("/")
+APP_BASE_URL = os.getenv("APP_BASE_URL", "https://motonor.bluemouse.cc").rstrip("/")
 # Public URL of THIS backend. Links that must hit the API (email verification)
 # are built from it, because APP_BASE_URL is static hosting.
 API_BASE_URL = os.getenv(

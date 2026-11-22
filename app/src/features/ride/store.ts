@@ -199,6 +199,54 @@ export async function listFinished(): Promise<RideListItem[]> {
   return items.sort((a, b) => b.startedAt - a.startedAt);
 }
 
+/** Every ride on this phone, as stored: for moving them to the app's new address (features/move). */
+export interface RideDump {
+  rides: RideMeta[];
+  chunks: RideChunk[];
+  routes: StoredRoute[];
+}
+
+export async function dumpRides(): Promise<RideDump> {
+  const db = await openDb();
+  const tx = db.transaction([RIDES, CHUNKS, ROUTES], 'readonly');
+  const [rides, chunks, routes] = await Promise.all([
+    result(tx.objectStore(RIDES).getAll() as IDBRequest<RideMeta[]>),
+    result(tx.objectStore(CHUNKS).getAll() as IDBRequest<RideChunk[]>),
+    result(tx.objectStore(ROUTES).getAll() as IDBRequest<StoredRoute[]>),
+  ]);
+  return { rides, chunks, routes };
+}
+
+function isDump(value: unknown): value is RideDump {
+  if (!value || typeof value !== 'object') return false;
+  const v = value as Partial<RideDump>;
+  return (
+    Array.isArray(v.rides) &&
+    Array.isArray(v.chunks) &&
+    Array.isArray(v.routes) &&
+    v.rides.every((r) => typeof r?.id === 'string' && typeof r.createdAt === 'number' && typeof r.clock === 'object') &&
+    v.chunks.every((c) => typeof c?.rideId === 'string' && typeof c.seq === 'number' && Array.isArray(c.points)) &&
+    v.routes.every((r) => typeof r?.rideId === 'string' && typeof r.route === 'object')
+  );
+}
+
+/**
+ * Puts moved rides in, only on a phone that has none yet here, so a link can
+ * never mix strange rides into someone's own. Returns how many came in.
+ */
+export async function restoreRides(dump: unknown): Promise<number> {
+  if (!isDump(dump) || dump.rides.length === 0) return 0;
+  const db = await openDb();
+  const existing = await result(db.transaction(RIDES, 'readonly').objectStore(RIDES).count());
+  if (existing > 0) return 0;
+  const tx = db.transaction([RIDES, CHUNKS, ROUTES], 'readwrite');
+  for (const r of dump.rides) tx.objectStore(RIDES).put(r);
+  for (const c of dump.chunks) tx.objectStore(CHUNKS).put(c);
+  for (const r of dump.routes) tx.objectStore(ROUTES).put(r);
+  await done(tx);
+  return dump.rides.length;
+}
+
 /** Removes a ride for good: its metadata, its points and its route. */
 export async function deleteRide(id: string): Promise<void> {
   const db = await openDb();
