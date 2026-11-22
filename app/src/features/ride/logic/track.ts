@@ -17,6 +17,12 @@ export interface RideFix {
   speed: number | null;
   /** GPS altitude in metres. Noisy, so it is only carried along for the export. */
   alt: number | null;
+  /**
+   * Course over ground in degrees clockwise from north, as the GPS measured
+   * it; null while standing or when the device gives none. Rides recorded
+   * before it was kept have none (see lean.ts).
+   */
+  head?: number | null;
 }
 
 /** A fix that was kept. */
@@ -198,7 +204,7 @@ function crossGap(state: TrackState, point: RidePoint, last: RidePoint, anchor: 
 export function stepTrack(state: TrackState, fix: RideFix, seg: number, roads?: GapRoads): StepResult {
   if (fix.acc > MAX_ACCURACY_M) return { state, kept: null };
   const { last, anchor } = state;
-  const point: RidePoint = { t: fix.t, lat: fix.lat, lon: fix.lon, acc: fix.acc, speed: fix.speed, alt: fix.alt, seg };
+  const point: RidePoint = { t: fix.t, lat: fix.lat, lon: fix.lon, acc: fix.acc, speed: fix.speed, alt: fix.alt, head: fix.head ?? null, seg };
   if (!last || !anchor || last.seg !== seg) return startSegment(state, point);
 
   const dt = fix.t - last.t;
