@@ -60,22 +60,44 @@ export function addDriveLayers(map: MapLibreMap): void {
     { id: 'drive-traffic', type: 'line', source: 'drive-traffic', layout: round, paint: { 'line-color': trafficColor(), 'line-width': width(5, 8) } },
     before,
   );
-  // The ends sit above the labels: they are what the screen is about.
+  // The ends sit above the labels: they are what the screen is about. The
+  // rider's own position looks like it does in map apps, a solid dot with a
+  // white ring and a soft halo; a place picked by name is a hollow ring, so
+  // the two are never confused; the destination is a light dot.
+  const accent = cssVar('--accent', '#b4f03c');
+  const kind: ExpressionSpecification = ['get', 'kind'];
+  map.addLayer({
+    id: 'drive-you-halo',
+    type: 'circle',
+    source: 'drive-ends',
+    filter: ['==', kind, 'you'],
+    paint: { 'circle-radius': 22, 'circle-color': accent, 'circle-opacity': 0.2, 'circle-blur': 0.3 },
+  });
   map.addLayer({
     id: 'drive-ends',
     type: 'circle',
     source: 'drive-ends',
     paint: {
-      'circle-radius': ['match', ['get', 'kind'], 'origin', 7, 8],
-      'circle-color': ['match', ['get', 'kind'], 'origin', cssVar('--accent', '#b4f03c'), cssVar('--ink', '#eef1e8')],
-      'circle-stroke-width': 3,
-      'circle-stroke-color': cssVar('--bg', '#0b0c0a'),
+      'circle-radius': ['match', kind, 'you', 8, 'origin', 7, 8],
+      'circle-color': ['match', kind, 'you', accent, 'origin', cssVar('--bg', '#0b0c0a'), cssVar('--ink', '#eef1e8')],
+      'circle-stroke-width': ['match', kind, 'origin', 4, 3],
+      'circle-stroke-color': ['match', kind, 'you', '#ffffff', 'origin', accent, cssVar('--bg', '#0b0c0a')],
     },
   });
 }
 
-/** The routes, the traffic of the chosen one, and the ends. The chosen route is drawn last, on top. */
-export function setDriveData(map: MapLibreMap, routes: readonly DriveRoute[], selectedId: string | null, origin: LatLon | null, destination: LatLon | null): void {
+/**
+ * The routes, the traffic of the chosen one, and the ends. The chosen route is drawn last, on top.
+ * `originIsYou`: the origin is the rider's GPS position, not a place picked by name.
+ */
+export function setDriveData(
+  map: MapLibreMap,
+  routes: readonly DriveRoute[],
+  selectedId: string | null,
+  origin: LatLon | null,
+  destination: LatLon | null,
+  originIsYou = false,
+): void {
   const warn = (err: unknown): void => console.warn('[drive] could not draw the routes', err);
   const ordered = [...routes].sort((a, b) => Number(a.id === selectedId) - Number(b.id === selectedId));
   const routeFeatures = ordered.map((r) => line(r.line.coords, { id: r.id, selected: r.id === selectedId }));
@@ -87,7 +109,7 @@ export function setDriveData(map: MapLibreMap, routes: readonly DriveRoute[], se
   const ends: FeatureCollection = {
     type: 'FeatureCollection',
     features: [
-      ...(origin ? [{ type: 'Feature' as const, properties: { kind: 'origin' }, geometry: { type: 'Point' as const, coordinates: [origin.lon, origin.lat] } }] : []),
+      ...(origin ? [{ type: 'Feature' as const, properties: { kind: originIsYou ? 'you' : 'origin' }, geometry: { type: 'Point' as const, coordinates: [origin.lon, origin.lat] } }] : []),
       ...(destination ? [{ type: 'Feature' as const, properties: { kind: 'destination' }, geometry: { type: 'Point' as const, coordinates: [destination.lon, destination.lat] } }] : []),
     ],
   };
