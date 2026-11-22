@@ -9,6 +9,7 @@ import { RideControls } from './RideControls';
 import { RideGauges } from './RideGauges';
 import { RideMap } from './RideMap';
 import { RideNotes } from './RideNotes';
+import { RideStory } from './RideStory';
 import { RideTurn } from './RideTurn';
 import { RIDE_S } from './strings';
 import { useRide } from './useRide';
@@ -64,7 +65,7 @@ export default function RideScreen() {
   }, [lang]);
 
   return (
-    <div ref={rootRef} className="ride" role="dialog" aria-modal="true" aria-label={s.dialogLabel} tabIndex={-1}>
+    <div ref={rootRef} className={ride.phase === 'finished' ? 'ride ride--done' : 'ride'} role="dialog" aria-modal="true" aria-label={s.dialogLabel} tabIndex={-1}>
       {ride.phase === 'resume' ? (
         <ResumePrompt ride={ride} />
       ) : (
@@ -74,6 +75,7 @@ export default function RideScreen() {
           <RideMap ride={ride} />
           <div className="ride-panel">
             <RideGauges ride={ride} now={now} />
+            {ride.phase === 'finished' && <RideStory ride={ride} />}
             <RideControls phase={ride.phase} />
           </div>
         </>

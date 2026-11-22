@@ -1,6 +1,7 @@
 import type { GapFill } from './gapFill';
 import type { RideClock } from './logic/clock';
 import type { RideRoute } from './logic/follow';
+import type { RideStory } from './logic/story';
 import { summaryFromPoints, type RideSummary } from './logic/summary';
 import type { RidePoint } from './logic/track';
 
@@ -34,6 +35,8 @@ export interface RideMeta {
   routeName?: string;
   /** The ride's id in the account's ride log, once it was saved there. */
   loggedId?: number;
+  /** The weather the ride met, worked out once after it ended. */
+  story?: RideStory;
 }
 
 /** A finished ride, as the list of rides shows it. */

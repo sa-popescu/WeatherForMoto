@@ -142,6 +142,65 @@
   letter-spacing: 0.02em;
 }
 
+/* ---- A finished ride: a report that scrolls, the map at a fixed height ---- */
+
+.ride--done {
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+
+.ride--done .ride-map {
+  flex: none;
+  height: 40vh;
+  min-height: 220px;
+}
+
+.ride-story {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+
+.ride-story__lines {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ride-story__lines li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.ride-story__lines svg {
+  flex: none;
+  margin-top: 1px;
+  color: var(--accent);
+}
+
+.ride-story__note,
+.ride-story__status {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.ride-story__status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
 /* ---- Next turn (routes from "Drum") ---- */
 
 .ride-turn {

@@ -15,6 +15,122 @@
   margin-top: 8px;
 }
 
+/* ---- Statistics and records ---- */
+
+.ride-totals {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.ride-totals__empty {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.ride-totals__periods {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.ride-totals__period {
+  flex: none;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ride-totals__period--on {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.ride-totals__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.ride-totals__grid > div {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+
+.ride-totals__grid dt {
+  font-family: var(--font-num);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted-2);
+}
+
+.ride-totals__grid dd {
+  margin: 2px 0 0;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.ride-totals__records-title {
+  margin-top: 4px;
+}
+
+.ride-totals__records {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ride-totals__record {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 2px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ride-totals__record-label {
+  flex: 1;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+
+.ride-totals__record-value {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.ride-totals__record-day {
+  min-width: 56px;
+  font-size: 13px;
+  color: var(--muted);
+  text-align: right;
+}
+
 .ride-entry {
   display: flex;
   flex-direction: column;
