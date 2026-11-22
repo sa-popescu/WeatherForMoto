@@ -595,3 +595,8 @@
     width: 420px;
   }
 }
+
+/* A high road on this route that is usually closed that day (route/seasonalClosures.ts). */
+.drive-option__warning--closed {
+  color: var(--t-evita);
+}

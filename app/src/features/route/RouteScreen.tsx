@@ -169,7 +169,7 @@ export default function RouteScreen({ active }: ScreenProps) {
       </div>
 
       <div className="route-col route-col--road">
-        {plan.route && <RouteDetails route={plan.route} derived={derived} hazards={hazards} signedIn={signedIn} onAction={onAction} />}
+        {plan.route && <RouteDetails route={plan.route} derived={derived} hazards={hazards} date={departure.date} signedIn={signedIn} onAction={onAction} />}
       </div>
 
       {dragging && (

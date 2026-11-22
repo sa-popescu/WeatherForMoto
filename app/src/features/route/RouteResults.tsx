@@ -5,6 +5,7 @@ import { HazardList, useHazardText } from './HazardList';
 import { RouteActions, type ActionKind } from './RouteActions';
 import { fmtDuration, fmtKm } from './routeFormat';
 import { RouteMap } from './RouteMap';
+import { SeasonalRoads } from './SeasonalRoads';
 import { RS } from './strings';
 import { rideMinutes } from './timing';
 import type { Departure, RouteLine } from './types';
@@ -82,14 +83,17 @@ interface RouteDetailsProps {
   route: RouteLine;
   derived: DerivedPlan;
   hazards: HazardsState;
+  /** The day of the ride, "YYYY-MM-DD", for the roads closed in winter. */
+  date: string;
   signedIn: boolean;
   onAction: (kind: ActionKind) => void;
 }
 
-/** The weather at every point along the road, the hazards on it and the actions. */
-export function RouteDetails({ route, derived, hazards, signedIn, onAction }: RouteDetailsProps) {
+/** The roads closed in winter, the weather at every point along the road, the hazards on it and the actions. */
+export function RouteDetails({ route, derived, hazards, date, signedIn, onAction }: RouteDetailsProps) {
   return (
     <>
+      <SeasonalRoads route={route} date={date} />
       <WaypointList rows={derived.rows} route={route} />
       <HazardList state={hazards} />
       <RouteActions signedIn={signedIn} onAction={onAction} />
