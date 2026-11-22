@@ -1,0 +1,140 @@
+/* The live location page (LiveView.tsx): the map over the whole screen and
+   a card at the bottom. Colours only from the theme tokens. */
+
+.live {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.live-map {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  background: var(--surface-2);
+}
+
+.live-map__canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.live-map__follow.icon-btn {
+  position: absolute;
+  top: calc(12px + var(--safe-top));
+  right: 12px;
+  z-index: 2;
+  border-color: var(--line-2);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+}
+
+.live-map .maplibregl-ctrl-top-left {
+  top: var(--safe-top);
+}
+
+/* The rider: a dot with a slow pulse, like "Locația mea" on the Drum map. */
+.live-rider {
+  width: 20px;
+  height: 20px;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .live-rider {
+    animation: live-pulse 2s ease-in-out infinite;
+  }
+}
+
+@keyframes live-pulse {
+  50% {
+    box-shadow: 0 0 0 12px color-mix(in srgb, var(--accent) 0%, transparent);
+  }
+}
+
+.live__card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px calc(14px + var(--safe-bottom));
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.live__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.live__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.live__title {
+  flex: 1;
+  margin: 0;
+  font-size: 18px;
+}
+
+.live__app {
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.live__line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 15px;
+  color: var(--ink-2);
+}
+
+.live__line--strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.live__line--warn {
+  color: var(--t-atentie);
+}
+
+.live__speed {
+  color: var(--ink);
+}
+
+.live__note {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.live--gone {
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 24px;
+  text-align: center;
+}
+
+.live--gone > svg {
+  color: var(--accent);
+}
+
+.live__gone-title {
+  max-width: 28ch;
+  margin: 0;
+  font-size: 22px;
+}

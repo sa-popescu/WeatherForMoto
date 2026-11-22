@@ -1,11 +1,16 @@
 import type { Env } from './shortLinks';
 import { handle } from './shortLinks';
+import { handleLive, type LiveEnv } from './live';
 import { movedRedirect } from './moved';
 
 // The Worker's entry module (wrangler.jsonc "main"). It exports the handler
-// and nothing else: the Workers runtime reads every named export of this
-// module as an entry point, so constants and helpers live in their own files.
+// and the Durable Object classes of the live location (live.ts), and nothing
+// else: the Workers runtime reads every named export of this module as an
+// entry point, so constants and helpers live in their own files.
+
+export { LiveBudget, LiveRide } from './live';
 
 export default {
-  fetch: (request: Request, env: Env): Promise<Response> | Response => movedRedirect(request) ?? handle(request, env),
+  fetch: async (request: Request, env: Env & LiveEnv): Promise<Response> =>
+    movedRedirect(request) ?? (await handleLive(request, env)) ?? handle(request, env),
 };

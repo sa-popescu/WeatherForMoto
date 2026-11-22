@@ -5,6 +5,7 @@ import { Button } from '../../ui/primitives';
 import { useClock } from '../now/useClock';
 import { fmtClockTime, fmtKm } from './logic/rideFormat';
 import { rideRecorder, type RideSnapshot } from './recorder';
+import { LiveShareControl } from './LiveShareControl';
 import { RideControls } from './RideControls';
 import { RideGauges } from './RideGauges';
 import { RideMap } from './RideMap';
@@ -77,6 +78,7 @@ export default function RideScreen() {
             <RideGauges ride={ride} now={now} />
             {ride.phase === 'finished' && <RideStory ride={ride} />}
             <RideControls phase={ride.phase} />
+            {live && <LiveShareControl now={now} />}
           </div>
         </>
       )}

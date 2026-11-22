@@ -22,6 +22,7 @@ export const KEYS = {
   installDismissed: 'pwaInstallDismissed',
   fuelRange: 'motonorFuelRangeV1',
   offlineMaps: 'motonorOfflineMapsV1',
+  liveShare: 'motonorLiveShareV1',
 } as const;
 
 export type StorageKey = (typeof KEYS)[keyof typeof KEYS];

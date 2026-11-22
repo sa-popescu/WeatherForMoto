@@ -6,8 +6,10 @@
   //
   // The server code here is the short route links (app/src/worker/shortLinks.ts):
   // POST /s stores a shared ride plan in Workers KV for 90 days, GET /s/<id>
-  // redirects to it; and the old address's redirect (app/src/worker/moved.ts),
-  // which sends page loads on weatherformoto.bluemouse.cc to motonor.bluemouse.cc.
+  // redirects to it; the live location of a ride (app/src/worker/live.ts),
+  // under /live, kept in Durable Objects for at most 12 hours; and the old
+  // address's redirect (app/src/worker/moved.ts), which sends page loads on
+  // weatherformoto.bluemouse.cc to motonor.bluemouse.cc.
   // `run_worker_first` sends only those paths and the pages to the script;
   // every other request is a static file, served as before.
   "name": "weatherformoto",
@@ -17,7 +19,7 @@
     "directory": "./dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/s", "/s/*", "/", "/index.html", "/privacy-policy.html"]
+    "run_worker_first": ["/s", "/s/*", "/live", "/live/*", "/", "/index.html", "/privacy-policy.html"]
   },
   // The namespace id is set explicitly. With no id, wrangler's automatic
   // provisioning created the namespace on the first preview build and the
@@ -27,5 +29,18 @@
   // full link instead.
   "kv_namespaces": [
     { "binding": "SHORT_LINKS", "id": "dd8a399b7b4c49459a5c39a5916e698d" }
+  ],
+  // Live location: one object per shared ride, one for the daily budget.
+  // SQLite storage, the kind the free plan has. The migration runs with the
+  // production deploy (wrangler deploy); without these bindings /live answers
+  // 503 and the app says sharing is off.
+  "durable_objects": {
+    "bindings": [
+      { "name": "LIVE_RIDES", "class_name": "LiveRide" },
+      { "name": "LIVE_BUDGET", "class_name": "LiveBudget" }
+    ]
+  },
+  "migrations": [
+    { "tag": "live-v1", "new_sqlite_classes": ["LiveRide", "LiveBudget"] }
   ]
 }
