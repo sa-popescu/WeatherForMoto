@@ -3,7 +3,7 @@ import { fmtNumber } from '../../lib/format';
 import { fmt, useLang, useStrings, type Lang } from '../../lib/i18n';
 import { useToast } from '../../state/toast';
 import { cx } from '../../ui/primitives';
-import { fmtDuration, fmtKm, fmtKmh, msToKmh } from './logic/rideFormat';
+import { fmtKm, fmtKmh, fmtTimeLeft, msToKmh } from './logic/rideFormat';
 import { periodTotals, rideRecords, type Period, type RideRecord } from './logic/rideStats';
 import { rideRecorder } from './recorder';
 import type { RideListItem } from './store';
@@ -39,7 +39,8 @@ export function RideTotals({ items }: { items: readonly RideListItem[] }) {
   };
   const rows: Array<{ key: string; label: string; record: RideRecord | null; value: (v: number) => string }> = [
     { key: 'longest', label: s.recLongest, record: records.longest, value: (v) => `${fmtKm(v, lang)} km` },
-    { key: 'time', label: s.recTime, record: records.longestTime, value: (v) => fmtDuration(v) },
+    // "1 h 05", not the clock-like "1:05:00" of a ride in progress.
+    { key: 'time', label: s.recTime, record: records.longestTime, value: (v) => fmtTimeLeft(v) },
     { key: 'fastest', label: s.recFastest, record: records.fastest, value: (v) => `${fmtKmh(msToKmh(v), lang)} km/h` },
     { key: 'lean', label: s.recLean, record: records.leanest, value: (v) => `${Math.round(v)}°` },
   ];
@@ -67,7 +68,7 @@ export function RideTotals({ items }: { items: readonly RideListItem[] }) {
         </div>
         <div>
           <dt>{s.moving}</dt>
-          <dd className="num">{fmtDuration(totals.movingMs)}</dd>
+          <dd className="num">{fmtTimeLeft(totals.movingMs)}</dd>
         </div>
       </dl>
       <h3 className="eyebrow ride-totals__records-title">{s.recordsTitle}</h3>

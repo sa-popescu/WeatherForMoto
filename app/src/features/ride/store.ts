@@ -46,6 +46,8 @@ export interface RideListItem {
   summary: RideSummary;
   routeName: string | null;
   loggedId: number | null;
+  /** The weather it met, once worked out (what "Scorul tău" learns from). */
+  story: RideStory | null;
 }
 
 interface RideChunk {
@@ -185,7 +187,14 @@ export async function listFinished(): Promise<RideListItem[]> {
       const { points } = await loadPoints(db, meta.id);
       summary = summaryFromPoints(points, new Map((meta.fills ?? []).map((f) => [f.t, f.roadM])), meta.clock);
     }
-    items.push({ id: meta.id, startedAt: meta.clock.startedAt ?? meta.createdAt, summary, routeName: meta.routeName ?? null, loggedId: meta.loggedId ?? null });
+    items.push({
+      id: meta.id,
+      startedAt: meta.clock.startedAt ?? meta.createdAt,
+      summary,
+      routeName: meta.routeName ?? null,
+      loggedId: meta.loggedId ?? null,
+      story: meta.story ?? null,
+    });
   }
   return items.sort((a, b) => b.startedAt - a.startedAt);
 }

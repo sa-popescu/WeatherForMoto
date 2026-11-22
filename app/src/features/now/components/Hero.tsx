@@ -14,11 +14,13 @@ const SEVERE: ReadonlySet<WarningKind> = new Set(['storm', 'ice', 'frost']);
 
 interface HeroProps {
   score: number | null;
+  /** "Scorul tău", when the rider's own rides make it differ from the general score. */
+  personal: number | null;
   model: NowModel;
   onScore: () => void;
 }
 
-export function Hero({ score, model, onScore }: HeroProps) {
+export function Hero({ score, personal, model, onScore }: HeroProps) {
   const s = useStrings(S_NOW);
   const core = useStrings(CORE);
   const lang = useLang();
@@ -35,6 +37,12 @@ export function Hero({ score, model, onScore }: HeroProps) {
         {title}
       </h1>
       {sub && <p className="now-hero__sub">{sub}</p>}
+      {personal !== null && score !== null && (
+        <p className="now-hero__mine num" title={s.mineHint}>
+          <span className="now-pill__dot" style={{ background: tierColor(personal) }} aria-hidden="true" />
+          {fmt(s.mineLine, { score: personal, general: score })}
+        </p>
+      )}
       {model.warnings.length > 0 && (
         <div className="now-hero__warnings">
           {model.warnings.map((w) => (
