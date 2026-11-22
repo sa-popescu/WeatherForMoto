@@ -11,8 +11,12 @@ import type {
   RideStats,
   SavedRoute,
   SavedTrack,
+  UrbanRouteResponse,
   WeatherResponse,
 } from './types';
+
+/** TomTom answers within a few seconds; the backend gives it 12. */
+const URBAN_ROUTE_TIMEOUT_MS = 16_000;
 
 /** status 0 means the request never got an HTTP answer (offline, DNS, timeout). */
 export class ApiError extends Error {
@@ -213,4 +217,12 @@ export const api = {
   logRide: (token: string, ride: RideInput): Promise<{ ok: boolean; ride_id: number }> =>
     json('/me/rides/log', { method: 'POST', token, body: ride }),
   rideStats: (token: string): Promise<RideStats> => json('/me/rides/stats', { token }),
+
+  /** Motorcycle routes with live traffic between two or more points (up to two alternatives between two). */
+  urbanRoute: (points: ReadonlyArray<{ lat: number; lon: number }>, signal?: AbortSignal): Promise<UrbanRouteResponse> =>
+    json('/route/urban', {
+      query: { points: points.map((p) => `${p.lat.toFixed(5)},${p.lon.toFixed(5)}`).join(';'), alternatives: 2 },
+      timeoutMs: URBAN_ROUTE_TIMEOUT_MS,
+      signal,
+    }),
 };

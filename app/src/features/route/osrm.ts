@@ -33,6 +33,8 @@ interface OsrmLeg {
 
 interface OsrmRoute {
   distance: number;
+  /** Seconds by car, at the speed limits: only "Drum" uses it, as a fallback. */
+  duration?: number;
   geometry: { coordinates: Array<[number, number]> };
   legs: OsrmLeg[];
 }
@@ -86,6 +88,18 @@ export function parseOsrm(body: unknown): RouteLine {
 }
 
 export async function fetchRoute(stops: readonly LatLon[], signal: AbortSignal): Promise<RouteLine> {
+  return parseOsrm(await fetchOsrmBody(stops, signal));
+}
+
+/** The route and OSRM's own driving time, for "Drum" when there is no traffic route. */
+export async function fetchRouteWithTime(stops: readonly LatLon[], signal: AbortSignal): Promise<{ line: RouteLine; durationS: number | null }> {
+  const body = await fetchOsrmBody(stops, signal);
+  const line = parseOsrm(body);
+  const duration = (body as OsrmResponse).routes?.[0]?.duration;
+  return { line, durationS: typeof duration === 'number' && Number.isFinite(duration) ? duration : null };
+}
+
+async function fetchOsrmBody(stops: readonly LatLon[], signal: AbortSignal): Promise<unknown> {
   const controller = new AbortController();
   const forward = (): void => controller.abort();
   signal.addEventListener('abort', forward, { once: true });
@@ -111,7 +125,7 @@ export async function fetchRoute(stops: readonly LatLon[], signal: AbortSignal):
     if (code === 'NoRoute' || code === 'NoSegment') throw new RouteError('no-route', code);
     throw new RouteError('network', `OSRM HTTP ${res.status}`);
   }
-  return parseOsrm(body);
+  return body;
 }
 
 /** Label of the road at a distance along the route, if OSRM named it. */

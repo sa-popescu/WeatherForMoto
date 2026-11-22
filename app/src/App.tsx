@@ -9,13 +9,14 @@ import { useToast } from './state/toast';
 import { Icon, type IconName } from './ui/icons';
 import { ViewSwitch } from './ui/ViewSwitch';
 
-// App shell: four tabs (Drum, Vreme, Ture, Eu) over five views driven by the
-// URL hash (#/traseu, #/acum, #/harta, #/ture, #/eu), so every view works as a
-// deep link and older links keep working. "Vreme" holds two views, the
-// forecast and the radar map, with a switch between them. A view stays
-// mounted after its first visit, so scroll position and map state survive
-// switching.
+// App shell: four tabs (Drum, Vreme, Ture, Eu) over six views driven by the
+// URL hash (#/drum, #/traseu, #/acum, #/harta, #/ture, #/eu), so every view
+// works as a deep link and older links keep working. "Drum" holds the home
+// screen and the detailed planner it opens; "Vreme" holds the forecast and
+// the radar map, with a switch between them. A view stays mounted after its
+// first visit, so scroll position and map state survive switching.
 
+const DriveScreen = lazy(() => import('./features/drive/DriveScreen'));
 const NowScreen = lazy(() => import('./features/now/NowScreen'));
 const RouteScreen = lazy(() => import('./features/route/RouteScreen'));
 const MapScreen = lazy(() => import('./features/map/MapScreen'));
@@ -24,18 +25,17 @@ const AccountScreen = lazy(() => import('./features/account/AccountScreen'));
 const ResetPasswordView = lazy(() => import('./features/account/ResetPasswordView'));
 const RideScreen = lazy(() => import('./features/ride/RideScreen'));
 
-type View = 'traseu' | 'acum' | 'harta' | 'ture' | 'eu';
+type View = 'drum' | 'traseu' | 'acum' | 'harta' | 'ture' | 'eu';
 type Tab = 'drum' | 'vreme' | 'ture' | 'eu';
 type WeatherView = Extract<View, 'acum' | 'harta'>;
 
-const VIEWS: readonly View[] = ['traseu', 'acum', 'harta', 'ture', 'eu'];
+const VIEWS: readonly View[] = ['drum', 'traseu', 'acum', 'harta', 'ture', 'eu'];
 /** Where the app opens without a link to somewhere else. */
-const HOME: View = 'traseu';
-const TAB_OF: Record<View, Tab> = { traseu: 'drum', acum: 'vreme', harta: 'vreme', ture: 'ture', eu: 'eu' };
+const HOME: View = 'drum';
+const TAB_OF: Record<View, Tab> = { drum: 'drum', traseu: 'drum', acum: 'vreme', harta: 'vreme', ture: 'ture', eu: 'eu' };
 
 function readView(): View {
   const key = window.location.hash.replace(/^#\/?/, '').split(/[/?]/)[0];
-  if (key === 'drum') return 'traseu';
   if (key === 'vreme') return 'acum';
   return (VIEWS as readonly string[]).includes(key) ? (key as View) : HOME;
 }
@@ -60,6 +60,7 @@ function useOnline(): boolean {
 }
 
 const SCREENS: Record<View, React.ComponentType<ScreenProps>> = {
+  drum: DriveScreen,
   traseu: RouteScreen,
   acum: NowScreen,
   harta: MapScreen,
@@ -109,7 +110,7 @@ export default function App() {
 
   const tab = TAB_OF[view];
   const navItems: { tab: Tab; href: string; icon: IconName; label: string }[] = [
-    { tab: 'drum', href: '#/traseu', icon: 'route', label: s.tabDrive },
+    { tab: 'drum', href: '#/drum', icon: 'route', label: s.tabDrive },
     { tab: 'vreme', href: `#/${weatherView}`, icon: 'sun', label: s.tabWeather },
     { tab: 'ture', href: '#/ture', icon: 'bike', label: s.tabRides },
     { tab: 'eu', href: '#/eu', icon: 'user', label: s.tabMe },

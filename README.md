@@ -47,7 +47,9 @@ Vechiul frontend dintr-un singur fișier a fost retras: `index.html` și `sw.js`
 
 ### Phase 3 (route intelligence)
 
-- Route planner cu 2-10 opriri, fiecare cu opțiunea „locația mea”
+- Tab-urile aplicației: **Drum** (ecranul principal), **Vreme** (prognoza și harta radar), **Ture** (turele de pe telefon și jurnalul din cont), **Eu**
+- Drum: harta, „Unde mergi?” cu Acasă, Serviciu și destinațiile recente, și vremea locului; după alegerea destinației, până la 3 variante cu trafic live (TomTom prin `/route/urban`, sau OSRM fără trafic când TomTom nu răspunde), fiecare cu vremea întâlnită pe drum la ora la care treci, apoi pornirea turei pe varianta aleasă
+- Route planner cu 2-10 opriri, fiecare cu opțiunea „locația mea” (din Drum: „Plan cu opriri”)
 - Route weather snapshots pe waypoint-uri estimate
 - Hărțile (tura, traseul, Hartă): MapLibre cu hărți vectoriale OpenFreeMap (date OpenStreetMap)
 - Hartă cu o singură bandă de timp, pe același scrubber, în două moduri:

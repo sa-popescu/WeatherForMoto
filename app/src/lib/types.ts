@@ -313,3 +313,47 @@ export interface CheckNowResponse {
   reason?: string;
   [key: string]: unknown;
 }
+
+/** A stretch of a route with traffic, by point index along `coords`. */
+export interface UrbanTraffic {
+  from: number | null;
+  to: number | null;
+  /** JAM, ROAD_WORK, ROAD_CLOSURE and the like. */
+  category: string;
+  /** 0 unknown, 1 minor, 2 moderate, 3 major, 4 undefined (closures). */
+  magnitude: number;
+  delay_s: number | null;
+  speed_kmh: number | null;
+}
+
+/** One coded turn instruction (TomTom maneuver codes such as TURN_LEFT). */
+export interface UrbanInstruction {
+  offset_m: number;
+  index: number | null;
+  time_s: number | null;
+  maneuver: string;
+  street: string | null;
+  road: string | null;
+  exit: string | null;
+  roundabout_exit: number | null;
+  signpost: string | null;
+}
+
+export interface UrbanRoute {
+  distance_m: number;
+  /** With live traffic. */
+  duration_s: number;
+  no_traffic_s: number | null;
+  delay_s: number;
+  /** [lat, lon] pairs. */
+  coords: Array<[number, number]>;
+  traffic: UrbanTraffic[];
+  instructions: UrbanInstruction[];
+}
+
+/** GET /route/urban (backend/urban_route.py). */
+export interface UrbanRouteResponse {
+  source: 'tomtom';
+  attribution: string;
+  routes: UrbanRoute[];
+}
