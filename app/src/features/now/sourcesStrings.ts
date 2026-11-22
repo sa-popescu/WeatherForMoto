@@ -5,7 +5,7 @@ export const S_SOURCES = defineStrings(
   {
     title: 'Surse de date',
     intro: 'Valorile de acum sunt combinate din sursele de mai jos. O sursă fără date nu strică nimic: aplicația folosește ce a răspuns.',
-    fallback: 'Serverul MotoMeteo nu a răspuns, așa că prognoza vine direct de la Open-Meteo.',
+    fallback: 'Serverul Motonor nu a răspuns, așa că prognoza vine direct de la Open-Meteo.',
     groupStations: 'Măsurători',
     groupModels: 'Modele de prognoză',
     groupWarnings: 'Avertizări',
@@ -63,7 +63,7 @@ export const S_SOURCES = defineStrings(
   {
     title: 'Data sources',
     intro: 'The values for now are combined from the sources below. A source without data spoils nothing: the app uses whatever answered.',
-    fallback: 'The MotoMeteo server did not answer, so the forecast comes straight from Open-Meteo.',
+    fallback: 'The Motonor server did not answer, so the forecast comes straight from Open-Meteo.',
     groupStations: 'Measurements',
     groupModels: 'Forecast models',
     groupWarnings: 'Warnings',

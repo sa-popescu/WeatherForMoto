@@ -59,7 +59,7 @@ export default function ResetPasswordView({ token, onDone }: ResetPasswordViewPr
   return (
     <div className="screen acct acct-reset">
       <header className="acct-head">
-        <span className="eyebrow">MotoMeteo</span>
+        <span className="eyebrow">Motonor</span>
         <h1 className="acct-head__title num">{s.resetTitle}</h1>
       </header>
       <Card className="acct-stack">

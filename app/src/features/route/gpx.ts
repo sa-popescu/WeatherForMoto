@@ -31,7 +31,7 @@ export function buildGpx({ name, line, waypoints, createdIso }: GpxInput): strin
   const trkpts = line.map((p) => `      <trkpt ${coord(p)}/>`);
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
-    '<gpx version="1.1" creator="MotoMeteo" xmlns="http://www.topografix.com/GPX/1/1">',
+    '<gpx version="1.1" creator="Motonor" xmlns="http://www.topografix.com/GPX/1/1">',
     `  <metadata><name>${title}</name><time>${escapeXml(createdIso)}</time></metadata>`,
     ...wpts,
     `  <trk><name>${title}</name><trkseg>`,

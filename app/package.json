@@ -2,7 +2,7 @@
   "name": "motometeo-app",
   "private": true,
   "version": "2.0.0",
-  "description": "MotoMeteo frontend: weather for motorcyclists (Vite + React + TypeScript, PWA, Capacitor-ready)",
+  "description": "Motonor frontend: weather for motorcyclists (Vite + React + TypeScript, PWA, Capacitor-ready)",
   "type": "module",
   "scripts": {
     "dev": "vite",

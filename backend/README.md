@@ -1,6 +1,6 @@
-# MotoMeteo API (backend)
+# Motonor API (backend)
 
-FastAPI service behind the MotoMeteo app. It aggregates several weather
+FastAPI service behind the Motonor app. It aggregates several weather
 providers, scores riding conditions per hour, and handles accounts, alerts,
 saved routes, ride logs and rider-reported hazards. It runs on Google Cloud Run
 (`weatherformoto`, europe-west1) with a Turso (libSQL) database.

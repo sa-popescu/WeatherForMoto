@@ -1,5 +1,5 @@
 """
-WeatherForMoto – FastAPI Backend
+Motonor (WeatherForMoto) – FastAPI Backend
 =================================
 Endpoints
 ---------
@@ -155,7 +155,7 @@ async def lifespan(fastapi_app: FastAPI) -> AsyncIterator[None]:
 # App
 # ---------------------------------------------------------------------------
 app = FastAPI(
-    title="WeatherForMoto API",
+    title="Motonor API",
     description=(
         "Aggregated weather statistics from multiple sources "
         "(OpenWeatherMap + Open-Meteo) optimised for motorcyclists."
@@ -327,7 +327,7 @@ async def serve_frontend(request: Request):
 # Replaces the old app's service worker on this origin: people who installed
 # the PWA from the run.app URL get their caches cleared and their open windows
 # sent to the new home, instead of a stale cached copy of the old UI.
-_RETIRE_SW_TEMPLATE = """// This origin now serves only the MotoMeteo API.
+_RETIRE_SW_TEMPLATE = """// This origin now serves only the Motonor API.
 const APP_URL = "__APP_URL__";
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (event) => {

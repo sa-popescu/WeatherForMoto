@@ -5,7 +5,7 @@ import { cleanupOutdatedCaches, createHandlerBoundToURL, precacheAndRoute } from
 import { NavigationRoute, registerRoute } from 'workbox-routing';
 import { CacheFirst, NetworkFirst, StaleWhileRevalidate } from 'workbox-strategies';
 
-// MotoMeteo service worker (built by vite-plugin-pwa, injectManifest).
+// Motonor service worker (built by vite-plugin-pwa, injectManifest).
 // - app shell precached, SPA navigations served from it
 // - weather: network first, offline fallback up to 6 h with age headers
 // - map and radar tiles: bounded caches
@@ -188,7 +188,7 @@ self.addEventListener('push', (event) => {
   }
   const url = payload.data?.url ?? (payload.url && payload.url !== '/' ? payload.url : '/#/acum');
   event.waitUntil(
-    self.registration.showNotification(payload.title ?? 'MotoMeteo', {
+    self.registration.showNotification(payload.title ?? 'Motonor', {
       body: payload.body ?? '',
       icon: '/icon-192.png',
       badge: '/icon-192.png',

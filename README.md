@@ -1,6 +1,6 @@
-# WeatherForMoto
+# Motonor (WeatherForMoto)
 
-WeatherForMoto este o aplicație meteo pentru motocicliști, cu scoring de risc, rutare pre-ride și alerte personalizate (notificări push).
+Motonor (fost MotoMeteo) este o aplicație de vreme și drum pentru motocicliști: scor moto pe ore, trasee cu trafic live și vremea pe care o prinzi pe drum, înregistrarea turelor și alerte personalizate (notificări push). Repo-ul, serviciile din cloud și adresa păstrează numele WeatherForMoto.
 
 Stack-ul actual este:
 
