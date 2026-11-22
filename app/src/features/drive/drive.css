@@ -609,3 +609,27 @@
 .drive-option__warning--info > svg {
   color: var(--accent);
 }
+
+/* The route's map is on the phone (OfflineMapPanel.tsx, OfflineMapButton). */
+.drive-sheet__offline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 14px;
+}
+
+.drive-sheet__offline > svg {
+  color: var(--accent);
+}
+
+/* "Plan detaliat" and the offline map, side by side under the start. */
+.drive-sheet__links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  column-gap: 20px;
+}

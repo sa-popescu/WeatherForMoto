@@ -21,6 +21,7 @@ import App from './App';
 // Registers the beforeinstallprompt listener at start-up, before the Eu tab is ever opened.
 import './features/account/installPrompt';
 import { receiveMove } from './features/move/move';
+import { pruneOfflineMaps } from './features/route/offlineMapStore';
 import { api } from './lib/api';
 import { showCrashScreen } from './lib/crashScreen';
 import { installErrorReporting, reportError } from './lib/errorReport';
@@ -56,6 +57,8 @@ void receiveMove().finally(() => {
 
 initServiceWorker();
 keepPhonesUpright();
+// Route maps kept for offline use go after 30 days (features/route/offlineMapStore.ts).
+void pruneOfflineMaps();
 
 // Live scoring constants replace the bundled copy when the API answers.
 api

@@ -4,6 +4,7 @@ import { ExpirationPlugin } from 'workbox-expiration';
 import { cleanupOutdatedCaches, createHandlerBoundToURL, precacheAndRoute } from 'workbox-precaching';
 import { NavigationRoute, registerRoute } from 'workbox-routing';
 import { CacheFirst, NetworkFirst, StaleWhileRevalidate } from 'workbox-strategies';
+import { offlineKey } from './lib/offlineMapKeys';
 
 // Motonor service worker (built by vite-plugin-pwa, injectManifest).
 // - app shell precached, SPA navigations served from it
@@ -98,22 +99,38 @@ registerRoute(
 // index name the current tile release, so they are refreshed in the background
 // on every use; the tiles, fonts and sprites under them never change and are
 // kept a month, so a road seen before still has its map where the signal is weak.
+//
+// A map downloaded for a route (features/route/offlineMapStore.ts) sits in
+// its own caches, outside these bounded ones: tiles are looked up there
+// first, and the style and index fall back to them when there is no network.
 const isOfmIndex = (url: URL): boolean => url.pathname.startsWith('/styles/') || url.pathname === '/planet';
+
+const vectorStyle = new StaleWhileRevalidate({
+  cacheName: 'mm-vector-style-v1',
+  plugins: [new CacheableResponsePlugin({ statuses: [200] }), new ExpirationPlugin({ maxEntries: 10 })],
+});
+
+const vectorTiles = new CacheFirst({
+  cacheName: 'mm-vector-tiles-v1',
+  plugins: [new CacheableResponsePlugin({ statuses: [200] }), new ExpirationPlugin({ maxEntries: 1500, maxAgeSeconds: 30 * 24 * 3600 })],
+});
 
 registerRoute(
   ({ url }) => url.hostname === 'tiles.openfreemap.org' && isOfmIndex(url),
-  new StaleWhileRevalidate({
-    cacheName: 'mm-vector-style-v1',
-    plugins: [new CacheableResponsePlugin({ statuses: [200] }), new ExpirationPlugin({ maxEntries: 10 })],
-  }),
+  async (options) => {
+    try {
+      return await vectorStyle.handle(options);
+    } catch (err) {
+      const saved = await caches.match(offlineKey(options.url.href));
+      if (saved) return saved;
+      throw err;
+    }
+  },
 );
 
 registerRoute(
   ({ url }) => url.hostname === 'tiles.openfreemap.org' && !isOfmIndex(url),
-  new CacheFirst({
-    cacheName: 'mm-vector-tiles-v1',
-    plugins: [new CacheableResponsePlugin({ statuses: [200] }), new ExpirationPlugin({ maxEntries: 1500, maxAgeSeconds: 30 * 24 * 3600 })],
-  }),
+  async (options) => (await caches.match(offlineKey(options.url.href))) ?? vectorTiles.handle(options),
 );
 
 registerRoute(

@@ -4,6 +4,7 @@ import type { StationOnRoute } from './fuel';
 import { DepartureSweep } from './DepartureSweep';
 import { FuelStops } from './FuelStops';
 import { HazardList, useHazardText } from './HazardList';
+import { OfflineMapPanel } from './OfflineMapPanel';
 import { RouteActions, type ActionKind } from './RouteActions';
 import { fmtDuration, fmtKm } from './routeFormat';
 import { RouteMap } from './RouteMap';
@@ -23,6 +24,12 @@ import { WaypointList } from './WaypointList';
 // the details along the road. On a phone they simply follow each other.
 
 const NO_STOPS: readonly StationOnRoute[] = [];
+
+/** "From → to", for the offline map's name in Eu. */
+function routeName(derived: DerivedPlan): string {
+  const names = derived.rows.filter((row) => row.point.stopIndex !== null).map((row) => row.point.name);
+  return names.length >= 2 ? `${names[0]} → ${names[names.length - 1]}` : (names[0] ?? '');
+}
 
 interface RouteOverviewProps {
   active: boolean;
@@ -105,6 +112,7 @@ export function RouteDetails({ route, derived, hazards, fuel, date, signedIn, on
       <WaypointList rows={derived.rows} route={route} />
       <FuelStops route={route} state={fuel} />
       <HazardList state={hazards} />
+      <OfflineMapPanel line={route.coords} name={routeName(derived)} />
       <RouteActions signedIn={signedIn} onAction={onAction} />
     </>
   );

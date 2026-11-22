@@ -102,7 +102,8 @@
     <h2>1. Fără cont</h2>
     <p>Poți folosi aplicația fără cont. În acest caz nu păstrăm date despre tine pe server. Pe dispozitivul tău, în
         memoria browserului (localStorage), rămân doar: locurile favorite, ultimul loc privit, profilul moto,
-        setările (temă, limbă) și starea alertelor. Le poți șterge oricând ștergând datele site-ului din browser.</p>
+        autonomia motocicletei, setările (temă, limbă), starea alertelor și hărțile de traseu descărcate pentru
+        offline. Le poți șterge oricând ștergând datele site-ului din browser.</p>
 
     <h2>2. Locația</h2>
     <p>Aplicația citește poziția dispozitivului <strong>numai dacă îi permiți accesul la locație</strong>, din
@@ -214,7 +215,9 @@
     <p>Unele servicii sunt apelate direct din browserul tău, deci văd adresa ta IP și zona cerută:</p>
     <ul>
         <li>hărți: OpenFreeMap (harta de bază, cu datele OpenStreetMap), RainViewer (radar), DWD (modelul ICON-EU), EUMETSAT (nori și
-            fulgere din satelit), Open-Meteo (prognoza pe grilă);</li>
+            fulgere din satelit), Open-Meteo (prognoza pe grilă). Când descarci harta unui traseu pentru drum fără
+            semnal, OpenFreeMap primește cererile pentru bucățile de hartă de-a lungul traseului; harta rămâne doar pe
+            telefon, până o ștergi sau cel mult 30 de zile;</li>
         <li>ploaia din următoarele 90 de minute pe ecranul „Acum”: RainViewer primește zona radar din jurul locului;</li>
         <li>căutarea locurilor: Photon (komoot) primește textul căutat și zona aproximativă afișată; Open-Meteo
             Geocoding e folosit ca rezervă;</li>

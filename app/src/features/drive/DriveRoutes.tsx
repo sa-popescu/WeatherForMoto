@@ -6,6 +6,7 @@ import { Icon } from '../../ui/icons';
 import { Button, cx, Spinner } from '../../ui/primitives';
 import { aheadLine } from '../ride/aheadText';
 import { fmtKm, fmtTimeLeft } from '../ride/logic/rideFormat';
+import { OfflineMapButton } from '../route/OfflineMapPanel';
 import { localDay, seasonRisk, type SeasonRisk } from '../route/seasonalClosures';
 import { DepartureStrip } from './DepartureStrip';
 import type { DepartureOption } from './logic/departures';
@@ -110,6 +111,7 @@ export function DriveRoutes(props: DriveRoutesProps) {
   const ready = state.status === 'ready' ? state : null;
   const fastestId = ready ? [...ready.routes].sort((a, b) => a.durationS - b.durationS)[0]?.id : null;
   const season = seasonRisk(localDay(departMs ?? Date.now()));
+  const selectedRoute = ready?.routes.find((route) => route.id === selectedId) ?? null;
 
   return (
     <section className="drive-sheet" aria-labelledby="drive-sheet-title">
@@ -168,10 +170,13 @@ export function DriveRoutes(props: DriveRoutesProps) {
               </p>
             </>
           )}
-          <button type="button" className="drive-sheet__detailed" onClick={onDetailed}>
-            <Icon name="route" size={16} />
-            {s.detailed}
-          </button>
+          <div className="drive-sheet__links">
+            <button type="button" className="drive-sheet__detailed" onClick={onDetailed}>
+              <Icon name="route" size={16} />
+              {s.detailed}
+            </button>
+            {selectedRoute && <OfflineMapButton line={selectedRoute.line.coords} name={destination.name} />}
+          </div>
         </>
       )}
     </section>
