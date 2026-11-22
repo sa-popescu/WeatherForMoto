@@ -4,7 +4,7 @@ import { runPool } from '../route/pool';
 import type { LatLon } from '../route/types';
 import { departureTimes } from './logic/departures';
 import type { DriveRoute, RouteSource } from './logic/driveRoute';
-import { fetchTrafficRoutes } from './useDriveRoutes';
+import { fetchTrafficRoutes } from './routeService';
 
 // The later departures of "Plecarea perfectă": for each, TomTom's best route
 // with the traffic predicted for that moment (one request each, two at a

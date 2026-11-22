@@ -6,6 +6,7 @@ import { usePlace } from '../../state/place';
 import { useSettings } from '../../state/settings';
 import { useToast } from '../../state/toast';
 import { aheadPoints } from '../ride/logic/ahead';
+import { turnsFromInstructions } from '../ride/logic/turns';
 import { rideRecorder } from '../ride/recorder';
 import { buildRouteLink } from '../route/routeLink';
 import type { NameBetween } from '../route/samples';
@@ -110,6 +111,9 @@ export default function DriveScreen({ active }: ScreenProps) {
         plannedKmh: routeKmh(route),
         // The forecasts go along as they are now, so the warnings work without a connection.
         ahead: rp ? aheadPoints(rp.points, rp.weather, Date.now()) : [],
+        turns: turnsFromInstructions(route.instructions),
+        // Leaving the route asks for a new one to here.
+        destination: { lat: destination.lat, lon: destination.lon },
       },
     });
   };

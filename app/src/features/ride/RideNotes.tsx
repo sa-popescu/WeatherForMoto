@@ -7,6 +7,7 @@ import type { AheadKind } from './logic/ahead';
 import { GAP_MS } from './logic/track';
 import { rideRecorder, type RideSnapshot } from './recorder';
 import { RIDE_S } from './strings';
+import { TURN_S } from './turnStrings';
 import { voiceAvailable } from './voice';
 
 // The band at the top of the ride screen: the GPS state and the voice switch
@@ -52,6 +53,7 @@ export function RideNotes({ ride, now }: { ride: RideSnapshot; now: number }) {
   if (live && follow?.off && follow.offM !== null) {
     notes.push({ key: 'off', tone: 'off', text: fmt(s.offRoute, { m: fmtNumber(Math.round(follow.offM / 10) * 10, lang) }) });
   }
+  if (live && ride.rerouting) notes.push({ key: 'reroute', tone: 'info', text: TURN_S[lang].rerouting, icon: 'route' });
   if (live && ride.ahead) notes.push({ key: 'ahead', tone: 'ahead', text: aheadLine(ride.ahead, lang), icon: AHEAD_ICON[ride.ahead.kind] });
   if (follow?.arrived && ride.route) notes.push({ key: 'arrived', tone: 'info', text: fmt(s.arrivedNote, { name: ride.route.name }) });
   if (ride.gps === 'denied') notes.push({ key: 'denied', tone: 'error', text: s.gpsDenied });

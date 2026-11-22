@@ -9,6 +9,7 @@ import { RideControls } from './RideControls';
 import { RideGauges } from './RideGauges';
 import { RideMap } from './RideMap';
 import { RideNotes } from './RideNotes';
+import { RideTurn } from './RideTurn';
 import { RIDE_S } from './strings';
 import { useRide } from './useRide';
 import './ride.css';
@@ -69,6 +70,7 @@ export default function RideScreen() {
       ) : (
         <>
           <RideNotes ride={ride} now={now} />
+          <RideTurn ride={ride} />
           <RideMap ride={ride} />
           <div className="ride-panel">
             <RideGauges ride={ride} now={now} />

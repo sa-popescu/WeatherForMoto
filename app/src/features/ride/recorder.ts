@@ -1,11 +1,15 @@
+import { isAbort } from '../../lib/api';
 import type { Lang } from '../../lib/i18n';
+import { fetchOneRoute } from '../drive/routeService';
 import { GapFiller, plausibleRoad, type GapFill } from './gapFill';
 import { RouteGuide } from './guide';
 import type { AheadWarning } from './logic/ahead';
 import { averageKmh, finishClock, NEW_CLOCK, pauseClock, resumeClock, type RideClock } from './logic/clock';
 import { fillFromRoute, rideSpeedKmh, type FollowState, type RideRoute } from './logic/follow';
 import { foldLean, NO_LEAN, stepLean, type LeanState } from './logic/lean';
+import { mayReroute, reroutedRoute } from './logic/reroute';
 import { msToKmh } from './logic/rideFormat';
+import { turnsFromInstructions, type NextTurn } from './logic/turns';
 import {
   EMPTY_TOTALS,
   EMPTY_TRACK,
@@ -59,6 +63,10 @@ export interface RideSnapshot {
   /** The route being followed (its line comes from getRoute()), or null on a free ride. */
   route: Pick<RideRoute, 'name' | 'distanceKm' | 'plannedKmh'> | null;
   follow: FollowState | null;
+  /** The next turn on a route with turns (from "Drum"), or null. */
+  turn: NextTurn | null;
+  /** A new route is being looked for, after leaving the one from "Drum". */
+  rerouting: boolean;
   /** The first thing worth a warning in the weather ahead on the route, or null. */
   ahead: AheadWarning | null;
   /** The ride on screen, as stored on the phone. */
@@ -84,6 +92,8 @@ const IDLE: RideSnapshot = {
   fills: [],
   route: null,
   follow: null,
+  turn: null,
+  rerouting: false,
   ahead: null,
   rideId: null,
   loggedId: null,
@@ -126,6 +136,9 @@ class RideRecorder {
   private flushTimer: number | null = null;
   private writing: Promise<void> = Promise.resolve();
   private restoreStarted = false;
+  /** The request for a new route in flight, if any. */
+  private rerouteController: AbortController | null = null;
+  private reroutes: { lastAt: number | null; count: number } = { lastAt: null, count: 0 };
 
   readonly subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
@@ -172,6 +185,7 @@ class RideRecorder {
     this.unsaved = [];
     this.nextSeq = 0;
     this.lastFix = null;
+    this.reroutes = { lastAt: null, count: 0 };
     this.guide = route ? new RouteGuide(route) : null;
     this.beginFilling([]);
     this.publish({ ...IDLE, phase: 'recording', voice: this.voiceOn, rideId: this.meta.id, ...this.routeInfo() });
@@ -382,6 +396,45 @@ class RideRecorder {
     else this.filler?.add(gap);
   }
 
+  /**
+   * Off a route from "Drum": a new one from here to the same destination,
+   * TomTom first and OSRM after it, at most every REROUTE_GAP_MS. Until it
+   * comes, the old route stays; if none comes, the rider is reminded they are
+   * off it, as on any route.
+   */
+  private reroute(from: RideFix): void {
+    const guide = this.guide;
+    const target = guide?.route.destination;
+    const rideId = this.meta?.id;
+    if (!guide || !target || !rideId || this.rerouteController || !mayReroute(this.reroutes.lastAt, this.reroutes.count, from.t)) return;
+    this.reroutes = { lastAt: from.t, count: this.reroutes.count + 1 };
+    const controller = new AbortController();
+    this.rerouteController = controller;
+    this.publish({ rerouting: true });
+    fetchOneRoute({ lat: from.lat, lon: from.lon }, target, controller.signal)
+      .then((found) => {
+        if (controller.signal.aborted || this.guide !== guide || this.meta?.id !== rideId || this.snapshot.phase !== 'recording') return;
+        const route = reroutedRoute(guide.route, {
+          coords: found.line.coords,
+          cumKm: found.line.cumKm,
+          distanceKm: found.line.distanceKm,
+          turns: turnsFromInstructions(found.instructions),
+        });
+        guide.replaceRoute(route, this.snapshot.position ?? from);
+        saveRoute(rideId, route).catch((err: unknown) => console.warn('[ride] could not keep the new route on this phone', err));
+        this.publish({ ...this.routeInfo(), turn: null, ahead: null });
+        this.say(guide.newRouteSentence(this.lang));
+      })
+      .catch((err: unknown) => {
+        if (!isAbort(err)) console.warn('[ride] no new route from here', err);
+      })
+      .finally(() => {
+        if (this.rerouteController !== controller) return;
+        this.rerouteController = null;
+        this.publish({ rerouting: false });
+      });
+  }
+
   private routeInfo(): Pick<RideSnapshot, 'route' | 'follow'> {
     if (!this.guide) return { route: null, follow: null };
     const { name, distanceKm, plannedKmh } = this.guide.route;
@@ -427,6 +480,9 @@ class RideRecorder {
   private goQuiet(): void {
     this.stopWatch();
     this.releaseScreen();
+    this.rerouteController?.abort();
+    this.rerouteController = null;
+    if (this.snapshot.rerouting) this.publish({ rerouting: false });
     if (this.flushTimer !== null) window.clearInterval(this.flushTimer);
     this.flushTimer = null;
     document.removeEventListener('visibilitychange', this.onVisibility);
@@ -491,11 +547,16 @@ class RideRecorder {
       }
       if (this.guide) {
         const { totals } = this.track;
+        // The route's own news (off it, back, arrived) goes first, then the next
+        // turn; the weather waits for a fix with nothing else to say.
+        const turn = this.guide.turnAhead(speedMs ?? 0, this.lang, sentence === null);
+        patch.turn = turn.next;
+        sentence ??= turn.sentence;
         const speed = rideSpeedKmh(averageKmh(totals.movingDistanceM, totals.movingMs), totals.movingMs, this.guide.route.plannedKmh);
-        // The route's own news (off it, back, arrived) goes first; the weather waits for the next fix.
         const ahead = this.guide.weatherAhead(speed, now, this.lang, sentence === null);
         patch.ahead = ahead.warning;
         sentence ??= ahead.sentence;
+        if (this.guide.follow.off && this.guide.reroutable) this.reroute(fix);
       }
       if (sentence) this.say(sentence);
     }
