@@ -31,7 +31,7 @@ export function buildRideGpx(name: string, points: readonly RidePoint[], created
   const segments = rideSegments(points).map((seg) => ['    <trkseg>', ...seg.map(trkpt), '    </trkseg>'].join('\n'));
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
-    '<gpx version="1.1" creator="MotoMeteo" xmlns="http://www.topografix.com/GPX/1/1">',
+    '<gpx version="1.1" creator="Motonor" xmlns="http://www.topografix.com/GPX/1/1">',
     `  <metadata><name>${title}</name><time>${escapeXml(createdIso)}</time></metadata>`,
     `  <trk><name>${title}</name>`,
     ...segments,

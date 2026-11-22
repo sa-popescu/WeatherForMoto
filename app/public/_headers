@@ -1,4 +1,4 @@
-# Cloudflare static assets: headers for the MotoMeteo frontend.
+# Cloudflare static assets: headers for the Motonor frontend.
 # https://developers.cloudflare.com/workers/static-assets/headers/
 
 /*

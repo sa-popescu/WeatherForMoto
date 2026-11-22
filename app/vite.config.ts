@@ -30,9 +30,9 @@ export default defineConfig(({ mode }) => {
         manifestFilename: 'manifest.webmanifest',
         manifest: {
           id: '/',
-          name: 'MotoMeteo — Vremea pentru motocicliști',
-          short_name: 'MotoMeteo',
-          description: 'Pot să plec cu motocicleta? Scor moto pe ore, ploaie pe șanse și cantitate, vremea pe traseu.',
+          name: 'Motonor — Vremea și drumul pentru motocicliști',
+          short_name: 'Motonor',
+          description: 'Vremea și drumul pentru motocicliști: scor moto pe ore, trasee cu trafic live și vremea pe care o prinzi pe drum.',
           lang: 'ro',
           dir: 'ltr',
           start_url: '/#/acum',

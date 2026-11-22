@@ -1191,13 +1191,13 @@ def _text_to_html(text: str, trusted_links: Sequence[str] = ()) -> str:
       <table width="560" cellpadding="0" cellspacing="0" style="background:#1f2937;border-radius:12px;overflow:hidden;max-width:560px;width:100%;">
         <tr><td style="background:#111827;padding:20px 32px;border-bottom:2px solid #f97316;">
           <span style="font-size:20px;font-weight:bold;letter-spacing:2px;color:#f97316;">MOTO /// METEO</span>
-          <span style="font-size:11px;color:#9ca3af;margin-left:12px;">WeatherForMoto</span>
+          <span style="font-size:11px;color:#9ca3af;margin-left:12px;">Motonor</span>
         </td></tr>
         <tr><td style="padding:28px 32px;font-size:14px;line-height:1.7;color:#d1d5db;">
           {body_inner}
         </td></tr>
         <tr><td style="padding:16px 32px;background:#111827;font-size:11px;color:#6b7280;border-top:1px solid #374151;">
-          Echipa WeatherForMoto &nbsp;·&nbsp; {app_link}
+          Echipa Motonor &nbsp;·&nbsp; {app_link}
         </td></tr>
       </table>
     </td></tr>
@@ -1265,22 +1265,22 @@ def _send_email_safely(email: str, subject: str, text: str, purpose: str, links:
 
 def _send_auth_email(email: str, code: str) -> None:
     text = (
-        "Codul tău de autentificare WeatherForMoto este: "
+        "Codul tău de autentificare Motonor este: "
         f"{code}\n\nValabil {AUTH_CODE_TTL_MIN} minute."
     )
-    _send_email(email, "WeatherForMoto — cod autentificare", text)
+    _send_email(email, "Motonor — cod autentificare", text)
 
 
 def _send_verification_email(email: str, raw_token: str) -> None:
     link = f"{API_BASE_URL}/auth/verify-email?token={raw_token}"
     text = (
         "Salut,\n\n"
-        "Confirmă adresa de email a contului tău WeatherForMoto accesând linkul de mai jos "
+        "Confirmă adresa de email a contului tău Motonor accesând linkul de mai jos "
         f"(valabil {EMAIL_VERIFY_TTL_HOURS} de ore):\n{link}\n\n"
         "Dacă nu tu ai creat contul, ignoră acest mesaj.\n\n"
-        "Echipa WeatherForMoto"
+        "Echipa Motonor"
     )
-    _send_email_safely(email, "WeatherForMoto — confirmă adresa de email", text, "verification", links=[link])
+    _send_email_safely(email, "Motonor — confirmă adresa de email", text, "verification", links=[link])
 
 
 def _html_page(
@@ -1302,7 +1302,7 @@ def _html_page(
     page = f"""<!DOCTYPE html>
 <html lang="ro"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{html.escape(title)} · WeatherForMoto</title>
+<title>{html.escape(title)} · Motonor</title>
 <style>
   body{{margin:0;padding:32px 16px;background:#111827;color:#e5e7eb;font-family:Arial,sans-serif;}}
   main{{max-width:480px;margin:0 auto;background:#1f2937;border-radius:12px;padding:28px;border-top:3px solid #f97316;}}
@@ -1316,7 +1316,7 @@ def _html_page(
   <h1>{html.escape(title)}</h1>
   <p>{html.escape(message)}</p>
   {form}
-  <p><a href="{html.escape(APP_BASE_URL, quote=True)}">Deschide WeatherForMoto</a></p>
+  <p><a href="{html.escape(APP_BASE_URL, quote=True)}">Deschide Motonor</a></p>
 </main></body></html>"""
     return HTMLResponse(
         content=page,
@@ -1781,7 +1781,7 @@ def auth_verify_email_page(token: str = Query(default="", max_length=256)) -> HT
         return _verify_link_invalid_page()
     return _html_page(
         "Confirmă adresa de email",
-        "Apasă butonul doar dacă tu ai creat contul WeatherForMoto; altfel închide pagina și ignoră emailul. "
+        "Apasă butonul doar dacă tu ai creat contul Motonor; altfel închide pagina și ignoră emailul. "
         "Din motive de securitate, după confirmare te vei autentifica din nou în aplicație.",
         form_action=f"/auth/verify-email?token={token}",
         button_label="Confirm adresa",
@@ -1909,9 +1909,9 @@ def _issue_password_reset(email: str) -> None:
     text = (
         "Salut,\n\nAi solicitat resetarea parolei.\n\n"
         f"Accesează linkul de mai jos (valabil {RESET_TOKEN_TTL_MINUTES} de minute):\n{reset_link}\n\n"
-        "Dacă nu ai solicitat resetarea, ignoră acest email.\n\nEchipa WeatherForMoto"
+        "Dacă nu ai solicitat resetarea, ignoră acest email.\n\nEchipa Motonor"
     )
-    _send_email_safely(email, "WeatherForMoto — resetare parolă", text, "password reset", [reset_link])
+    _send_email_safely(email, "Motonor — resetare parolă", text, "password reset", [reset_link])
 
 
 @router.post("/auth/request-reset")

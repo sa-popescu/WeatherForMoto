@@ -11,7 +11,7 @@ export type ShareOutcome = 'shared' | 'copied' | 'cancelled';
 export async function shareLink(url: string, text: string): Promise<ShareOutcome> {
   if (typeof navigator.share === 'function') {
     try {
-      await navigator.share({ title: 'MotoMeteo', text, url });
+      await navigator.share({ title: 'Motonor', text, url });
       return 'shared';
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') return 'cancelled';

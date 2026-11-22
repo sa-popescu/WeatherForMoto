@@ -1,4 +1,4 @@
-// Shapes of the MotoMeteo API (backend/main.py + backend/auth_alerts.py).
+// Shapes of the Motonor API (backend/main.py + backend/auth_alerts.py).
 // Numeric fields are nullable because providers can be missing.
 
 export type RainBand = 'none' | 'urme' | 'slaba' | 'moderata' | 'puternica';

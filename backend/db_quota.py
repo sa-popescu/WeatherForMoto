@@ -120,7 +120,7 @@ def _format_count(n: int) -> str:
 
 def warning_text(level: int, usage: dict[str, int], shares: dict[str, float],
                  read_limit: int, write_limit: int) -> tuple[str, str]:
-    subject = f"MotoMeteo: baza de date a folosit {level}% din cota lunii"
+    subject = f"Motonor: baza de date a folosit {level}% din cota lunii"
     text = (
         f"Turso a numărat luna aceasta:\n"
         f"- rânduri citite: {_format_count(usage['rows_read'])} din {_format_count(read_limit)} "

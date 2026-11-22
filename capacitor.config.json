@@ -1,6 +1,6 @@
 {
     "appId": "ro.motometeo.app",
-    "appName": "MotoMeteo",
+    "appName": "Motonor",
     "webDir": "app/dist",
     "server": {
         "androidScheme": "https",

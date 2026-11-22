@@ -4,7 +4,7 @@ import { defineStrings } from '../lib/i18n';
 // lives in each feature's own strings.ts.
 export const CORE = defineStrings(
   {
-    appName: 'MotoMeteo',
+    appName: 'Motonor',
     tabNow: 'Acum',
     tabRoute: 'Traseu',
     tabMap: 'Hartă',
@@ -46,7 +46,7 @@ export const CORE = defineStrings(
     comingSoon: 'În lucru',
   },
   {
-    appName: 'MotoMeteo',
+    appName: 'Motonor',
     tabNow: 'Now',
     tabRoute: 'Route',
     tabMap: 'Map',
