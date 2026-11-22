@@ -91,3 +91,18 @@ export function hazardElement(h: RouteHazard, text: string): HTMLElement {
   el.title = text;
   return el;
 }
+
+// Static markup only, like the hazards: a pump in a round badge.
+const FUEL_SVG =
+  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 20.5V5a1.5 1.5 0 0 1 1.5-1.5h6A1.5 1.5 0 0 1 14 5v15.5M3.5 20.5h12M7.5 8h4"/><path d="M14 10h1.5a1.5 1.5 0 0 1 1.5 1.5v5a1.5 1.5 0 0 0 3 0V8l-2.5-2.5"/></svg>';
+
+/** A suggested fuel stop: a pump badge that names the station on hover and keyboard focus. */
+export function fuelElement(text: string): HTMLElement {
+  const el = document.createElement('button');
+  el.type = 'button';
+  el.className = 'route-map__fuel';
+  el.innerHTML = FUEL_SVG;
+  el.setAttribute('aria-label', text);
+  el.title = text;
+  return el;
+}

@@ -33,6 +33,7 @@ import { useSavedRoutes } from './useAccountData';
 import { useCalculate } from './useCalculate';
 import { useDerivedPlan } from './useDerivedPlan';
 import { useFileDrop } from './useFileDrop';
+import { useFuelPlan } from './useFuel';
 import { useOpenRouteLink } from './useOpenRouteLink';
 import { useRouteActions } from './useRouteActions';
 import { useRouteHazards } from './useRouteHazards';
@@ -65,6 +66,7 @@ export default function RouteScreen({ active }: ScreenProps) {
   const { state: plan, calculate, calculateFromTrack, ensureDays, retryFailed } = useRoutePlan();
   const derived = useDerivedPlan(plan, departure, speed);
   const hazards = useRouteHazards(plan.route, plan.points);
+  const fuel = useFuelPlan(plan.route);
   const saved = useSavedRoutes(active);
   const calc = useCalculate({ stopsState, calculate, calculateFromTrack, hasRoute: plan.route !== null, departure, speed, today: dates[0] });
   const actions = useRouteActions({
@@ -152,6 +154,7 @@ export default function RouteScreen({ active }: ScreenProps) {
             speed={speed}
             weatherDone={plan.step === 'ready'}
             hazards={hazards}
+            fuel={fuel}
             onAdopt={(time) => setDeparture((d) => ({ ...d, time }))}
             onPickDay={setDeparture}
             onNeedAllDays={needAllDays}
@@ -169,7 +172,9 @@ export default function RouteScreen({ active }: ScreenProps) {
       </div>
 
       <div className="route-col route-col--road">
-        {plan.route && <RouteDetails route={plan.route} derived={derived} hazards={hazards} date={departure.date} signedIn={signedIn} onAction={onAction} />}
+        {plan.route && (
+          <RouteDetails route={plan.route} derived={derived} hazards={hazards} fuel={fuel} date={departure.date} signedIn={signedIn} onAction={onAction} />
+        )}
       </div>
 
       {dragging && (

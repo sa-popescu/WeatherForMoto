@@ -1,19 +1,22 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Marker, NavigationControl, Popup, type MapLibreMap } from 'maplibre-gl';
 import { useEffect, useRef, useState } from 'react';
-import { useStrings } from '../../lib/i18n';
+import { fmt, useLang, useStrings } from '../../lib/i18n';
 import { createVectorMap, foldAttribution } from '../../lib/vectorMap';
 import { useSettings } from '../../state/settings';
+import type { StationOnRoute } from './fuel';
+import { FUEL_S } from './fuelStrings';
 import type { RouteHazard } from './hazards';
 import type { TimelineRow } from './plan';
 import { routeBounds } from './routeMapData';
-import { addRouteLayers, hazardElement, setRouteData } from './routeMapLayers';
+import { fmtKm } from './routeFormat';
+import { addRouteLayers, fuelElement, hazardElement, setRouteData } from './routeMapLayers';
 import { RS } from './strings';
 import type { RouteLine } from './types';
 
 // Map of the route on the app's vector base map (lib/vectorMap.ts): the line
 // in stretches coloured by their worst score, the stops and sample points,
-// and the hazards reported along it. It stays flat and north up. On a phone
+// the hazards reported along it and the suggested fuel stops. It stays flat and north up. On a phone
 // one finger scrolls the page past it; two fingers pinch it, and the + and -
 // buttons zoom.
 
@@ -23,6 +26,7 @@ interface RouteMapProps {
   segments: ReadonlyArray<number | null>;
   hazards: readonly RouteHazard[];
   hazardText: (h: RouteHazard) => string;
+  fuelStops: readonly StationOnRoute[];
   active: boolean;
   summary: string;
 }
@@ -31,8 +35,10 @@ function touchScreen(): boolean {
   return typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
 }
 
-export function RouteMap({ route, rows, segments, hazards, hazardText, active, summary }: RouteMapProps) {
+export function RouteMap({ route, rows, segments, hazards, hazardText, fuelStops, active, summary }: RouteMapProps) {
   const s = useStrings(RS);
+  const fs = useStrings(FUEL_S);
+  const lang = useLang();
   const { theme } = useSettings();
   const elRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -96,6 +102,20 @@ export function RouteMap({ route, rows, segments, hazards, hazardText, active, s
       for (const marker of markers) marker.remove();
     };
   }, [hazards, hazardText, ready]);
+
+  // Fuel stops the same way, as pumps that name the station and the km.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return undefined;
+    const markers = fuelStops.map((stop) => {
+      const text = fmt(fs.marker, { name: stop.label || fs.anyStation, km: fmtKm(stop.km, lang) });
+      const tip = new Popup({ closeButton: false, offset: 18, className: 'route-map__tip' }).setText(text);
+      return new Marker({ element: fuelElement(text) }).setLngLat([stop.lon, stop.lat]).setPopup(tip).addTo(map);
+    });
+    return () => {
+      for (const marker of markers) marker.remove();
+    };
+  }, [fuelStops, fs, lang, ready]);
 
   // Fit the new route; a hidden tab has no size, so wait until it is visible.
   useEffect(() => {

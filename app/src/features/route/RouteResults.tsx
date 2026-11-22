@@ -1,6 +1,8 @@
 import { fmt, useLang, useStrings } from '../../lib/i18n';
 import { DayCompare } from './DayCompare';
+import type { StationOnRoute } from './fuel';
 import { DepartureSweep } from './DepartureSweep';
+import { FuelStops } from './FuelStops';
 import { HazardList, useHazardText } from './HazardList';
 import { RouteActions, type ActionKind } from './RouteActions';
 import { fmtDuration, fmtKm } from './routeFormat';
@@ -10,6 +12,7 @@ import { RS } from './strings';
 import { rideMinutes } from './timing';
 import type { Departure, RouteLine } from './types';
 import type { DerivedPlan } from './useDerivedPlan';
+import type { FuelPlanState } from './useFuel';
 import type { HazardsState } from './useRouteHazards';
 import { WaypointList } from './WaypointList';
 
@@ -18,6 +21,8 @@ import { WaypointList } from './WaypointList';
 // It comes in two parts because the desktop layout puts them in different
 // columns (route-desktop.css): the overview (when to leave and the map) and
 // the details along the road. On a phone they simply follow each other.
+
+const NO_STOPS: readonly StationOnRoute[] = [];
 
 interface RouteOverviewProps {
   active: boolean;
@@ -29,6 +34,7 @@ interface RouteOverviewProps {
   speed: number;
   weatherDone: boolean;
   hazards: HazardsState;
+  fuel: FuelPlanState;
   onAdopt: (time: string) => void;
   /** A day picked in the comparison, with its best departure. */
   onPickDay: (departure: Departure) => void;
@@ -37,7 +43,7 @@ interface RouteOverviewProps {
 
 /** When to leave (with the day comparison) and the map of the route. */
 export function RouteOverview(props: RouteOverviewProps) {
-  const { active, route, derived, dates, departure, speed, weatherDone, hazards, onAdopt, onPickDay, onNeedAllDays } = props;
+  const { active, route, derived, dates, departure, speed, weatherDone, hazards, fuel, onAdopt, onPickDay, onNeedAllDays } = props;
   const s = useStrings(RS);
   const lang = useLang();
   const { summary: hazardText } = useHazardText();
@@ -72,6 +78,7 @@ export function RouteOverview(props: RouteOverviewProps) {
         segments={derived.segments}
         hazards={hazards.list}
         hazardText={hazardText}
+        fuelStops={fuel.status === 'ready' ? fuel.plan.stops : NO_STOPS}
         active={active}
         summary={summary}
       />
@@ -83,18 +90,20 @@ interface RouteDetailsProps {
   route: RouteLine;
   derived: DerivedPlan;
   hazards: HazardsState;
+  fuel: FuelPlanState;
   /** The day of the ride, "YYYY-MM-DD", for the roads closed in winter. */
   date: string;
   signedIn: boolean;
   onAction: (kind: ActionKind) => void;
 }
 
-/** The roads closed in winter, the weather at every point along the road, the hazards on it and the actions. */
-export function RouteDetails({ route, derived, hazards, date, signedIn, onAction }: RouteDetailsProps) {
+/** The roads closed in winter, the weather along the road, where to fill up, the hazards and the actions. */
+export function RouteDetails({ route, derived, hazards, fuel, date, signedIn, onAction }: RouteDetailsProps) {
   return (
     <>
       <SeasonalRoads route={route} date={date} />
       <WaypointList rows={derived.rows} route={route} />
+      <FuelStops route={route} state={fuel} />
       <HazardList state={hazards} />
       <RouteActions signedIn={signedIn} onAction={onAction} />
     </>

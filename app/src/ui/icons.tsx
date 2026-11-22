@@ -8,7 +8,7 @@ export type IconName =
   | 'bookmark' | 'download' | 'alert' | 'share' | 'refresh' | 'close' | 'star' | 'starFilled'
   | 'trash' | 'bell' | 'mail' | 'lock' | 'logout' | 'settings' | 'wind' | 'drop' | 'thermo'
   | 'road' | 'eye' | 'sun' | 'moon' | 'play' | 'pause' | 'layers' | 'grip' | 'clock' | 'flag'
-  | 'bike' | 'edit' | 'globe' | 'external' | 'radar';
+  | 'bike' | 'edit' | 'globe' | 'external' | 'radar' | 'fuel';
 
 const PATHS: Record<IconName, ReactNode> = {
   gauge: <><path d="M3.5 17a8.5 8.5 0 1 1 17 0" /><path d="m12 17 4-5" /></>,
@@ -57,6 +57,7 @@ const PATHS: Record<IconName, ReactNode> = {
   globe: <><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" /></>,
   external: <path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />,
   radar: <><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><path d="M12 12 18 6" /></>,
+  fuel: <><path d="M5 20.5V5a1.5 1.5 0 0 1 1.5-1.5h6A1.5 1.5 0 0 1 14 5v15.5M3.5 20.5h12M7.5 8h4" /><path d="M14 10h1.5a1.5 1.5 0 0 1 1.5 1.5v5a1.5 1.5 0 0 0 3 0V8l-2.5-2.5" /></>,
 };
 
 interface IconProps {

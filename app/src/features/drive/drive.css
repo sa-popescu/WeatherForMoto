@@ -600,3 +600,12 @@
 .drive-option__warning--closed {
   color: var(--t-evita);
 }
+
+/* Where to fill up on the way (RouteNotes.tsx): information, not a warning. */
+.drive-option__warning--info {
+  color: var(--ink-2);
+}
+
+.drive-option__warning--info > svg {
+  color: var(--accent);
+}

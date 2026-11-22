@@ -4,6 +4,8 @@ import type { Level, MotoType } from '../../../lib/types';
 import { useAuth } from '../../../state/auth';
 import { useSettings, type MotoProfile } from '../../../state/settings';
 import { Card } from '../../../ui/primitives';
+import { FUEL_RANGES, type FuelRange } from '../../route/fuel';
+import { setFuelRange, useFuelRange } from '../../route/useFuel';
 import { usePrefsEditor } from '../hooks/prefsEditor';
 import { prefsFromProfile, reconcileProfile } from '../lib/profile';
 import { APP } from '../strings/app';
@@ -20,6 +22,7 @@ export function MotoSection() {
   const { prefs, update } = usePrefsEditor();
   const reconciledFor = useRef<string | null>(null);
   const synced = prefs !== null;
+  const fuelRange = useFuelRange();
 
   // Once per session: settle device vs account copy (see reconcileProfile).
   useEffect(() => {
@@ -41,6 +44,10 @@ export function MotoSection() {
     { value: 'enduro', label: s.motoEnduro },
     { value: 'sport', label: s.motoSport },
     { value: 'scooter', label: s.motoScooter },
+  ];
+  const ranges: ReadonlyArray<{ value: string; label: string }> = [
+    { value: 'off', label: s.fuelOff },
+    ...FUEL_RANGES.map((km) => ({ value: String(km), label: fmt(s.fuelKm, { km }) })),
   ];
   const levels: ReadonlyArray<{ value: Level; label: string }> = [
     { value: 'low', label: s.tolLow },
@@ -67,6 +74,19 @@ export function MotoSection() {
           onChange={(comfortTemp) => change({ ...profile, comfortTemp }, SLIDER_DEBOUNCE_MS)}
         />
         <p className="acct-hint">{synced ? s.motoSynced : s.motoLocal}</p>
+        <div className="acct-seg-field">
+          <span className="acct-seg-field__label" aria-hidden="true">
+            {s.fuelRange}
+          </span>
+          <Choices
+            variant="chips"
+            label={s.fuelRange}
+            options={ranges}
+            value={fuelRange === null ? 'off' : String(fuelRange)}
+            onChange={(value) => setFuelRange(value === 'off' ? null : (Number(value) as FuelRange))}
+          />
+        </div>
+        <p className="acct-hint">{s.fuelHint}</p>
       </Card>
     </Group>
   );

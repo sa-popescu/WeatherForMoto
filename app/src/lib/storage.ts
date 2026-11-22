@@ -20,6 +20,7 @@ export const KEYS = {
   driveWork: 'motonorDriveWorkV1',
   driveRecent: 'motonorDriveRecentV1',
   installDismissed: 'pwaInstallDismissed',
+  fuelRange: 'motonorFuelRangeV1',
 } as const;
 
 export type StorageKey = (typeof KEYS)[keyof typeof KEYS];
