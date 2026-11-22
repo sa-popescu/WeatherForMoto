@@ -8,6 +8,7 @@ import { averageKmh, finishClock, NEW_CLOCK, pauseClock, resumeClock, type RideC
 import { fillFromRoute, rideSpeedKmh, type FollowState, type RideRoute } from './logic/follow';
 import { foldLean, NO_LEAN, stepLean, type LeanState } from './logic/lean';
 import { mayReroute, reroutedRoute } from './logic/reroute';
+import type { RideStory } from './logic/story';
 import { msToKmh } from './logic/rideFormat';
 import { turnsFromInstructions, type NextTurn } from './logic/turns';
 import {
@@ -73,6 +74,8 @@ export interface RideSnapshot {
   rideId: string | null;
   /** Its id in the account's ride log, once saved there. */
   loggedId: number | null;
+  /** The weather the finished ride met, once worked out (useRideStory). */
+  story: RideStory | null;
   voice: boolean;
   wake: WakeState;
   saveFailed: boolean;
@@ -97,6 +100,7 @@ const IDLE: RideSnapshot = {
   ahead: null,
   rideId: null,
   loggedId: null,
+  story: null,
   voice: true,
   wake: 'off',
   saveFailed: false,
@@ -247,6 +251,7 @@ class RideRecorder {
         phase: 'finished',
         rideId: found.meta.id,
         loggedId: found.meta.loggedId ?? null,
+        story: found.meta.story ?? null,
         totals: this.track.totals,
         lean: this.lean,
         clock: found.meta.clock,
@@ -268,6 +273,14 @@ class RideRecorder {
     if (!this.meta || this.meta.id !== rideId) return;
     this.meta = { ...this.meta, loggedId };
     this.publish({ loggedId });
+    this.flush();
+  }
+
+  /** Keeps the story of the finished ride on screen with it, so it is worked out once. */
+  keepStory(rideId: string, story: RideStory): void {
+    if (!this.meta || this.meta.id !== rideId) return;
+    this.meta = { ...this.meta, story };
+    this.publish({ story });
     this.flush();
   }
 
@@ -367,7 +380,7 @@ class RideRecorder {
     if (!this.meta) return;
     this.meta = { ...this.meta, status, clock };
     // A finished ride keeps its totals, so the list of rides needs no points.
-    if (status === 'finished') this.meta.summary = summaryOf(this.track.totals, clock);
+    if (status === 'finished') this.meta.summary = summaryOf(this.track.totals, clock, this.lean);
   }
 
   // ---- Gaps along the road ----
@@ -451,7 +464,7 @@ class RideRecorder {
     this.meta = { ...this.meta, fills: this.fills };
     // The road distance takes the place of the straight line in the totals.
     this.track = foldPoints(this.points, this.roads());
-    if (this.meta.status === 'finished') this.meta = { ...this.meta, summary: summaryOf(this.track.totals, this.meta.clock) };
+    if (this.meta.status === 'finished') this.meta = { ...this.meta, summary: summaryOf(this.track.totals, this.meta.clock, this.lean) };
     this.publish({ totals: this.track.totals, fills: this.fills });
     this.flush();
   }
