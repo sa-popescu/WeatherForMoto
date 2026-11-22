@@ -21,6 +21,8 @@ export interface StorySample {
 /** The weather at a sample's hour and place. */
 export interface SampleWeather {
   tempC: number | null;
+  /** The apparent temperature (the score's "resimțit", standing still); absent in older stories. */
+  feelsC?: number | null;
   precipMm: number | null;
   gustKmh: number | null;
   isDay: boolean | null;
@@ -36,6 +38,9 @@ export interface RideStory {
   coldest: { tempC: number; feelsC: number; at: number; speedKmh: number | null } | null;
   minTempC: number | null;
   warmestC: number | null;
+  /** The lowest and highest apparent temperature met, what "Scorul tău" learns from (absent in older stories). */
+  minFeelsC?: number | null;
+  maxFeelsC?: number | null;
   gust: { kmh: number; at: number } | null;
   /** Minutes ridden before sunrise or after sunset. */
   darkMin: number;
@@ -98,6 +103,8 @@ export function buildStory(samples: readonly StorySample[], weather: ReadonlyArr
     coldest: null,
     minTempC: null,
     warmestC: null,
+    minFeelsC: null,
+    maxFeelsC: null,
     gust: null,
     darkMin: 0,
     highestM,
@@ -119,6 +126,11 @@ export function buildStory(samples: readonly StorySample[], weather: ReadonlyArr
       if (!story.coldest || feels < story.coldest.feelsC) story.coldest = { tempC: w.tempC, feelsC: feels, at: sample.t, speedKmh: sample.speedKmh };
       story.minTempC = story.minTempC === null ? w.tempC : Math.min(story.minTempC, w.tempC);
       story.warmestC = story.warmestC === null ? w.tempC : Math.max(story.warmestC, w.tempC);
+    }
+    const feels = w.feelsC ?? null;
+    if (feels !== null) {
+      story.minFeelsC = story.minFeelsC == null ? feels : Math.min(story.minFeelsC, feels);
+      story.maxFeelsC = story.maxFeelsC == null ? feels : Math.max(story.maxFeelsC, feels);
     }
     if (w.gustKmh !== null && (!story.gust || w.gustKmh > story.gust.kmh)) story.gust = { kmh: w.gustKmh, at: sample.t };
     if (w.isDay === false) story.darkMin += sample.minutes;

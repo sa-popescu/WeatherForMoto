@@ -12,6 +12,7 @@ const TIMEOUT_MS = 15_000;
 interface Hourly {
   time?: string[];
   temperature_2m?: Array<number | null>;
+  apparent_temperature?: Array<number | null>;
   precipitation?: Array<number | null>;
   wind_gusts_10m?: Array<number | null>;
   is_day?: Array<number | null>;
@@ -29,7 +30,7 @@ export function storyUrl(samples: readonly StorySample[]): string {
   const params = new URLSearchParams({
     latitude: samples.map((s) => s.lat.toFixed(3)).join(','),
     longitude: samples.map((s) => s.lon.toFixed(3)).join(','),
-    hourly: 'temperature_2m,precipitation,wind_gusts_10m,is_day',
+    hourly: 'temperature_2m,apparent_temperature,precipitation,wind_gusts_10m,is_day',
     timezone: 'GMT',
     wind_speed_unit: 'kmh',
     start_date: utcDay(samples[0].t),
@@ -51,7 +52,13 @@ export function readStoryWeather(body: unknown, samples: readonly StorySample[])
       return typeof v === 'number' && Number.isFinite(v) ? v : null;
     };
     const day = at(hourly.is_day);
-    return { tempC: at(hourly.temperature_2m), precipMm: at(hourly.precipitation), gustKmh: at(hourly.wind_gusts_10m), isDay: day === null ? null : day === 1 };
+    return {
+      tempC: at(hourly.temperature_2m),
+      feelsC: at(hourly.apparent_temperature),
+      precipMm: at(hourly.precipitation),
+      gustKmh: at(hourly.wind_gusts_10m),
+      isDay: day === null ? null : day === 1,
+    };
   });
 }
 

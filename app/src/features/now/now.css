@@ -32,6 +32,20 @@
   animation: now-fade-up 0.7s ease-out 0.3s both;
 }
 
+/* "Scorul tău": the rider's own score next to the general one. */
+.now-hero__mine {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 4px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
 .now-hero__sub {
   max-width: 340px;
   margin-top: 8px;

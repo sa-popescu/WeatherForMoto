@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import type { WeatherResponse } from '../../../lib/types';
 import { useDesktop } from '../../../lib/useMediaQuery';
+import { usePersonalScore } from '../../ride/personalStore';
 import { hoursOfDay, tableDay } from '../logic/dayHours';
 import type { NowModel } from '../useNowModel';
 import { AlertBanners } from './AlertBanners';
@@ -34,6 +35,7 @@ export function NowContent({ data, model, selectedTime, onSelectTime, tableDate,
   }, [model.bars, selectedTime]);
 
   const score = data.current.moto_score ?? model.bars[0]?.score ?? null;
+  const personal = usePersonalScore(data.current);
   const today = model.nowIso.slice(0, 10);
   // A desktop has room for the hours of a day under the day cards, so a card
   // picks the day shown there; a phone opens the day's sheet instead.
@@ -42,7 +44,7 @@ export function NowContent({ data, model, selectedTime, onSelectTime, tableDate,
   return (
     <>
       <AlertBanners alerts={data.alerts ?? []} />
-      <Hero score={score} model={model} onScore={() => onOpen({ kind: 'score' })} />
+      <Hero score={score} personal={personal} model={model} onScore={() => onOpen({ kind: 'score' })} />
       <Timeline
         bars={model.bars}
         outlook={model.rain}

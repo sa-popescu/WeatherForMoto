@@ -97,7 +97,7 @@ describe('the weather request', () => {
     const location = (temp: number) => ({ hourly: { time: ['2026-11-22T09:00', '2026-11-22T10:00'], temperature_2m: [temp, temp + 1], precipitation: [0, 1.2], wind_gusts_10m: [10, 30], is_day: [1, 1] } });
     const body = samples.map((_, i) => location(i));
     const weather = readStoryWeather(body, samples);
-    expect(weather[0]).toEqual({ tempC: 0, precipMm: 0, gustKmh: 10, isDay: true });
+    expect(weather[0]).toEqual({ tempC: 0, feelsC: null, precipMm: 0, gustKmh: 10, isDay: true });
     // 70 minutes in: the 10:00 hour.
     expect(weather[samples.length - 1]).toMatchObject({ precipMm: 1.2, gustKmh: 30 });
     // One location comes back as an object.

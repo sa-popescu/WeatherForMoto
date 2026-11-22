@@ -6,6 +6,7 @@ import { useRideStats } from '../route/useAccountData';
 import type { ScreenProps } from '../types';
 import { RideEntry } from './RideEntry';
 import { RideHistoryList } from './RideHistoryList';
+import { RidePersonal } from './RidePersonal';
 import { RideTotals } from './RideTotals';
 import { RIDE_S } from './strings';
 import { useRideHistory } from './useRideHistory';
@@ -28,6 +29,7 @@ export default function RidesScreen({ active }: ScreenProps) {
       {/* A ride is recorded by a phone on the handlebar, not by a computer. */}
       {!desktop && <RideEntry />}
       {history.status === 'ready' && <RideTotals items={history.items} />}
+      <RidePersonal />
       <RideHistoryList history={history} />
       {status === 'signed-in' && <RideStatsCard state={stats} onRetry={stats.reload} />}
     </div>
