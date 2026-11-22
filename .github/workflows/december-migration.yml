@@ -1,0 +1,130 @@
+name: December migration
+
+# One-off, December 2026. Turso blocked the database for the rest of November
+# once the free plan's monthly quota ran out, so the schema migrations wait
+# until it answers again: most likely on December 1, but Turso gives no exact
+# date. Every 3 hours from December 1 to 7 this checks the database and, the
+# first time it answers, runs "Deploy API" with run_migrations, the same run
+# as a manual one, then turns itself off.
+#
+# If the database is still blocked on the evening of December 7, the run
+# fails, so GitHub sends an email, and it turns itself off as well. A run by
+# hand with dry_run checks everything but starts and turns off nothing.
+#
+# Delete this file once it has done its job.
+
+on:
+  schedule:
+    - cron: '20 */3 1-7 12 *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Only check, do not start the deploy or turn this workflow off
+        type: boolean
+        default: true
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: december-migration
+  cancel-in-progress: false
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  GH_REPO: ${{ github.repository }}
+  API_URL: https://weatherformoto-1056457771445.europe-west1.run.app
+  WINDOW_START: '2026-12-01T00:00:00Z'
+  # The last scheduled run is at 21:20 UTC on December 7.
+  DEADLINE: '2026-12-07T18:00:00Z'
+  WINDOW_END: '2026-12-08T00:00:00Z'
+  DRY_RUN: ${{ inputs.dry_run == true }}
+
+jobs:
+  migrate:
+    name: Migrate once the database answers
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Check the window and earlier runs
+        id: guard
+        run: |
+          set -euo pipefail
+          now="$(date -u +%s)"
+          if [ "${DRY_RUN}" != "true" ] && [ "${now}" -lt "$(date -u -d "${WINDOW_START}" +%s)" ]; then
+            echo "Too early: the window opens at ${WINDOW_START}."
+            echo "go=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "${now}" -ge "$(date -u -d "${WINDOW_END}" +%s)" ]; then
+            echo "The window closed at ${WINDOW_END}."
+            echo "go=false" >> "$GITHUB_OUTPUT"
+            echo "off=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # A deploy this workflow started already: never start a second one,
+          # even if turning this workflow off failed last time.
+          started="$(gh api "repos/${GH_REPO}/actions/workflows/deploy-backend.yml/runs?event=workflow_dispatch&created=%3E%3D${WINDOW_START%%T*}&per_page=100" \
+            --jq '[.workflow_runs[] | select(.triggering_actor.login == "github-actions[bot]")] | length')"
+          if [ "${started}" -gt 0 ]; then
+            echo "This workflow already started the migration deploy. Nothing to do."
+            echo "go=false" >> "$GITHUB_OUTPUT"
+            echo "off=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "go=true" >> "$GITHUB_OUTPUT"
+
+      - name: Ask the database
+        id: db
+        if: steps.guard.outputs.go == 'true'
+        run: |
+          set -uo pipefail
+          code="$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 30 --retry 2 --retry-delay 10 "${API_URL}/health/db")" || code="000"
+          echo "GET /health/db answered HTTP ${code}."
+          if [ "${code}" = "200" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "ready=false" >> "$GITHUB_OUTPUT"
+          if [ "$(date -u +%s)" -ge "$(date -u -d "${DEADLINE}" +%s)" ]; then
+            echo "::error::The database still does not answer on December 7. The migrations did not run: check Turso, then run Deploy API with run_migrations by hand."
+            echo "off=true" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          echo "Still blocked. The next try is in 3 hours."
+
+      - name: Start Deploy API with run_migrations
+        id: dispatch
+        if: steps.db.outputs.ready == 'true' && env.DRY_RUN != 'true'
+        run: |
+          set -euo pipefail
+          since="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          gh workflow run deploy-backend.yml --ref main -f run_migrations=true
+          run_id=""
+          for _ in $(seq 1 20); do
+            sleep 6
+            run_id="$(gh run list --workflow deploy-backend.yml --event workflow_dispatch --limit 10 \
+              --json databaseId,createdAt --jq "[.[] | select(.createdAt >= \"${since}\")] | last | .databaseId // empty")"
+            [ -n "${run_id}" ] && break
+          done
+          if [ -z "${run_id}" ]; then
+            echo "::error::Deploy API was started but its run did not show up. Check the Actions tab."
+            exit 1
+          fi
+          echo "run_id=${run_id}" >> "$GITHUB_OUTPUT"
+          echo "Deploy API run: https://github.com/${GH_REPO}/actions/runs/${run_id}"
+
+      - name: Dry run summary
+        if: steps.db.outputs.ready == 'true' && env.DRY_RUN == 'true'
+        run: echo "Dry run. The database answers, so a real run would start Deploy API with run_migrations now."
+
+      # Off before waiting for the deploy: whatever its outcome, the migration
+      # is attempted once, and a failure is for a person to look at.
+      - name: Turn this workflow off
+        if: always() && env.DRY_RUN != 'true' && (steps.dispatch.outputs.run_id != '' || steps.guard.outputs.off == 'true' || steps.db.outputs.off == 'true')
+        run: gh workflow disable december-migration.yml || echo "::warning::Could not turn this workflow off. The guard still stops a second deploy."
+
+      - name: Wait for the deploy
+        if: steps.dispatch.outputs.run_id != ''
+        run: gh run watch "${{ steps.dispatch.outputs.run_id }}" --exit-status --interval 30
