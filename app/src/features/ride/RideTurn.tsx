@@ -4,7 +4,7 @@ import { TurnIcon } from './TurnIcon';
 import { capitalize, turnDistanceText, turnPhrase, turnShape } from './turnText';
 import { TURN_S } from './turnStrings';
 
-// The next turn, above the map, on a route from "Drum": the arrow, how far,
+// The next turn, above the map, on a routed road: the arrow, how far,
 // and what to do onto which road, large enough to read at a glance. A turn
 // right after it shows as a small arrow on the side. The voice says it too
 // (guide.ts), so this is not read out by a screen reader on every fix.

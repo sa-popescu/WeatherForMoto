@@ -2,6 +2,7 @@ import { useLang, useStrings } from '../../lib/i18n';
 import { Button, Card } from '../../ui/primitives';
 import type { PointWeather, RouteLine, SamplePoint } from '../route/types';
 import { aheadPoints } from './logic/ahead';
+import { turnsFromInstructions } from './logic/turns';
 import { rideRecorder } from './recorder';
 import { RIDE_S } from './strings';
 import './ride-entry.css';
@@ -53,6 +54,8 @@ export function RouteRideStart({ route, destination, speed, points, weather }: R
         plannedKmh: speed,
         // The forecasts go along as they are now, so the warnings work without a connection.
         ahead: aheadPoints(points, weather, Date.now()),
+        // A routed road has its turns; an imported track has none.
+        turns: route.instructions ? turnsFromInstructions(route.instructions) : undefined,
       },
     });
   return (

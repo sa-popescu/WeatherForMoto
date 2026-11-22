@@ -1,9 +1,12 @@
+import type { UrbanInstruction } from '../../lib/types';
 import { cumulativeKm } from './geometry';
 import type { LatLon, RoadSpan, RouteLine } from './types';
 
-// Driving route from the public OSRM demo server. Only geometry, distances
-// and road names are used; OSRM's car durations are ignored because the ETA
-// comes from the rider's own average speed.
+// Driving route from the public OSRM demo server: the geometry, distances,
+// road names and the turns, written in TomTom's maneuver codes so the ride's
+// turn by turn reads both the same way (ride/logic/turns.ts). OSRM's car
+// durations are ignored by the planner, whose ETA comes from the rider's own
+// average speed; "Drum" uses them when TomTom cannot answer.
 
 const OSRM_BASE = 'https://router.project-osrm.org/route/v1/driving/';
 const OSRM_TIMEOUT_MS = 15_000;
@@ -24,6 +27,10 @@ interface OsrmStep {
   distance: number;
   name?: string;
   ref?: string;
+  /** Signposts at a motorway exit: "A1: Pitești". */
+  destinations?: string;
+  exits?: string;
+  maneuver?: { type?: string; modifier?: string; exit?: number };
 }
 
 interface OsrmLeg {
@@ -71,6 +78,82 @@ function roadSpans(legs: readonly OsrmLeg[]): RoadSpan[] {
   return spans;
 }
 
+const BY_MODIFIER: Record<string, string> = {
+  uturn: 'MAKE_UTURN',
+  'sharp right': 'SHARP_RIGHT',
+  right: 'TURN_RIGHT',
+  'slight right': 'BEAR_RIGHT',
+  straight: 'STRAIGHT',
+  'slight left': 'BEAR_LEFT',
+  left: 'TURN_LEFT',
+  'sharp left': 'SHARP_LEFT',
+};
+
+const leftward = (modifier: string): boolean => modifier.includes('left');
+const rightward = (modifier: string): boolean => modifier.includes('right');
+
+/** An OSRM maneuver (type and modifier) as the TomTom code that means the same. */
+export function maneuverCode(type: string, modifier: string, lastLeg: boolean): string {
+  switch (type) {
+    case 'depart':
+      return 'DEPART';
+    case 'arrive':
+      if (!lastLeg) return 'WAYPOINT_REACHED';
+      return rightward(modifier) ? 'ARRIVE_RIGHT' : leftward(modifier) ? 'ARRIVE_LEFT' : 'ARRIVE';
+    case 'new name':
+    case 'notification':
+    case 'exit roundabout':
+    case 'exit rotary':
+      return 'STRAIGHT';
+    case 'on ramp':
+      return 'ENTRANCE_RAMP';
+    case 'off ramp':
+      return leftward(modifier) ? 'MOTORWAY_EXIT_LEFT' : 'MOTORWAY_EXIT_RIGHT';
+    case 'fork':
+      return leftward(modifier) ? 'KEEP_LEFT' : rightward(modifier) ? 'KEEP_RIGHT' : 'STRAIGHT';
+    case 'merge':
+      return leftward(modifier) ? 'BEAR_LEFT' : rightward(modifier) ? 'BEAR_RIGHT' : 'STRAIGHT';
+    case 'roundabout':
+    case 'rotary':
+      if (modifier === 'uturn') return 'ROUNDABOUT_BACK';
+      if (modifier === 'straight') return 'ROUNDABOUT_CROSS';
+      return leftward(modifier) ? 'ROUNDABOUT_LEFT' : 'ROUNDABOUT_RIGHT';
+    default:
+      // turn, end of road, continue, roundabout turn: the modifier says it all.
+      return BY_MODIFIER[modifier] ?? 'STRAIGHT';
+  }
+}
+
+const firstRef = (ref: string | undefined): string | null => ref?.split(';')[0]?.trim() || null;
+
+/** The turns of an OSRM route, with their distance along it, as the ride reads them. */
+export function osrmInstructions(legs: readonly OsrmLeg[]): UrbanInstruction[] {
+  const out: UrbanInstruction[] = [];
+  let metres = 0;
+  legs.forEach((leg, legIndex) => {
+    const steps = leg.steps ?? [];
+    steps.forEach((step, i) => {
+      const type = step.maneuver?.type ?? '';
+      const maneuver = maneuverCode(type, step.maneuver?.modifier ?? 'straight', legIndex === legs.length - 1);
+      // Onto a motorway, the road worth naming is the one the ramp leads to.
+      const road = type === 'on ramp' ? firstRef(steps[i + 1]?.ref) : firstRef(step.ref);
+      out.push({
+        offset_m: Math.round(metres),
+        index: null,
+        time_s: null,
+        maneuver,
+        street: step.name?.trim() || null,
+        road,
+        exit: step.exits?.split(';')[0]?.trim() || null,
+        roundabout_exit: type === 'roundabout' || type === 'rotary' ? (step.maneuver?.exit ?? null) : null,
+        signpost: step.destinations?.trim() || null,
+      });
+      metres += step.distance || 0;
+    });
+  });
+  return out;
+}
+
 /** Validates an OSRM answer and turns it into the screen's RouteLine. */
 export function parseOsrm(body: unknown): RouteLine {
   const res = body as OsrmResponse | null;
@@ -84,7 +167,14 @@ export function parseOsrm(body: unknown): RouteLine {
   const scale = geomTotal > 0 ? distanceKm / geomTotal : 1;
   const stopKm = [0];
   for (const leg of route.legs ?? []) stopKm.push(stopKm[stopKm.length - 1] + (leg.distance || 0) / 1000);
-  return { coords, cumKm: geomCum.map((k) => k * scale), distanceKm, stopKm, roads: roadSpans(route.legs ?? []) };
+  return {
+    coords,
+    cumKm: geomCum.map((k) => k * scale),
+    distanceKm,
+    stopKm,
+    roads: roadSpans(route.legs ?? []),
+    instructions: osrmInstructions(route.legs ?? []),
+  };
 }
 
 export async function fetchRoute(stops: readonly LatLon[], signal: AbortSignal): Promise<RouteLine> {
