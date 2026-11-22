@@ -4,6 +4,7 @@ import { RouteGuide } from './guide';
 import type { AheadWarning } from './logic/ahead';
 import { averageKmh, finishClock, NEW_CLOCK, pauseClock, resumeClock, type RideClock } from './logic/clock';
 import { fillFromRoute, rideSpeedKmh, type FollowState, type RideRoute } from './logic/follow';
+import { foldLean, NO_LEAN, stepLean, type LeanState } from './logic/lean';
 import { msToKmh } from './logic/rideFormat';
 import {
   EMPTY_TOTALS,
@@ -48,6 +49,8 @@ export interface RideSnapshot {
   lastFixAt: number | null;
   position: { lat: number; lon: number } | null;
   totals: RideTotals;
+  /** The lean in turns: right now and the most on each side (see logic/lean.ts). */
+  lean: LeanState;
   clock: RideClock;
   /** Grows with every kept point, so the map knows when to draw. */
   pointCount: number;
@@ -75,6 +78,7 @@ const IDLE: RideSnapshot = {
   lastFixAt: null,
   position: null,
   totals: EMPTY_TOTALS,
+  lean: NO_LEAN,
   clock: NEW_CLOCK,
   pointCount: 0,
   fills: [],
@@ -107,6 +111,7 @@ class RideRecorder {
   private snapshot: RideSnapshot = IDLE;
   private meta: RideMeta | null = null;
   private track: TrackState = EMPTY_TRACK;
+  private lean: LeanState = NO_LEAN;
   private points: RidePoint[] = [];
   private fills: GapFill[] = [];
   private filler: GapFiller | null = null;
@@ -161,6 +166,7 @@ class RideRecorder {
     this.lang = lang;
     this.meta = { id: `ride-${now.toString(36)}`, createdAt: now, status: 'recording', clock: NEW_CLOCK, seg: 0, routeName: route?.name };
     this.track = EMPTY_TRACK;
+    this.lean = NO_LEAN;
     this.points = [];
     this.fills = [];
     this.unsaved = [];
@@ -215,6 +221,7 @@ class RideRecorder {
       this.points = found.points;
       this.fills = found.meta.fills ?? [];
       this.track = foldPoints(found.points, this.roads());
+      this.lean = foldLean(found.points);
       this.nextSeq = found.nextSeq;
       this.unsaved = [];
       this.guide = found.route ? new RouteGuide(found.route) : null;
@@ -227,6 +234,7 @@ class RideRecorder {
         rideId: found.meta.id,
         loggedId: found.meta.loggedId ?? null,
         totals: this.track.totals,
+        lean: this.lean,
         clock: found.meta.clock,
         pointCount: found.points.length,
         fills: this.fills,
@@ -257,6 +265,7 @@ class RideRecorder {
     this.guide = null;
     this.meta = null;
     this.track = EMPTY_TRACK;
+    this.lean = NO_LEAN;
     this.points = [];
     this.fills = [];
     this.unsaved = [];
@@ -280,6 +289,7 @@ class RideRecorder {
       this.points = found.points;
       this.fills = found.meta.fills ?? [];
       this.track = foldPoints(found.points, this.roads());
+      this.lean = foldLean(found.points);
       this.nextSeq = found.nextSeq;
       const last = found.points[found.points.length - 1];
       this.guide = found.route ? new RouteGuide(found.route) : null;
@@ -295,6 +305,7 @@ class RideRecorder {
         rideId: found.meta.id,
         loggedId: found.meta.loggedId ?? null,
         totals: this.track.totals,
+        lean: this.lean,
         clock: found.meta.clock,
         pointCount: found.points.length,
         fills: this.fills,
@@ -441,8 +452,10 @@ class RideRecorder {
   private readonly onPosition = (pos: GeolocationPosition): void => {
     const now = Date.now();
     const t = Math.abs(pos.timestamp - now) <= CLOCK_SKEW_MS ? pos.timestamp : now;
-    const { latitude: lat, longitude: lon, accuracy, speed, altitude } = pos.coords;
-    const fix: RideFix = { t, lat, lon, acc: accuracy, speed, alt: altitude };
+    const { latitude: lat, longitude: lon, accuracy, speed, altitude, heading } = pos.coords;
+    // Browsers give NaN as the course while standing.
+    const head = heading !== null && Number.isFinite(heading) ? heading : null;
+    const fix: RideFix = { t, lat, lon, acc: accuracy, speed, alt: altitude, head };
     const speedMs = liveSpeedMs(this.lastFix, fix);
     this.lastFix = fix;
     const patch: Partial<RideSnapshot> = {
@@ -464,6 +477,8 @@ class RideRecorder {
       const step = stepTrack(this.track, fix, this.meta.seg);
       this.track = step.state;
       if (step.kept) {
+        this.lean = stepLean(this.lean, this.points[this.points.length - 1] ?? null, step.kept);
+        patch.lean = this.lean;
         this.points.push(step.kept);
         this.unsaved.push(step.kept);
         if (step.kept.gap && anchor) this.queueGap(gapOf(anchor, step.kept), hintKm);

@@ -251,6 +251,11 @@
   color: var(--ink-2);
 }
 
+/* Reads as the second line of the averages. */
+.ride-gauges__lean {
+  margin-top: -4px;
+}
+
 .ride-gauges__title {
   font-size: 24px;
   font-weight: 600;
@@ -300,6 +305,15 @@
   font-size: 14px;
   font-weight: 500;
   color: var(--muted);
+}
+
+.ride-stats__item--span {
+  grid-column: 1 / -1;
+}
+
+.ride-stats__sep {
+  font-weight: 400;
+  color: var(--muted-2);
 }
 
 /* ---- Buttons ---- */
