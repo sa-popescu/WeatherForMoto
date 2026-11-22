@@ -24,6 +24,9 @@ GET /meta/scoring
 
 GET /route/urban?points=44.43,26.10;44.44,26.11[&depart_at=2026-11-22T15:30:00Z]
     Motorcycle routes with live (or predicted) traffic and turn instructions (TomTom).
+
+POST /client-errors
+    An error from the app: logged, and mailed once a day per error (client_errors.py).
 """
 
 import logging
@@ -62,7 +65,16 @@ from weather_service import (  # noqa: E402
     set_http_client,
     set_verification_sink,
 )
-from auth_alerts import router as auth_alerts_router, check_database, init_db, _client_ip  # noqa: E402
+from auth_alerts import (  # noqa: E402
+    router as auth_alerts_router,
+    check_database,
+    get_app_state,
+    init_db,
+    set_app_state,
+    _client_ip,
+    _send_email,
+)
+import client_errors  # noqa: E402
 import urban_route  # noqa: E402
 import verification  # noqa: E402
 
@@ -305,6 +317,25 @@ async def meta_scoring(response: Response) -> dict[str, Any]:
     """Score model used by the backend: labels, rain bands, impact matrix, caps."""
     response.headers["Cache-Control"] = "public, max-age=3600"
     return scoring_metadata()
+
+
+@app.post("/client-errors", status_code=204, include_in_schema=False)
+async def client_error_report(request: Request) -> Response:
+    """An error from the app on a rider's phone (client_errors.py): logged,
+    and mailed the first time it is seen in a day. The app sends the JSON as
+    text/plain, so the browser needs no CORS preflight for it."""
+    declared = request.headers.get("content-length", "")
+    if declared.isdigit() and int(declared) > client_errors.MAX_BODY_BYTES:
+        raise HTTPException(status_code=413, detail="Report too large")
+    body = await request.body()
+    try:
+        report = client_errors.parse(body)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+    await asyncio.to_thread(
+        client_errors.handle, report, _client_ip(request), get_app_state, set_app_state, _send_email
+    )
+    return Response(status_code=204)
 
 
 @app.get("/", include_in_schema=False)

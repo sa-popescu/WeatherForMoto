@@ -76,3 +76,13 @@ Once a day the same call also asks the Turso Platform API how much of the
 month's quota is used and mails `QUOTA_ALERT_EMAIL` at 80% and 95%, so the
 database is never blocked by surprise again. The platform token comes from the
 `mm-turso-platform-token` secret.
+
+Errors the app hits on riders' phones arrive at `POST /client-errors`
+(`client_errors.py`): each one is logged at ERROR level, and the first time an
+error is seen in a day it is mailed to `ERROR_ALERT_EMAIL`, at most 10 emails
+a day. In the Cloud Run logs, search for `client error` or the fingerprint
+from the email.
+
+Outages are watched from GitHub: `.github/workflows/monitor.yml` asks
+`/health` and `/health/db` every 30 minutes and fails, so GitHub emails, when
+either goes from working to not working.

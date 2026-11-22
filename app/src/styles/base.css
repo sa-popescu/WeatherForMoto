@@ -365,3 +365,32 @@ textarea {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* The note left when the app fails to draw at all (lib/crashScreen.ts). */
+.crash {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: calc(24px + var(--safe-top)) 24px calc(24px + var(--safe-bottom));
+  background: var(--bg);
+  color: var(--ink);
+  text-align: center;
+}
+
+.crash__title {
+  margin: 0;
+  font-family: var(--font-num);
+  font-size: 24px;
+}
+
+.crash__body {
+  max-width: 32ch;
+  margin: 0;
+  color: var(--ink-2);
+  line-height: 1.5;
+}
