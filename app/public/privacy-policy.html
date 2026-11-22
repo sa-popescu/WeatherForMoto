@@ -154,6 +154,10 @@
         eșuate, pe adresa IP și pe email (emailul doar sub formă de hash). Aceste contoare se șterg automat după cel
         mult o zi. Serverul păstrează jurnale tehnice ale cererilor (adresa IP, adresa cerută, ora) timp de cel mult
         30 de zile, pentru depanare și securitate.</p>
+    <p>Când aplicația dă de o eroare neprevăzută, trimite serverului un raport ca s-o putem repara: mesajul
+        erorii, câteva rânduri tehnice despre locul din cod unde a apărut, versiunea aplicației, tabul deschis și
+        tipul browserului. Raportul nu conține coordonate, contul sau adresa de email. Ajunge în aceleași jurnale
+        tehnice (cel mult 30 de zile), iar prima apariție a unei erori într-o zi ne este trimisă și pe email.</p>
 
     <h2>5. Emailuri și notificări</h2>
     <p>Emailurile trimise sunt doar cele de cont: codul de autentificare, confirmarea adresei și resetarea parolei.

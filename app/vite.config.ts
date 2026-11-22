@@ -18,7 +18,12 @@ export default defineConfig(({ mode }) => {
     },
   };
 
+  // Which build an error report came from: the short commit Workers Builds
+  // or Vercel built, "local" anywhere else.
+  const build = (env.WORKERS_CI_COMMIT_SHA || env.VERCEL_GIT_COMMIT_SHA || 'local').slice(0, 7);
+
   return {
+    define: { __APP_BUILD__: JSON.stringify(build) },
     plugins: [
       react(),
       VitePWA({
