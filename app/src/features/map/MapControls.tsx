@@ -1,6 +1,6 @@
 import type { MapLibreMap } from 'maplibre-gl';
 import { useEffect, useId, useRef, useState } from 'react';
-import { fmt, useStrings } from '../../lib/i18n';
+import { useStrings } from '../../lib/i18n';
 import { usePlace } from '../../state/place';
 import { useToast } from '../../state/toast';
 import { Icon } from '../../ui/icons';
@@ -9,8 +9,9 @@ import type { LayerPrefs } from './layerPrefs';
 import { LayersPanel } from './LayersPanel';
 import { MAP_STRINGS } from './strings';
 
-// Floating controls, top right: layers, my location, recenter and zoom. All
-// 48 px buttons with labels, so they work with gloves and from the keyboard.
+// Floating controls, top right: layers, my location and zoom. All 48 px
+// buttons with labels, so they work with gloves and from the keyboard. Back
+// to the place on screen is its name chip, top left (MapScreen.tsx).
 
 const LOCATE_ERRORS = {
   denied: 'locDenied',
@@ -23,6 +24,7 @@ interface Props {
   map: MapLibreMap | null;
   prefs: LayerPrefs;
   onPrefs: (change: Partial<LayerPrefs>) => void;
+  /** Centres the map on the place, once "my location" has moved it to the rider. */
   onRecenter: () => void;
   hazardsFailed: boolean;
   /** False on a desktop, where the layers sit in the side panel instead of a pop-up. */
@@ -32,7 +34,7 @@ interface Props {
 export function MapControls({ map, prefs, onPrefs, onRecenter, hazardsFailed, showLayers = true }: Props) {
   const s = useStrings(MAP_STRINGS);
   const toast = useToast();
-  const { place, locate, locating, locateError } = usePlace();
+  const { locate, locating, locateError } = usePlace();
   const [layersOpen, setLayersOpen] = useState(false);
   const panelId = useId();
   const root = useRef<HTMLDivElement>(null);
@@ -96,7 +98,6 @@ export function MapControls({ map, prefs, onPrefs, onRecenter, hazardsFailed, sh
       >
         {locating ? <Spinner size={20} /> : <Icon name="locate" size={22} />}
       </button>
-      <IconButton icon="pin" label={fmt(s.recenter, { place: place.name })} className="map-ctl" onClick={onRecenter} />
       <div className="map-zoom">
         <IconButton icon="plus" label={s.zoomIn} disabled={!map} onClick={() => map?.zoomIn()} />
         <IconButton icon="minus" label={s.zoomOut} disabled={!map} onClick={() => map?.zoomOut()} />

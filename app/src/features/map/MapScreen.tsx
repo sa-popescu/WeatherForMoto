@@ -160,12 +160,14 @@ export default function MapScreen({ active }: ScreenProps) {
   };
   const loading = baseLoading || timeline.tilesLoading;
 
+  // The place's name is also the way back to it: one tap centres the map
+  // there. "Locația mea" (the target in the controls) is the GPS.
+  const recenterLabel = fmt(s.recenter, { place: place.name });
   const placeChip = (
-    <div className="map-chip" role="status">
+    <button type="button" className="map-chip" onClick={recenter} aria-label={recenterLabel} title={recenterLabel}>
       {loading ? <Spinner size={18} /> : <Icon name="pin" size={18} />}
       <span className="map-chip__name">{place.name}</span>
-      {loading && <span className="visually-hidden">{s.loadingMap}</span>}
-    </div>
+    </button>
   );
   const reportButton = (
     <Button icon="alert" className="map-report" disabled={!map} onClick={startReport}>
@@ -181,7 +183,10 @@ export default function MapScreen({ active }: ScreenProps) {
       <div ref={containerRef} className="map-canvas" aria-label={s.mapLabel} />
 
       <div className="map-top">
-        {!desktop && placeChip}
+        {placeChip}
+        <span className="visually-hidden" role="status">
+          {loading ? s.loadingMap : ''}
+        </span>
         <MapControls map={map} prefs={prefs} onPrefs={setPrefs} onRecenter={recenter} hazardsFailed={hazards.failed} showLayers={!desktop} />
       </div>
 
