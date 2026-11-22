@@ -15,14 +15,10 @@
   right: var(--map-side-w);
 }
 
-/* No place chip over the map here: the attribution moves up to the corner. */
-.map-screen--desk .map-canvas .maplibregl-ctrl-top-left {
-  top: 12px;
-}
-
+/* The place chip (back to the place) on the left and the controls on the
+   right, over the map only, not over the side panel. */
 .map-screen--desk .map-top {
   right: calc(var(--map-side-w) + 12px);
-  justify-content: flex-end;
 }
 
 .map-screen--desk .map-crosshair {
