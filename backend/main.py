@@ -22,8 +22,8 @@ GET /meta/scoring
     The moto score model (label thresholds, rain intensity bands, impact
     matrix, caps) exactly as the backend applies it.
 
-GET /route/urban?points=44.43,26.10;44.44,26.11
-    Motorcycle routes with live traffic and turn instructions (TomTom).
+GET /route/urban?points=44.43,26.10;44.44,26.11[&depart_at=2026-11-22T15:30:00Z]
+    Motorcycle routes with live (or predicted) traffic and turn instructions (TomTom).
 """
 
 import logging
@@ -31,6 +31,7 @@ import os
 import asyncio
 import time
 from datetime import datetime as _dt
+from datetime import timezone
 import pathlib
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator, Awaitable, Callable
@@ -599,16 +600,19 @@ async def route_urban(
     request: Request,
     points: Annotated[str, Query(description="'lat,lon;lat,lon[;...]' from the start to the destination, 2 to 5 points")],
     alternatives: int = Query(default=urban_route.MAX_ALTERNATIVES, ge=0, le=urban_route.MAX_ALTERNATIVES),
+    depart_at: Annotated[str | None, Query(max_length=40, description="ISO time with offset, up to a week ahead; omitted for now")] = None,
 ):
     """
     Motorcycle routes with live traffic, from TomTom: the line, the time with
     and without traffic, the traffic stretches and coded turn instructions.
-    Up to two alternatives between a start and a destination. When there is
-    no such route the reason is in ``detail`` (no-key, busy, quota, no-route,
-    upstream), and the app plans without traffic instead.
+    Up to two alternatives between a start and a destination. With
+    ``depart_at`` the times are for that departure, with predicted traffic.
+    When there is no such route the reason is in ``detail`` (no-key, busy,
+    quota, no-route, upstream), and the app plans without traffic instead.
     """
     try:
         coords = urban_route.parse_points(points)
+        departure = urban_route.parse_depart_at(depart_at, _dt.now(timezone.utc))
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     # Without a key there is nothing to spend the client's budget on.
@@ -618,7 +622,7 @@ async def route_urban(
         raise HTTPException(status_code=429, detail="busy")
     async with http_client_scope() as client:
         try:
-            return await urban_route.fetch_urban_routes(client, coords, alternatives)
+            return await urban_route.fetch_urban_routes(client, coords, alternatives, departure)
         except urban_route.UrbanRouteUnavailable as exc:
             status = 404 if exc.reason == "no-route" else 503
             raise HTTPException(status_code=status, detail=exc.reason) from None
