@@ -118,6 +118,17 @@ describe('planDriveWeather', () => {
     expect(early.worstScore).toBe(80);
   });
 
+  it('knows when the rider gets somewhere after sunset', () => {
+    const route = fromUrban(urban(100, { duration_s: 100 * 60 }), 0)!;
+    const plan = planDriveWeather([route], origin, dest, name);
+    const withSun = (w: PointWeather): PointWeather => ({ ...w, forecast: { ...w.forecast!, sun: [{ date: '2026-11-22', sunrise: '2026-11-22T07:20', sunset: '2026-11-22T16:45' }] } });
+    const shared = Object.fromEntries(plan.shared.map((p) => [p.id, withSun(forecast(null))]));
+    const weather = weatherForRoute(plan.routes[0], shared);
+    expect(routeOutlook(plan.routes[0].points, weather, routeKmh(route), 100, NOW).dark).toBe(false);
+    // Leaving at 15:30 local (13:30 UTC) arrives at 17:10, after sunset.
+    expect(routeOutlook(plan.routes[0].points, weather, routeKmh(route), 100, Date.UTC(2026, 10, 22, 13, 30)).dark).toBe(true);
+  });
+
   it('is not settled while a point still loads', () => {
     const route = fromUrban(urban(10), 0)!;
     const plan = planDriveWeather([route], origin, { ...dest, lat: 44.49 }, name);

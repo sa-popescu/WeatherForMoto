@@ -218,10 +218,22 @@ export const api = {
     json('/me/rides/log', { method: 'POST', token, body: ride }),
   rideStats: (token: string): Promise<RideStats> => json('/me/rides/stats', { token }),
 
-  /** Motorcycle routes with live traffic between two or more points (up to two alternatives between two). */
-  urbanRoute: (points: ReadonlyArray<{ lat: number; lon: number }>, signal?: AbortSignal): Promise<UrbanRouteResponse> =>
+  /**
+   * Motorcycle routes with live traffic between two or more points (up to two
+   * alternatives between two). With `departMs`, for that later departure, with
+   * predicted traffic.
+   */
+  urbanRoute: (
+    points: ReadonlyArray<{ lat: number; lon: number }>,
+    options: { alternatives?: number; departMs?: number | null } = {},
+    signal?: AbortSignal,
+  ): Promise<UrbanRouteResponse> =>
     json('/route/urban', {
-      query: { points: points.map((p) => `${p.lat.toFixed(5)},${p.lon.toFixed(5)}`).join(';'), alternatives: 2 },
+      query: {
+        points: points.map((p) => `${p.lat.toFixed(5)},${p.lon.toFixed(5)}`).join(';'),
+        alternatives: options.alternatives ?? 2,
+        depart_at: options.departMs ? new Date(options.departMs).toISOString().replace(/\.\d{3}Z$/, 'Z') : null,
+      },
       timeoutMs: URBAN_ROUTE_TIMEOUT_MS,
       signal,
     }),

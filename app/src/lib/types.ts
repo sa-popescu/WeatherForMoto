@@ -355,5 +355,7 @@ export interface UrbanRoute {
 export interface UrbanRouteResponse {
   source: 'tomtom';
   attribution: string;
+  /** The departure the times are for, UTC, or null for now. */
+  depart_at?: string | null;
   routes: UrbanRoute[];
 }

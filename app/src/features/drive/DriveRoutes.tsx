@@ -6,6 +6,8 @@ import { Icon } from '../../ui/icons';
 import { Button, cx, Spinner } from '../../ui/primitives';
 import { aheadLine } from '../ride/aheadText';
 import { fmtKm, fmtTimeLeft } from '../ride/logic/rideFormat';
+import { DepartureStrip } from './DepartureStrip';
+import type { DepartureOption } from './logic/departures';
 import type { RouteOutlook } from './logic/driveWeather';
 import { mainRoad, type DriveRoute } from './logic/driveRoute';
 import type { RoutesState } from './useDriveRoutes';
@@ -85,6 +87,11 @@ interface DriveRoutesProps {
   locating: boolean;
   /** A ride is recorded by a phone on the handlebar: a computer gets no start button. */
   canRide: boolean;
+  departures: readonly DepartureOption[];
+  bestDeparture: number | null;
+  /** The departure on screen, or null for now. */
+  departMs: number | null;
+  onDepart: (departMs: number | null) => void;
   onSelect: (id: string) => void;
   onClose: () => void;
   onRetry: () => void;
@@ -92,7 +99,9 @@ interface DriveRoutesProps {
   onDetailed: () => void;
 }
 
-export function DriveRoutes({ destination, state, outlooks, selectedId, fromLabel, locating, canRide, onSelect, onClose, onRetry, onStart, onDetailed }: DriveRoutesProps) {
+export function DriveRoutes(props: DriveRoutesProps) {
+  const { destination, state, outlooks, selectedId, fromLabel, locating, canRide, departures, bestDeparture, departMs, onDepart } = props;
+  const { onSelect, onClose, onRetry, onStart, onDetailed } = props;
   const s = useStrings(DRIVE_S);
   const ready = state.status === 'ready' ? state : null;
   const fastestId = ready ? [...ready.routes].sort((a, b) => a.durationS - b.durationS)[0]?.id : null;
@@ -142,10 +151,11 @@ export function DriveRoutes({ destination, state, outlooks, selectedId, fromLabe
             ))}
           </ul>
           {ready.source === 'osrm' && <p className="drive-sheet__note">{s.fallback}</p>}
+          <DepartureStrip options={departures} best={bestDeparture} selected={departMs} noTraffic={ready.source === 'osrm'} onPick={onDepart} />
           {canRide && (
             <>
               <Button variant="primary" size="lg" full icon="play" onClick={onStart} disabled={!selectedId} aria-describedby="drive-start-hint">
-                {s.start}
+                {departMs === null ? s.start : s.startNow}
               </Button>
               <p className="visually-hidden" id="drive-start-hint">
                 {s.startHint}
