@@ -28,7 +28,7 @@ export interface DriveRoute {
   /** Time lost to traffic, seconds (0 without traffic data). */
   delayS: number;
   traffic: TrafficStretch[];
-  /** Coded turn instructions, for the spoken directions (TomTom only). */
+  /** Coded turn instructions (TomTom's codes, OSRM's turned into them), for the spoken directions. */
   instructions: UrbanInstruction[];
 }
 
@@ -86,7 +86,7 @@ export function fromUrban(route: UrbanRoute, index: number): DriveRoute | null {
   };
 }
 
-/** An OSRM route, with OSRM's own time when it gave one. */
+/** An OSRM route, with OSRM's own time when it gave one, and its turns. */
 export function fromOsrm(line: RouteLine, durationS: number | null): DriveRoute {
   return {
     id: 'osrm',
@@ -95,7 +95,7 @@ export function fromOsrm(line: RouteLine, durationS: number | null): DriveRoute 
     durationS: Math.max(60, durationS ?? (line.distanceKm / FALLBACK_KMH) * 3600),
     delayS: 0,
     traffic: [],
-    instructions: [],
+    instructions: line.instructions ?? [],
   };
 }
 

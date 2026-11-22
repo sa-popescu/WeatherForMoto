@@ -1,4 +1,4 @@
-import type { HourlyWeather, Place } from '../../lib/types';
+import type { HourlyWeather, Place, UrbanInstruction } from '../../lib/types';
 
 // Shapes used only by the "Traseu" feature.
 
@@ -24,6 +24,8 @@ export interface RouteLine {
   /** Distance along the route of every stop, km (the first is 0). */
   stopKm: number[];
   roads: RoadSpan[];
+  /** The turns, in TomTom's codes, when the road service gave them (not for an imported track). */
+  instructions?: UrbanInstruction[];
 }
 
 /** A place on the route where the weather is sampled. */

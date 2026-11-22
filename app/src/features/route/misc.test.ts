@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildGpx, escapeXml, GpxError, gpxFileName, parseGpx, unescapeXml } from './gpx';
 import { placeHazards, serverTimeMs } from './hazards';
-import { osrmUrl, parseOsrm, roadAt, RouteError } from './osrm';
+import { maneuverCode, osrmInstructions, osrmUrl, parseOsrm, roadAt, RouteError } from './osrm';
 import { runPool } from './pool';
 import { rainLine } from './rainText';
 import { addStop, MAX_STOPS, moveItem, nearestKnown, newStop, removeStop, roleOf, savedLabel } from './stops';
@@ -189,6 +189,44 @@ describe('osrm', () => {
   it('rejects answers without a route', () => {
     expect(() => parseOsrm({ code: 'NoRoute' })).toThrow(RouteError);
     expect(() => parseOsrm(null)).toThrow(RouteError);
+  });
+
+  it('writes the turns in TomTom codes, with their distance along the route', () => {
+    const step = (distance: number, type: string, modifier: string | undefined, over: Record<string, unknown> = {}) => ({ distance, maneuver: { type, modifier }, ...over });
+    const legs = [
+      { distance: 3000, steps: [step(1000, 'depart', undefined, { name: 'Calea Victoriei' }), step(2000, 'turn', 'right', { name: 'Strada Lipscani' }), step(0, 'arrive', 'left')] },
+      {
+        distance: 5000,
+        steps: [
+          step(500, 'depart', undefined),
+          step(300, 'roundabout', 'right', { name: 'Bulevardul Unirii', maneuver: { type: 'roundabout', modifier: 'right', exit: 2 } }),
+          step(700, 'on ramp', 'slight right'),
+          step(3000, 'continue', 'straight', { ref: 'A1;E81' }),
+          step(500, 'off ramp', 'slight right', { exits: '12', destinations: 'Pitești' }),
+          step(0, 'arrive', 'right'),
+        ],
+      },
+    ];
+    const ins = osrmInstructions(legs);
+    expect(ins.map((i) => i.maneuver)).toEqual([
+      'DEPART',
+      'TURN_RIGHT',
+      'WAYPOINT_REACHED',
+      'DEPART',
+      'ROUNDABOUT_RIGHT',
+      'ENTRANCE_RAMP',
+      'STRAIGHT',
+      'MOTORWAY_EXIT_RIGHT',
+      'ARRIVE_RIGHT',
+    ]);
+    expect(ins[1]).toMatchObject({ offset_m: 1000, street: 'Strada Lipscani' });
+    expect(ins[4]).toMatchObject({ offset_m: 3500, roundabout_exit: 2 });
+    // The ramp names the motorway it leads to.
+    expect(ins[5].road).toBe('A1');
+    expect(ins[7]).toMatchObject({ exit: '12', signpost: 'Pitești', offset_m: 7500 });
+    expect(maneuverCode('fork', 'slight left', true)).toBe('KEEP_LEFT');
+    expect(maneuverCode('end of road', 'left', true)).toBe('TURN_LEFT');
+    expect(maneuverCode('rotary', 'uturn', true)).toBe('ROUNDABOUT_BACK');
   });
 
   it('builds the request with lon,lat pairs', () => {

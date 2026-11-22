@@ -18,7 +18,7 @@ export interface RideRoute {
   plannedKmh: number;
   /** The plan's forecasts at its weather points, for the warnings ahead (absent in older stored rides). */
   ahead?: AheadPoint[];
-  /** The turns, for turn by turn (routes from "Drum" with TomTom only). */
+  /** The turns, for turn by turn (routed roads: "Drum" and the planner; not an imported track). */
   turns?: RouteTurn[];
   /** Where the route goes: with it, leaving the route asks for a new one from where the rider is ("Drum" only). */
   destination?: LatLon;
