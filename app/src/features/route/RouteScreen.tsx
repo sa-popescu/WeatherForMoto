@@ -4,11 +4,10 @@ import { useDesktop } from '../../lib/useMediaQuery';
 import { useAuth } from '../../state/auth';
 import { Icon } from '../../ui/icons';
 import { Banner, Button } from '../../ui/primitives';
-import { RideEntry, RouteRideStart } from '../ride/RideEntry';
+import { RouteRideStart } from '../ride/RideEntry';
 import type { ScreenProps } from '../types';
 import { DepartureControls } from './DepartureControls';
 import { HazardSheet } from './HazardSheet';
-import { RideStatsCard } from './RideStats';
 import type { ActionKind } from './RouteActions';
 import { RouteDetails, RouteOverview } from './RouteResults';
 import { RouteStatus } from './RouteStatus';
@@ -30,7 +29,7 @@ import {
   type Speed,
 } from './timing';
 import type { Departure } from './types';
-import { useRideStats, useSavedRoutes } from './useAccountData';
+import { useSavedRoutes } from './useAccountData';
 import { useCalculate } from './useCalculate';
 import { useDerivedPlan } from './useDerivedPlan';
 import { useFileDrop } from './useFileDrop';
@@ -48,6 +47,9 @@ import './route-desktop.css';
 
 type SheetKind = 'none' | 'save' | 'log' | 'hazard' | 'signin' | 'saved';
 
+// The ride log's totals live on "Ture", which reloads them whenever it opens.
+const NOTHING_TO_RELOAD = (): void => {};
+
 export default function RouteScreen({ active }: ScreenProps) {
   const s = useStrings(RS);
   const { status: authStatus } = useAuth();
@@ -64,7 +66,6 @@ export default function RouteScreen({ active }: ScreenProps) {
   const derived = useDerivedPlan(plan, departure, speed);
   const hazards = useRouteHazards(plan.route, plan.points);
   const saved = useSavedRoutes(active);
-  const rides = useRideStats(active);
   const calc = useCalculate({ stopsState, calculate, calculateFromTrack, hasRoute: plan.route !== null, departure, speed, today: dates[0] });
   const actions = useRouteActions({
     route: plan.route,
@@ -73,7 +74,7 @@ export default function RouteScreen({ active }: ScreenProps) {
     stats: derived.stats,
     speed,
     onSavedChange: saved.reload,
-    onLogged: rides.reload,
+    onLogged: NOTHING_TO_RELOAD,
     onReported: hazards.reload,
   });
   useOpenRouteLink({ dates, speed, setDeparture, setSpeed, openShared: calc.openShared });
@@ -129,8 +130,6 @@ export default function RouteScreen({ active }: ScreenProps) {
         <Button variant="primary" size="lg" full icon="route" busy={busy} onClick={() => calc.run(stopsState.stops)}>
           {plan.route ? s.recalculate : s.calculate}
         </Button>
-        {/* A ride is recorded by a phone on the handlebar, not by a computer. */}
-        {!desktop && <RideEntry />}
       </div>
 
       <div className="route-col route-col--map">
@@ -171,7 +170,6 @@ export default function RouteScreen({ active }: ScreenProps) {
 
       <div className="route-col route-col--road">
         {plan.route && <RouteDetails route={plan.route} derived={derived} hazards={hazards} signedIn={signedIn} onAction={onAction} />}
-        {signedIn && <RideStatsCard state={rides} onRetry={rides.reload} />}
       </div>
 
       {dragging && (
