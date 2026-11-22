@@ -16,6 +16,9 @@ export const KEYS = {
   lastWeather: 'motoLastWeatherV1',
   followMe: 'motoFollowMeV1',
   rideVoice: 'motoRideVoiceV1',
+  driveHome: 'motonorDriveHomeV1',
+  driveWork: 'motonorDriveWorkV1',
+  driveRecent: 'motonorDriveRecentV1',
   installDismissed: 'pwaInstallDismissed',
 } as const;
 

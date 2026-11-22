@@ -1,0 +1,485 @@
+/* "Drum": the map fills the screen between the top safe area and the nav,
+   with the search floating on top and a card at the bottom (the weather
+   here, or the routes to the destination). Colours come from the theme
+   tokens only. */
+
+.drive {
+  position: fixed;
+  top: var(--safe-top);
+  bottom: calc(var(--nav-h) + var(--safe-bottom));
+  left: 0;
+  right: 0;
+  z-index: 1;
+  max-width: 560px;
+  margin-inline: auto;
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--surface-2);
+}
+
+.drive[hidden] {
+  display: none;
+}
+
+.drive-map {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.drive-map.maplibregl-map {
+  background: var(--surface-2);
+  font-family: var(--font-body);
+}
+
+/* The attribution goes under the search, where the cards never reach. */
+.drive-map .maplibregl-ctrl-bottom-right {
+  top: 124px;
+  bottom: auto;
+}
+
+.drive-map .maplibregl-ctrl-attrib {
+  background: color-mix(in srgb, var(--bg) 80%, transparent);
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.drive-map .maplibregl-ctrl-attrib a {
+  color: var(--ink-2);
+}
+
+[data-theme='dark'] .drive-map .maplibregl-ctrl-attrib-button {
+  filter: invert(1);
+}
+
+/* ---- Top: the search ---- */
+
+.drive-top {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  z-index: 2;
+}
+
+.drive-search__box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 0 6px 0 16px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  color: var(--accent);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.3);
+}
+
+.drive-search__box:focus-within {
+  border-color: var(--accent);
+}
+
+.drive-search__input {
+  flex: 1;
+  min-width: 0;
+  height: 50px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 600;
+  outline: none;
+}
+
+.drive-search__input::placeholder {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.drive-search__clear {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  height: 40px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.drive-suggest {
+  max-height: min(60vh, 420px);
+  margin: 8px 0 0;
+  padding: 6px;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.3);
+}
+
+.drive-suggest__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  cursor: pointer;
+}
+
+.drive-suggest__item:hover,
+.drive-suggest__item--active {
+  background: var(--surface-2);
+}
+
+.drive-suggest__name {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.drive-suggest__meta {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.drive-suggest__item--change .drive-suggest__name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--accent);
+}
+
+.drive-suggest__note {
+  padding: 12px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.drive-chips {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  padding-bottom: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.drive-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.drive-chip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  max-width: 180px;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.drive-chip svg {
+  flex: none;
+  color: var(--accent);
+}
+
+.drive-chip__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drive-chip--unset {
+  border-style: dashed;
+  color: var(--muted);
+}
+
+/* ---- Bottom: the weather, or the routes ---- */
+
+.drive-bottom {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  z-index: 2;
+}
+
+.drive-weather {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  color: var(--ink);
+  text-decoration: none;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.3);
+}
+
+.drive-weather__score {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border: 3px solid var(--drive-tier);
+  border-radius: 50%;
+}
+
+.drive-weather__value {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.drive-weather__tier {
+  margin-top: 2px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--drive-tier);
+}
+
+.drive-weather__text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.drive-weather__eyebrow {
+  overflow: hidden;
+  font-family: var(--font-num);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--muted-2);
+}
+
+.drive-weather__title {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.drive-weather__sub {
+  font-size: 14px;
+  color: var(--ink-2);
+}
+
+.drive-weather__sub--warn {
+  color: var(--t-atentie);
+}
+
+.drive-weather__open {
+  flex: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.drive-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: min(56vh, 520px);
+  padding: 14px;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.3);
+}
+
+.drive-sheet__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.drive-sheet__titles {
+  flex: 1;
+  min-width: 0;
+}
+
+.drive-sheet__title {
+  overflow: hidden;
+  font-size: 20px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drive-sheet__from {
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.drive-sheet__credit {
+  color: var(--muted-2);
+}
+
+.drive-sheet__status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+
+.drive-sheet__status--error {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.drive-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.drive-option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.drive-option--on {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.drive-option__row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.drive-option__time {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.drive-option__km {
+  font-size: 14px;
+  color: var(--ink-2);
+}
+
+.drive-option__traffic {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.drive-option__traffic--slow {
+  color: var(--t-atentie);
+}
+
+.drive-option__via {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drive-option__sky {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.drive-option__score {
+  min-width: 30px;
+  padding: 1px 6px;
+  border: 1.5px solid var(--drive-tier);
+  border-radius: 999px;
+  color: var(--drive-tier);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.drive-option__warning {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--t-atentie);
+}
+
+.drive-sheet__note {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.drive-sheet__detailed {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ---- Desktop: the map next to the rail, the cards in a column on the left ---- */
+
+@media (min-width: 1024px) {
+  .drive {
+    left: var(--rail-w);
+    max-width: none;
+    margin-inline: 0;
+  }
+
+  .drive-top,
+  .drive-bottom {
+    right: auto;
+    width: 420px;
+  }
+}
