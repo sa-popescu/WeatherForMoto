@@ -4,7 +4,7 @@ import type { Place } from './types';
 // landmark ("Promenada Mall" exists in several cities) opens exactly where it
 // was shared. Links with only ?q= (older app versions) are resolved by name.
 
-export const SHARE_BASE_URL = 'https://weatherformoto.bluemouse.cc/';
+export const SHARE_BASE_URL = 'https://motonor.bluemouse.cc/';
 const MAX_NAME_LENGTH = 80;
 const COORDS = /^(-?\d{1,2}(?:\.\d{1,7})?),(-?\d{1,3}(?:\.\d{1,7})?)$/;
 

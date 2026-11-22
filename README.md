@@ -1,13 +1,13 @@
-# Motonor (WeatherForMoto)
+# Motonor
 
-Motonor (fost MotoMeteo) este o aplicație de vreme și drum pentru motocicliști: scor moto pe ore, trasee cu trafic live și vremea pe care o prinzi pe drum, înregistrarea turelor și alerte personalizate (notificări push). Repo-ul, serviciile din cloud și adresa păstrează numele WeatherForMoto.
+Motonor (fost MotoMeteo, proiectul WeatherForMoto) este o aplicație de vreme și drum pentru motocicliști: scor moto pe ore, trasee cu trafic live și vremea pe care o prinzi pe drum, înregistrarea turelor și alerte personalizate (notificări push). Repo-ul se numește `motonor`; serviciile din cloud (Cloud Run, Worker-ul Cloudflare, baza Turso) păstrează numele `weatherformoto`.
 
 Stack-ul actual este:
 
 - Frontend: `app/` — Vite + React + TypeScript, PWA (service worker Workbox), pregătit pentru Capacitor
 - Backend: FastAPI + Turso, pe Google Cloud Run (doar API)
 - Deploy frontend: Cloudflare (static, din `scripts/build-pages.sh`)
-- URL: https://weatherformoto.bluemouse.cc (adresa run.app redirecționează aici)
+- URL: https://motonor.bluemouse.cc (adresa run.app redirecționează aici). Vechea adresă, https://weatherformoto.bluemouse.cc, servește aceeași aplicație și oferă mutarea datelor de pe telefon pe adresa nouă (`app/src/features/move/`)
 
 Vechiul frontend dintr-un singur fișier a fost retras: `index.html` și `sw.js` din rădăcină sunt acum doar o pagină de redirecționare și un service worker care îl dezinstalează pe cel vechi (GitHub Pages publică rădăcina repo-ului). Codul vechi rămâne în istoricul git.
 
@@ -63,7 +63,7 @@ Vechiul frontend dintr-un singur fișier a fost retras: `index.html` și `sw.js`
 ## Structura proiectului
 
 ```text
-WeatherForMoto/
+motonor/
 ├── app/                    # Frontend: Vite + React + TypeScript, PWA (vezi mai jos)
 ├── backend/                # API FastAPI (vezi backend/README.md)
 │   ├── main.py, weather_service.py, auth_alerts.py
@@ -280,7 +280,7 @@ Setup în dashboard-ul Cloudflare Pages (Connect to Git):
 
 - Build command: `sh scripts/build-pages.sh`
 - Build output directory: `dist`
-- Custom domain: `weatherformoto.bluemouse.cc` (mută CNAME-ul de pe vechiul Worker pe proiectul Pages)
+- Custom domains pe Worker (Settings › Domains & Routes): `motonor.bluemouse.cc` și, cât timp mai e folosită, vechea `weatherformoto.bluemouse.cc`
 
 Linkuri scurte de traseu: Worker-ul are un singur script, `app/src/worker/shortLinks.ts`, care primește doar `/s` și `/s/*` (`run_worker_first` în `wrangler.jsonc`). `POST /s` păstrează planul unui traseu partajat în Workers KV (binding `SHORT_LINKS`) timp de 90 de zile, iar `GET /s/<id>` redirecționează către `/#/traseu?…`. Binding-ul KV are ID-ul spațiului scris în `wrangler.jsonc` (din dashboard: Storage & Databases › KV). Fără ID, crearea automată a lui wrangler pică la al doilea deploy din Workers Builds (eroarea 10014, cloudflare/workers-sdk#14284). Dacă binding-ul lipsește, `/s` răspunde 503 și aplicația trimite linkul lung.
 
@@ -288,7 +288,7 @@ Pe backend (Cloud Run) setează `ALLOWED_ORIGINS` ca să includă originea front
 
 ```bash
 gcloud run services update weatherformoto --region europe-west1 \
-  --set-env-vars ALLOWED_ORIGINS=https://weatherformoto.bluemouse.cc
+  --update-env-vars "^@^ALLOWED_ORIGINS=https://motonor.bluemouse.cc,https://weatherformoto.bluemouse.cc,https://localhost,capacitor://localhost@APP_BASE_URL=https://motonor.bluemouse.cc"
 ```
 
 Preview-urile frontend-ului sunt permise automat de backend, ca un PR să poată fi încercat cu vremea live înainte de merge: cele din Workers Builds (`<versiune sau branch>-weatherformoto.spopescu.workers.dev`) și cele vechi din Pages (`*.weatherformoto.pages.dev`). Un preview vorbește cu API-ul și baza de date de producție.

@@ -5,7 +5,7 @@ import os
 import unittest
 from unittest import mock
 
-os.environ.setdefault("APP_BASE_URL", "https://weatherformoto.bluemouse.cc")
+os.environ.setdefault("APP_BASE_URL", "https://motonor.bluemouse.cc")
 
 from fastapi.testclient import TestClient  # noqa: E402
 
