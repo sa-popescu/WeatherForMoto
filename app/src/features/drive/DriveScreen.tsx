@@ -11,6 +11,7 @@ import { rideRecorder } from '../ride/recorder';
 import { buildRouteLink } from '../route/routeLink';
 import type { NameBetween } from '../route/samples';
 import { DEFAULT_SPEED, defaultDeparture, deviceOffsetSec } from '../route/timing';
+import { useRouteOptions } from '../route/routeOptions';
 import type { ScreenProps } from '../types';
 import { DriveLocate } from './DriveLocate';
 import { DriveMapButtons } from './DriveMapButtons';
@@ -62,7 +63,8 @@ export default function DriveScreen({ active }: ScreenProps) {
 
   const nameBetween = useCallback<NameBetween>((road, previous) => road ?? fmt(s.afterStop, { stop: previous }), [s.afterStop]);
   // Routes start where the rider is, so they wait for the position asked for at the pick.
-  const trip = useDrivePlan({ origin: destination && !locating ? place : null, destination, departMs, attempt, originName: s.myPosition, nameBetween });
+  const routeOptions = useRouteOptions();
+  const trip = useDrivePlan({ origin: destination && !locating ? place : null, destination, departMs, attempt, routeOptions, originName: s.myPosition, nameBetween });
   const { routes, outlooks } = trip;
   const ready = routes.status === 'ready' ? routes : null;
   const { map, ready: mapReady } = useDriveMap(containerRef, theme, active, setSelectedId);

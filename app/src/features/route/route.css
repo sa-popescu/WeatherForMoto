@@ -330,6 +330,14 @@
 
 /* ---- Status ---- */
 
+/* Whose road it is (TomTom's credit), under the status. */
+.route-credit {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted-2);
+  text-align: right;
+}
+
 .route-progress {
   display: flex;
   align-items: center;

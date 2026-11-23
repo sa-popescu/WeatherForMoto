@@ -16,6 +16,11 @@ traffic (OSRM).
 
 A departure later than now (``depart_at``) gets TomTom's predicted traffic
 for that moment, which is how the app compares departure times.
+
+The rider's route options (``RouteOptions``) go to TomTom as they are: the
+kind of route (fastest, balanced, shortest, economical or one with curves),
+what to avoid and the motorcycle's top speed. Without options the request is
+the one the app always made: the fastest route, avoiding unpaved roads.
 """
 
 from __future__ import annotations
@@ -24,6 +29,7 @@ import logging
 import os
 import time
 from collections import deque
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -35,9 +41,22 @@ TOMTOM_API_KEY: str = os.getenv("TOMTOM_API_KEY", "").strip()
 TOMTOM_ROUTE_URL = "https://api.tomtom.com/routing/1/calculateRoute/{locations}/json"
 TOMTOM_TIMEOUT_S = 12.0
 
-# Start, destination and up to three stops on the way.
-MAX_POINTS = 5
+# Start, destination and up to eight stops on the way: the planner's ten
+# stops (MAX_STOPS in app/src/features/route/stops.ts).
+MAX_POINTS = 10
 MAX_ALTERNATIVES = 2
+
+# What the rider can ask of the route (TomTom's own names, so they pass as they are).
+ROUTE_TYPES = ("fastest", "short", "shortest", "eco", "thrilling")
+AVOIDABLE = ("motorways", "tollRoads", "ferries", "unpavedRoads", "tunnels", "borderCrossings")
+LEVELS = ("low", "normal", "high")
+# What the app always avoided before it had options, and still does by default.
+DEFAULT_AVOID: tuple[str, ...] = ("unpavedRoads",)
+# The value of ``avoid`` that avoids nothing (an empty query value is dropped on the way).
+AVOID_NOTHING = "none"
+# A motorcycle's top speed, for scooters and small bikes; TomTom accepts up to 250.
+MIN_TOP_SPEED_KMH = 25
+MAX_TOP_SPEED_KMH = 250
 
 # Per client (IP): a destination costs up to six requests (the routes, then
 # five departure times to compare), so this is about ten destinations, or a
@@ -143,22 +162,87 @@ def parse_depart_at(text: str | None, now: datetime) -> datetime | None:
     return None if when - now <= DEPART_NOW_SLACK else when.astimezone(timezone.utc)
 
 
-def tomtom_request(points: list[tuple[float, float]], alternatives: int, depart_at: datetime | None = None) -> tuple[str, dict[str, Any]]:
+@dataclass(frozen=True)
+class RouteOptions:
+    """What the rider asked of the route; the defaults are the app's route before it had options."""
+
+    route_type: str = "fastest"
+    avoid: tuple[str, ...] = DEFAULT_AVOID
+    # How winding and how hilly a route with curves ("thrilling") should be.
+    windingness: str = "normal"
+    hilliness: str = "normal"
+    top_speed_kmh: int | None = None
+    # False for a plan made ahead: the usual speeds of the roads, not today's jams.
+    traffic: bool = True
+
+
+def parse_options(
+    route_type: str | None = None,
+    avoid: str | None = None,
+    windingness: str | None = None,
+    hilliness: str | None = None,
+    top_speed: int | None = None,
+    traffic: bool = True,
+) -> RouteOptions:
+    """
+    The query's options, checked. ``avoid`` is a comma list of AVOIDABLE
+    names: None keeps the default (unpaved roads), "none" (or an empty text)
+    avoids nothing. ValueError with a reason for anything else.
+    """
+    kind = (route_type or "fastest").strip()
+    if kind not in ROUTE_TYPES:
+        raise ValueError(f"route_type must be one of {', '.join(ROUTE_TYPES)}")
+    if avoid is None:
+        avoided = DEFAULT_AVOID
+    else:
+        names = {a.strip() for a in avoid.split(",") if a.strip()} - {AVOID_NOTHING}
+        unknown = names - set(AVOIDABLE)
+        if unknown:
+            raise ValueError(f"Cannot avoid: {', '.join(sorted(unknown))[:80]}")
+        avoided = tuple(a for a in AVOIDABLE if a in names)
+    levels = []
+    for name, value in (("windingness", windingness), ("hilliness", hilliness)):
+        level = (value or "normal").strip()
+        if level not in LEVELS:
+            raise ValueError(f"{name} must be one of {', '.join(LEVELS)}")
+        levels.append(level)
+    if top_speed is not None and not MIN_TOP_SPEED_KMH <= top_speed <= MAX_TOP_SPEED_KMH:
+        raise ValueError(f"top_speed must be between {MIN_TOP_SPEED_KMH} and {MAX_TOP_SPEED_KMH} km/h")
+    return RouteOptions(kind, avoided, levels[0], levels[1], top_speed, traffic)
+
+
+def tomtom_request(
+    points: list[tuple[float, float]],
+    alternatives: int,
+    depart_at: datetime | None = None,
+    options: RouteOptions | None = None,
+) -> tuple[str, dict[str, Any]]:
     """URL and query for a motorcycle route with live (or, later, predicted) traffic and coded turn instructions."""
+    opts = options or RouteOptions()
     locations = ":".join(f"{lat:.6f},{lon:.6f}" for lat, lon in points)
     params: dict[str, Any] = {
         "key": TOMTOM_API_KEY,
         "travelMode": "motorcycle",
-        "routeType": "fastest",
-        "traffic": "true",
+        "routeType": opts.route_type,
+        "traffic": "true" if opts.traffic else "false",
         "departAt": depart_at.strftime("%Y-%m-%dT%H:%M:%SZ") if depart_at else "now",
         # Alternatives are only offered between two points.
         "maxAlternatives": max(0, min(MAX_ALTERNATIVES, alternatives)) if len(points) == 2 else 0,
         "computeTravelTimeFor": "all",
         "instructionsType": "coded",
         "sectionType": "traffic",
-        "avoid": "unpavedRoads",
     }
+    avoid = list(opts.avoid)
+    if opts.route_type == "thrilling":
+        # A ride for the fun of it should not come back along the road it went out on.
+        avoid.append("alreadyUsedRoads")
+        params["windingness"] = opts.windingness
+        params["hilliness"] = opts.hilliness
+    if avoid:
+        # httpx repeats the key for each value, as TomTom wants it.
+        params["avoid"] = avoid
+    if opts.top_speed_kmh is not None:
+        params["vehicleMaxSpeed"] = opts.top_speed_kmh
     return TOMTOM_ROUTE_URL.format(locations=locations), params
 
 
@@ -207,6 +291,8 @@ def _route(raw: dict[str, Any]) -> dict[str, Any]:
         "duration_s": _int(summary.get("travelTimeInSeconds")) or 0,
         "no_traffic_s": _int(summary.get("noTrafficTravelTimeInSeconds")),
         "delay_s": _int(summary.get("trafficDelayInSeconds")) or 0,
+        # One length per leg, so the planner knows where each stop falls on the route.
+        "legs_m": [_int((leg.get("summary") or {}).get("lengthInMeters")) or 0 for leg in raw.get("legs") or []],
         "coords": coords,
         "traffic": traffic,
         "instructions": instructions,
@@ -226,12 +312,16 @@ def parse_tomtom(body: Any) -> list[dict[str, Any]]:
 
 
 async def fetch_urban_routes(
-    client: httpx.AsyncClient, points: list[tuple[float, float]], alternatives: int, depart_at: datetime | None = None
+    client: httpx.AsyncClient,
+    points: list[tuple[float, float]],
+    alternatives: int,
+    depart_at: datetime | None = None,
+    options: RouteOptions | None = None,
 ) -> dict[str, Any]:
     """Asks TomTom once; raises UrbanRouteUnavailable with a reason the app can act on."""
     if not TOMTOM_API_KEY:
         raise UrbanRouteUnavailable("no-key")
-    url, params = tomtom_request(points, alternatives, depart_at)
+    url, params = tomtom_request(points, alternatives, depart_at, options)
     started = time.monotonic()
     try:
         response = await client.get(url, params=params, timeout=TOMTOM_TIMEOUT_S)

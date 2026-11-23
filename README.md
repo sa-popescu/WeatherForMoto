@@ -50,7 +50,8 @@ Vechiul frontend dintr-un singur fișier a fost retras: `index.html` și `sw.js`
 
 - Tab-urile aplicației: **Drum** (ecranul principal), **Vreme** (prognoza și harta radar), **Ture** (turele de pe telefon și jurnalul din cont), **Eu**
 - Drum: harta, „Unde mergi?” cu Acasă, Serviciu și destinațiile recente, și vremea locului; după alegerea destinației, până la 3 variante cu trafic live (TomTom prin `/route/urban`, sau OSRM fără trafic când TomTom nu răspunde), fiecare cu vremea întâlnită pe drum la ora la care treci, apoi pornirea turei pe varianta aleasă
-- Route planner cu 2-10 opriri, fiecare cu opțiunea „locația mea” (din Drum: „Plan cu opriri”)
+- Route planner cu 2-10 opriri, fiecare cu opțiunea „locația mea” (din Drum: „Plan cu opriri”); drumul vine tot de la TomTom (cu vitezele obișnuite ale drumurilor, nu traficul de acum), cu OSRM ca rezervă
+- Opțiuni de traseu (`app/src/features/route/routeOptions.ts`, păstrate pe telefon): cel mai rapid, echilibrat, cel mai scurt, economic sau cu curbe (cu cât de multe curbe și cât deal), ce să evite (autostrăzi, taxe, feriboturi, neasfaltate, tuneluri, treceri de graniță) și viteza maximă a motocicletei. Se aplică în Drum, la plecarea perfectă, la recalcularea din tură și în planificator. Când TomTom nu găsește nimic cu ele, aplicația cere o dată cel mai rapid traseu și spune asta; OSRM nu le știe
 - Route weather snapshots pe waypoint-uri estimate
 - Soarele în ochi (`app/src/features/route/sunGlare.ts`): drumul e verificat din 2 în 2 km, cu poziția soarelui calculată în aplicație (formulele Astronomical Almanac, fără bibliotecă) și direcția de mers de la vântul lateral. O porțiune de cel puțin 3 km spre un soare sub 20° deasupra orizontului, la cel mult 25° de direcția de mers, cu cerul acoperit sub 60%, apare ca avertizare în planificator și ca rând pe varianta din Drum
 - Hărțile (tura, traseul, Hartă): MapLibre cu hărți vectoriale OpenFreeMap (date OpenStreetMap)
@@ -215,6 +216,7 @@ Organizare: `src/lib` (API tipizat, format, scor, geo), `src/state` (sesiune, lo
 
 ### Route & ride data
 
+- `GET /route/urban?points=lat,lon;lat,lon[;...]` - Trasee TomTom pentru motocicletă, 2-10 puncte; opțional `depart_at`, `route_type` (fastest, short, shortest, eco, thrilling), `avoid` (listă cu virgulă; lipsă = neasfaltate, `none` = nimic), `windingness`/`hilliness` (doar la thrilling), `top_speed` (km/h), `traffic=false` (vitezele obișnuite, pentru un plan)
 - `GET /me/routes` - Rute salvate
 - `POST /me/routes` - Salvează rută (un traseu importat din GPX își păstrează și drumul, în `track`; coloana `saved_routes.track_json` apare după migrare)
 - `DELETE /me/routes/{route_id}` - Șterge rută

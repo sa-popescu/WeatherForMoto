@@ -22,8 +22,9 @@ GET /meta/scoring
     The moto score model (label thresholds, rain intensity bands, impact
     matrix, caps) exactly as the backend applies it.
 
-GET /route/urban?points=44.43,26.10;44.44,26.11[&depart_at=2026-11-22T15:30:00Z]
-    Motorcycle routes with live (or predicted) traffic and turn instructions (TomTom).
+GET /route/urban?points=44.43,26.10;44.44,26.11[&depart_at=2026-11-22T15:30:00Z][&route_type=thrilling&avoid=motorways,tollRoads]
+    Motorcycle routes with live (or predicted) traffic and turn instructions
+    (TomTom), with the rider's route options.
 
 POST /client-errors
     An error from the app: logged, and mailed once a day per error (client_errors.py).
@@ -629,21 +630,33 @@ async def route_multi(
 @app.get("/route/urban", tags=["route"])
 async def route_urban(
     request: Request,
-    points: Annotated[str, Query(description="'lat,lon;lat,lon[;...]' from the start to the destination, 2 to 5 points")],
+    points: Annotated[str, Query(description="'lat,lon;lat,lon[;...]' from the start to the destination, 2 to 10 points")],
     alternatives: int = Query(default=urban_route.MAX_ALTERNATIVES, ge=0, le=urban_route.MAX_ALTERNATIVES),
     depart_at: Annotated[str | None, Query(max_length=40, description="ISO time with offset, up to a week ahead; omitted for now")] = None,
+    route_type: Annotated[str | None, Query(max_length=20, description="fastest (default), short, shortest, eco or thrilling")] = None,
+    avoid: Annotated[
+        str | None,
+        Query(max_length=200, description="Comma list: motorways, tollRoads, ferries, unpavedRoads, tunnels, borderCrossings; omitted for unpavedRoads, 'none' for nothing"),
+    ] = None,
+    windingness: Annotated[str | None, Query(max_length=10, description="low, normal or high; for thrilling only")] = None,
+    hilliness: Annotated[str | None, Query(max_length=10, description="low, normal or high; for thrilling only")] = None,
+    top_speed: Annotated[int | None, Query(description="The motorcycle's top speed, km/h (25 to 250)")] = None,
+    traffic: Annotated[bool, Query(description="False for a plan made ahead: usual road speeds instead of today's traffic")] = True,
 ):
     """
     Motorcycle routes with live traffic, from TomTom: the line, the time with
     and without traffic, the traffic stretches and coded turn instructions.
     Up to two alternatives between a start and a destination. With
     ``depart_at`` the times are for that departure, with predicted traffic.
-    When there is no such route the reason is in ``detail`` (no-key, busy,
-    quota, no-route, upstream), and the app plans without traffic instead.
+    The rider's route options (kind of route, what to avoid, top speed) go to
+    TomTom as they are. When there is no such route the reason is in
+    ``detail`` (no-key, busy, quota, no-route, upstream), and the app plans
+    without traffic instead.
     """
     try:
         coords = urban_route.parse_points(points)
         departure = urban_route.parse_depart_at(depart_at, _dt.now(timezone.utc))
+        options = urban_route.parse_options(route_type, avoid, windingness, hilliness, top_speed, traffic)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     # Without a key there is nothing to spend the client's budget on.
@@ -653,7 +666,7 @@ async def route_urban(
         raise HTTPException(status_code=429, detail="busy")
     async with http_client_scope() as client:
         try:
-            return await urban_route.fetch_urban_routes(client, coords, alternatives, departure)
+            return await urban_route.fetch_urban_routes(client, coords, alternatives, departure, options=options)
         except urban_route.UrbanRouteUnavailable as exc:
             status = 404 if exc.reason == "no-route" else 503
             raise HTTPException(status_code=status, detail=exc.reason) from None

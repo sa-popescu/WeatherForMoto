@@ -44,7 +44,8 @@ TOMTOM_ANSWER = {
 class ParseTest(unittest.TestCase):
     def test_points(self) -> None:
         self.assertEqual(urban_route.parse_points("44.4,26.1; 44.5,26.2"), [(44.4, 26.1), (44.5, 26.2)])
-        for bad in ("44.4,26.1", "44.4;26.1", "95,26;44,26", ";".join(["44,26"] * 6)):
+        self.assertEqual(len(urban_route.parse_points(";".join(["44,26"] * 10))), 10)
+        for bad in ("44.4,26.1", "44.4;26.1", "95,26;44,26", ";".join(["44,26"] * 11)):
             with self.assertRaises(ValueError):
                 urban_route.parse_points(bad)
 
@@ -59,6 +60,47 @@ class ParseTest(unittest.TestCase):
         _, via = urban_route.tomtom_request([(44.4, 26.1), (44.45, 26.15), (44.5, 26.2)], 2)
         self.assertEqual(via["maxAlternatives"], 0)
 
+    def test_without_options_the_request_is_the_old_one(self) -> None:
+        _, params = urban_route.tomtom_request([(44.4, 26.1), (44.5, 26.2)], 2)
+        self.assertEqual(params["routeType"], "fastest")
+        self.assertEqual(params["avoid"], ["unpavedRoads"])
+        self.assertNotIn("windingness", params)
+        self.assertNotIn("vehicleMaxSpeed", params)
+        self.assertEqual(urban_route.parse_options(), urban_route.RouteOptions())
+
+    def test_options_reach_tomtom(self) -> None:
+        options = urban_route.parse_options("shortest", "tollRoads, motorways", None, None, 45, False)
+        _, params = urban_route.tomtom_request([(44.4, 26.1), (44.5, 26.2)], 0, options=options)
+        self.assertEqual(params["routeType"], "shortest")
+        # In TomTom's order of names, whatever order they came in.
+        self.assertEqual(params["avoid"], ["motorways", "tollRoads"])
+        self.assertEqual(params["vehicleMaxSpeed"], 45)
+        self.assertEqual(params["traffic"], "false")
+        self.assertNotIn("windingness", params)
+
+    def test_a_route_with_curves_does_not_come_back_the_same_way(self) -> None:
+        options = urban_route.parse_options("thrilling", "none", "high", "low")
+        _, params = urban_route.tomtom_request([(44.4, 26.1), (44.5, 26.2)], 0, options=options)
+        self.assertEqual(params["routeType"], "thrilling")
+        self.assertEqual(params["avoid"], ["alreadyUsedRoads"])
+        self.assertEqual((params["windingness"], params["hilliness"]), ("high", "low"))
+
+    def test_nothing_to_avoid(self) -> None:
+        _, params = urban_route.tomtom_request([(44.4, 26.1), (44.5, 26.2)], 0, options=urban_route.parse_options("eco", ""))
+        self.assertNotIn("avoid", params)
+
+    def test_refuses_unknown_options(self) -> None:
+        cases = [
+            {"route_type": "scenic"},
+            {"avoid": "motorways,highways"},
+            {"windingness": "extreme"},
+            {"top_speed": 10},
+            {"top_speed": 300},
+        ]
+        for case in cases:
+            with self.subTest(case=case), self.assertRaises(ValueError):
+                urban_route.parse_options(**case)
+
     def test_answer(self) -> None:
         [route] = urban_route.parse_tomtom(TOMTOM_ANSWER)
         self.assertEqual(route["distance_m"], 2839)
@@ -71,6 +113,16 @@ class ParseTest(unittest.TestCase):
         self.assertEqual(route["instructions"][1]["maneuver"], "ROUNDABOUT_RIGHT")
         self.assertEqual(route["instructions"][1]["road"], "DN1, DN7")
         self.assertEqual(route["instructions"][1]["roundabout_exit"], 1)
+        # No leg summaries in this answer: lengths of 0, one per leg.
+        self.assertEqual(route["legs_m"], [0, 0])
+
+    def test_leg_lengths(self) -> None:
+        answer = {"routes": [dict(TOMTOM_ANSWER["routes"][0])]}
+        answer["routes"][0]["legs"] = [
+            {**leg, "summary": {"lengthInMeters": length}} for leg, length in zip(TOMTOM_ANSWER["routes"][0]["legs"], (640, 2199))
+        ]
+        [route] = urban_route.parse_tomtom(answer)
+        self.assertEqual(route["legs_m"], [640, 2199])
 
     def test_no_route(self) -> None:
         with self.assertRaises(urban_route.UrbanRouteUnavailable):
@@ -189,6 +241,20 @@ class EndpointTest(unittest.TestCase):
             bad = self.client.get("/route/urban", params={"points": "44.4,26.1;44.5,26.2", "depart_at": "2026-11-22T13:30:00"})
         self.assertEqual(ok.status_code, 200)
         self.assertEqual(fetch.call_args.args[2:], (0, later))
+        self.assertEqual(fetch.call_args.kwargs["options"], urban_route.RouteOptions())
+        self.assertEqual(bad.status_code, 422)
+
+    def test_options_reach_tomtom(self) -> None:
+        fetch = mock.AsyncMock(return_value={"source": "tomtom", "attribution": "© TomTom", "depart_at": None, "routes": []})
+        params = {"points": "44.4,26.1;44.5,26.2", "route_type": "thrilling", "avoid": "motorways", "windingness": "high", "top_speed": 90, "traffic": "false"}
+        with mock.patch.object(urban_route, "TOMTOM_API_KEY", "test-key"), mock.patch.object(urban_route, "fetch_urban_routes", fetch):
+            ok = self.client.get("/route/urban", params=params)
+            bad = self.client.get("/route/urban", params={**params, "avoid": "highways"})
+        self.assertEqual(ok.status_code, 200)
+        self.assertEqual(
+            fetch.call_args.kwargs["options"],
+            urban_route.RouteOptions("thrilling", ("motorways",), "high", "normal", 90, False),
+        )
         self.assertEqual(bad.status_code, 422)
 
     def test_busy(self) -> None:

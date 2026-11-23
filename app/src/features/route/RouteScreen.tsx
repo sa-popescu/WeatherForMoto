@@ -14,6 +14,7 @@ import { RouteDetails, RouteOverview } from './RouteResults';
 import { RouteStatus } from './RouteStatus';
 import { SavedRoutesSheet } from './SavedRoutesSheet';
 import { LogRideSheet, SaveRouteSheet, SignInSheet } from './SimpleSheets';
+import { RouteOptionsButton } from './RouteOptionsSheet';
 import { StopsEditor } from './StopsEditor';
 import { RS } from './strings';
 import { SWEEP_LAST } from './sweep';
@@ -108,6 +109,10 @@ export default function RouteScreen({ active }: ScreenProps) {
 
   const close = useCallback(() => setSheet('none'), []);
   const busy = plan.step === 'geocoding' || plan.step === 'routing';
+  // New options redraw a routed road at once; an imported track is its own road. On a phone they
+  // sit above the calculate button; in the wide layout over the road they shape, so the plan
+  // column keeps its height and its button in reach.
+  const optionsButton = <RouteOptionsButton onChanged={() => plan.routeInfo && calc.run(stopsState.stops)} />;
 
   // Three column groups for the desktop layout (route-desktop.css): the plan,
   // the map with when to leave, and the road. On a phone the groups add no box
@@ -132,12 +137,14 @@ export default function RouteScreen({ active }: ScreenProps) {
           </Banner>
         )}
         <DepartureControls dates={dates} departure={departure} onDeparture={setDeparture} speed={speed} onSpeed={setSpeed} />
+        {!wide && optionsButton}
         <Button variant="primary" size="lg" full icon="route" busy={busy} onClick={() => calc.run(stopsState.stops)}>
           {plan.route ? s.recalculate : s.calculate}
         </Button>
       </div>
 
       <div className="route-col route-col--map">
+        {wide && optionsButton}
         <RouteStatus
           state={plan}
           settled={derived.settled}

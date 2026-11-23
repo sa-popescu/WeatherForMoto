@@ -352,6 +352,8 @@ export interface UrbanRoute {
   duration_s: number;
   no_traffic_s: number | null;
   delay_s: number;
+  /** The length of each leg, metres: one leg from each point to the next. Missing from older servers. */
+  legs_m?: number[];
   /** [lat, lon] pairs. */
   coords: Array<[number, number]>;
   traffic: UrbanTraffic[];

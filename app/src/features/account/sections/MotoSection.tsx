@@ -5,6 +5,7 @@ import { useAuth } from '../../../state/auth';
 import { useSettings, type MotoProfile } from '../../../state/settings';
 import { Card } from '../../../ui/primitives';
 import { FUEL_RANGES, type FuelRange } from '../../route/fuel';
+import { RouteOptionsButton } from '../../route/RouteOptionsSheet';
 import { setFuelRange, useFuelRange } from '../../route/useFuel';
 import { usePrefsEditor } from '../hooks/prefsEditor';
 import { prefsFromProfile, reconcileProfile } from '../lib/profile';
@@ -87,6 +88,13 @@ export function MotoSection() {
           />
         </div>
         <p className="acct-hint">{s.fuelHint}</p>
+        <div className="acct-seg-field">
+          <span className="acct-seg-field__label" aria-hidden="true">
+            {s.routeOptions}
+          </span>
+          <RouteOptionsButton />
+        </div>
+        <p className="acct-hint">{s.routeOptionsHint}</p>
       </Card>
     </Group>
   );

@@ -235,8 +235,9 @@
         address or account data: Open-Meteo, OpenWeatherMap, MET Norway, Pirate Weather, WeatherXM, Netatmo, the
         official weather stations through EUMETNET MeteoGate (ANM), the ANM warnings and Meteoalarm, and airport
         observations (NOAA).</p>
-    <p>For urban routes with traffic, our server sends TomTom the route's points (the start, the destination and
-        the stops), again without your IP address or account data. On a ride started from the Ride tab, if you leave the
+    <p>For routes (the Drive routes, the best departure and the plan with stops), our server sends TomTom the
+        route's points (the start, the destination and the stops) and the route options you chose (the kind of
+        route, what to avoid, the top speed), again without your IP address or account data. On a ride started from the Ride tab, if you leave the
         route, the app asks the same way for a new route, from your position at that moment to the destination.</p>
     <p>Some services are called straight from your browser, so they see your IP address and the area asked
         for:</p>
@@ -251,7 +252,7 @@
             Geocoding is used as a fallback;</li>
         <li>the place name for the GPS position and for the points of a route imported from GPX: OpenStreetMap
             Nominatim receives the coordinates;</li>
-        <li>routes: OSRM receives the route's points, and Open-Meteo receives points along the road, to find the
+        <li>routes: OSRM receives the route's points when TomTom does not answer, and Open-Meteo receives points along the road, to find the
             altitude and the highest point;</li>
         <li>a ride's story: after you end it, Open-Meteo receives at most 48 points of the ride (rounded to about
             100 m) and the day, to find the weather you rode through. The answer is kept only with the ride, on the

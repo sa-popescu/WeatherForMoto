@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Place } from '../../lib/types';
+import type { RouteOptions } from '../route/routeOptions';
 import type { NameBetween } from '../route/samples';
 import type { SamplePoint } from '../route/types';
 import { bestDeparture, type DepartureOption } from './logic/departures';
@@ -23,6 +24,8 @@ export interface DrivePlanInput {
   /** The departure on screen, UTC ms, or null for now. */
   departMs: number | null;
   attempt: number;
+  /** The rider's route options (route/routeOptions.ts). */
+  routeOptions: RouteOptions;
   /** The name of the start in the weather points ("Poziția mea"). */
   originName: string;
   nameBetween: NameBetween;
@@ -50,16 +53,18 @@ function tripKeyOf(origin: Place | null, destination: Place | null): string {
   return origin && destination ? `${origin.lat.toFixed(3)},${origin.lon.toFixed(3)}>${destination.lat.toFixed(4)},${destination.lon.toFixed(4)}` : '';
 }
 
-export function useDrivePlan({ origin, destination, departMs, attempt, originName, nameBetween }: DrivePlanInput): DrivePlan {
-  const routes = useDriveRoutes(origin, destination, departMs, attempt);
+export function useDrivePlan({ origin, destination, departMs, attempt, routeOptions, originName, nameBetween }: DrivePlanInput): DrivePlan {
+  const routes = useDriveRoutes(origin, destination, departMs, attempt, routeOptions);
   const ready = routes.status === 'ready' ? routes : null;
 
-  // The fastest way when leaving now, kept while a later departure is on screen.
-  const [nowRoute, setNowRoute] = useState<DriveRoute | null>(null);
+  // The fastest way when leaving now, kept while a later departure is on screen,
+  // with the options it follows, so the later departures compare the same kind of route.
+  const [now, setNow] = useState<{ route: DriveRoute; options: RouteOptions | null } | null>(null);
   useEffect(() => {
-    if (departMs === null) setNowRoute(ready && ready.routes.length > 0 ? { ...fastest(ready.routes), id: 'now' } : null);
+    if (departMs === null) setNow(ready && ready.routes.length > 0 ? { route: { ...fastest(ready.routes), id: 'now' }, options: ready.options } : null);
   }, [ready, departMs]);
-  const departures = useDepartures(origin, destination, nowRoute?.source ?? null);
+  const nowRoute = now?.route ?? null;
+  const departures = useDepartures(origin, destination, nowRoute?.source ?? null, now?.options ?? null);
 
   const allRoutes = useMemo(() => {
     const list: DriveRoute[] = [...(ready?.routes ?? [])];

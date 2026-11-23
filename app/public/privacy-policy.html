@@ -235,7 +235,7 @@
         datele contului: Open-Meteo, OpenWeatherMap, MET Norway, Pirate Weather, WeatherXM, Netatmo, stațiile
         meteo oficiale prin EUMETNET MeteoGate (ANM), avertizările ANM și Meteoalarm, observațiile aeroporturilor
         (NOAA).</p>
-    <p>Pentru traseele urbane cu trafic, serverul nostru trimite la TomTom punctele traseului (plecarea, destinația și opririle), tot fără adresa ta IP sau datele contului. Pe o tură pornită din Drum, dacă ieși de pe traseu, aplicația cere pe aceeași cale un traseu nou, de la poziția ta din acel moment până la destinație.</p>
+    <p>Pentru trasee (variantele din Drum, plecarea perfectă și planul cu opriri), serverul nostru trimite la TomTom punctele traseului (plecarea, destinația și opririle) și opțiunile de traseu alese (felul traseului, ce să evite, viteza maximă), tot fără adresa ta IP sau datele contului. Pe o tură pornită din Drum, dacă ieși de pe traseu, aplicația cere pe aceeași cale un traseu nou, de la poziția ta din acel moment până la destinație.</p>
     <p>Unele servicii sunt apelate direct din browserul tău, deci văd adresa ta IP și zona cerută:</p>
     <ul>
         <li>hărți: OpenFreeMap (harta de bază, cu datele OpenStreetMap), RainViewer (radar), DWD (modelul ICON-EU), EUMETSAT (nori și
@@ -247,7 +247,7 @@
             Geocoding e folosit ca rezervă;</li>
         <li>numele locului pentru poziția GPS și pentru punctele unui traseu importat din GPX: OpenStreetMap
             Nominatim primește coordonatele;</li>
-        <li>trasee: OSRM primește punctele traseului, iar Open-Meteo primește puncte de-a lungul drumului, ca să
+        <li>trasee: OSRM primește punctele traseului când TomTom nu răspunde, iar Open-Meteo primește puncte de-a lungul drumului, ca să
             aflăm altitudinea și să găsim punctul cel mai înalt;</li>
         <li>povestea unei ture: după ce o închei, Open-Meteo primește cel mult 48 de puncte ale turei (rotunjite la
             aproximativ 100 m) și ziua, ca să aflăm vremea prin care ai trecut. Răspunsul se păstrează doar cu tura, pe telefon;</li>
