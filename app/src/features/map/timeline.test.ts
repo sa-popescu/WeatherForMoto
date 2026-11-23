@@ -2,7 +2,18 @@ import { describe, expect, it } from 'vitest';
 import { FRAME_HOLD_MS, FRAME_STEP_MS, type RadarFrame } from './radar';
 import { FORECAST_HOURS, FORECAST_STEP_MS } from './forecast';
 import { NOWCAST_STEP_S, NOWCAST_STEPS } from './nowcast';
-import { buildTimeline, entryDelayMs, MODEL_FINE_HOURS, MODEL_FINE_STEP_S, nextIndex, planBand, startIndex, utcTimeSec } from './timeline';
+import {
+  buildTimeline,
+  entryDelayMs,
+  LABEL_MIN_PX,
+  MODEL_FINE_HOURS,
+  MODEL_FINE_STEP_S,
+  nextIndex,
+  planBand,
+  scrubLabels,
+  startIndex,
+  utcTimeSec,
+} from './timeline';
 
 const HOUR = 3600;
 const NOW = Date.parse('2026-09-13T12:00:00Z') / 1000;
@@ -140,5 +151,28 @@ describe('playback pacing', () => {
     expect(nextIndex(entries.length - 1, entries.length)).toBe(0);
     expect(nextIndex(0, entries.length)).toBe(1);
     expect(nextIndex(0, 0)).toBe(-1);
+  });
+});
+
+describe('scrubLabels', () => {
+  it('labels every sixth entry and the last on a wide scrubber, never too close to the last', () => {
+    expect(scrubLabels(13, 1000)).toEqual([0, 6, 12]);
+    expect(scrubLabels(15, 1000)).toEqual([0, 6, 12, 14]);
+    expect(scrubLabels(1, 300)).toEqual([0]);
+    expect(scrubLabels(0, 300)).toEqual([]);
+  });
+
+  it('spaces the labels out on a narrow scrubber so none print over each other', () => {
+    const count = 51;
+    const width = 265;
+    const labels = scrubLabels(count, width);
+    const px = (i: number): number => (i / (count - 1)) * width;
+    for (let k = 1; k < labels.length; k += 1) expect(px(labels[k]) - px(labels[k - 1])).toBeGreaterThanOrEqual(LABEL_MIN_PX);
+    expect(labels[labels.length - 1]).toBe(count - 1);
+    expect(labels.length).toBeGreaterThan(3);
+  });
+
+  it('keeps the plain step until the scrubber is measured', () => {
+    expect(scrubLabels(13, 0)).toEqual([0, 6, 12]);
   });
 });

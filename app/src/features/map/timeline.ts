@@ -141,6 +141,30 @@ export function entryDelayMs(entries: readonly TimelineEntry[], index: number, h
   return entries[index]?.source === 'forecast' ? FORECAST_STEP_MS : FRAME_STEP_MS;
 }
 
+/** Room a time label under the scrubber needs ("20:00" in 11 px figures) with a gap to the next one. */
+export const LABEL_MIN_PX = 42;
+/** Never more than one label every this many entries, however wide the scrubber. */
+export const LABEL_MIN_STEP = 6;
+
+/**
+ * Which entries get a time label under a scrubber `widthPx` wide: every
+ * step-th one from the start, with the step widened until the labels cannot
+ * touch, and the last one, leaving out a regular label too close to it.
+ * Before the scrubber is measured (width 0) the step is the plain one.
+ */
+export function scrubLabels(count: number, widthPx: number): number[] {
+  if (count <= 0) return [];
+  const last = count - 1;
+  if (last === 0) return [0];
+  const perEntry = widthPx / last;
+  const step = widthPx > 0 ? Math.max(LABEL_MIN_STEP, Math.ceil(LABEL_MIN_PX / perEntry)) : LABEL_MIN_STEP;
+  const roomBeforeLast = (i: number): boolean => (widthPx > 0 ? (last - i) * perEntry >= LABEL_MIN_PX : last - i >= step / 2);
+  const out: number[] = [];
+  for (let i = 0; i < last; i += step) if (roomBeforeLast(i)) out.push(i);
+  out.push(last);
+  return out;
+}
+
 /** The next entry, wrapping back to the start. */
 export function nextIndex(index: number, count: number): number {
   return count > 0 ? (index + 1) % count : -1;
