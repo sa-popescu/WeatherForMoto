@@ -50,5 +50,21 @@
   },
   "migrations": [
     { "tag": "live-v1", "new_sqlite_classes": ["LiveRide", "LiveBudget"] }
-  ]
+  ],
+  // Previews of a branch (Cloudflare Worker Previews: `wrangler preview`,
+  // the Preview command of Workers Builds), at
+  // <branch>-weatherformoto.spopescu.workers.dev. They inherit none of the
+  // settings above. Each one gets its own Durable Object storage, so a live
+  // ride shared from a preview never touches production's; the bindings are
+  // named again so the code finds them on env. No KV on purpose: a preview's
+  // /s answers 503 and the app shares the full link, so previews never write
+  // into production's short links. The classes and migrations stay above.
+  "previews": {
+    "durable_objects": {
+      "bindings": [
+        { "name": "LIVE_RIDES", "class_name": "LiveRide" },
+        { "name": "LIVE_BUDGET", "class_name": "LiveBudget" }
+      ]
+    }
+  }
 }
