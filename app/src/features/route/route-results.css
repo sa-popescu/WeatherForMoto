@@ -502,6 +502,20 @@
   color: var(--t-atentie);
 }
 
+/* With a mouse (see the hover note in ui/ui.css). */
+@media (hover: hover) and (pointer: fine) {
+  .route-action:hover,
+  .route-saved__load:hover,
+  .route-compare__day:hover {
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--line-2));
+  }
+
+  .route-compare__toggle:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+}
+
 /* ---- Sheet contents ---- */
 
 .route-fieldset {

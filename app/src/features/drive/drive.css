@@ -644,6 +644,20 @@
   }
 }
 
+/* With a mouse (see the hover note in ui/ui.css). */
+@media (hover: hover) and (pointer: fine) {
+  .drive-chip:hover,
+  .drive-option:hover:not(.drive-option--on),
+  .drive-depart__chip:hover:not(:disabled):not(.drive-depart__chip--on),
+  .drive-weather:hover {
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--line-2));
+  }
+
+  .drive-search__clear:hover {
+    color: var(--ink);
+  }
+}
+
 /* A high road on this route that is usually closed that day (route/seasonalClosures.ts). */
 .drive-option__warning--closed {
   color: var(--t-evita);

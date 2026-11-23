@@ -187,6 +187,18 @@
   font-size: 13px;
 }
 
+/* With a mouse (see the hover note in ui/ui.css). */
+@media (hover: hover) and (pointer: fine) {
+  .route-add:hover:not(:disabled),
+  .route-link-btn:hover {
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+  }
+
+  .route-head__saved:hover {
+    background: var(--surface-3);
+  }
+}
+
 .route-suggest {
   position: absolute;
   top: calc(100% - 2px);

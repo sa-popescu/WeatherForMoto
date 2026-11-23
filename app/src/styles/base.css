@@ -242,6 +242,12 @@ textarea {
   color: var(--accent-ink);
 }
 
+@media (hover: hover) and (pointer: fine) {
+  .view-switch__item:not([aria-current='page']):hover {
+    color: var(--ink);
+  }
+}
+
 .view-switch__item:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;

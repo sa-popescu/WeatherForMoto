@@ -362,6 +362,18 @@
   cursor: default;
 }
 
+/* With a mouse (see the hover note in ui/ui.css). The card clips the row's
+   background to its rounded corners. */
+@media (hover: hover) and (pointer: fine) {
+  .card.acct-rows {
+    overflow: hidden;
+  }
+
+  .acct-row:not(.acct-row--static):not(:disabled):hover {
+    background: var(--surface-2);
+  }
+}
+
 /* ---- Slider ---- */
 
 .acct-range {

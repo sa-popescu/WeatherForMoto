@@ -14,6 +14,39 @@
   display: contents;
 }
 
+/* Before the first route, desktop only (RouteScreen.tsx): the stops so far on
+   the area map, drawn as in the stops list, and what the road column will
+   show. */
+.route-preview__stop {
+  width: 16px;
+  height: 16px;
+  border: 3px solid var(--accent);
+  border-radius: 50%;
+  background: var(--bg);
+  box-shadow: 0 0 0 2px var(--bg);
+}
+
+.route-preview__stop--via {
+  border-color: var(--muted);
+}
+
+.route-preview__stop--end {
+  border-color: var(--ink);
+  background: var(--ink);
+}
+
+.route-road-hint {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-lg);
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
 @media (min-width: 1024px) {
   /* :not([hidden]) keeps the hidden tab hidden (.screen[hidden] in base.css). */
   .screen.route:not([hidden]) {

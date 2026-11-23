@@ -9,6 +9,7 @@ import type { ScreenProps } from '../types';
 import { DepartureControls } from './DepartureControls';
 import { HazardSheet } from './HazardSheet';
 import type { ActionKind } from './RouteActions';
+import { RoutePreviewMap } from './RoutePreviewMap';
 import { RouteDetails, RouteOverview } from './RouteResults';
 import { RouteStatus } from './RouteStatus';
 import { SavedRoutesSheet } from './SavedRoutesSheet';
@@ -144,6 +145,8 @@ export default function RouteScreen({ active }: ScreenProps) {
           onRetryWeather={retryFailed}
           onExample={calc.runExample}
         />
+        {/* A desktop column would be empty before the first route: the area and the stops so far. */}
+        {!plan.route && desktop && <RoutePreviewMap stops={stopsState.stops} appPlace={stopsState.appPlace} active={active} />}
         {plan.route && (
           <RouteOverview
             active={active}
@@ -174,6 +177,14 @@ export default function RouteScreen({ active }: ScreenProps) {
       <div className="route-col route-col--road">
         {plan.route && (
           <RouteDetails route={plan.route} derived={derived} hazards={hazards} fuel={fuel} date={departure.date} signedIn={signedIn} onAction={onAction} />
+        )}
+        {!plan.route && desktop && (
+          <section className="route-road-hint" aria-labelledby="route-road-hint-title">
+            <h2 className="eyebrow" id="route-road-hint-title">
+              {s.roadHintTitle}
+            </h2>
+            <p>{s.roadHint}</p>
+          </section>
         )}
       </div>
 
