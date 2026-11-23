@@ -1,16 +1,16 @@
-import { CORE } from '../../../i18n/core';
+import { lazy, Suspense, useState } from 'react';
 import { PRIVACY_POLICY_URL } from '../../../lib/config';
 import { useStrings, type Lang } from '../../../lib/i18n';
 import { useSettings, type Theme } from '../../../state/settings';
-import { useToast } from '../../../state/toast';
 import { Icon } from '../../../ui/icons';
 import { Button, Card, Toggle } from '../../../ui/primitives';
-import { promptInstall, useInstallState } from '../installPrompt';
-import { currentIsIos } from '../lib/platform';
+import { useInstallState } from '../installPrompt';
 import { APP } from '../strings/app';
 import { Group, LabeledSegmented, Note } from '../ui/controls';
 import { OfflineMapsRow } from './OfflineMapsRow';
 import { APP_VERSION } from '../../../lib/appVersion';
+
+const InstallGuide = lazy(() => import('../../install/InstallGuide'));
 
 const LANGUAGES: ReadonlyArray<{ value: Lang; label: string }> = [
   { value: 'ro', label: 'Română' },
@@ -19,24 +19,14 @@ const LANGUAGES: ReadonlyArray<{ value: Lang; label: string }> = [
 
 export function AppSection() {
   const s = useStrings(APP);
-  const core = useStrings(CORE);
   const { lang, setLang, theme, setTheme, followMe, setFollowMe } = useSettings();
   const install = useInstallState();
-  const toast = useToast();
+  const [guide, setGuide] = useState(false);
 
   const themes: ReadonlyArray<{ value: Theme; label: string }> = [
     { value: 'dark', label: s.themeDark },
     { value: 'day', label: s.themeDay },
   ];
-
-  const onInstall = async (): Promise<void> => {
-    try {
-      if ((await promptInstall()) === 'accepted') toast(s.installDone, { tone: 'success' });
-    } catch (err) {
-      console.warn('[account] install prompt failed', err);
-      toast(core.genericError, { tone: 'error' });
-    }
-  };
 
   return (
     <Group title={s.appSection}>
@@ -47,17 +37,23 @@ export function AppSection() {
         <div className="acct-divider" />
         <Toggle checked={followMe} onChange={setFollowMe} label={s.followMe} description={s.followMeNote} />
         <div className="acct-divider" />
-        {install === 'installed' && <Note icon="check">{s.installed}</Note>}
-        {install === 'available' && (
+        {install === 'installed' ? (
+          <Note icon="check">{s.installed}</Note>
+        ) : (
           <>
-            <Button full icon="download" onClick={() => void onInstall()}>
+            {/* The same guide as the first-visit invitation (features/install). */}
+            <Button full icon="download" onClick={() => setGuide(true)}>
               {s.install}
             </Button>
             <p className="acct-hint">{s.installNote}</p>
           </>
         )}
-        {install === 'unavailable' && <Note icon="download">{currentIsIos() ? s.installIos : s.installOther}</Note>}
       </Card>
+      {guide && (
+        <Suspense fallback={null}>
+          <InstallGuide open onClose={() => setGuide(false)} />
+        </Suspense>
+      )}
       <Card className="acct-rows">
         {/* Same window, not a new one: the installed app on an iPhone has no
             windows, and the policy page links back here instead. */}

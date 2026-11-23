@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { InstallInvite } from './features/install/InstallInvite';
 import { MoveBanner } from './features/move/MoveBanner';
 import { onOldAddress } from './features/move/move';
 import { liveIdFromHash } from './features/live/constants';
@@ -166,6 +167,8 @@ export default function App() {
         )}
         <main className="shell__main" id="main" ref={mainRef}>
           {oldAddress && <MoveBanner />}
+          {/* Not on the old address (it asks to move first) nor over a ride. */}
+          {!oldAddress && !riding && <InstallInvite />}
           {isWeatherView(view) && (
             <ViewSwitch
               label={s.weatherViews}

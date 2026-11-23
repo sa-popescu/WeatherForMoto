@@ -23,6 +23,7 @@ export const KEYS = {
   fuelRange: 'motonorFuelRangeV1',
   offlineMaps: 'motonorOfflineMapsV1',
   liveShare: 'motonorLiveShareV1',
+  installInvite: 'motonorInstallInviteV1',
 } as const;
 
 export type StorageKey = (typeof KEYS)[keyof typeof KEYS];
