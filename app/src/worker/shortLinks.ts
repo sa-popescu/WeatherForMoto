@@ -10,7 +10,10 @@
 // account, no IP address. The query must have the shape of a route link and
 // is only ever sent back into the app's own route tab, so the store cannot be
 // used to send anyone to another site. This file is not part of the app
-// bundle: wrangler builds it on its own, through index.ts.
+// bundle: wrangler builds it on its own, through index.ts. Everything else
+// that reaches the Worker goes to the static files (staleAssets.ts).
+
+import { serveFile } from './staleAssets';
 
 /** The two KV calls used here (Cloudflare's KVNamespace, trimmed). */
 export interface KvStore {
@@ -125,5 +128,5 @@ export async function handle(request: Request, env: Env): Promise<Response> {
   if (match && (request.method === 'GET' || request.method === 'HEAD')) {
     return ID_PATTERN.test(match[1]) ? open(match[1], env, url.origin) : redirect(url.origin, GONE_QUERY);
   }
-  return env.ASSETS.fetch(request);
+  return serveFile(request, env.ASSETS);
 }

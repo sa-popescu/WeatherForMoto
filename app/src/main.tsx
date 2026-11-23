@@ -28,16 +28,26 @@ import { installErrorReporting, reportError } from './lib/errorReport';
 import { keepPhonesUpright } from './lib/orientation';
 import { initServiceWorker } from './lib/pwa';
 import { setScoringMeta } from './lib/scoring';
+import { claimStaleReload, isReloadingToNewBuild, isStaleFileError, reloadToNewBuild, watchStaleFiles } from './lib/staleBuild';
 import { Providers } from './state/providers';
 
 installErrorReporting();
+watchStaleFiles();
 
 const rootElement = document.getElementById('root');
 if (!rootElement) throw new Error('Missing #root element');
 
 // An error while drawing that nothing caught takes the whole app down: it is
 // reported, and a note with a reload button takes the empty screen's place.
+// A screen's file missing after a deploy is not a bug: the page loads the new
+// build instead, once a minute at most (lib/staleBuild.ts).
 const onUncaughtError = (error: unknown, info: { componentStack?: string }): void => {
+  if (isReloadingToNewBuild()) return;
+  if (isStaleFileError(error) && claimStaleReload()) {
+    console.warn('[app] a file of an older build is gone, loading the new build', error);
+    void reloadToNewBuild();
+    return;
+  }
   console.error('[app] uncaught render error', error);
   reportError('render', error, info.componentStack);
   showCrashScreen();
