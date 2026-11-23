@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Motonor privacy policy</title>
+    <style>
+        :root {
+            color-scheme: light dark;
+            --ink: #1a1a1a;
+            --muted: #555;
+            --ground: #ffffff;
+            --line: #e5e5e5;
+            --accent: #c2410c;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --ink: #ececec;
+                --muted: #a3a3a3;
+                --ground: #111111;
+                --line: #2a2a2a;
+                --accent: #fb923c;
+            }
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 12px 20px 64px;
+            color: var(--ink);
+            background: var(--ground);
+            line-height: 1.65;
+        }
+
+        h1 {
+            color: var(--accent);
+            line-height: 1.2;
+            margin-bottom: 4px;
+        }
+
+        h2 {
+            margin-top: 2.2em;
+            font-size: 1.2em;
+            border-bottom: 1px solid var(--line);
+            padding-bottom: 4px;
+        }
+
+        .updated {
+            color: var(--muted);
+            margin-top: 0;
+        }
+
+        li {
+            margin-bottom: 6px;
+        }
+
+        a {
+            color: var(--accent);
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            font-size: 0.95em;
+        }
+
+        th,
+        td {
+            text-align: left;
+            vertical-align: top;
+            padding: 6px 8px;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+        }
+
+        /* The installed app on an iPhone has no back button: this link is the way out. */
+        .back {
+            display: inline-flex;
+            align-items: center;
+            min-height: 44px;
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- The English version of privacy-policy.html. Keep the two in step: a change to one is a change to both. -->
+    <div class="top">
+        <a class="back" href="/#/eu">‹ Back to the app</a>
+        <a class="back" href="/privacy-policy.html" hreflang="ro" lang="ro">Română</a>
+    </div>
+    <h1>Motonor privacy policy</h1>
+    <p class="updated">Last updated: 23 November 2026</p>
+
+    <p>Motonor (formerly MotoMeteo, the WeatherForMoto project) is a personal, free and non-commercial project: a
+        weather and road app for motorcyclists. It has no ads, sells nothing and uses no tracking tools or traffic
+        statistics. This page says what data the app uses, why, and where it goes. The Romanian version is the
+        reference one.</p>
+
+    <h2>1. Without an account</h2>
+    <p>You can use the app without an account. In that case we keep no data about you on the server. On your
+        device, in the browser's storage (localStorage), only these stay: your favourite places, the last place
+        viewed, the riding profile, the motorcycle's range, the settings (theme, language), the state of the alerts,
+        the route maps downloaded for offline use and a note that you have seen the invitation to install the app.
+        You can delete them at any time by clearing the site's data in the browser.</p>
+
+    <h2>2. Location</h2>
+    <p>The app reads the device's position <strong>only if you allow access to your location</strong>, in the
+        browser or in the phone's settings. With that permission, it reads it:</p>
+    <ul>
+        <li>when you tap "My location";</li>
+        <li>when the app opens, if access is already allowed or if the "Open on my location" option is on in the
+            "Me" screen;</li>
+        <li>when you come back to the app after at least 15 minutes, if the option is on.</li>
+    </ul>
+    <p>The option turns itself on after you use your location once, turns itself off if you refuse access, and
+        you can turn it off at any time in the "Me" screen. The coordinates are used to get the weather for that
+        place and its name. We do not keep a history of your positions.</p>
+    <p>When you share a route, the plan holds the stops (names and coordinates), the departure time, the speed
+        and, for a route imported from GPX, the simplified road. A stop taken from the GPS position goes into the
+        plan rounded to about 1 km.</p>
+    <ul>
+        <li>a short route, with a few stops, travels whole in the link, in the part after the # sign, which the
+            browser sends to no server, so it does not pass through ours;</li>
+        <li>a long plan, usually one with a road from a GPX file, gets a short link
+            (motonor.bluemouse.cc/s/…): the plan is kept at Cloudflare for 90 days, then deleted automatically. It
+            is not tied to an account, a device or an IP address, and anyone with the link can open it.</li>
+    </ul>
+    <p>If you start sharing your live location during a ride, the phone sends to Cloudflare, about every 30
+        seconds, the position, the speed and, if you follow a route, the destination's name and the estimated time
+        of arrival. Anyone with the link sees the position and the line ridden. Everything is deleted when you end
+        the ride or stop sharing, and after 12 hours at most. Sharing is not tied to an account; the IP address is
+        used, only as a hash and only for the day, to limit how many shares start each day.</p>
+    <p>To check how well each weather source got it right, the server keeps a log of what it forecast and what
+        the stations then measured. The log holds only the area rounded to about 5 km and the hour (UTC), with no
+        link to you, your device or your account, and no IP address. It is written at most once an hour for the
+        same area, and records older than 90 days are deleted automatically.</p>
+
+    <h2>3. With an account</h2>
+    <p>If you create an account, we keep on the server:</p>
+    <ul>
+        <li><strong>account data</strong>: the email address, the display name (optional), whether the address is
+            confirmed, and the password, only as a hash (it cannot be read back);</li>
+        <li><strong>sessions and codes</strong>: the sign-in tokens, the login codes and the reset links, only as
+            hashes and with an expiry;</li>
+        <li><strong>alert preferences</strong>: the location for alerts (coordinates and name), the thresholds, the
+            quiet hours and the riding profile;</li>
+        <li><strong>devices for push notifications</strong>: the technical delivery address given by the browser
+            and its encryption keys;</li>
+        <li><strong>what you save</strong>: saved routes (for a route imported from GPX, its road too,
+            simplified), recorded rides and the hazards reported on the map (place, type, description, duration).
+            Hazards are visible to other riders without your name or email.</li>
+    </ul>
+    <p>You can delete the account at any time from the "Me" screen. Deleting it removes all the data above for
+        good.</p>
+
+    <h2>4. Security and abuse</h2>
+    <p>To stop attempts to break into accounts and other abuse, we count failed attempts for a short time, by IP
+        address and by email (the email only as a hash). These counters are deleted automatically after one day at
+        most. The server keeps technical logs of the requests (IP address, address requested, time) for 30 days at
+        most, for troubleshooting and security.</p>
+    <p>When the app runs into an unexpected error, it sends the server a report so we can fix it: the error
+        message, a few technical lines about where in the code it happened, the app's version, the open tab and the
+        type of browser. The report holds no coordinates, account or email address. It goes into the same technical
+        logs (30 days at most), and the first time an error appears in a day it is also sent to us by email.</p>
+
+    <h2>5. Emails and notifications</h2>
+    <p>The only emails sent are account ones: the sign-in code, the address confirmation and the password reset.
+        We send no weather alerts or marketing by email.</p>
+    <p>Push notifications are optional and start only after you accept them. They carry weather alerts for the
+        location you chose. You can turn them off in the app or in the browser's settings.</p>
+
+    <h2>6. Where the data is</h2>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Service</th>
+                    <th>Role</th>
+                    <th>Where</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Google Cloud Run</td>
+                    <td>the app's server (API)</td>
+                    <td>Belgium (EU)</td>
+                </tr>
+                <tr>
+                    <td>Turso</td>
+                    <td>the database for accounts and the forecast verification log</td>
+                    <td>Ireland (EU)</td>
+                </tr>
+                <tr>
+                    <td>Cloudflare</td>
+                    <td>hosting the app's pages, the short route links (90 days) and the live location (12 hours at most)</td>
+                    <td>global network</td>
+                </tr>
+                <tr>
+                    <td>Brevo</td>
+                    <td>sending the account emails</td>
+                    <td>France (EU)</td>
+                </tr>
+                <tr>
+                    <td>Apple, Google, Microsoft, Mozilla</td>
+                    <td>delivering push notifications to your device (encrypted content)</td>
+                    <td>their push services</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h2>7. Weather sources and maps</h2>
+    <p>For the forecast, our server asks for data for the place's coordinates, without passing on your IP
+        address or account data: Open-Meteo, OpenWeatherMap, MET Norway, Pirate Weather, WeatherXM, Netatmo, the
+        official weather stations through EUMETNET MeteoGate (ANM), the ANM warnings and Meteoalarm, and airport
+        observations (NOAA).</p>
+    <p>For urban routes with traffic, our server sends TomTom the route's points (the start, the destination and
+        the stops), again without your IP address or account data. On a ride started from the Ride tab, if you leave the
+        route, the app asks the same way for a new route, from your position at that moment to the destination.</p>
+    <p>Some services are called straight from your browser, so they see your IP address and the area asked
+        for:</p>
+    <ul>
+        <li>maps: OpenFreeMap (the base map, with OpenStreetMap data), RainViewer (radar), DWD (the ICON-EU
+            model), EUMETSAT (clouds and lightning from satellite), Open-Meteo (the forecast on a grid). When you
+            download a route's map for riding without signal, OpenFreeMap receives the requests for the map pieces
+            along the route; the map stays only on the phone, until you delete it or for 30 days at most;</li>
+        <li>rain over the next 90 minutes on the "Forecast" screen: RainViewer receives the radar area around the
+            place;</li>
+        <li>place search: Photon (komoot) receives the text searched and the approximate area shown; Open-Meteo
+            Geocoding is used as a fallback;</li>
+        <li>the place name for the GPS position and for the points of a route imported from GPX: OpenStreetMap
+            Nominatim receives the coordinates;</li>
+        <li>routes: OSRM receives the route's points, and Open-Meteo receives points along the road, to find the
+            altitude and the highest point;</li>
+        <li>a ride's story: after you end it, Open-Meteo receives at most 48 points of the ride (rounded to about
+            100 m) and the day, to find the weather you rode through. The answer is kept only with the ride, on the
+            phone;</li>
+        <li>if our server does not answer, the forecast comes straight from Open-Meteo.</li>
+    </ul>
+
+    <h2>8. Your rights</h2>
+    <p>Under the GDPR, you can ask for access to your data, for it to be corrected or deleted, and for a copy of
+        it. You can delete the account yourself in the app; for the rest, write to us. You also have the right to
+        lodge a complaint with the Romanian data protection authority, ANSPDCP (<a
+            href="https://www.dataprotection.ro/">dataprotection.ro</a>).</p>
+
+    <h2>9. Contact</h2>
+    <p>For any question about data: <a href="mailto:weatherformoto@bluemouse.cc">weatherformoto@bluemouse.cc</a></p>
+
+    <p class="updated">If the policy changes, the date at the top is updated.</p>
+
+    <a class="back" href="/#/eu">‹ Back to the app</a>
+</body>
+
+</html>
