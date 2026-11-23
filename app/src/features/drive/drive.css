@@ -645,8 +645,9 @@
 }
 
 /* A phone turned sideways (see base.css): the map runs to the bottom edge
-   and under the camera cut-out, the column narrows to leave the map room,
-   and the quick destinations swipe again, since a finger can. */
+   and under the camera cut-out, and the column narrows to leave the map
+   room. The quick destinations wrap as on a desktop: in a column this
+   narrow a row to swipe looked cut off, "Plan cu opriri" half out of sight. */
 @media (orientation: landscape) and (max-height: 500px) and (min-width: 600px) {
   .drive {
     bottom: 0;
@@ -665,11 +666,6 @@
   .drive-top,
   .drive-bottom {
     width: min(360px, 48%);
-  }
-
-  .drive-chips {
-    flex-wrap: nowrap;
-    overflow-x: auto;
   }
 
   .drive-weather {

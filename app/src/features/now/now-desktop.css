@@ -102,9 +102,11 @@
     grid-area: name;
   }
 
+  /* Smaller as the window narrows: at 1024 px a card is under 120 px wide,
+     and a 30 px score would run over the day's name. */
   .screen.now .now-day__score {
     grid-area: score;
-    font-size: 30px;
+    font-size: clamp(22px, 2.2vw, 30px);
     line-height: 1;
   }
 
@@ -370,5 +372,11 @@
 
   .screen.now .now-hero__verdict {
     font-size: 22px;
+  }
+
+  /* Seven cards across a phone are under 100 px each, too narrow for the
+     day's name next to its score: four a row, then the rest. */
+  .screen.now .now-days {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
