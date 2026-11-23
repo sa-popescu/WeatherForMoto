@@ -44,7 +44,7 @@ export function loadImage(url: string, signal: AbortSignal): Promise<HTMLImageEl
 }
 
 /** A canvas of the geometry's size; images stretched onto it are smoothed, not drawn as blocks. */
-function canvasFor(geometry: FieldGeometry): CanvasRenderingContext2D {
+export function canvasFor(geometry: FieldGeometry): CanvasRenderingContext2D {
   const canvas = document.createElement('canvas');
   canvas.width = geometry.width;
   canvas.height = geometry.height;

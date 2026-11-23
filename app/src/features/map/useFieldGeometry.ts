@@ -3,8 +3,9 @@ import { useEffect, useState } from 'react';
 import { fieldGeometry, geometryServes, type Box, type FieldGeometry } from './mercator';
 import { tileZoom } from './useMainMap';
 
-// The canvas the rain ahead is painted on: the view with room around it, at
-// the map's zoom (mercator.ts caps it). It only changes when the view leaves it or
+// The canvas weather is painted or read on: the view with room around it, at
+// the map's zoom up to `maxZoom` (rain values stop at the radar's own zoom,
+// painted clouds go one deeper). It only changes when the view leaves it or
 // needs another zoom, so panning a little never throws away painted frames.
 
 const DEBOUNCE_MS = 400;
@@ -17,7 +18,7 @@ function viewOf(map: MapLibreMap): Box | null {
   return view.north > view.south && view.east > view.west ? view : null;
 }
 
-export function useFieldGeometry(map: MapLibreMap | null, enabled: boolean): FieldGeometry | null {
+export function useFieldGeometry(map: MapLibreMap | null, enabled: boolean, maxZoom: number): FieldGeometry | null {
   const [geometry, setGeometry] = useState<FieldGeometry | null>(null);
 
   useEffect(() => {
@@ -27,7 +28,9 @@ export function useFieldGeometry(map: MapLibreMap | null, enabled: boolean): Fie
       const view = viewOf(map);
       if (!view) return;
       const zoom = tileZoom(map);
-      setGeometry((current) => (current && geometryServes(current, view, zoom) ? current : fieldGeometry(view, zoom)));
+      setGeometry((current) =>
+        current && geometryServes(current, view, zoom, maxZoom) ? current : fieldGeometry(view, zoom, maxZoom),
+      );
     };
     const schedule = (): void => {
       window.clearTimeout(timer);
@@ -41,7 +44,7 @@ export function useFieldGeometry(map: MapLibreMap | null, enabled: boolean): Fie
       map.off('moveend', schedule);
       map.off('resize', schedule);
     };
-  }, [map, enabled]);
+  }, [map, enabled, maxZoom]);
 
   return geometry;
 }

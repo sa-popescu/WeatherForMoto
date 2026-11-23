@@ -4,11 +4,13 @@ import { modelFrame, nowcastFrame, pictureFrame } from './bandFrames';
 import { EUMETSAT_ATTRIBUTION, imageTime, IR_CLOUDS, LIGHTNING, recentTimes } from './eumetsat';
 import type { ForecastKind } from './forecast';
 import { HOUR_S, iconEuCovers } from './iconEu';
-import { geometryKey } from './mercator';
+import { FIELD_MAX_ZOOM, geometryKey } from './mercator';
 import { gridSource, iconEuSource, type ModelSource } from './modelField';
 import { CLOUD_MAX_SPEED_KMH, RAIN_MAX_SPEED_KMH } from './nowcast';
-import { cachedCloudPicture, cloudPicture, radarPicture } from './pictures';
-import type { RadarFrame } from './radar';
+import { cachedCloudPicture, cloudPicture } from './pictures';
+import { RADAR_MAX_NATIVE_ZOOM, type RadarFrame } from './radar';
+import { modelRainFrame, nowcastRainFrame, observedRainFrame, type RainFrame } from './rainFrames';
+import { cachedRadarValues, radarValues } from './radarValues';
 import { buildTimeline, entryDelayMs, nextIndex, planBand, startIndex, utcTimeSec, type TimelineEntry } from './timeline';
 import { useCloudPictures } from './useCloudPictures';
 import { useFieldGeometry } from './useFieldGeometry';
@@ -18,13 +20,16 @@ import { useForecastData, type ForecastGrid } from './useForecastData';
 import { useIconEuRain, type ModelStatus } from './useIconEuRain';
 import { useLatestImageTime } from './useLatestImageTime';
 import { useRadarFrames, type RadarStatus } from './useRadarFrames';
-import { useRadarLayer } from './useRadarLayer';
+import { useRadarValues } from './useRadarValues';
+import { useRainLayer } from './useRainLayer';
 import { useWmsTimeLayer } from './useWmsTimeLayer';
 
 // The map's single band of time, in one of two views.
 //
 // Rain: observed radar (with lightning), the radar extrapolated for an hour
 // and a half, then ICON-EU rain (DWD, ~7 km) where that model covers the map.
+// All three are rain values on one canvas, drawn by one layer in one palette
+// (rainValues.ts, rainLayer.ts), so the band reads the same from end to end.
 //
 // Clouds: satellite infrared clouds (EUMETSAT, ~2 km, with the radar on top
 // when it is on), the clouds extrapolated the same way, then the Open-Meteo
@@ -84,9 +89,8 @@ const MOTION_PICTURES = 3;
 const MODEL_HOURS_BEHIND = 2 * HOUR_S;
 const MODEL_HOURS_AHEAD = 7 * HOUR_S;
 
-const RAIN_AHEAD_ATTRIBUTION =
-  '<a href="https://www.rainviewer.com/api.html" target="_blank" rel="noopener">RainViewer</a>, ' +
-  '<a href="https://www.dwd.de/" target="_blank" rel="noopener">DWD ICON-EU</a>';
+const RAINVIEWER_ATTRIBUTION = '<a href="https://www.rainviewer.com/api.html" target="_blank" rel="noopener">RainViewer</a>';
+const RAIN_AHEAD_ATTRIBUTION = `${RAINVIEWER_ATTRIBUTION}, <a href="https://www.dwd.de/" target="_blank" rel="noopener">DWD ICON-EU</a>`;
 const CLOUDS_AHEAD_ATTRIBUTION = `${EUMETSAT_ATTRIBUTION}, <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>`;
 
 function useClock(running: boolean): number {
@@ -109,7 +113,12 @@ export function useMapTimeline(map: MapLibreMap | null, { fetching, radar, light
   const frames = useRadarFrames(fetching && radar);
   const radarFrames = useMemo(() => (radar ? (frames.data?.frames ?? []) : []), [radar, frames.data]);
   const observedRadar = useMemo(() => radarFrames.filter((frame) => !frame.nowcast), [radarFrames]);
-  const geometry = useFieldGeometry(map, fetching);
+  // Rain values are read at the radar's own zoom and drawn smooth by the graphics card; the
+  // painted cloud canvases go one level deeper.
+  const rainGeometry = useFieldGeometry(map, fetching && (rainView || radar), RADAR_MAX_NATIVE_ZOOM);
+  const cloudGeometry = useFieldGeometry(map, fetching && cloudView, FIELD_MAX_ZOOM);
+  /** The canvas of the view's own band: the model and the extrapolation are worked out on it. */
+  const geometry = rainView ? rainGeometry : cloudGeometry;
   const gkey = geometry ? geometryKey(geometry) : '';
 
   const satelliteLatest = useLatestImageTime(IR_CLOUDS, fetching && cloudView);
@@ -132,12 +141,15 @@ export function useMapTimeline(map: MapLibreMap | null, { fetching, radar, light
 
   const nowcast = useFieldNowcast({
     key: radarKey ?? cloudKey,
-    kind: rainView ? 'radar' : 'cloud',
+    kind: rainView ? 'value' : 'cloud',
     geometry,
     maxSpeedKmh: rainView ? RAIN_MAX_SPEED_KMH : CLOUD_MAX_SPEED_KMH,
     load: (signal) => {
       if (!geometry) return Promise.resolve([]);
-      if (rainView && radarHost) return Promise.all(motionRadar.map((frame) => radarPicture(radarHost, frame, geometry, signal)));
+      // The radar frames as rain values, shared with the map (radarValues.ts).
+      if (rainView && radarHost) {
+        return Promise.all(motionRadar.map(async (frame) => ({ rgba: await radarValues(radarHost, frame, geometry), timeSec: frame.time })));
+      }
       if (satelliteLatest === null) return Promise.resolve([]);
       return Promise.all(
         recentTimes(IR_CLOUDS, satelliteLatest, MOTION_PICTURES).map(async (time) => ({ rgba: await cloudPicture(geometry, time, signal), timeSec: time })),
@@ -191,8 +203,6 @@ export function useMapTimeline(map: MapLibreMap | null, { fetching, radar, light
   const holdIndex = useRef(-1);
   const shownTime = useRef<number | null>(null);
   const autoStarted = useRef(false);
-  // Radar frame paths whose tiles finished loading; the layer fills this in.
-  const [loaded] = useState(() => new Set<string>());
 
   // A new band keeps the moment the user was looking at, or opens on the present.
   useEffect(() => {
@@ -243,14 +253,25 @@ export function useMapTimeline(map: MapLibreMap | null, { fetching, radar, light
   const onObserved = current?.source === 'radar';
   const nextObserved = following?.source === 'radar' ? following : null;
 
-  const radarLayer = useRadarLayer(map, {
-    host: radarHost,
-    frames: radarFrames,
-    // Past the observed part the newest radar frame stays loaded, hidden, for the way back.
-    index: !radar ? -1 : onObserved ? current.index : observedRadar.length - 1,
+  // The radar frames of the band as rain values: the one on screen and the next first.
+  const radarOnScreen = radar && onObserved ? (radarFrames[current.index] ?? null) : null;
+  const radarNext = radar && nextObserved ? (radarFrames[nextObserved.index] ?? null) : null;
+  const radarState = useRadarValues(radarHost, radarFrames, rainGeometry, [radarOnScreen, radarNext]);
+
+  // The rain of the moment: observed in both views, moved on and modelled in the rain view.
+  const rainFrame = useMemo<RainFrame | null>(() => {
+    if (!rainGeometry || !current) return null;
+    if (current.source === 'radar') {
+      return radarOnScreen ? observedRainFrame(rainGeometry, radarOnScreen.path, cachedRadarValues(rainGeometry, radarOnScreen.path)) : null;
+    }
+    if (!rainView) return null;
+    return current.source === 'nowcast' ? nowcastRainFrame(current.timeSec, rainGeometry, nowcast, model) : modelRainFrame(current.timeSec, rainGeometry, model);
+    // radarState.version marks frames arriving in the shared cache.
+  }, [rainGeometry, current, radarOnScreen, rainView, nowcast, model, radarState.version]);
+  useRainLayer(map, {
+    frame: rainFrame,
     opacity,
-    shown: radar && onObserved,
-    loaded,
+    attribution: current?.source === 'radar' ? RAINVIEWER_ATTRIBUTION : RAIN_AHEAD_ATTRIBUTION,
     fadeMs,
   });
 
@@ -279,16 +300,17 @@ export function useMapTimeline(map: MapLibreMap | null, { fetching, radar, light
   );
   useFieldLayer(map, { frame: observedClouds, geometry, opacity, slot: 'clouds', attribution: EUMETSAT_ATTRIBUTION, fadeMs });
 
+  // The clouds ahead, painted (the rain ahead is in the rain layer above).
   const aheadFrame = useMemo(() => {
-    if (!geometry || !current || current.source === 'radar') return null;
+    if (!cloudView || !geometry || !current || current.source === 'radar') return null;
     return current.source === 'nowcast' ? nowcastFrame(current.timeSec, geometry, nowcast, model) : modelFrame(current.timeSec, geometry, model);
-  }, [geometry, current, nowcast, model]);
+  }, [cloudView, geometry, current, nowcast, model]);
   useFieldLayer(map, {
     frame: aheadFrame,
     geometry,
     opacity,
     slot: 'ahead',
-    attribution: rainView ? RAIN_AHEAD_ATTRIBUTION : CLOUDS_AHEAD_ATTRIBUTION,
+    attribution: CLOUDS_AHEAD_ATTRIBUTION,
     fadeMs,
   });
 
@@ -318,8 +340,8 @@ export function useMapTimeline(map: MapLibreMap | null, { fetching, radar, light
     nowcastStatus: nowcast.status,
     modelStatus: iconEu.status,
     forecast,
-    tilesLoading: radarLayer.loading,
-    tilesFailed: radarLayer.failed,
+    tilesLoading: radarState.loading,
+    tilesFailed: radarState.failed,
     select,
     togglePlay,
     retry,

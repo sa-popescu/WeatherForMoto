@@ -67,9 +67,18 @@ export function radarTileUrl(host: string, frame: RadarFrame): string {
   return `${host}${frame.path}${TILE_SUFFIX}`;
 }
 
-/** One radar tile, for reading its pixels (the same URL the tile layer loads, so the cache is shared). */
+/** One radar tile, for reading its pixels (the rain ahead on "Acum"). */
 export function radarTileAt(host: string, frame: RadarFrame, z: number, x: number, y: number): string {
   return radarTileUrl(host, frame).replace('{z}', String(z)).replace('{x}', String(x)).replace('{y}', String(y));
+}
+
+/**
+ * One radar tile for the map, read back into rain values (rainValues.ts):
+ * unsmoothed, so every pixel is exactly a colour of the table, and with snow
+ * in its own colours. The map smooths the values itself.
+ */
+export function radarValueTileAt(host: string, frame: RadarFrame, z: number, x: number, y: number): string {
+  return `${host}${frame.path}/256/${z}/${x}/${y}/2/0_1.png`;
 }
 
 /** Index of the frame closest to `targetSec` (ties go to the earlier frame), -1 for an empty list. */
@@ -130,21 +139,3 @@ export function labelledTicks(count: number, step: number): number[] {
   return out;
 }
 
-export type LegendKey = 'legendLight' | 'legendModerate' | 'legendHeavy' | 'legendExtreme';
-
-/**
- * Universal Blue colours from RainViewer's colour table, grouped by rain
- * intensity: light under 30 dBZ (under about 2.5 mm/h), moderate 30-39, heavy
- * 40-49, extreme from 50 (cloudbursts, hail). They are the colours painted in
- * the tiles themselves, so they stay the same in both themes.
- */
-export const RADAR_LEGEND: ReadonlyArray<{ key: LegendKey; colors: readonly string[] }> = [
-  { key: 'legendLight', colors: ['#88ddee', '#00a3e0', '#0077aa'] },
-  { key: 'legendModerate', colors: ['#005588', '#ffee00'] },
-  { key: 'legendHeavy', colors: ['#ffaa00', '#ff4400'] },
-  { key: 'legendExtreme', colors: ['#c10000', '#ffaaff', '#ffffff'] },
-];
-
-export function legendGradient(colors: readonly string[]): string {
-  return colors.length === 1 ? colors[0] : `linear-gradient(90deg, ${colors.join(', ')})`;
-}
