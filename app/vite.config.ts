@@ -77,7 +77,7 @@ export default defineConfig(({ mode }) => {
         },
         injectManifest: {
           globPatterns: ['**/*.{js,css,html,svg,png,woff2,webmanifest}'],
-          globIgnores: ['**/splash-*.png', 'legacy.html', 'privacy-policy.html'],
+          globIgnores: ['**/splash-*.png', 'legacy.html', 'privacy-policy.html', 'privacy-policy-en.html'],
           maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         },
         devOptions: { enabled: false },

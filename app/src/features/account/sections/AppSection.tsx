@@ -57,7 +57,7 @@ export function AppSection() {
       <Card className="acct-rows">
         {/* Same window, not a new one: the installed app on an iPhone has no
             windows, and the policy page links back here instead. */}
-        <a className="acct-row" href={PRIVACY_POLICY_URL}>
+        <a className="acct-row" href={PRIVACY_POLICY_URL[lang]}>
           <Icon name="lock" size={22} />
           <span className="acct-row__label">{s.privacy}</span>
           <Icon name="chevronRight" size={20} className="acct-row__chevron" />

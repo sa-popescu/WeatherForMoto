@@ -87,11 +87,22 @@
             font-weight: 600;
             text-decoration: none;
         }
+
+        .top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
     </style>
 </head>
 
 <body>
-    <a class="back" href="/#/eu">‹ Înapoi la aplicație</a>
+    <!-- privacy-policy-en.html is the English version. Keep the two in step: a change to one is a change to both. -->
+    <div class="top">
+        <a class="back" href="/#/eu">‹ Înapoi la aplicație</a>
+        <a class="back" href="/privacy-policy-en.html" hreflang="en" lang="en">English</a>
+    </div>
     <h1>Politica de confidențialitate — Motonor</h1>
     <p class="updated">Ultima actualizare: 23 noiembrie 2026</p>
 

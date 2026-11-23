@@ -19,4 +19,5 @@ export const MAX_FAVORITES = 8;
 
 export const DEFAULT_PLACE = { name: 'București', lat: 44.4268, lon: 26.1025 } as const;
 
-export const PRIVACY_POLICY_URL = '/privacy-policy.html';
+/** The privacy policy in the app's language; each page links to the other one. */
+export const PRIVACY_POLICY_URL = { ro: '/privacy-policy.html', en: '/privacy-policy-en.html' } as const;
