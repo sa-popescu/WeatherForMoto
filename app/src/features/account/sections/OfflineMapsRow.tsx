@@ -1,5 +1,5 @@
 import { fmt, useLang, useStrings } from '../../../lib/i18n';
-import { useDesktop } from '../../../lib/useMediaQuery';
+import { useComputer } from '../../../lib/useMediaQuery';
 import { useToast } from '../../../state/toast';
 import { Icon } from '../../../ui/icons';
 import { megabytes } from '../../route/OfflineMapPanel';
@@ -8,17 +8,17 @@ import { OFFLINE_S } from '../../route/offlineStrings';
 
 // Eu, Aplicație: how many route maps are kept for offline use, and a way to
 // delete them all (each one can also go from its route in the planner).
-// A desktop cannot download them (OfflineMapPanel.tsx), so there the row only
+// A computer cannot download them (OfflineMapPanel.tsx), so there the row only
 // shows while maps saved before are still kept, to delete them.
 
 export function OfflineMapsRow() {
   const s = useStrings(OFFLINE_S);
   const lang = useLang();
   const toast = useToast();
-  const desktop = useDesktop();
+  const computer = useComputer();
   const maps = useOfflineMaps();
   const bytes = maps.reduce((sum, m) => sum + m.bytes, 0);
-  if (desktop && maps.length === 0) return null;
+  if (computer && maps.length === 0) return null;
 
   const onRemoveAll = async (): Promise<void> => {
     try {

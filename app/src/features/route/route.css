@@ -445,7 +445,7 @@
   color: var(--ink);
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 1024px), (orientation: landscape) and (max-height: 500px) and (min-width: 600px) {
   .route-drop {
     left: var(--rail-w);
   }

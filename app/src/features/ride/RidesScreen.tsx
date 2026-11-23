@@ -1,5 +1,5 @@
 import { useStrings } from '../../lib/i18n';
-import { useDesktop } from '../../lib/useMediaQuery';
+import { useComputer } from '../../lib/useMediaQuery';
 import { useAuth } from '../../state/auth';
 import { Icon } from '../../ui/icons';
 import { Card } from '../../ui/primitives';
@@ -22,18 +22,18 @@ import './ride-entry.css';
 export default function RidesScreen({ active }: ScreenProps) {
   const s = useStrings(RIDE_S);
   const { status } = useAuth();
-  const desktop = useDesktop();
+  const computer = useComputer();
   const history = useRideHistory();
   const stats = useRideStats(active);
   // A computer records no rides, so its own list stays empty: the screen says
   // where rides come from instead of speaking of "this phone".
-  const phoneOnly = desktop && history.status === 'ready' && history.items.length === 0;
+  const phoneOnly = computer && history.status === 'ready' && history.items.length === 0;
 
   return (
     <div className="screen rides" hidden={!active}>
       <h1 className="rides__title num">{s.ridesTitle}</h1>
       {/* A ride is recorded by a phone on the handlebar, not by a computer. */}
-      {!desktop && <RideEntry />}
+      {!computer && <RideEntry />}
       {phoneOnly ? (
         <Card className="rides-desktop">
           <span className="rides-desktop__icon" aria-hidden="true">

@@ -4,9 +4,9 @@
   gap: 12px;
 }
 
-/* Desktop (DESKTOP_QUERY in lib/useMediaQuery.ts): settings read best as
+/* Desktop (WIDE_QUERY in lib/useMediaQuery.ts): settings read best as
    one centred column, not stretched across the window. */
-@media (min-width: 1024px) {
+@media (min-width: 1024px), (orientation: landscape) and (max-height: 500px) and (min-width: 600px) {
   .screen.acct {
     box-sizing: content-box;
     max-width: 720px;

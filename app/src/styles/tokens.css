@@ -51,15 +51,26 @@
 
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+  /* The camera cut-out of a phone turned sideways, on one side or the other. */
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
 
   color-scheme: dark;
 }
 
-/* Desktop layout (DESKTOP_QUERY in lib/useMediaQuery.ts): the nav is a rail
+/* Wide layout (WIDE_QUERY in lib/useMediaQuery.ts): the nav is a rail
    on the left, so the map and the toasts keep nothing free at the bottom. */
-@media (min-width: 1024px) {
+@media (min-width: 1024px), (orientation: landscape) and (max-height: 500px) and (min-width: 600px) {
   :root {
     --nav-h: 0px;
+  }
+}
+
+/* A phone turned sideways: a narrower rail, wider by the camera cut-out
+   when that is on the left. Everything placed after the rail reads it. */
+@media (orientation: landscape) and (max-height: 500px) and (min-width: 600px) {
+  :root {
+    --rail-w: calc(64px + var(--safe-left));
   }
 }
 

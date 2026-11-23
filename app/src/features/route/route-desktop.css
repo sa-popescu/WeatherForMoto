@@ -1,4 +1,4 @@
-/* "Traseu" on a desktop (DESKTOP_QUERY in lib/useMediaQuery.ts).
+/* "Traseu" on a desktop (WIDE_QUERY in lib/useMediaQuery.ts).
    RouteScreen groups its content in three columns: the plan (stops, day,
    time, pace), the map with when to leave, and the road (weather at every
    point, hazards, actions, ride stats).
@@ -47,7 +47,7 @@
   line-height: 1.5;
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 1024px), (orientation: landscape) and (max-height: 500px) and (min-width: 600px) {
   /* :not([hidden]) keeps the hidden tab hidden (.screen[hidden] in base.css). */
   .screen.route:not([hidden]) {
     display: grid;
@@ -103,6 +103,19 @@
     min-width: 0;
     padding: 0 4px;
     white-space: nowrap;
+  }
+}
+
+/* A phone turned sideways (see base.css): the two columns, a narrower plan
+   and a map that fits the short screen with room to scroll past it. */
+@media (orientation: landscape) and (max-height: 500px) and (min-width: 600px) {
+  .screen.route:not([hidden]) {
+    grid-template-columns: 300px minmax(0, 1fr);
+    gap: 12px 16px;
+  }
+
+  .screen.route .route-map {
+    height: 280px;
   }
 }
 
