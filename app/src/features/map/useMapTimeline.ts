@@ -6,7 +6,7 @@ import { HOUR_S, iconEuCovers } from './iconEu';
 import { geometryKey } from './mercator';
 import { gridSource, iconEuSource, type ModelSource } from './modelField';
 import { CLOUD_MAX_SPEED_KMH, RAIN_MAX_SPEED_KMH } from './nowcast';
-import type { RadarFrame } from './radar';
+import { FRAME_STEP_MS, type RadarFrame } from './radar';
 import { radarValues } from './radarValues';
 import { satelliteField } from './satelliteValues';
 import { buildTimeline, entryDelayMs, nextIndex, planBand, startIndex, utcTimeSec, type TimelineEntry } from './timeline';
@@ -74,7 +74,7 @@ interface Options {
   fade: boolean;
 }
 
-/** How long a new moment takes to fade in over the one before: shorter than the quickest step of playback. */
+/** How long a moment takes to move into the next when the band is moved by hand; while playing, a whole step. */
 const FADE_MS = 250;
 /** The forecast window slides with the clock; checking every few minutes is plenty. */
 const CLOCK_MS = 5 * 60_000;
@@ -99,7 +99,9 @@ function useClock(running: boolean): number {
 }
 
 export function useMapTimeline(map: MapLibreMap | null, { fetching, radar, lightning, kind, opacity, autoPlay, readAhead, fade }: Options): MapTimeline {
-  const fadeMs = fade ? FADE_MS : 0;
+  const [playing, setPlaying] = useState(false);
+  // While playing, one moment moves into the next for the whole step, so the rain travels without stopping.
+  const fadeMs = !fade ? 0 : playing ? FRAME_STEP_MS : FADE_MS;
   const nowMs = useClock(fetching);
   const cloudView = kind === 'cloud';
   const rainView = kind === 'rain';
@@ -198,7 +200,6 @@ export function useMapTimeline(map: MapLibreMap | null, { fetching, radar, light
   // ---- Playback -----------------------------------------------------------------
 
   const [index, setIndex] = useState(-1);
-  const [playing, setPlaying] = useState(false);
   const holdIndex = useRef(-1);
   const shownTime = useRef<number | null>(null);
   const autoStarted = useRef(false);
