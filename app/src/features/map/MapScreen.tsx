@@ -74,6 +74,7 @@ export default function MapScreen({ active }: ScreenProps) {
     // With the data saver on, only what is shown is downloaded: no playing by itself, no reading ahead.
     autoPlay: !reducedMotion && !lessData,
     readAhead: !lessData,
+    theme,
     fade: !reducedMotion,
   });
 

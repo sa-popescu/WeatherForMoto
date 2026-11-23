@@ -229,20 +229,32 @@ function cellPixels(grid: GridBox, geometry: FieldGeometry): number {
  * meet, so the field is then blurred over about a third of a cell.
  */
 export function gridToField(grid: GridBox, values: Float32Array, geometry: FieldGeometry, toByte: (value: number) => number): ValueField {
+  const field: ValueField = new Uint8ClampedArray(geometry.width * geometry.height * CHANNELS);
+  gridIntoField(field, 0, grid, values, geometry, toByte);
+  return field;
+}
+
+/** Like gridToField, into one byte of a field there already is (the second: the share of snow). */
+export function gridIntoField(
+  field: ValueField,
+  channel: number,
+  grid: GridBox,
+  values: Float32Array,
+  geometry: FieldGeometry,
+  toByte: (value: number) => number,
+): void {
   const { width, height } = geometry;
-  const field = new Uint8ClampedArray(width * height * CHANNELS);
   const us = gridColumns(grid, geometry, width, 0.5);
   for (let y = 0; y < height; y += 1) {
     const v = gridRow(grid, geometry, y, 0.5);
     if (v < -0.5 || v > grid.rows - 0.5) continue;
     for (let x = 0; x < width; x += 1) {
       const value = bilinearAt(values, grid.cols, grid.rows, us[x], v);
-      if (!Number.isNaN(value)) field[(y * width + x) * CHANNELS] = toByte(value);
+      if (!Number.isNaN(value)) field[(y * width + x) * CHANNELS + channel] = toByte(value);
     }
   }
   const radius = Math.round(cellPixels(grid, geometry) / 3);
-  if (radius >= 1) blurPlane(field, width, height, CHANNELS, 0, radius, 2);
-  return field;
+  if (radius >= 1) blurPlane(field, width, height, CHANNELS, channel, radius, 2);
 }
 
 /** Model rain (mm/h) as a field; the model has no snow here. */

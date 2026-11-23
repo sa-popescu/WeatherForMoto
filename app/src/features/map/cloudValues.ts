@@ -1,3 +1,4 @@
+import type { Theme } from '../../state/settings';
 import { cloudShare, maskShare } from './eumetsat';
 import type { FieldGeometry } from './mercator';
 import type { LevelOf } from './nowcast';
@@ -66,13 +67,19 @@ export const amountLevel: LevelOf = (r, _g, _b, a) => (a === 0 || r < 20 ? 0 : r
 
 const SLATE = [148, 163, 184] as const;
 const WHITE = [241, 245, 249] as const;
+/** On the pale day map white would vanish: high cloud is a dark slate there. */
+const DARK_SLATE = [71, 85, 105] as const;
 /** From CLEAR up to here the opacity rises from nothing, so the edge of a cloud is soft. */
 const SOFT_EDGE = 24;
 
-/** 256 x 2 RGBA for the layer: slate in the first row, white in the second, opaque as much as the amount. */
-export function cloudPalette(): Uint8Array {
+/**
+ * 256 x 2 RGBA for the layer: low cloud in the first row, high cloud in the
+ * second (white on the dark map, dark slate on the day map), opaque as much
+ * as the amount.
+ */
+export function cloudPalette(theme: Theme = 'dark'): Uint8Array {
   const out = new Uint8Array(256 * 2 * 4);
-  [SLATE, WHITE].forEach((rgb, row) => {
+  [SLATE, theme === 'day' ? DARK_SLATE : WHITE].forEach((rgb, row) => {
     for (let amount = 0; amount < 256; amount += 1) {
       const alpha = amount < CLEAR ? 0 : amount < SOFT_EDGE ? (amount * (amount - CLEAR)) / (SOFT_EDGE - CLEAR) : amount;
       out.set([rgb[0], rgb[1], rgb[2], Math.round(alpha)], (row * 256 + amount) * 4);

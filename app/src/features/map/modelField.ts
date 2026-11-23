@@ -16,6 +16,8 @@ export interface FieldSample {
 export interface ModelSource {
   /** Changes whenever the underlying data does. */
   id: string;
+  /** How much of the rain falls as snow, 0 to 1, when known (rainfall sources only). */
+  snow?: (tSec: number) => FieldSample | null;
   sample: (tSec: number) => FieldSample | null;
 }
 
@@ -31,11 +33,40 @@ function sampleTotals(totals: ReadonlyMap<number, { grid: GridBox; values: Float
   return only ? { key: `${a ? before : after}`, grid: only.grid, values: only.values } : null;
 }
 
-/** ICON-EU rain from the hourly totals loaded so far. */
-export function iconEuSource(grids: ReadonlyMap<number, RainGrid>, id: string): ModelSource {
+/** Snowfall water (mm) per centimetre of snow, Open-Meteo's own ratio: 7 cm of snow is 10 mm of water. */
+const SNOW_WATER_MM_PER_CM = 10 / 7;
+/** Under this much water in the hour there is too little to tell rain from snow. */
+const MIN_SHARE_MM = 0.05;
+
+/** The share of each point's water that falls as snow, NaN where too little falls to tell. */
+export function snowShares(rain: ReadonlyArray<number | null>, snow: ReadonlyArray<number | null>): Float32Array {
+  return Float32Array.from(rain, (mm, p) => {
+    const cm = snow[p];
+    if (mm === null || cm === null || mm < MIN_SHARE_MM) return Number.NaN;
+    return Math.max(0, Math.min(1, (cm * SNOW_WATER_MM_PER_CM) / mm));
+  });
+}
+
+/**
+ * How much of the rain falls as snow, from the Open-Meteo grid (ICON-EU on the
+ * DWD server has rain only): read between the hours like the rain totals.
+ */
+export function snowSource(data: ForecastData, bounds: GridBounds): ((tSec: number) => FieldSample | null) | undefined {
+  if (data.snow.length === 0) return undefined;
+  const grid: GridBox = { ...bounds, cols: data.cols, rows: data.rows };
+  const byHour = new Map<number, { grid: GridBox; values: Float32Array }>();
+  data.times.forEach((time, i) => {
+    const ms = Date.parse(`${time}Z`);
+    if (!Number.isNaN(ms) && data.rain[i] && data.snow[i]) byHour.set(Math.round(ms / 1000), { grid, values: snowShares(data.rain[i], data.snow[i]) });
+  });
+  return (tSec) => sampleTotals(byHour, tSec);
+}
+
+/** ICON-EU rain from the hourly totals loaded so far, with the share of snow when the grid gives it. */
+export function iconEuSource(grids: ReadonlyMap<number, RainGrid>, id: string, snow?: ModelSource['snow']): ModelSource {
   const totals = new Map<number, { grid: GridBox; values: Float32Array }>();
   for (const [hour, grid] of grids) totals.set(hour, { grid, values: grid.values });
-  return { id, sample: (tSec) => sampleTotals(totals, tSec) };
+  return { id, snow, sample: (tSec) => sampleTotals(totals, tSec) };
 }
 
 function toValues(frame: ReadonlyArray<number | null>): Float32Array {
@@ -56,7 +87,7 @@ export function gridSource(data: ForecastData, bounds: GridBounds, kind: 'rain' 
     if (!Number.isNaN(ms) && frames[i]) byHour.set(Math.round(ms / 1000), { grid, values: toValues(frames[i]) });
   });
 
-  if (kind === 'rain') return { id, sample: (tSec) => sampleTotals(byHour, tSec) };
+  if (kind === 'rain') return { id, snow: snowSource(data, bounds), sample: (tSec) => sampleTotals(byHour, tSec) };
 
   return {
     id,

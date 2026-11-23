@@ -55,6 +55,8 @@ export interface ForecastData {
   cloud: Array<Array<number | null>>;
   /** Precipitation mm/h, [frame][point]. */
   rain: Array<Array<number | null>>;
+  /** Snowfall of the hour, centimetres, [frame][point]; empty when not asked for. */
+  snow: Array<Array<number | null>>;
 }
 
 /** The box in kilometres: width shrinks with latitude, height does not. */
@@ -113,7 +115,7 @@ export function forecastUrl(points: readonly GridPoint[]): string {
   const params = new URLSearchParams({
     latitude: points.map((p) => p.lat).join(','),
     longitude: points.map((p) => p.lon).join(','),
-    hourly: 'cloud_cover,precipitation',
+    hourly: 'cloud_cover,precipitation,snowfall',
     // One shared clock for the whole grid; the panel shows it in local time.
     timezone: 'UTC',
     forecast_days: '2',
@@ -156,6 +158,7 @@ export function parseForecast(
       times: hourly && Array.isArray(hourly.time) ? hourly.time.map(String) : [],
       cloud: numbersOf(hourly?.cloud_cover),
       rain: numbersOf(hourly?.precipitation),
+      snow: numbersOf(hourly?.snowfall),
     };
   });
 
@@ -171,12 +174,14 @@ export function parseForecast(
   const times: string[] = [];
   const cloud: Array<Array<number | null>> = [];
   const rain: Array<Array<number | null>> = [];
+  const snow: Array<Array<number | null>> = [];
   for (let i = start; i < end; i += 1) {
     times.push(reference.times[i]);
     cloud.push(Array.from({ length: pointCount }, (_, p) => series[p]?.cloud[i] ?? null));
     rain.push(Array.from({ length: pointCount }, (_, p) => series[p]?.rain[i] ?? null));
+    snow.push(Array.from({ length: pointCount }, (_, p) => series[p]?.snow[i] ?? null));
   }
-  return { cols: grid.cols, rows: grid.rows, times, cloud, rain };
+  return { cols: grid.cols, rows: grid.rows, times, cloud, rain, snow };
 }
 
 export type Rgba = [number, number, number, number];

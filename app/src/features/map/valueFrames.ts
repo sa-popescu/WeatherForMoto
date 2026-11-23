@@ -3,7 +3,7 @@ import { geometryKey, type FieldGeometry } from './mercator';
 import type { ModelSource } from './modelField';
 import { extrapolate, modelWeight, NOWCAST_STEP_S } from './nowcast';
 import type { GridBox } from './rainPaint';
-import { blendFields, blendLinear, CHANNELS, modelField, type ValueField } from './rainValues';
+import { blendFields, blendLinear, CHANNELS, gridIntoField, modelField, type ValueField } from './rainValues';
 import type { FieldNowcast } from './useFieldNowcast';
 
 // The field for a moment of the band: an observed one (radar frame,
@@ -47,7 +47,16 @@ export function observedFrame(name: string, geometry: FieldGeometry, id: string,
 function modelValues(kind: FieldKind, model: ModelSource, tSec: number, geometry: FieldGeometry): { key: string; values: () => ValueField } | null {
   const sample = model.sample(tSec);
   if (!sample) return null;
-  return { key: `${model.id}|${sample.key}`, values: () => kind.fromModel(sample.grid, sample.values, geometry) };
+  // The share of snow, where the model knows it, goes in the second byte like the radar's snow mark.
+  const snow = model.snow?.(tSec) ?? null;
+  return {
+    key: `${model.id}|${sample.key}|${snow?.key ?? '-'}`,
+    values: () => {
+      const field = kind.fromModel(sample.grid, sample.values, geometry);
+      if (snow) gridIntoField(field, 1, snow.grid, snow.values, geometry, (share) => share * 255);
+      return field;
+    },
+  };
 }
 
 /** A model moment on its own (pending until the model has that hour). */
