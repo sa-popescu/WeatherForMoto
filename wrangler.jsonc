@@ -9,7 +9,9 @@
   // redirects to it; the live location of a ride (app/src/worker/live.ts),
   // under /live, kept in Durable Objects for at most 12 hours, and the /l/<id>
   // links riders send; a chat app's preview robot gets the route's or the
-  // ride's own title on /s/ and /l/ (app/src/worker/preview.ts); and the old
+  // ride's own title on /s/ and /l/ (app/src/worker/preview.ts); the anonymous
+  // usage counts, POST /usage, and the page that shows them, /stats
+  // (app/src/worker/usage.ts, behind the STATS_KEY secret); and the old
   // address's redirect (app/src/worker/moved.ts), which sends page loads on
   // weatherformoto.bluemouse.cc to motonor.bluemouse.cc.
   // `run_worker_first` sends only those paths and the pages to the script;
@@ -27,7 +29,7 @@
     "directory": "./dist",
     "binding": "ASSETS",
     "not_found_handling": "none",
-    "run_worker_first": ["/s", "/s/*", "/l/*", "/live", "/live/*", "/", "/index.html", "/privacy-policy.html", "/privacy-policy-en.html"]
+    "run_worker_first": ["/s", "/s/*", "/l/*", "/live", "/live/*", "/usage", "/stats", "/", "/index.html", "/privacy-policy.html", "/privacy-policy-en.html"]
   },
   // The namespace id is set explicitly. With no id, wrangler's automatic
   // provisioning created the namespace on the first preview build and the
@@ -39,17 +41,20 @@
     { "binding": "SHORT_LINKS", "id": "dd8a399b7b4c49459a5c39a5916e698d" }
   ],
   // Live location: one object per shared ride, one for the daily budget.
-  // SQLite storage, the kind the free plan has. The migration runs with the
-  // production deploy (wrangler deploy); without these bindings /live answers
-  // 503 and the app says sharing is off.
+  // Usage counts: one object for the whole app. SQLite storage, the kind the
+  // free plan has. The migrations run with the production deploy (wrangler
+  // deploy); without these bindings /live answers 503 and the app says
+  // sharing is off, and /usage answers 503, which the app ignores.
   "durable_objects": {
     "bindings": [
       { "name": "LIVE_RIDES", "class_name": "LiveRide" },
-      { "name": "LIVE_BUDGET", "class_name": "LiveBudget" }
+      { "name": "LIVE_BUDGET", "class_name": "LiveBudget" },
+      { "name": "USAGE_STATS", "class_name": "UsageStats" }
     ]
   },
   "migrations": [
-    { "tag": "live-v1", "new_sqlite_classes": ["LiveRide", "LiveBudget"] }
+    { "tag": "live-v1", "new_sqlite_classes": ["LiveRide", "LiveBudget"] },
+    { "tag": "usage-v1", "new_sqlite_classes": ["UsageStats"] }
   ],
   // Previews of a branch (Cloudflare Worker Previews: `wrangler preview`,
   // the Preview command of Workers Builds), at
@@ -58,12 +63,15 @@
   // ride shared from a preview never touches production's; the bindings are
   // named again so the code finds them on env. No KV on purpose: a preview's
   // /s answers 503 and the app shares the full link, so previews never write
-  // into production's short links. The classes and migrations stay above.
+  // into production's short links. A preview counts its own usage, apart
+  // from production's, and has no STATS_KEY, so its /stats page is off. The
+  // classes and migrations stay above.
   "previews": {
     "durable_objects": {
       "bindings": [
         { "name": "LIVE_RIDES", "class_name": "LiveRide" },
-        { "name": "LIVE_BUDGET", "class_name": "LiveBudget" }
+        { "name": "LIVE_BUDGET", "class_name": "LiveBudget" },
+        { "name": "USAGE_STATS", "class_name": "UsageStats" }
       ]
     }
   }

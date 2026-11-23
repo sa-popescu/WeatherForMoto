@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { OFFLINE_MAP_CACHE_PREFIX } from '../../lib/offlineMapKeys';
 import { KEYS, readJson, writeJson } from '../../lib/storage';
+import { noteUse } from '../../lib/usage';
 import { routeMapId } from './offlineMap';
 import { downloadRouteMap, OfflineMapError, offlineMapsSupported, type OfflineMap, type OfflineMapErrorKind } from './offlineMapDownload';
 import type { LatLon } from './types';
@@ -111,6 +112,7 @@ export function startDownload(line: readonly LatLon[], name: string): void {
     .then((entry) => {
       writeList([...snapshot.filter((m) => m.id !== entry.id), entry]);
       setDownload(id, null);
+      noteUse('route:offline-map');
     })
     .catch((err: unknown) => {
       if (controller.signal.aborted) {

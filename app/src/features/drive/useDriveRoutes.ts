@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { isAbort } from '../../lib/api';
+import { noteUse } from '../../lib/usage';
 import { fetchRouteWithTime, RouteError } from '../route/osrm';
 import type { LatLon } from '../route/types';
 import { fromOsrm, type DriveRoute, type RouteSource } from './logic/driveRoute';
@@ -64,7 +65,9 @@ export function useDriveRoutes(origin: LatLon | null, destination: LatLon | null
     setState({ status: 'loading' });
     const run = async (): Promise<void> => {
       const result = (await trafficRoutes(from, to, departMs, controller.signal)) ?? (await plainRoute(from, to, controller.signal));
-      if (!controller.signal.aborted) setState(result);
+      if (controller.signal.aborted) return;
+      setState(result);
+      if (result.status === 'ready') noteUse('drive:routes');
     };
     run().catch((err: unknown) => {
       if (!isAbort(err)) console.warn('[drive] route lookup failed', err);

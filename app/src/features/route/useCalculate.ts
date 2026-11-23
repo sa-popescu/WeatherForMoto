@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { distanceKm, NOMINATIM_GAP_MS, reverseGeocode, searchPlaces } from '../../lib/geo';
 import { fmt, useLang, useStrings } from '../../lib/i18n';
 import type { Place, SavedRoute } from '../../lib/types';
+import { noteUse } from '../../lib/usage';
 import { useToast } from '../../state/toast';
 import { AS } from './actionStrings';
 import { GpxError, MAX_GPX_BYTES, parseGpx } from './gpx';
@@ -196,6 +197,7 @@ export function useCalculate({ stopsState, calculate, calculateFromTrack, hasRou
         return;
       }
       if (seq !== requestSeq.current) return;
+      noteUse('route:gpx-import');
 
       if (plan.kind === 'stops') {
         // A few points and no drawn road: route between them like typed stops.

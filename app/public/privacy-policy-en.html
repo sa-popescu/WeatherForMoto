@@ -107,9 +107,9 @@
     <p class="updated">Last updated: 23 November 2026</p>
 
     <p>Motonor (formerly MotoMeteo, the WeatherForMoto project) is a personal, free and non-commercial project: a
-        weather and road app for motorcyclists. It has no ads, sells nothing and uses no tracking tools or traffic
-        statistics. This page says what data the app uses, why, and where it goes. The Romanian version is the
-        reference one.</p>
+        weather and road app for motorcyclists. It has no ads, sells nothing and uses no tracking tools; it only
+        counts, anonymously, which parts of the app are used (section 4). This page says what data the app uses,
+        why, and where it goes. The Romanian version is the reference one.</p>
 
     <h2>1. Without an account</h2>
     <p>You can use the app without an account. In that case we keep no data about you on the server. On your
@@ -177,6 +177,12 @@
         message, a few technical lines about where in the code it happened, the app's version, the open tab and the
         type of browser. The report holds no coordinates, account or email address. It goes into the same technical
         logs (30 days at most), and the first time an error appears in a day it is also sent to us by email.</p>
+    <p>To know which parts of the app are worth improving, when the page is closed or hidden the app sends to
+        Cloudflare the list of the parts used in that visit (for example: the Drive screen, a route calculated, a
+        ride started, the map animation). Only daily totals are kept, how many visits used each part, for 400 days
+        at most: no id, no cookie, no position and no link to the account. The IP address is used only as a hash,
+        only in memory and only for the day, to limit how many reports come from one address. If your browser asks
+        sites not to track you (Global Privacy Control or Do Not Track), the app sends nothing.</p>
 
     <h2>5. Emails and notifications</h2>
     <p>The only emails sent are account ones: the sign-in code, the address confirmation and the password reset.
@@ -207,7 +213,7 @@
                 </tr>
                 <tr>
                     <td>Cloudflare</td>
-                    <td>hosting the app's pages, the short route links (90 days) and the live location (12 hours at most)</td>
+                    <td>hosting the app's pages, the short route links (90 days), the live location (12 hours at most) and the anonymous usage totals (400 days at most)</td>
                     <td>global network</td>
                 </tr>
                 <tr>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { fmt, useLang, useStrings, type Lang } from '../../lib/i18n';
+import { noteUse } from '../../lib/usage';
 import { useToast } from '../../state/toast';
 import { Icon } from '../../ui/icons';
 import { Button, Spinner } from '../../ui/primitives';
@@ -83,6 +84,7 @@ export function RideStory({ ride }: { ride: RideSnapshot }) {
   const share = (): void => {
     if (!file) return;
     const data = { files: [file], title: file.name };
+    noteUse('ride:story');
     if (typeof navigator.canShare === 'function' && navigator.canShare(data)) {
       navigator.share(data).catch((err: unknown) => {
         if (err instanceof DOMException && err.name === 'AbortError') return;

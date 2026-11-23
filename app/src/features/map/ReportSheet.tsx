@@ -4,6 +4,7 @@ import { api } from '../../lib/api';
 import { fmtNumber } from '../../lib/format';
 import { distanceKm } from '../../lib/geo';
 import { fmt, useLang, useStrings } from '../../lib/i18n';
+import { noteUse } from '../../lib/usage';
 import { useAuth } from '../../state/auth';
 import { usePlace } from '../../state/place';
 import { useToast } from '../../state/toast';
@@ -83,6 +84,7 @@ function ReportForm({ at, onClose, onReported }: Props & { at: LatLon }) {
         ttl_hours: draft.ttl,
       });
       toast(s.reportDone, { tone: 'success' });
+      noteUse('hazard:report');
       onReported();
       onClose();
     } catch (err) {
