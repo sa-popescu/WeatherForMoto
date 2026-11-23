@@ -6,7 +6,7 @@ import type { SourceState, SourceStatus } from '../../../lib/types';
 export type SourceGroup = 'stations' | 'models' | 'warnings';
 
 export const SOURCE_GROUPS: ReadonlyArray<{ group: SourceGroup; ids: readonly string[] }> = [
-  { group: 'stations', ids: ['official-stations', 'metar', 'weatherxm', 'netatmo', 'sensor-community'] },
+  { group: 'stations', ids: ['official-stations', 'metar', 'opera-radar', 'weatherxm', 'netatmo', 'sensor-community'] },
   { group: 'models', ids: ['open-meteo', 'model-ensemble', 'rain-ensemble', 'openweathermap', 'met-norway', 'pirate-weather'] },
   { group: 'warnings', ids: ['anm-nowcast', 'meteoalarm'] },
 ];
@@ -20,6 +20,7 @@ export const SOURCE_URLS: Readonly<Record<string, string>> = {
   weatherxm: 'https://weatherxm.com/',
   netatmo: 'https://weathermap.netatmo.com/',
   'sensor-community': 'https://sensor.community/',
+  'opera-radar': 'https://www.eumetnet.eu/observations/weather-radar-network/',
   'open-meteo': 'https://open-meteo.com/',
   'model-ensemble': 'https://open-meteo.com/en/docs',
   'rain-ensemble': 'https://open-meteo.com/en/docs/ensemble-api',

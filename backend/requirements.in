@@ -9,3 +9,6 @@ aiofiles>=23.2.1
 email-validator>=2.4.0
 pywebpush>=1.14.1
 libsql-experimental>=0.0.37
+# The European radar composite's files are HDF5 (opera_radar.py).
+h5py>=3.16.0
+numpy>=2.4.6
