@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { dayMonth, fmtNumber } from '../../lib/format';
 import { fmt, useLang, useStrings, type Lang } from '../../lib/i18n';
+import { useDesktop } from '../../lib/useMediaQuery';
 import { Icon } from '../../ui/icons';
 import { Button, SectionLabel } from '../../ui/primitives';
 import { routeMapId } from './offlineMap';
@@ -12,6 +13,8 @@ import type { LatLon } from './types';
 
 // The map along a route, for riding without signal: download it, follow the
 // download, or delete it. A section in the planner, one button on the Drum card.
+// Both stay off on a desktop: the map is for the phone on the handlebar, and
+// a download on the computer never reaches it.
 
 type OfflineText = { [K in keyof (typeof OFFLINE_S)['ro']]: string };
 
@@ -44,8 +47,10 @@ export function OfflineMapPanel({ line, name }: Props) {
   const lang = useLang();
   const { id, saved, progress, error, pct } = useRouteMap(line);
   const estimate = useMemo(() => (saved ? null : estimateBytes(line)), [line, saved]);
+  const desktop = useDesktop();
   const supported = offlineMapsSupported();
   const today = localDay(Date.now());
+  if (desktop) return null;
 
   return (
     <section className="route-offline" aria-labelledby="route-offline-title">
@@ -102,7 +107,8 @@ export function OfflineMapPanel({ line, name }: Props) {
 export function OfflineMapButton({ line, name }: Props) {
   const s = useStrings(OFFLINE_S);
   const { id, saved, progress, error, pct } = useRouteMap(line);
-  if (!offlineMapsSupported()) return null;
+  const desktop = useDesktop();
+  if (desktop || !offlineMapsSupported()) return null;
   if (progress) {
     return (
       <button type="button" className="drive-sheet__detailed" onClick={() => stopDownload(id)} aria-label={`${fmt(s.progress, { pct })}. ${s.stop}`}>

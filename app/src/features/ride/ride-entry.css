@@ -1,6 +1,16 @@
 /* "Ture" (the free ride card and the rides on this phone), and the start on a
    route under the map on "Traseu". */
 
+/* Desktop (DESKTOP_QUERY in lib/useMediaQuery.ts): one centred column, like
+   "Eu" (account.css), not lines stretched across the whole window. */
+@media (min-width: 1024px) {
+  .screen.rides {
+    box-sizing: content-box;
+    max-width: 720px;
+    margin-inline: auto;
+  }
+}
+
 .rides__title {
   padding-top: 6px;
   font-size: 28px;

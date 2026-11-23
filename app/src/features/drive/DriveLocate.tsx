@@ -8,7 +8,8 @@ import { geoMessage } from '../place/geoMessage';
 import { S_PLACE } from '../place/strings';
 import { DRIVE_S } from './strings';
 
-// "Locația mea" on the Drum map, above the card, where map apps keep it. A tap
+// "Locația mea" on the Drum map, where map apps keep it: above the card on a
+// phone, in the map's corner on a desktop (DriveMapButtons.tsx). A tap
 // asks for the position (and the permission, the first time), then brings the
 // map back to it. The first fix also makes the app open on the rider's
 // position from then on (state/place.tsx). Lit while the map shows the rider.

@@ -67,6 +67,22 @@
   background: var(--surface);
 }
 
+/* Desktop (DESKTOP_QUERY in lib/useMediaQuery.ts): a card floating over the
+   map at the bottom left, like the Drum card, not a band across the window. */
+@media (min-width: 1024px) {
+  .live__card {
+    position: absolute;
+    left: 24px;
+    bottom: 24px;
+    z-index: 2;
+    width: 380px;
+    padding: 16px 18px;
+    border: 1px solid var(--line-2);
+    border-radius: var(--r-lg);
+    box-shadow: 0 8px 24px rgb(0 0 0 / 0.3);
+  }
+}
+
 .live__head {
   display: flex;
   align-items: center;
