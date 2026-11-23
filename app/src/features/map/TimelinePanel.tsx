@@ -1,3 +1,4 @@
+import { useCallback, useRef, useState, type RefCallback } from 'react';
 import { CORE } from '../../i18n/core';
 import { fmt, useLang, useStrings } from '../../lib/i18n';
 import { Icon } from '../../ui/icons';
@@ -8,15 +9,28 @@ import { frameClock } from './radar';
 import { RadarLegend } from './RadarLegend';
 import { MAP_STRINGS } from './strings';
 import { radarOffsetText } from './texts';
-import type { TimelineSource } from './timeline';
+import { scrubLabels, type TimelineSource } from './timeline';
 import type { MapTimeline } from './useMapTimeline';
 
 // One panel for the whole band of time: play/pause, the moment on screen, the
 // scrubber from the oldest radar frame to the last forecast hour, the legend
 // of whichever layer that moment belongs to and a note on where it comes from.
 
-/** Label every sixth entry, so the row stays readable on a phone. */
-const LABEL_STEP = 6;
+/** The width of an element, followed as it changes (0 until it is measured). */
+function useWidth(): [RefCallback<HTMLElement>, number] {
+  const [width, setWidth] = useState(0);
+  const observer = useRef<ResizeObserver | null>(null);
+  const ref = useCallback((element: HTMLElement | null) => {
+    observer.current?.disconnect();
+    observer.current = null;
+    if (!element) return;
+    setWidth(element.clientWidth);
+    if (typeof ResizeObserver === 'undefined') return;
+    observer.current = new ResizeObserver(() => setWidth(element.clientWidth));
+    observer.current.observe(element);
+  }, []);
+  return [ref, width];
+}
 
 /** Minutes, up to an hour and a half either way; hours beyond that, ago or ahead. */
 function relativeText(s: (typeof MAP_STRINGS)['ro'], timeSec: number, nowSec: number): string {
@@ -31,6 +45,8 @@ export function TimelinePanel({ timeline }: { timeline: MapTimeline }) {
   const s = useStrings(MAP_STRINGS);
   const core = useStrings(CORE);
   const lang = useLang();
+  // Time labels are spaced by the scrubber's real width, so they never print over each other.
+  const [labelsRef, labelsWidth] = useWidth();
   const { entries, index, current } = timeline;
   const onModel = timeline.kind === 'rain' && timeline.rainSource === 'model';
   const aheadFailed = onModel ? timeline.modelStatus === 'error' : timeline.forecast.status === 'error';
@@ -118,20 +134,12 @@ export function TimelinePanel({ timeline }: { timeline: MapTimeline }) {
           aria-valuetext={`${frameClock(current.timeSec, lang)}, ${relative}${current.forecast ? `, ${s.radarForecastWord}` : ''}`}
           onChange={(event) => timeline.select(Number(event.target.value))}
         />
-        <div className="map-scrub__labels" aria-hidden="true">
-          {entries
-            .map((_, i) => i)
-            // A regular label too close to the last one would print on top of it.
-            .filter((i) => (i % LABEL_STEP === 0 && last - i >= LABEL_STEP / 2) || i === last)
-            .map((i) => (
-              <span
-                key={entries[i].timeSec}
-                className={cx('map-scrub__label', i === index && 'map-scrub__label--on')}
-                style={{ left: at(i) }}
-              >
-                {frameClock(entries[i].timeSec, lang)}
-              </span>
-            ))}
+        <div className="map-scrub__labels" aria-hidden="true" ref={labelsRef}>
+          {scrubLabels(entries.length, labelsWidth).map((i) => (
+            <span key={entries[i].timeSec} className={cx('map-scrub__label', i === index && 'map-scrub__label--on')} style={{ left: at(i) }}>
+              {frameClock(entries[i].timeSec, lang)}
+            </span>
+          ))}
         </div>
       </div>
 
