@@ -12,7 +12,7 @@ import { cachedSatelliteField, satelliteField } from './satelliteValues';
 import type { TimelineEntry } from './timeline';
 import { useBandFields } from './useBandFields';
 import type { FieldNowcast } from './useFieldNowcast';
-import { useValueLayer } from './useValueLayer';
+import { useValueLayer, type LayerMotion } from './useValueLayer';
 import { CLOUD_FIELD, modelFrame, nowcastFrame, observedFrame, RAIN_FIELD, type ValueFrame } from './valueFrames';
 
 // The band's three weather layers, all drawn from values (valueLayer.ts):
@@ -118,7 +118,9 @@ export function useBandLayers(map: MapLibreMap | null, options: Options): BandLa
   const rainFrame = useMemo<ValueFrame | null>(() => {
     if (!geometry || !current) return null;
     if (current.source === 'radar') {
-      return radarOnScreen ? observedFrame('rain', geometry, radarOnScreen.path, cachedRadarValues(geometry, radarOnScreen.path)) : null;
+      return radarOnScreen
+        ? observedFrame('rain', geometry, radarOnScreen.path, radarOnScreen.time, cachedRadarValues(geometry, radarOnScreen.path))
+        : null;
     }
     if (!rainView) return null;
     return current.source === 'nowcast'
@@ -130,7 +132,9 @@ export function useBandLayers(map: MapLibreMap | null, options: Options): BandLa
   const cloudFrame = useMemo<ValueFrame | null>(() => {
     if (!cloudView || !geometry || !current) return null;
     if (current.source === 'radar') {
-      return cloudTime === null ? null : observedFrame('clouds', geometry, String(cloudTime), cachedSatelliteField('clouds', geometry, cloudTime));
+      return cloudTime === null
+        ? null
+        : observedFrame('clouds', geometry, String(cloudTime), current.timeSec, cachedSatelliteField('clouds', geometry, cloudTime));
     }
     return current.source === 'nowcast'
       ? nowcastFrame(CLOUD_FIELD, current.timeSec, geometry, nowcast, model)
@@ -141,8 +145,17 @@ export function useBandLayers(map: MapLibreMap | null, options: Options): BandLa
     () =>
       lightningTime === null || !geometry
         ? null
-        : observedFrame('lightning', geometry, String(lightningTime), cachedSatelliteField('lightning', geometry, lightningTime)),
+        : observedFrame('lightning', geometry, String(lightningTime), lightningTime, cachedSatelliteField('lightning', geometry, lightningTime)),
     [geometry, lightningTime, lightningState.version],
+  );
+
+  // The view's own motion (rain in the rain view, clouds in the cloud view) carries its layer from moment to moment.
+  const motion = useMemo<LayerMotion | null>(
+    () =>
+      nowcast.status === 'ready' && nowcast.key && nowcast.motion && nowcast.geometry
+        ? { key: nowcast.key, geometry: nowcast.geometry, field: nowcast.motion }
+        : null,
+    [nowcast],
   );
 
   const observedNow = current?.source === 'radar';
@@ -154,6 +167,7 @@ export function useBandLayers(map: MapLibreMap | null, options: Options): BandLa
     opacity,
     attribution: observedNow ? EUMETSAT_ATTRIBUTION : CLOUDS_AHEAD_ATTRIBUTION,
     fadeMs,
+    motion: cloudView ? motion : null,
   });
   useValueLayer(map, {
     name: 'rain',
@@ -163,6 +177,7 @@ export function useBandLayers(map: MapLibreMap | null, options: Options): BandLa
     opacity,
     attribution: observedNow ? RAINVIEWER_ATTRIBUTION : RAIN_AHEAD_ATTRIBUTION,
     fadeMs,
+    motion: rainView ? motion : null,
   });
   useValueLayer(map, {
     name: 'lightning',

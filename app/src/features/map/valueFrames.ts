@@ -16,6 +16,8 @@ export interface ValueFrame {
   /** Identifies what the values are; the same key always gives the same values. */
   key: string;
   geometry: FieldGeometry;
+  /** The moment shown, unix seconds: two moments close together can be joined along the motion (useValueLayer.ts). */
+  timeSec: number;
   /** Null while the data is not there yet. */
   values: () => ValueField | null;
 }
@@ -32,14 +34,14 @@ export const RAIN_FIELD: FieldKind = { name: 'rain', fromModel: modelField, blen
 /** Clouds: the grid's cloud cover, blended straight. */
 export const CLOUD_FIELD: FieldKind = { name: 'clouds', fromModel: coverField, blend: blendLinear };
 
-function pending(key: string, geometry: FieldGeometry): ValueFrame {
-  return { key: `${key}|pending`, geometry, values: () => null };
+function pending(key: string, geometry: FieldGeometry, timeSec: number): ValueFrame {
+  return { key: `${key}|pending`, geometry, timeSec, values: () => null };
 }
 
-/** An observed field, once it has been read; `name` and `id` say which (rain and a radar path, clouds and a time). */
-export function observedFrame(name: string, geometry: FieldGeometry, id: string, field: ValueField | undefined): ValueFrame {
+/** An observed field at `timeSec`, once it has been read; `name` and `id` say which (rain and a radar path, clouds and a time). */
+export function observedFrame(name: string, geometry: FieldGeometry, id: string, timeSec: number, field: ValueField | undefined): ValueFrame {
   const key = `${geometryKey(geometry)}|${name}|${id}`;
-  return field ? { key, geometry, values: () => field } : pending(key, geometry);
+  return field ? { key, geometry, timeSec, values: () => field } : pending(key, geometry, timeSec);
 }
 
 function modelValues(kind: FieldKind, model: ModelSource, tSec: number, geometry: FieldGeometry): { key: string; values: () => ValueField } | null {
@@ -52,7 +54,7 @@ function modelValues(kind: FieldKind, model: ModelSource, tSec: number, geometry
 export function modelFrame(kind: FieldKind, tSec: number, geometry: FieldGeometry, model: ModelSource | null): ValueFrame {
   const key = `${geometryKey(geometry)}|${kind.name}|model|${tSec}`;
   const m = model ? modelValues(kind, model, tSec, geometry) : null;
-  return m ? { key: `${key}|${m.key}`, geometry, values: m.values } : pending(key, geometry);
+  return m ? { key: `${key}|${m.key}`, geometry, timeSec: tSec, values: m.values } : pending(key, geometry, tSec);
 }
 
 /**
@@ -71,6 +73,7 @@ export function nowcastFrame(kind: FieldKind, tSec: number, geometry: FieldGeome
   return {
     key: `${geometryKey(geometry)}|${kind.name}|nowcast|${tSec}|${nowcast.key}|${m?.key ?? '-'}`,
     geometry,
+    timeSec: tSec,
     values: () => {
       const field = extrapolate(source, geometry.width, geometry.height, motion, Math.round(lead / NOWCAST_STEP_S), CHANNELS);
       if (m) kind.blend(field, m.values(), weight);

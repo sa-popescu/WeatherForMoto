@@ -1,5 +1,6 @@
 import type { CustomLayerInterface, CustomRenderMethodInput, MapLibreMap } from 'maplibre-gl';
 import { mercatorBox, type FieldGeometry } from './mercator';
+import { NOWCAST_STEP_S, type MotionField } from './nowcast';
 import type { ValueField } from './rainValues';
 
 // Weather on the map (rain, clouds, lightning), drawn by the graphics card
@@ -23,6 +24,19 @@ interface Entry {
   texture: WebGLTexture | null;
 }
 
+/** How the field moves (nowcast.ts), on the canvas it was measured on. */
+interface Motion {
+  key: string;
+  box: Box;
+  cols: number;
+  rows: number;
+  /** Field position to motion position. */
+  scale: [number, number];
+  /** Pixels per ten minutes, x and y side by side per block. */
+  data: Float32Array;
+  texture: WebGLTexture | null;
+}
+
 interface Program {
   program: WebGLProgram;
   vao: WebGLVertexArrayObject;
@@ -34,7 +48,21 @@ interface Program {
 /** Fields kept on the graphics card, so a step back along the band needs no upload. */
 const KEPT = 6;
 
-const UNIFORMS = ['u_matrix', 'u_now', 'u_before', 'u_palette', 'u_nowMap', 'u_beforeMap', 'u_nowSize', 'u_beforeSize', 'u_mix', 'u_opacity'] as const;
+const UNIFORMS = [
+  'u_matrix',
+  'u_now',
+  'u_before',
+  'u_palette',
+  'u_motion',
+  'u_nowMap',
+  'u_beforeMap',
+  'u_nowSize',
+  'u_beforeSize',
+  'u_mix',
+  'u_opacity',
+  'u_motionScale',
+  'u_shift',
+] as const;
 
 const VERTEX = `#version 300 es
 in vec2 a_pos;
@@ -51,12 +79,17 @@ in vec2 v_pos;
 uniform sampler2D u_now;
 uniform sampler2D u_before;
 uniform sampler2D u_palette;
+// Motion per block of the field, canvas pixels per ten minutes (nowcast.ts), and how to read it.
+uniform sampler2D u_motion;
 uniform vec4 u_nowMap;
 uniform vec4 u_beforeMap;
 uniform vec2 u_nowSize;
 uniform vec2 u_beforeSize;
 uniform float u_mix;
 uniform float u_opacity;
+// Field position to motion position, and motion to field position over the whole step (0 when not moving).
+uniform vec2 u_motionScale;
+uniform vec2 u_shift;
 out vec4 fragColor;
 
 // The first byte with a cubic B-spline, from four bilinear reads instead of sixteen (GPU Gems 2, chapter 20).
@@ -81,9 +114,8 @@ float strengthAt(sampler2D field, vec2 uv, vec2 size) {
   return g0.y * (g0.x * a + g1.x * b) + g1.y * (g0.x * c + g1.x * d);
 }
 
-// Both bytes at this pixel; the field fades out over its last cell, so its edge never shows as a line.
-vec2 valueAt(sampler2D field, vec4 placement, vec2 size) {
-  vec2 uv = v_pos * placement.xy + placement.zw;
+// Both bytes at a field position; the field fades out over its last cell, so its edge never shows as a line.
+vec2 valueAt(sampler2D field, vec2 uv, vec2 size) {
   vec2 inside = min(uv, 1.0 - uv) * size;
   float edge = clamp(min(inside.x, inside.y), 0.0, 1.0);
   if (edge <= 0.0) return vec2(0.0);
@@ -91,8 +123,21 @@ vec2 valueAt(sampler2D field, vec4 placement, vec2 size) {
 }
 
 void main() {
-  vec2 value = valueAt(u_now, u_nowMap, u_nowSize);
-  if (u_mix < 1.0) value = mix(valueAt(u_before, u_beforeMap, u_beforeSize), value, u_mix);
+  vec2 uv = v_pos * u_nowMap.xy + u_nowMap.zw;
+  vec2 value;
+  if (u_mix >= 1.0) {
+    value = valueAt(u_now, uv, u_nowSize);
+  } else if (u_shift == vec2(0.0)) {
+    // Two moments that cannot be followed: the values move straight into each other.
+    value = mix(valueAt(u_before, v_pos * u_beforeMap.xy + u_beforeMap.zw, u_beforeSize), valueAt(u_now, uv, u_nowSize), u_mix);
+  } else {
+    // The rain travels from where it was to where it will be: the moment before carried forward,
+    // the one after carried back, both to this point in between.
+    vec2 travel = texture(u_motion, uv * u_motionScale).rg * u_shift;
+    vec2 before = valueAt(u_before, uv - u_mix * travel, u_beforeSize);
+    vec2 after = valueAt(u_now, uv + (1.0 - u_mix) * travel, u_nowSize);
+    value = mix(before, after, u_mix);
+  }
   float x = (value.x * 255.0 + 0.5) / 256.0;
   vec4 colour = mix(texture(u_palette, vec2(x, 0.25)), texture(u_palette, vec2(x, 0.75)), value.y);
   float alpha = colour.a * u_opacity;
@@ -149,6 +194,20 @@ function setSampling(gl: WebGL2RenderingContext): void {
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 }
 
+function uploadMotion(gl: WebGL2RenderingContext, motion: Motion): WebGLTexture | null {
+  const texture = gl.createTexture();
+  if (!texture) return null;
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG16F, motion.cols, motion.rows, 0, gl.RG, gl.FLOAT, motion.data);
+  setSampling(gl);
+  return texture;
+}
+
+const sameBox = (a: Box, b: Box): boolean => a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
+
 function upload(gl: WebGL2RenderingContext, entry: Entry): WebGLTexture | null {
   const texture = gl.createTexture();
   if (!texture) return null;
@@ -200,6 +259,9 @@ export class ValueLayer implements CustomLayerInterface {
   private leavingKey: string | null = null;
   private fadeStart = 0;
   private opacity = 1;
+  private motion: Motion | null = null;
+  /** Seconds between the field before and the one on screen, when the move between them can follow the motion. */
+  private flowGapSec: number | null = null;
 
   constructor(
     readonly id: string,
@@ -212,8 +274,27 @@ export class ValueLayer implements CustomLayerInterface {
     this.fadeMs = ms;
   }
 
+  /**
+   * How the weather moves on a canvas (null: it is not known). With it, a
+   * move between two moments `flowGapSec` apart on that canvas carries the
+   * rain along its way instead of blending it in place.
+   */
+  setMotion(key: string | null, geometry: FieldGeometry | null, motion: MotionField | null): void {
+    if (key !== null && this.motion?.key === key) return;
+    if (this.motion?.texture && this.gl && !this.gl.isContextLost()) this.gl.deleteTexture(this.motion.texture);
+    this.motion = null;
+    if (key === null || !geometry || !motion) return;
+    const data = new Float32Array(motion.cols * motion.rows * 2);
+    for (let i = 0; i < motion.cols * motion.rows; i += 1) {
+      data[i * 2] = motion.dx[i];
+      data[i * 2 + 1] = motion.dy[i];
+    }
+    const scale: [number, number] = [geometry.width / (motion.blockPx * motion.cols), geometry.height / (motion.blockPx * motion.rows)];
+    this.motion = { key, box: mercatorBox(geometry), cols: motion.cols, rows: motion.rows, scale, data, texture: null };
+  }
+
   /** Shows a field: at once if it is the one on screen, else moving to it from the one before. */
-  show(key: string, geometry: FieldGeometry, field: ValueField, opacity: number): void {
+  show(key: string, geometry: FieldGeometry, field: ValueField, opacity: number, flowGapSec: number | null = null): void {
     this.opacity = opacity;
     const known = this.entries.get(key);
     if (known) {
@@ -227,6 +308,7 @@ export class ValueLayer implements CustomLayerInterface {
       this.beforeKey = this.fadeMs > 0 ? (this.nowKey ?? this.leavingKey) : null;
       this.nowKey = key;
       this.leavingKey = null;
+      this.flowGapSec = flowGapSec;
       this.fadeStart = performance.now();
     }
     this.evict();
@@ -252,6 +334,8 @@ export class ValueLayer implements CustomLayerInterface {
   onRemove(map: MapLibreMap, gl: WebGL2RenderingContext): void {
     map.off('webglcontextlost', this.onContextLost);
     for (const entry of this.entries.values()) if (entry.texture) gl.deleteTexture(entry.texture);
+    if (this.motion?.texture) gl.deleteTexture(this.motion.texture);
+    this.motion = null;
     if (this.program) {
       gl.deleteProgram(this.program.program);
       gl.deleteVertexArray(this.program.vao);
@@ -300,9 +384,19 @@ export class ValueLayer implements CustomLayerInterface {
     gl.uniform2f(p.uniforms.u_beforeSize, other.width, other.height);
     gl.uniform1f(p.uniforms.u_mix, before ? t : 1);
     gl.uniform1f(p.uniforms.u_opacity, leaving ? this.opacity * (1 - t) : this.opacity);
+    // Following the motion needs both moments and the motion on the same canvas.
+    const motion = this.motion;
+    const flowing =
+      before !== null && this.flowGapSec !== null && motion !== null && sameBox(before.box, now.box) && sameBox(motion.box, now.box);
+    if (flowing && !motion.texture) motion.texture = uploadMotion(gl, motion);
+    const steps = flowing && motion.texture ? (this.flowGapSec ?? 0) / NOWCAST_STEP_S : 0;
+    gl.uniform2f(p.uniforms.u_shift, steps / now.width, steps / now.height);
+    gl.uniform2f(p.uniforms.u_motionScale, motion?.scale[0] ?? 1, motion?.scale[1] ?? 1);
     this.bind(gl, 0, now.texture, p.uniforms.u_now);
     this.bind(gl, 1, other.texture ?? now.texture, p.uniforms.u_before);
     this.bind(gl, 2, p.palette, p.uniforms.u_palette);
+    // A sampler is always bound to something; without motion the shader does not read it.
+    this.bind(gl, 3, (steps !== 0 && motion?.texture) || now.texture, p.uniforms.u_motion);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     gl.bindVertexArray(null);
 
@@ -329,5 +423,6 @@ export class ValueLayer implements CustomLayerInterface {
   private readonly onContextLost = (): void => {
     this.program = null;
     for (const entry of this.entries.values()) entry.texture = null;
+    if (this.motion) this.motion.texture = null;
   };
 }
