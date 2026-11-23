@@ -1,6 +1,6 @@
 import { currentHourIndex, localNowIso } from './format';
 import { getScoringMeta, rainBandOf, rainImpact, type ScoringMeta } from './scoring';
-import type { CurrentWeather, DailyWeather, HourlyWeather, MotoLabel, Place, RainBand, ScoreFactor, WeatherResponse } from './types';
+import type { CurrentWeather, DailyWeather, HourlyWeather, MotoLabel, Place, RainBand, ScoreFactor, WeatherResponse, WetRoadState } from './types';
 import type { Lang } from './i18n';
 import { describeCode, RAIN_CHANCE_BY_CHARACTER, RAIN_CHANCE_BY_EXTENT, RAIN_CHANCE_DESCRIPTION } from './weatherCodes';
 
@@ -52,6 +52,8 @@ export interface ScoreInput {
   probability: number | null;
   visibilityM?: number | null;
   frostRisk?: boolean;
+  /** The road after rain, as the server judged it from the whole series (the browser cannot). */
+  wetRoad?: WetRoadState | null;
 }
 
 export interface ScoreResult {
@@ -157,6 +159,14 @@ function windFactor(gusts: number | null): ScoreFactor | null {
   return hit ? factor('wind', hit.penalty, null, `${Math.round(gusts)} km/h`) : null;
 }
 
+/** What the server's wet_road.py costs, from the published rules (the same numbers when they are missing). */
+function wetRoadFactor(state: WetRoadState | null | undefined): ScoreFactor | null {
+  const rule = meta().wet_road ?? { wet_penalty: 8, first_rain: { penalty: 8 } };
+  if (state === 'wet') return factor('wet_road', rule.wet_penalty, null, 'wet road');
+  if (state === 'first_rain') return factor('first_rain', rule.first_rain.penalty, null, 'first rain');
+  return null;
+}
+
 function temperatureFactors(feels: number | null, probability: number | null): ScoreFactor[] {
   if (feels == null) return [];
   const t = meta().temperature;
@@ -187,6 +197,7 @@ export function scoreBreakdown(input: ScoreInput): ScoreResult {
     windFactor(input.gustsKmh),
     ...temperatureFactors(input.feelsLike, input.probability),
     input.frostRisk ? factor('frost', 0, meta().frost.cap, 'frost') : null,
+    wetRoadFactor(input.wetRoad),
   ];
   const factors = candidates.filter((f): f is ScoreFactor => f !== null && (f.penalty > 0 || f.cap !== null));
   let score = 100 - factors.reduce((sum, f) => sum + f.penalty, 0);
@@ -203,6 +214,7 @@ export function scoreHour(h: HourlyWeather): ScoreResult {
     probability: h.precipitation_probability,
     visibilityM: h.visibility,
     frostRisk: h.frost_risk === true,
+    wetRoad: h.wet_road,
   });
 }
 

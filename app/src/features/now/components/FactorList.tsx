@@ -42,6 +42,8 @@ const NAME_KEY: Record<CauseFactor, keyof typeof S_SHEETS.ro> = {
   heat: 'factorHeat',
   cold_wet: 'factorColdWet',
   frost: 'factorFrost',
+  wet_road: 'factorWetRoad',
+  first_rain: 'factorFirstRain',
 };
 
 const ICON: Record<CauseFactor, IconName> = {
@@ -55,6 +57,8 @@ const ICON: Record<CauseFactor, IconName> = {
   heat: 'sun',
   cold_wet: 'drop',
   frost: 'road',
+  wet_road: 'road',
+  first_rain: 'drop',
 };
 
 /** Score factors in plain language, the costliest first. */

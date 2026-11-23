@@ -9,10 +9,10 @@ import { TEXTS } from './texts';
 // backend's score_breakdown; for future hours it re-derives each hour's
 // factors with the same published rules (scoreHour).
 
-export type CauseFactor = 'storm' | 'ice' | 'snow' | 'frost' | 'rain' | 'fog' | 'wind' | 'cold_wet' | 'cold' | 'heat';
+export type CauseFactor = 'storm' | 'ice' | 'snow' | 'frost' | 'rain' | 'first_rain' | 'fog' | 'wind' | 'wet_road' | 'cold_wet' | 'cold' | 'heat';
 
 /** Tie-break order: the more dangerous factor wins when two cost the same. */
-const PRIORITY: readonly CauseFactor[] = ['storm', 'ice', 'snow', 'frost', 'rain', 'fog', 'wind', 'cold_wet', 'cold', 'heat'];
+const PRIORITY: readonly CauseFactor[] = ['storm', 'ice', 'snow', 'frost', 'rain', 'first_rain', 'fog', 'wind', 'wet_road', 'cold_wet', 'cold', 'heat'];
 
 export interface Cause {
   factor: CauseFactor;
@@ -81,6 +81,7 @@ export function causeFromCurrent(c: CurrentWeather): Cause | null {
       probability: c.precipitation_probability,
       visibilityM,
       frostRisk: c.frost_risk === true,
+      wetRoad: c.wet_road,
     }).factors;
   const top = strongest(factors);
   if (!top) return null;
@@ -122,6 +123,10 @@ export function causePhrase(c: Cause, lang: Lang): string {
       return fmt(t.causeColdWet, { feels, rain });
     case 'frost':
       return fmt(t.causeFrost, { road: fmtTemp(c.road, lang) });
+    case 'wet_road':
+      return t.causeWetRoad;
+    case 'first_rain':
+      return fmt(t.causeFirstRain, { rain });
   }
 }
 
