@@ -4,8 +4,9 @@ import type { Place } from '../../../lib/types';
 import { aheadPoints, warningAhead, type AheadWarning } from '../../ride/logic/ahead';
 import { darkAt } from '../../route/daylight';
 import { buildSamplePoints, type NameBetween } from '../../route/samples';
+import { glareStretches } from '../../route/sunGlare';
 import { pickSlot } from '../../route/timing';
-import type { PointWeather, SamplePoint } from '../../route/types';
+import type { PointWeather, RouteLine, SamplePoint } from '../../route/types';
 import type { DriveRoute } from './driveRoute';
 
 // The weather along the routes "Drum" offers. Each route gets the planner's
@@ -68,13 +69,43 @@ export interface RouteOutlook {
   worstScore: number | null;
   /** Some point is reached before sunrise or after sunset. */
   dark: boolean;
+  /** The first stretch ridden into a low sun (route/sunGlare.ts), with the wall clock where it starts; null without one. */
+  glare: { fromKm: number; toKm: number; localIso: string } | null;
+}
+
+/**
+ * The first stretch of `line` ridden into a low sun, leaving at `departMs` at
+ * `speedKmh`. The cloud cover is the nearest point's for that hour; a point
+ * without its forecast counts as overcast, so nothing is said too early.
+ */
+function firstGlare(line: RouteLine, points: readonly SamplePoint[], weather: WeatherById, speedKmh: number, departMs: number): RouteOutlook['glare'] {
+  if (points.length === 0 || speedKmh <= 0) return null;
+  const nearest = (km: number): SamplePoint => points.reduce((best, p) => (Math.abs(p.km - km) < Math.abs(best.km - km) ? p : best));
+  const timeAtKm = (km: number): number => departMs + (km / speedKmh) * 3_600_000;
+  const cloudAt = (km: number, ms: number): number | null => {
+    const forecast = weather[nearest(km).id]?.forecast;
+    if (!forecast) return 100;
+    return pickSlot(forecast.hourly, localNowIso(forecast.utcOffsetSeconds, ms))?.cloud_cover ?? 100;
+  };
+  const [first] = glareStretches(line, timeAtKm, cloudAt);
+  if (!first) return null;
+  const offset = weather[nearest(first.fromKm).id]?.forecast?.utcOffsetSeconds ?? 0;
+  return { fromKm: first.fromKm, toKm: first.toKm, localIso: localNowIso(offset, first.atMs) };
 }
 
 /**
  * What the weather does along one route for a departure at `departMs`, with
- * the route's own pace (`speedKmh`) and length in minutes.
+ * the route's own pace (`speedKmh`) and length in minutes. With the route's
+ * `line`, also where the rider meets a low sun ahead.
  */
-export function routeOutlook(points: readonly SamplePoint[], weather: WeatherById, speedKmh: number, rideMin: number, departMs: number): RouteOutlook {
+export function routeOutlook(
+  points: readonly SamplePoint[],
+  weather: WeatherById,
+  speedKmh: number,
+  rideMin: number,
+  departMs: number,
+  line?: RouteLine,
+): RouteOutlook {
   const settled = points.every((p) => {
     const status = weather[p.id]?.status;
     return status === 'ready' || status === 'error';
@@ -91,5 +122,6 @@ export function routeOutlook(points: readonly SamplePoint[], weather: WeatherByI
     const forecast = weather[p.id]?.forecast;
     return forecast ? darkAt(localNowIso(forecast.utcOffsetSeconds, reachedAt(p.km)), forecast.sun) !== null : false;
   });
-  return { settled, warning, worstScore, dark };
+  const glare = line && settled ? firstGlare(line, points, weather, speedKmh, departMs) : null;
+  return { settled, warning, worstScore, dark, glare };
 }

@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react';
+import { hourOf } from '../../lib/format';
 import { fmt, useLang, useStrings, type Lang } from '../../lib/i18n';
 import { tierColor } from '../../lib/scoring';
 import type { Place } from '../../lib/types';
@@ -75,6 +76,12 @@ function RouteOption({ route, outlook, season, fastest, selected, onSelect }: Ro
           <span className="drive-option__warning">
             <Icon name="drop" size={14} />
             {weather.warning}
+          </span>
+        )}
+        {outlook?.glare && (
+          <span className="drive-option__warning drive-option__warning--info">
+            <Icon name="sun" size={14} />
+            {fmt(s.glareLine, { time: hourOf(outlook.glare.localIso), from: fmtKm(outlook.glare.fromKm * 1000, lang), to: fmtKm(outlook.glare.toKm * 1000, lang) })}
           </span>
         )}
         <RouteNotes route={route} season={season} />
