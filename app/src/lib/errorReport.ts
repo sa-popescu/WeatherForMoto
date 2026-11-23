@@ -1,4 +1,4 @@
-import { version as APP_VERSION } from '../../package.json';
+import { APP_BUILD } from './appVersion';
 import { API_BASE } from './config';
 
 // Errors nobody caught, sent to the API (POST /client-errors) so they show
@@ -32,8 +32,6 @@ const NOISE = [
 ];
 const FOREIGN_SOURCE = /(chrome|moz|safari(-web)?)-extension:\/\//;
 const URL_TAIL = /(https?:\/\/[^\s?#)]+)[?#][^\s)]*/g;
-
-export const APP_BUILD = `${APP_VERSION}+${__APP_BUILD__}`;
 
 /** The tab's name from the hash ("#/drum?..." is "drum"), nothing after it. */
 export function tabFromHash(hash: string): string {

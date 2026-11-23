@@ -7,6 +7,18 @@ import { VitePWA } from 'vite-plugin-pwa';
 // proxies it server-side, so the browser never hits CORS on localhost.
 const LIVE_API = 'https://weatherformoto-1056457771445.europe-west1.run.app';
 
+/** The day of the build on Romanian time, so a deploy after midnight carries the new date: "2026.11.23". */
+function buildDay(now: Date): string {
+  try {
+    const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Bucharest', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+    return day.replace(/-/g, '.');
+  } catch (err) {
+    // A Node built without time zone data: the UTC day is at most a day off.
+    console.warn(`[vite] no Romanian time zone for the build date, using UTC: ${String(err)}`);
+    return now.toISOString().slice(0, 10).replace(/-/g, '.');
+  }
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
   const proxy = {
@@ -18,12 +30,13 @@ export default defineConfig(({ mode }) => {
     },
   };
 
-  // Which build an error report came from: the short commit Workers Builds
-  // or Vercel built, "local" anywhere else.
+  // The app's version (lib/appVersion.ts): the day it was built and the short
+  // commit Workers Builds or Vercel built, "local" anywhere else. Every deploy
+  // changes it, with no number to remember to raise.
   const build = (env.WORKERS_CI_COMMIT_SHA || env.VERCEL_GIT_COMMIT_SHA || 'local').slice(0, 7);
 
   return {
-    define: { __APP_BUILD__: JSON.stringify(build) },
+    define: { __APP_BUILD__: JSON.stringify(build), __APP_DATE__: JSON.stringify(buildDay(new Date())) },
     plugins: [
       react(),
       VitePWA({
