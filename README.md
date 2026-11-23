@@ -53,9 +53,14 @@ Vechiul frontend dintr-un singur fișier a fost retras: `index.html` și `sw.js`
 - Route weather snapshots pe waypoint-uri estimate
 - Hărțile (tura, traseul, Hartă): MapLibre cu hărți vectoriale OpenFreeMap (date OpenStreetMap)
 - Hartă cu o singură bandă de timp, pe același scrubber, în două moduri:
-	- **Ploaie**: radarul observat (RainViewer, ultimele 2 ore) cu fulgerele văzute de satelit (EUMETSAT MTG Lightning Imager, la 5 minute), apoi radarul extrapolat 90 de minute (ultima imagine mutată pe direcția și viteza măsurate din ultimele cadre, block matching într-un Web Worker), care după 20 de minute se estompează treptat în ploaia din modelul ICON-EU al DWD (celule de ~7 km, la rezoluția modelului, citite ca valori prin WCS de pe `maps.dwd.de`), din 30 în 30 de minute pentru primele 6 ore, apoi orar;
+	- **Ploaie**: radarul observat (RainViewer, ultimele 2 ore) cu fulgerele văzute de satelit (EUMETSAT MTG Lightning Imager, la 5 minute), apoi radarul extrapolat 90 de minute (ultimul cadru mutat pe direcția și viteza măsurate din ultimele cadre, block matching într-un Web Worker), care după 20 de minute se estompează treptat în ploaia din modelul ICON-EU al DWD (celule de ~7 km, citite ca valori prin WCS de pe `maps.dwd.de`), din 30 în 30 de minute pentru primele 6 ore, apoi orar; partea care cade ca zăpadă vine din grila Open-Meteo (`snowfall`), fiindcă ICON-EU pe serverul DWD are doar precipitații;
 	- **Nori**: norii din satelit (EUMETSAT: masca de nori Meteosat pentru unde e înnorat, infraroșul MTG pentru cât de sus), extrapolați la fel, apoi prognoza de nebulozitate Open-Meteo pe o grilă;
-	- totul e desenat pe un canvas aliniat la dalele hărții, în culorile radarului; ploaia în afara ICON-EU sau când DWD nu răspunde vine din grila Open-Meteo
+	- nimic nu e afișat ca imagine întinsă: fiecare sursă devine valori pe un canvas la zoomul radarului (doi octeți pe pixel; la ploaie intensitatea în dBZ și cât e zăpadă, la nori cât se vede și cât de sus, la fulgere câte descărcări), iar un strat WebGL propriu (`app/src/features/map/valueLayer.ts`) le citește lin pentru fiecare pixel de ecran și abia apoi le colorează, cu o paletă pentru harta închisă și una pentru cea deschisă;
+	- radarul se citește din dalele RainViewer nenetezite (`/2/0_1.png`), decodate exact înapoi în dBZ din tabelul public de culori; serviciul gratuit dă doar paleta Universal Blue, până la zoom 7 și fără prognoză proprie;
+	- dalele și imaginile din satelit se citesc într-un Web Worker (`fieldWorker.ts`, cu OffscreenCanvas), sau pe pagină unde browserul nu poate;
+	- între două momente la cel mult 20 de minute distanță ploaia se deplasează pe direcția măsurată, nu se estompează pe loc; în timpul redării, trecerea ține cât un pas;
+	- cu economizorul de date (Save-Data, 2G sau `prefers-reduced-data`) banda nu pornește singură și se descarcă doar momentele afișate; altfel o bandă de radar înseamnă cam 1,5 MB pe telefon și 2,5 MB pe desktop;
+	- `e2e/map.spec.ts` verifică în CI că harta chiar desenează ploaia, cu dale radar din fixtures
 - Saved routes per user (`/me/routes`)
 - Ride logs + stats (`/me/rides/log`, `/me/rides/stats`)
 - Hazard reporting geolocalizat (`/hazards`)
@@ -291,7 +296,9 @@ gcloud run services update weatherformoto --region europe-west1 \
   --update-env-vars "^@^ALLOWED_ORIGINS=https://motonor.bluemouse.cc,https://weatherformoto.bluemouse.cc,https://localhost,capacitor://localhost@APP_BASE_URL=https://motonor.bluemouse.cc"
 ```
 
-Preview-urile frontend-ului sunt permise automat de backend, ca un PR să poată fi încercat cu vremea live înainte de merge: cele din Workers Builds (`<versiune sau branch>-weatherformoto.spopescu.workers.dev`) și cele vechi din Pages (`*.weatherformoto.pages.dev`). Un preview vorbește cu API-ul și baza de date de producție.
+Backend-ul permite și originile de preview, ca un PR să poată fi încercat cu vremea live înainte de merge: cele din Workers Builds (`<versiune sau branch>-weatherformoto.spopescu.workers.dev`) și cele vechi din Pages (`*.weatherformoto.pages.dev`). Un preview vorbește cu API-ul și baza de date de producție.
+
+> De când Worker-ul are Durable Objects (locația live), Cloudflare nu mai generează linkuri de preview pentru versiuni: Workers Builds încă rulează pe PR-uri, dar linkurile de mai sus răspund 404. Preview-ul Vercel din verificările PR-ului cere login în Vercel, iar originea lui nu e permisă de backend, deci acolo merge harta radar, dar nu datele meteo din API.
 
 > Cheia OpenWeatherMap nu mai este expusă în client. Este folosită doar server-side de backend; calea browser-direct (fallback când backend-ul nu răspunde) rulează fără ea, pe Open-Meteo.
 
