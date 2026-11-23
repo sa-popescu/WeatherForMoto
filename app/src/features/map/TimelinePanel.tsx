@@ -2,6 +2,7 @@ import { useCallback, useRef, useState, type RefCallback } from 'react';
 import { CORE } from '../../i18n/core';
 import { fmt, useLang, useStrings } from '../../lib/i18n';
 import { Icon } from '../../ui/icons';
+import { useSettings, type Theme } from '../../state/settings';
 import { Button, cx, Spinner } from '../../ui/primitives';
 import { ForecastLegend } from './ForecastLegend';
 import { LIGHTNING_SWATCH } from './lightningValues';
@@ -45,6 +46,7 @@ export function TimelinePanel({ timeline }: { timeline: MapTimeline }) {
   const s = useStrings(MAP_STRINGS);
   const core = useStrings(CORE);
   const lang = useLang();
+  const { theme } = useSettings();
   // Time labels are spaced by the scrubber's real width, so they never print over each other.
   const [labelsRef, labelsWidth] = useWidth();
   const { entries, index, current } = timeline;
@@ -84,7 +86,7 @@ export function TimelinePanel({ timeline }: { timeline: MapTimeline }) {
     timeline.tilesLoading ||
     timeline.nowcastStatus === 'loading' ||
     (onModel ? timeline.modelStatus === 'loading' : timeline.forecast.status === 'loading');
-  const note = noteFor(s, timeline, current.source, onModel);
+  const note = noteFor(s, timeline, current.source, onModel, theme);
 
   return (
     <section className="map-panel map-radar" aria-label={s.timelineLabel}>
@@ -164,9 +166,10 @@ export function TimelinePanel({ timeline }: { timeline: MapTimeline }) {
 }
 
 /** What the moment on screen is made of, in one sentence. */
-function noteFor(s: (typeof MAP_STRINGS)['ro'], timeline: MapTimeline, source: TimelineSource, onModel: boolean): string | null {
+function noteFor(s: (typeof MAP_STRINGS)['ro'], timeline: MapTimeline, source: TimelineSource, onModel: boolean, theme: Theme): string | null {
   const clouds = timeline.kind === 'cloud';
-  if (source === 'radar') return clouds ? s.satelliteNote : null;
+  // High cloud is white on the dark map and dark grey on the day map (cloudValues.ts).
+  if (source === 'radar') return clouds ? (theme === 'day' ? s.satelliteNoteDay : s.satelliteNote) : null;
   if (source === 'nowcast') return clouds ? s.cloudNowcastNote : s.nowcastNote;
   if (onModel) return s.modelNote;
   return timeline.forecast.cellKm === null ? null : fmt(s.forecastNote, { km: timeline.forecast.cellKm });

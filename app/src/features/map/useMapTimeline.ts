@@ -1,10 +1,11 @@
 import type { MapLibreMap } from 'maplibre-gl';
+import type { Theme } from '../../state/settings';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { IR_CLOUDS, LIGHTNING, recentTimes } from './eumetsat';
 import type { ForecastKind } from './forecast';
 import { HOUR_S, iconEuCovers } from './iconEu';
 import { geometryKey } from './mercator';
-import { gridSource, iconEuSource, type ModelSource } from './modelField';
+import { gridSource, iconEuSource, snowSource, type ModelSource } from './modelField';
 import { CLOUD_MAX_SPEED_KMH, RAIN_MAX_SPEED_KMH } from './nowcast';
 import { FRAME_STEP_MS, type RadarFrame } from './radar';
 import { radarValues } from './radarValues';
@@ -70,6 +71,8 @@ interface Options {
   autoPlay: boolean;
   /** Read the observed moments of the whole band ahead (off with the data saver). */
   readAhead: boolean;
+  /** The map's theme, for the colours. */
+  theme: Theme;
   /** Fade from one moment to the next (off when the system asks for less motion). */
   fade: boolean;
 }
@@ -98,7 +101,7 @@ function useClock(running: boolean): number {
   return now;
 }
 
-export function useMapTimeline(map: MapLibreMap | null, { fetching, radar, lightning, kind, opacity, autoPlay, readAhead, fade }: Options): MapTimeline {
+export function useMapTimeline(map: MapLibreMap | null, { fetching, radar, lightning, kind, opacity, autoPlay, readAhead, theme, fade }: Options): MapTimeline {
   const [playing, setPlaying] = useState(false);
   // While playing, one moment moves into the next for the whole step, so the rain travels without stopping.
   const fadeMs = !fade ? 0 : playing ? FRAME_STEP_MS : FADE_MS;
@@ -182,14 +185,19 @@ export function useMapTimeline(map: MapLibreMap | null, { fetching, radar, light
   const rainSource: RainSource = rainView && (geometry === null || modelCovers) && iconEu.status !== 'error' ? 'model' : 'grid';
   const useGrid = cloudView || rainSource === 'grid';
 
-  const forecast = useForecastData(map, fetching && useGrid, geometry ? geometry.bounds : null);
+  // The grid is also read in the rain view: ICON-EU on the DWD server has rain only, the grid tells which of it is snow.
+  const forecast = useForecastData(map, fetching && (useGrid || rainView), geometry ? geometry.bounds : null);
   const gridTimes = useMemo(() => (forecast.data?.times ?? []).map(utcTimeSec), [forecast.data]);
 
   const model = useMemo<ModelSource | null>(() => {
-    if (!useGrid) return iconEuSource(iconEu.grids, `icon|${gkey}|${[...iconEu.grids.keys()].join(',')}`);
-    if (!forecast.data || !forecast.bounds) return null;
     const b = forecast.bounds;
-    return gridSource(forecast.data, b, kind, `grid|${kind}|${forecast.data.times[0]}|${b.south},${b.west},${b.north},${b.east}`);
+    const gridKey = forecast.data && b ? `${forecast.data.times[0]}|${b.south},${b.west},${b.north},${b.east}` : '-';
+    if (!useGrid) {
+      const snow = forecast.data && b ? snowSource(forecast.data, b) : undefined;
+      return iconEuSource(iconEu.grids, `icon|${gkey}|${[...iconEu.grids.keys()].join(',')}|snow ${gridKey}`, snow);
+    }
+    if (!forecast.data || !b) return null;
+    return gridSource(forecast.data, b, kind, `grid|${kind}|${gridKey}`);
   }, [useGrid, iconEu.grids, gkey, forecast.data, forecast.bounds, kind]);
 
   const entries = useMemo(() => {
@@ -264,6 +272,7 @@ export function useMapTimeline(map: MapLibreMap | null, { fetching, radar, light
     opacity,
     fadeMs,
     readAhead,
+    theme,
   });
 
   const select = useCallback((next: number) => {

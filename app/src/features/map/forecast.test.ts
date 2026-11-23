@@ -49,7 +49,7 @@ describe('forecastUrl', () => {
     const url = new URL(forecastUrl(gridPoints(BOX, 2, 1)));
     expect(url.searchParams.get('latitude')).toBe('45,45');
     expect(url.searchParams.get('longitude')).toBe('25.5,26.5');
-    expect(url.searchParams.get('hourly')).toBe('cloud_cover,precipitation');
+    expect(url.searchParams.get('hourly')).toBe('cloud_cover,precipitation,snowfall');
     expect(url.searchParams.get('timezone')).toBe('UTC');
   });
 });
@@ -89,6 +89,12 @@ describe('parseForecast', () => {
     expect(parseForecast(null, { cols: 1, rows: 1 }, NOW)).toBeNull();
     expect(parseForecast([], { cols: 1, rows: 1 }, NOW)).toBeNull();
     expect(parseForecast([{ hourly: { time: [] } }], { cols: 1, rows: 1 }, NOW)).toBeNull();
+    const withSnow = parseForecast(
+      [{ hourly: { time: ['2026-09-12T09:00'], cloud_cover: [90], precipitation: [2], snowfall: [1.4] } }],
+      { cols: 1, rows: 1 },
+      NOW,
+    );
+    expect(withSnow?.snow).toEqual([[1.4]]);
   });
 });
 

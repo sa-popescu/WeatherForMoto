@@ -11,6 +11,7 @@ import {
   dbzToCode,
   decodePixels,
   fieldToRgba,
+  gridIntoField,
   mmToCode,
   modelField,
   smoothRadarField,
@@ -149,5 +150,28 @@ describe('the model as values', () => {
     expect(extrapolated[1]).toBe(128);
     expect(codeToMm(extrapolated[2])).toBeCloseTo(4, 0);
     expect(codeToMm(extrapolated[4])).toBeCloseTo(1, 0);
+  });
+});
+
+describe('snow from the model', () => {
+  it('writes the share of snow in the second byte and leaves the rain alone', () => {
+    const z = 6;
+    const x0 = Math.floor(lonToX(25, z));
+    const y0 = Math.floor(latToY(46, z));
+    const g: FieldGeometry = {
+      z,
+      x0,
+      y0,
+      width: Math.ceil(lonToX(27, z)) - x0,
+      height: Math.ceil(latToY(44, z)) - y0,
+      bounds: { south: 44, west: 25, north: 46, east: 27 },
+    };
+    const grid = { west: 25, south: 44, east: 27, north: 46, cols: 2, rows: 2 };
+    const field = modelField(grid, Float32Array.from([3, 3, 3, 3]), g);
+    const rain = Array.from(field).filter((_, i) => i % CHANNELS === 0);
+    gridIntoField(field, 1, grid, Float32Array.from([1, 1, 1, 1]), g, (share) => share * 255);
+    const middle = ((g.height >> 1) * g.width + (g.width >> 1)) * CHANNELS;
+    expect(field[middle + 1]).toBe(255);
+    expect(Array.from(field).filter((_, i) => i % CHANNELS === 0)).toEqual(rain);
   });
 });

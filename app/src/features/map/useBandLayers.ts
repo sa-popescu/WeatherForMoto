@@ -1,5 +1,6 @@
 import type { MapLibreMap } from 'maplibre-gl';
 import { useMemo } from 'react';
+import type { Theme } from '../../state/settings';
 import { cloudPalette } from './cloudValues';
 import { EUMETSAT_ATTRIBUTION, imageTime, IR_CLOUDS, LIGHTNING } from './eumetsat';
 import { lightningPalette } from './lightningValues';
@@ -41,6 +42,8 @@ interface Options {
   fadeMs: number;
   /** Read the observed fields of the whole band ahead, or only those on screen and next. */
   readAhead: boolean;
+  /** The map's theme: the day map gets deeper colours. */
+  theme: Theme;
 }
 
 export interface BandLayers {
@@ -57,7 +60,7 @@ const NOTHING: readonly string[] = [];
 const newestFirst = (times: Iterable<number>): string[] => [...new Set(times)].sort((a, b) => b - a).map(String);
 
 export function useBandLayers(map: MapLibreMap | null, options: Options): BandLayers {
-  const { geometry, current, following, view, radar, observedTimes, satellite, lightning, nowcast, model, opacity, fadeMs, readAhead } = options;
+  const { geometry, current, following, view, radar, observedTimes, satellite, lightning, nowcast, model, opacity, fadeMs, readAhead, theme } = options;
   const gkey = geometry ? geometryKey(geometry) : '';
   const onObserved = current?.source === 'radar';
   const nextObserved = following?.source === 'radar' ? following : null;
@@ -162,7 +165,7 @@ export function useBandLayers(map: MapLibreMap | null, options: Options): BandLa
   useValueLayer(map, {
     name: 'clouds',
     slot: 'clouds',
-    palette: cloudPalette,
+    palette: () => cloudPalette(theme),
     frame: cloudFrame,
     opacity,
     attribution: observedNow ? EUMETSAT_ATTRIBUTION : CLOUDS_AHEAD_ATTRIBUTION,
@@ -172,7 +175,7 @@ export function useBandLayers(map: MapLibreMap | null, options: Options): BandLa
   useValueLayer(map, {
     name: 'rain',
     slot: 'radar',
-    palette: paletteTexture,
+    palette: () => paletteTexture(theme),
     frame: rainFrame,
     opacity,
     attribution: observedNow ? RAINVIEWER_ATTRIBUTION : RAIN_AHEAD_ATTRIBUTION,
