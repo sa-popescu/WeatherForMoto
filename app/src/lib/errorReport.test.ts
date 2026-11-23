@@ -27,7 +27,8 @@ describe('error reports', () => {
     expect(payload?.stack.split('\n')).toHaveLength(8);
     expect(payload?.stack).not.toContain('?t=');
     expect(payload?.tab).toBe('drum');
-    expect(payload?.version).toMatch(/^\d+\.\d+\.\d+\+/);
+    // The build day and commit (lib/appVersion.ts): "2026.11.23+5fc4f24", "local" off CI.
+    expect(payload?.version).toMatch(/^\d{4}\.\d{2}\.\d{2}\+[0-9a-z]{1,7}$/);
   });
 
   it('adds the component stack of a render error', () => {

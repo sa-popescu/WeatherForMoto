@@ -10,7 +10,7 @@ import { currentIsIos } from '../lib/platform';
 import { APP } from '../strings/app';
 import { Group, LabeledSegmented, Note } from '../ui/controls';
 import { OfflineMapsRow } from './OfflineMapsRow';
-import { version as APP_VERSION } from '../../../../package.json';
+import { APP_VERSION } from '../../../lib/appVersion';
 
 const LANGUAGES: ReadonlyArray<{ value: Lang; label: string }> = [
   { value: 'ro', label: 'Română' },
