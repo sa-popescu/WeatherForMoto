@@ -357,8 +357,10 @@
 }
 
 @media (orientation: landscape) and (max-height: 500px) and (min-width: 600px) {
+  /* The score card narrow enough to leave the next 24 hours room for their
+     hour labels, down to a 667 px phone. */
   .screen.now:not([hidden]) {
-    grid-template-columns: minmax(0, 300px) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 240px) minmax(0, 1fr);
     gap: 12px;
   }
 
@@ -367,7 +369,13 @@
   }
 
   .screen.now .now-hero .gauge {
-    width: 190px;
+    width: 180px;
+  }
+
+  /* The dial's number is sized by the window's width (ui.css): wide here, so
+     it would outgrow the smaller dial and run over its label. */
+  .screen.now .now-hero .gauge__score {
+    font-size: 52px;
   }
 
   .screen.now .now-hero__verdict {

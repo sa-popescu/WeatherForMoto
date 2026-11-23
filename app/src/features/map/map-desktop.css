@@ -36,6 +36,13 @@
   width: min(520px, 100%);
 }
 
+/* Its parts keep their height and the panel scrolls: on a short screen (a
+   phone turned sideways) the layers used to be squeezed to nothing, their
+   text running over the band of time. */
+.map-side > * {
+  flex-shrink: 0;
+}
+
 .map-side {
   position: absolute;
   top: 0;

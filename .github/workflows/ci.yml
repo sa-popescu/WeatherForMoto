@@ -66,6 +66,25 @@ jobs:
       - name: Unit tests
         run: npx vitest run
 
+      # The built app in Chromium at phone, phone sideways and desktop sizes
+      # (app/e2e/layout.spec.ts): text off the screen or over other text, rows
+      # cut off in the wide layout.
+      - name: Browser for the layout checks
+        run: npx playwright install --with-deps chromium
+
+      - name: Layout checks
+        run: npm run test:layout
+
+      - name: Layout check screenshots
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: layout-checks
+          path: |
+            app/test-results/
+            app/playwright-report/
+          retention-days: 7
+
   container:
     name: Container build
     runs-on: ubuntu-latest
