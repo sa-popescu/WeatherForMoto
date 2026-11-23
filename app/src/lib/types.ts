@@ -73,7 +73,7 @@ export interface CurrentWeather {
   source_status?: SourceStatus[] | null;
 }
 
-export type SourceState = 'used' | 'no-data' | 'none-nearby' | 'off' | 'rate-limited' | 'stale' | 'key-rejected';
+export type SourceState = 'used' | 'no-data' | 'none-nearby' | 'off' | 'rate-limited' | 'paused' | 'stale' | 'key-rejected';
 
 export interface SourceStatus {
   id: string;
@@ -91,6 +91,10 @@ export interface SourceStatus {
   retry_at?: string | null;
   /** What the source itself said about the refusal. */
   detail?: string | null;
+  /** Why a source gave nothing (Netatmo): 'unavailable', 'token' or 'slow'. */
+  reason?: string | null;
+  /** How many sensors agreed (Sensor.Community). */
+  sensors?: number | null;
   /** Warnings that apply to this place (warning feeds). */
   count?: number | null;
 }

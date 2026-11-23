@@ -36,6 +36,7 @@ import calibration
 import last_good
 import rain_area
 import rain_fusion
+import sensor_community
 import verification
 import wet_road
 
@@ -1171,6 +1172,8 @@ WEATHER_TOTAL_BUDGET_S = 8.0
 
 # Cache: coordinates rounded to this grid (~5 km) share an entry.
 CACHE_COORD_STEP_DEG = 0.05
+# Weight of the citizens' sensors' median in the current blend (Netatmo has 1.3).
+COMMUNITY_SENSORS_WEIGHT = 0.8
 TTL_OPENMETEO_S = 12 * 60
 TTL_OWM_S = 12 * 60
 TTL_AIR_QUALITY_S = 30 * 60
@@ -1187,6 +1190,8 @@ TTL_RAIN_AREA_S = 30 * 60
 RAIN_AREA_DAYS = 2
 # The rain of the past days moves only once an hour, as the newest hour fills in.
 TTL_PAST_RAIN_S = 30 * 60
+# Sensor.Community gives the readings of the last five minutes.
+TTL_COMMUNITY_S = 5 * 60
 # Ensemble runs beyond a week add size, not skill, to a riding forecast.
 RAIN_ENSEMBLE_MAX_DAYS = 7
 TTL_METEOALARM_S = 10 * 60
@@ -2132,14 +2137,26 @@ async def _fetch_pirate_weather(
         return None
 
 
-# Cache for WeatherXM responses: key=(lat2, lon2), value=(timestamp, data)
-# Rounds coordinates to 2 decimal places (~1 km grid) to merge nearby requests.
-_wxm_cache: dict[tuple, tuple] = {}
-_WXM_CACHE_TTL = 3600  # 1 hour — reduces daily API quota consumption
-# A cached observation that has become too old to use (see
-# WXM_MAX_OBSERVATION_AGE_S) is refetched, but never more often than this, so
-# a station that stopped reporting cannot burn the daily quota.
-_WXM_MIN_REFETCH_S = 600
+# WeatherXM PRO. The plan this app has allows about 500 requests a month (the
+# logs of November 2026: some 500 answers on the 1st to the 5th, then "Request
+# limit reached" until the month ended, midnight included). So the requests are
+# rationed: only the screen of the place being looked at asks (get_weather with
+# stations=False, for the forecast of route points, leaves it out), the list
+# of stations near an area is kept for a week, a station's reading is asked
+# for again only once it is too old to count, and the app spends at most
+# WXM_DAILY_BUDGET requests a UTC day, which lasts the month.
+WXM_DAILY_BUDGET = 15
+_WXM_NEAR_TTL_S = 7 * 86400
+# A reading is asked for again at most this often, even when it went stale sooner.
+_WXM_MIN_REFETCH_S = 30 * 60
+# Nearby stations by area (the ~5 km cache cell): cell -> (monotonic time, active stations).
+_wxm_near_cache: dict[tuple, tuple[float, list[dict[str, Any]]]] = {}
+# The latest reading by station: station id -> (monotonic time, payload).
+_wxm_cache: dict[str, tuple[float, dict[str, Any] | None]] = {}
+# Requests spent by UTC day, and whether the persisted count was read in this process.
+_wxm_spent: dict[str, int] = {}
+_wxm_spent_loaded: bool = False
+_WXM_SPENT_KEY = "wxm_spent"
 
 # Global rate-limit backoff for external APIs (WeatherXM, Netatmo).
 # Persisted in the Turso DB (app_state table) so it survives Cloud Run cold
@@ -2147,9 +2164,9 @@ _WXM_MIN_REFETCH_S = 600
 # Note: stored values are wall-clock Unix timestamps (time.time()), NOT
 # monotonic ones, since monotonic clocks are not comparable across processes.
 _WXM_BACKOFF_KEY = "wxm_backoff_until"
-# The quota is daily, so the wait is until it resets (UTC midnight), not a flat
-# day from the refusal: a 429 at 23:50 used to cost the whole of the next day.
-# The floor keeps a burst from hammering the API in the minutes before a reset.
+# The quota is monthly: after a refusal the source is quiet until the first of
+# next month, but asks once a day in case it came back sooner (a refused
+# request costs nothing). The floor keeps a burst from hammering the API.
 _WXM_MIN_BACKOFF_S = 900
 _wxm_backoff_until: float = 0.0       # cached wall-clock expiry for this process
 _wxm_backoff_loaded: bool = False     # whether persisted state was read this process
@@ -2158,13 +2175,25 @@ _wxm_backoff_loaded: bool = False     # whether persisted state was read this pr
 _wxm_note: dict[tuple, dict[str, Any]] = {}
 
 
+def _wxm_day(moment: float | None = None) -> str:
+    return datetime.fromtimestamp(moment if moment is not None else time.time(), tz=timezone.utc).strftime("%Y-%m-%d")
+
+
 def _wxm_quota_reset_at(now: float | None = None) -> float:
-    """When the daily quota next resets, as a Unix timestamp."""
+    """When to ask again after a refusal: the next UTC midnight, as a Unix timestamp."""
     moment = now if now is not None else time.time()
     midnight = (
         datetime.fromtimestamp(moment, tz=timezone.utc) + timedelta(days=1)
     ).replace(hour=0, minute=0, second=0, microsecond=0)
     return max(midnight.timestamp(), moment + _WXM_MIN_BACKOFF_S)
+
+
+def _wxm_month_reset_at(now: float | None = None) -> float:
+    """When the monthly quota comes back: the first of next month, 00:00 UTC."""
+    today = datetime.fromtimestamp(now if now is not None else time.time(), tz=timezone.utc)
+    first = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    nxt = first.replace(year=first.year + 1, month=1) if first.month == 12 else first.replace(month=first.month + 1)
+    return nxt.timestamp()
 
 
 def _backoff_read(key: str) -> float:
@@ -2229,132 +2258,153 @@ def _wxm_distance_km(station: dict[str, Any], lat: float, lon: float) -> float:
     return _haversine_km(lat, lon, s_lat, s_lon)
 
 
+async def _wxm_take_budget() -> bool:
+    """Spend one request of today's budget; False when it is spent. Kept across instances when Turso answers."""
+    global _wxm_spent_loaded
+    day = _wxm_day()
+    if not _wxm_spent_loaded:
+        stored = await asyncio.to_thread(_backoff_read_str, _WXM_SPENT_KEY)
+        if stored and ":" in stored:
+            stored_day, _, count = stored.partition(":")
+            if stored_day == day and count.isdigit():
+                _wxm_spent[day] = max(_wxm_spent.get(day, 0), int(count))
+        _wxm_spent_loaded = True
+    used = _wxm_spent.get(day, 0)
+    if used >= WXM_DAILY_BUDGET:
+        return False
+    _wxm_spent.clear()
+    _wxm_spent[day] = used + 1
+    await asyncio.to_thread(_backoff_write_str, _WXM_SPENT_KEY, f"{day}:{used + 1}")
+    return True
+
+
 async def _fetch_weatherxm(
     lat: float, lon: float, api_key: str, client: httpx.AsyncClient,
     radius_m: int = 20_000,
 ) -> dict | None:
-    """Fetch nearest WeatherXM PRO station and its latest observation.
+    """The nearest WeatherXM PRO station's latest observation, within the budget.
 
-    Results are cached for up to an hour per ~1km grid cell to avoid 429s
-    when multiple parallel requests hit the same area. The observation's
-    own age is checked at use time: once it is too old to count as current
-    it is refetched (at most every _WXM_MIN_REFETCH_S seconds).
+    The stations near an area are asked for once a week; a station's reading
+    is served from memory until it is too old to count (and then asked for at
+    most every _WXM_MIN_REFETCH_S). Every request to WeatherXM spends one of
+    the day's WXM_DAILY_BUDGET; with none left, the source says it is paused
+    until the next UTC day.
     """
     if not api_key:
         return None
 
     global _wxm_backoff_until, _wxm_backoff_loaded
-    cache_key = (round(lat, 2), round(lon, 2))
+    cell = _coord_key(lat, lon)
     now = time.monotonic()
 
     def note(reason: str, retry_at: float | None = None, detail: str | None = None) -> None:
         """Remember why this cell got nothing, for the sources screen."""
-        _wxm_note[cache_key] = {"reason": reason, "retry_at": retry_at, "detail": detail}
+        _wxm_note[cell] = {"reason": reason, "retry_at": retry_at, "detail": detail}
 
-    def rate_limited(response: httpx.Response) -> None:
+    async def rate_limited(response: httpx.Response) -> None:
         global _wxm_backoff_until
         _wxm_backoff_until = _wxm_quota_reset_at()
         # WeatherXM says which limit was hit; that belongs on the screen, not
         # only in a log nobody reads from a phone.
-        note("rate-limited", _wxm_backoff_until, _upstream_detail(response))
-        _wxm_cache[cache_key] = (now, None)
+        note("rate-limited", _wxm_month_reset_at(), _upstream_detail(response))
+        await asyncio.to_thread(_backoff_write, _WXM_BACKOFF_KEY, _wxm_backoff_until)
+        logger.info("WeatherXM refused (limit reached); asking again at %s UTC",
+                    datetime.fromtimestamp(_wxm_backoff_until, tz=timezone.utc).isoformat(timespec="minutes"))
 
     def refused(response: httpx.Response) -> bool:
         """A key the other side will not take is not a network hiccup."""
         if response.status_code not in (401, 403):
             return False
         note("key-rejected", detail=_upstream_detail(response))
-        _wxm_cache[cache_key] = (now, None)
         return True
 
-    if cache_key in _wxm_cache:
-        ts, cached = _wxm_cache[cache_key]
-        entry_age = now - ts
-        if entry_age < _WXM_MIN_REFETCH_S or (
-            entry_age < _WXM_CACHE_TTL and not _wxm_observation_is_stale(cached)
-        ):
-            return cached
+    async def may_ask() -> bool:
+        """Not refused lately, and today's budget not spent; says why otherwise."""
+        if time.time() < _wxm_backoff_until:
+            note("rate-limited", _wxm_month_reset_at())
+            return False
+        if not await _wxm_take_budget():
+            note("budget", _wxm_quota_reset_at())
+            return False
+        return True
 
-    # Respect global rate-limit backoff. Load the persisted expiry from Turso
-    # once per process so a cold-started instance inherits an active backoff
-    # instead of immediately re-hitting the (likely still rate-limited) API.
+    # Load the persisted expiry from Turso once per process, so a cold-started
+    # instance inherits it instead of asking again at once.
     if not _wxm_backoff_loaded:
         stored = await asyncio.to_thread(_backoff_read, _WXM_BACKOFF_KEY)
-        # The current rule never waits past the next quota reset, so anything
-        # further out was written by the old flat-24h one: it is clamped rather
-        # than served, and a stale backoff cannot keep the source quiet for a
-        # day after the quota came back.
+        # Never past the next daily check: an older rule waited a whole day.
         _wxm_backoff_until = min(stored, _wxm_quota_reset_at()) if stored else 0.0
         _wxm_backoff_loaded = True
-    if time.time() < _wxm_backoff_until:
-        note("rate-limited", _wxm_backoff_until)
-        return None
 
-    import logging
-    _wxm_log = logging.getLogger("weatherformoto")
     try:
-        headers = {"X-API-KEY": api_key}
-        resp = await client.get(
-            f"{WEATHERXM_PRO_BASE}/stations/near",
-            params={"lat": round(lat, 4), "lon": round(lon, 4), "radius": radius_m},
-            headers=headers,
-            timeout=10,
-        )
-        _wxm_log.info("WeatherXM stations/near status=%s body=%s", resp.status_code, resp.text[:300])
-        if resp.status_code == 429:
-            rate_limited(resp)
-            await asyncio.to_thread(_backoff_write, _WXM_BACKOFF_KEY, _wxm_backoff_until)
-            _wxm_log.info("WeatherXM rate-limited — back at %s UTC",
-                          datetime.fromtimestamp(_wxm_backoff_until, tz=timezone.utc).isoformat(timespec="minutes"))
-            return None
-        if refused(resp):
-            return None
-        if not resp.is_success:
-            note(f"http-{resp.status_code}", detail=_upstream_detail(resp))
-            _wxm_cache[cache_key] = (now, None)
-            return None
-        payload = resp.json()
-        stations = payload.get("stations", payload) if isinstance(payload, dict) else payload
-        active = [s for s in stations if s.get("lastDayQod", 0) > 0]
-        _wxm_log.info("WeatherXM stations total=%d active=%d", len(stations), len(active))
-        if not active:
-            note("none-nearby" if stations else "no-stations")
-            _wxm_cache[cache_key] = (now, None)
+        near = _wxm_near_cache.get(cell)
+        if near is None or now - near[0] >= _WXM_NEAR_TTL_S:
+            if not await may_ask():
+                return None
+            resp = await client.get(
+                f"{WEATHERXM_PRO_BASE}/stations/near",
+                params={"lat": round(lat, 4), "lon": round(lon, 4), "radius": radius_m},
+                headers={"X-API-KEY": api_key},
+                timeout=10,
+            )
+            logger.info("WeatherXM stations/near status=%s", resp.status_code)
+            if resp.status_code == 429:
+                await rate_limited(resp)
+                return None
+            if refused(resp):
+                return None
+            if not resp.is_success:
+                note(f"http-{resp.status_code}", detail=_upstream_detail(resp))
+                return None
+            payload = resp.json()
+            stations = payload.get("stations", payload) if isinstance(payload, dict) else payload
+            active = [st for st in stations if isinstance(st, dict) and st.get("lastDayQod", 0) > 0]
+            near = (now, active)
+            _wxm_near_cache[cell] = near
+            if not active:
+                note("none-nearby" if stations else "no-stations")
+                return None
+        if not near[1]:
+            note("none-nearby")
             return None
         # The nearest one, not whichever the API listed first.
-        station = min(active, key=lambda s: _wxm_distance_km(s, lat, lon))
+        station = min(near[1], key=lambda st: _wxm_distance_km(st, lat, lon))
         station_id = station.get("id")
         if not station_id:
             note("none-nearby")
-            _wxm_cache[cache_key] = (now, None)
+            return None
+
+        cached = _wxm_cache.get(station_id)
+        if cached is not None and (now - cached[0] < _WXM_MIN_REFETCH_S or not _wxm_observation_is_stale(cached[1])):
+            if cached[1] is not None:
+                _wxm_note.pop(cell, None)
+            return cached[1]
+        if not await may_ask():
             return None
         obs_resp = await client.get(
             f"{WEATHERXM_PRO_BASE}/stations/{station_id}/latest",
-            headers=headers,
+            headers={"X-API-KEY": api_key},
             timeout=10,
         )
-        _wxm_log.info("WeatherXM latest status=%s body=%s", obs_resp.status_code, obs_resp.text[:300])
+        logger.info("WeatherXM latest status=%s", obs_resp.status_code)
         if obs_resp.status_code == 429:
-            rate_limited(obs_resp)
-            await asyncio.to_thread(_backoff_write, _WXM_BACKOFF_KEY, _wxm_backoff_until)
-            _wxm_log.info("WeatherXM rate-limited — back at %s UTC",
-                          datetime.fromtimestamp(_wxm_backoff_until, tz=timezone.utc).isoformat(timespec="minutes"))
+            await rate_limited(obs_resp)
             return None
         if refused(obs_resp):
             return None
         if not obs_resp.is_success:
             note(f"http-{obs_resp.status_code}", detail=_upstream_detail(obs_resp))
-            _wxm_cache[cache_key] = (now, None)
+            _wxm_cache[station_id] = (now, None)
             return None
         result = obs_resp.json()
         if isinstance(result, dict):
             result.setdefault("station", station)
-        _wxm_note.pop(cache_key, None)
-        _wxm_cache[cache_key] = (now, result)
+        _wxm_note.pop(cell, None)
+        _wxm_cache[station_id] = (now, result)
         return result
     except Exception as exc:
         note("error")
-        _wxm_log.warning("WeatherXM exception: %s", exc)
+        logger.warning("WeatherXM exception: %s", type(exc).__name__)
         return None
 
 
@@ -2465,9 +2515,21 @@ def _normalize_wxm_current(wxm_data: dict | None, now: datetime | None = None) -
 # ---------------------------------------------------------------------------
 # Netatmo — public personal-weather-station network (physical stations)
 # ---------------------------------------------------------------------------
-# Cache for Netatmo getpublicdata responses: key=(lat2, lon2) ~1km grid.
-_netatmo_cache: dict[tuple, tuple] = {}
-_NETATMO_CACHE_TTL = 3600  # 1 hour
+# The public stations around an area (the ~5 km cache cell), shared by every
+# request there: cell -> {"at": monotonic time of the last answer or None,
+# "stations": the last list or None, "retry_at": monotonic, "task": refresh}.
+# Netatmo's server fails often (about one request in four in November 2026:
+# 503s, slow answers, a refused token now and then). A failure used to leave
+# the area without stations for an hour; now the last list keeps serving
+# (readings older than _NETATMO_MAX_AGE still drop out) while a new one is
+# asked for in the background, and a failure is tried again after a few minutes.
+_netatmo_cache: dict[tuple, dict[str, Any]] = {}
+_NETATMO_REFRESH_S = 15 * 60
+_NETATMO_RETRY_S = 5 * 60
+# Half the side of the box asked for, around the cell's centre (the cell is 0.05 degrees).
+_NETATMO_BOX_DEG = 0.07
+# Why the last attempt for a cell gave nothing: {cell: {"reason": str, "detail": str | None}}.
+_netatmo_note: dict[tuple, dict[str, Any]] = {}
 
 # Rate-limit backoff (Netatmo allows ~500 req/hour — short window, so 1h backoff).
 _NETATMO_BACKOFF_KEY = "netatmo_backoff_until"
@@ -2535,70 +2597,129 @@ def _backoff_read_str(key: str) -> str | None:
         return None
 
 
+def _backoff_write_str(key: str, value: str) -> None:
+    """Persist a raw string value to Turso app_state; a failure only loses it across instances."""
+    try:
+        from auth_alerts import set_app_state
+        set_app_state(key, value)
+    except Exception:
+        pass
+
+
+class _NetatmoFailure(Exception):
+    """Why Netatmo gave no stations: unavailable, token or rate-limited, with its own words."""
+
+    def __init__(self, reason: str, detail: str | None = None) -> None:
+        super().__init__(reason)
+        self.reason = reason
+        self.detail = detail
+
+
+async def _netatmo_publicdata(
+    cell: tuple[float, float], client_id: str, client_secret: str, refresh_token: str, client: httpx.AsyncClient,
+) -> list[dict[str, Any]]:
+    """The public stations in the cell's box. A refused token is renewed and the request tried once more."""
+    global _netatmo_token, _netatmo_backoff_until
+    lat, lon = cell
+    params = {
+        "lat_ne": round(lat + _NETATMO_BOX_DEG, 4),
+        "lon_ne": round(lon + _NETATMO_BOX_DEG, 4),
+        "lat_sw": round(lat - _NETATMO_BOX_DEG, 4),
+        "lon_sw": round(lon - _NETATMO_BOX_DEG, 4),
+        "filter": "true",
+    }
+    for attempt in (1, 2):
+        token = await _netatmo_access_token(client_id, client_secret, refresh_token, client)
+        if not token:
+            raise _NetatmoFailure("token")
+        try:
+            resp = await client.get(NETATMO_PUBLICDATA_URL, params=params,
+                                    headers={"Authorization": f"Bearer {token}"}, timeout=10)
+        except httpx.HTTPError as exc:
+            raise _NetatmoFailure("unavailable", type(exc).__name__) from None
+        if resp.status_code == 403 and attempt == 1:
+            # Another instance may have renewed the token and so retired this one.
+            logger.info("Netatmo refused the access token; renewing it")
+            _netatmo_token = None
+            continue
+        if resp.status_code == 429:
+            _netatmo_backoff_until = time.time() + _NETATMO_BACKOFF_SECS
+            await asyncio.to_thread(_backoff_write, _NETATMO_BACKOFF_KEY, _netatmo_backoff_until)
+            logger.info("Netatmo rate-limited; backing off for %d min", _NETATMO_BACKOFF_SECS // 60)
+            raise _NetatmoFailure("rate-limited")
+        if not resp.is_success:
+            raise _NetatmoFailure("unavailable", f"HTTP {resp.status_code}")
+        try:
+            body = resp.json().get("body", [])
+        except ValueError:
+            raise _NetatmoFailure("unavailable", "not JSON") from None
+        return body if isinstance(body, list) else []
+    raise _NetatmoFailure("token", "HTTP 403")
+
+
+async def _netatmo_refresh(
+    cell: tuple[float, float], client_id: str, client_secret: str, refresh_token: str, client: httpx.AsyncClient,
+) -> list[dict[str, Any]] | None:
+    """Ask for the cell's stations and keep them; on a failure keep the old list and say when to try again."""
+    entry = _netatmo_cache[cell]
+    try:
+        stations = await _netatmo_publicdata(cell, client_id, client_secret, refresh_token, client)
+    except _NetatmoFailure as failure:
+        entry["retry_at"] = time.monotonic() + _NETATMO_RETRY_S
+        _netatmo_note[cell] = {"reason": failure.reason, "detail": failure.detail}
+        logger.warning("Netatmo gave no stations (%s%s)", failure.reason, f", {failure.detail}" if failure.detail else "")
+        return entry["stations"]
+    except Exception as exc:  # never let a surprise end the background refresh silently
+        entry["retry_at"] = time.monotonic() + _NETATMO_RETRY_S
+        _netatmo_note[cell] = {"reason": "unavailable", "detail": type(exc).__name__}
+        logger.warning("Netatmo exception: %s", type(exc).__name__)
+        return entry["stations"]
+    entry.update({"at": time.monotonic(), "stations": stations, "retry_at": 0.0})
+    _netatmo_note.pop(cell, None)
+    logger.info("Netatmo getpublicdata stations=%d", len(stations))
+    return stations
+
+
 async def _fetch_netatmo(
     lat: float, lon: float, client_id: str, client_secret: str, refresh_token: str,
-    client: httpx.AsyncClient, radius_deg: float = 0.06,
+    client: httpx.AsyncClient,
 ) -> dict | None:
-    """Fetch public Netatmo weather stations around (lat, lon).
+    """Public Netatmo stations around (lat, lon).
 
-    Returns {"stations": [...], "ref_lat": lat, "ref_lon": lon} or None.
-    Cached per ~1km grid cell for an hour; backs off on HTTP 429.
+    Returns {"stations": [...], "ref_lat": lat, "ref_lon": lon}, the stations
+    being those of the ~5 km cell the point is in, or None while the cell has
+    none yet. A list older than _NETATMO_REFRESH_S is still served while a new
+    one is asked for in the background; only the first request of a cell waits.
     """
     if not (client_id and client_secret and refresh_token):
         return None
 
-    import time
     global _netatmo_backoff_until, _netatmo_backoff_loaded
-    cache_key = (round(lat, 2), round(lon, 2))
+    cell = _coord_key(lat, lon)
     mono = time.monotonic()
-    if cache_key in _netatmo_cache:
-        ts, cached = _netatmo_cache[cache_key]
-        if mono - ts < _NETATMO_CACHE_TTL:
-            return cached
+    entry = _netatmo_cache.setdefault(cell, {"at": None, "stations": None, "retry_at": 0.0, "task": None})
 
+    def answer(stations: list[dict[str, Any]] | None) -> dict | None:
+        return {"stations": stations, "ref_lat": lat, "ref_lon": lon} if stations is not None else None
+
+    if entry["stations"] is not None and entry["at"] is not None and mono - entry["at"] < _NETATMO_REFRESH_S:
+        return answer(entry["stations"])
     if not _netatmo_backoff_loaded:
         _netatmo_backoff_until = await asyncio.to_thread(_backoff_read, _NETATMO_BACKOFF_KEY)
         _netatmo_backoff_loaded = True
     if time.time() < _netatmo_backoff_until:
-        return None
-
-    import logging
-    _log = logging.getLogger("weatherformoto")
-    try:
-        token = await _netatmo_access_token(client_id, client_secret, refresh_token, client)
-        if not token:
-            _netatmo_cache[cache_key] = (mono, None)
-            return None
-        resp = await client.get(
-            NETATMO_PUBLICDATA_URL,
-            params={
-                "lat_ne": round(lat + radius_deg, 4),
-                "lon_ne": round(lon + radius_deg, 4),
-                "lat_sw": round(lat - radius_deg, 4),
-                "lon_sw": round(lon - radius_deg, 4),
-                "filter": "true",
-            },
-            headers={"Authorization": f"Bearer {token}"},
-            timeout=10,
-        )
-        if resp.status_code == 429:
-            _netatmo_backoff_until = time.time() + _NETATMO_BACKOFF_SECS
-            await asyncio.to_thread(_backoff_write, _NETATMO_BACKOFF_KEY, _netatmo_backoff_until)
-            _log.info("Netatmo rate-limited — backing off for %dm", _NETATMO_BACKOFF_SECS // 60)
-            _netatmo_cache[cache_key] = (mono, None)
-            return None
-        if not resp.is_success:
-            _log.warning("Netatmo getpublicdata status=%s body=%s", resp.status_code, resp.text[:200])
-            _netatmo_cache[cache_key] = (mono, None)
-            return None
-        body = resp.json().get("body", [])
-        _log.info("Netatmo getpublicdata stations=%d", len(body))
-        result = {"stations": body, "ref_lat": lat, "ref_lon": lon} if body else None
-        _netatmo_cache[cache_key] = (mono, result)
-        return result
-    except Exception as exc:
-        _log.warning("Netatmo exception: %s", exc)
-        return None
+        _netatmo_note[cell] = {"reason": "rate-limited", "detail": None, "retry_at": _netatmo_backoff_until}
+        return answer(entry["stations"])
+    if mono < entry["retry_at"]:
+        return answer(entry["stations"])
+    task = entry["task"]
+    if task is None or task.done():
+        task = asyncio.ensure_future(_netatmo_refresh(cell, client_id, client_secret, refresh_token, client))
+        task.add_done_callback(_consume_background_result)
+        entry["task"] = task
+    if entry["stations"] is not None:
+        return answer(entry["stations"])
+    return answer(await asyncio.shield(task))
 
 
 def _normalize_netatmo_current(payload: dict | None) -> dict | None:
@@ -2618,6 +2739,8 @@ def _normalize_netatmo_current(payload: dict | None) -> dict | None:
 
     # field -> (distance_km, value); keep the nearest fresh reading per field.
     best: dict[str, tuple[float, float]] = {}
+    # The station behind the temperature: (distance_km, its place name, when it measured).
+    temp_from: tuple[float, str | None, int] | None = None
 
     def consider(field: str, dist: float, value) -> None:
         if value is None:
@@ -2641,6 +2764,9 @@ def _normalize_netatmo_current(payload: dict | None) -> dict | None:
                     continue
                 for typ, val in zip(module["type"], res[latest_ts]):
                     if typ == "temperature":
+                        if val is not None and (temp_from is None or dist < temp_from[0]):
+                            place = st.get("place") or {}
+                            temp_from = (dist, place.get("street") or place.get("city"), int(latest_ts))
                         consider("temp", dist, val)
                     elif typ == "humidity":
                         consider("humidity", dist, val)
@@ -2673,6 +2799,11 @@ def _normalize_netatmo_current(payload: dict | None) -> dict | None:
         "pressure": value("pressure"),
         "precipitation": value("rain"),
         "wmo_code": None,              # stations report no weather condition/icon
+        # The station behind the temperature, for the sources screen.
+        "station": temp_from[1] if temp_from else None,
+        "distance_km": round(temp_from[0], 1) if temp_from else None,
+        "observed_at": (datetime.fromtimestamp(temp_from[2], tz=timezone.utc).isoformat()
+                        if temp_from else None),
     }
 
 
@@ -3086,9 +3217,11 @@ def _merge_current(
     hourly: list[dict] | None = None,
     official_norm: dict | None = None,
     metar_obs: dict | None = None,
+    community_norm: dict | None = None,
 ) -> dict:
     c = om_data.get("current", {})
     nta = netatmo_norm or {}
+    com = community_norm or {}
     off = official_norm or {}
     obs = metar_obs or {}
     if hourly is None:
@@ -3124,7 +3257,7 @@ def _merge_current(
         max(0.3, 1 - float(official_distance) / 40) if official_distance is not None else 1.0
     )
 
-    def _wxm_or_blend(wxm_val, model_vals, model_weights, nta_val=None, official_val=None):
+    def _wxm_or_blend(wxm_val, model_vals, model_weights, nta_val=None, official_val=None, community_val=None):
         if wxm_val is not None:
             return round(float(wxm_val), 2)
         values, weights = list(model_vals), list(model_weights)
@@ -3134,10 +3267,15 @@ def _merge_current(
         if nta_val is not None:
             values.append(nta_val)
             weights.append(1.3)
+        # The median of the citizens' sensors around (sensor_community.py): home
+        # made and sited where their owners could, so below Netatmo.
+        if community_val is not None:
+            values.append(community_val)
+            weights.append(COMMUNITY_SENSORS_WEIGHT)
         return _weighted_avg(values, weights)
 
     temp = _wxm_or_blend(wxm_temp, [om_temp, owm_temp, met_temp, pw_temp], [1.2, 1.0, 1.1, 0.8],
-                         nta_val=nta.get("temp"), official_val=off.get("temp"))
+                         nta_val=nta.get("temp"), official_val=off.get("temp"), community_val=com.get("temp"))
     feels = _wxm_or_blend(wxm_feel, [om_feel, owm_feel, pw_feel], [1.0, 1.0, 0.8])
 
     # --- humidity
@@ -3147,7 +3285,8 @@ def _merge_current(
     pw_hum = pw_norm.get("humidity") if pw_norm else None
     wxm_hum = wxm_norm.get("humidity") if wxm_norm else None
     humidity = _wxm_or_blend(wxm_hum, [om_hum, owm_hum, met_hum, pw_hum], [1.2, 1.0, 1.1, 0.8],
-                             nta_val=nta.get("humidity"), official_val=off.get("humidity"))
+                             nta_val=nta.get("humidity"), official_val=off.get("humidity"),
+                             community_val=com.get("humidity"))
 
     # --- wind speed (km/h) and gusts
     om_wind = c.get("wind_speed_10m")
@@ -3243,6 +3382,7 @@ def _merge_current(
         wxm_norm.get("pressure") if wxm_norm else None,
         off.get("pressure"),
         nta.get("pressure"),
+        com.get("pressure"),
         owm_current["main"].get("pressure") if owm_current else None,
         met_norm.get("pressure") if met_norm else None,
         c.get("pressure_msl"),
@@ -3362,6 +3502,7 @@ def _merge_current(
             + (["pirate-weather"] if pw_norm else [])
             + (["weatherxm"] if wxm_norm else [])
             + (["netatmo"] if netatmo_norm else [])
+            + (["sensor-community"] if community_norm else [])
             + (["official-stations"] if official_norm else [])
             + (["metar"] if metar_obs else [])
         ),
@@ -4118,6 +4259,7 @@ async def get_weather(
     netatmo_client_id: str = "",
     netatmo_client_secret: str = "",
     netatmo_refresh_token: str = "",
+    stations: bool = True,
 ) -> dict[str, Any]:
     """
     Fetch and aggregate weather data from Open-Meteo (and its five-model
@@ -4140,6 +4282,7 @@ async def get_weather(
                 lat, lon, city_name, owm_api_key, forecast_days, pirate_weather_key,
                 _resolve_met_user_agent(met_user_agent), weatherxm_api_key,
                 netatmo_client_id, netatmo_client_secret, netatmo_refresh_token,
+                stations=stations,
             ),
             timeout=WEATHER_TOTAL_BUDGET_S,
         )
@@ -4193,6 +4336,14 @@ def _weatherxm_row(
                          if isinstance(retry_at, (int, float)) else None),
             "detail": detail,
         }
+    if reason == "budget":
+        retry_at = (note or {}).get("retry_at")
+        return {
+            "id": "weatherxm",
+            "status": "paused",
+            "retry_at": (datetime.fromtimestamp(retry_at, tz=timezone.utc).isoformat()
+                         if isinstance(retry_at, (int, float)) else None),
+        }
     if reason == "key-rejected":
         return {"id": "weatherxm", "status": "key-rejected", "detail": detail}
     if reason in ("none-nearby", "no-stations"):
@@ -4201,6 +4352,40 @@ def _weatherxm_row(
     if raw is not None:
         return {"id": "weatherxm", "status": "stale"}
     return {"id": "weatherxm", "status": "no-data"}
+
+
+def _netatmo_row(
+    *, configured: bool, raw: Any, norm: dict | None, note: dict[str, Any] | None
+) -> dict[str, Any]:
+    """Netatmo's row: the station behind the reading, or why there is none.
+
+    "none-nearby" when stations answered but none measured lately; otherwise
+    "no-data" with a reason the app can word: "unavailable" (Netatmo's server
+    failed), "token" (the access was refused), "slow" (the first answer for the
+    area did not come in time; the next one will).
+    """
+    if not configured:
+        return {"id": "netatmo", "status": "off"}
+    if norm:
+        return {
+            "id": "netatmo",
+            "status": "used",
+            "station": norm.get("station"),
+            "distance_km": norm.get("distance_km"),
+            "observed_at": norm.get("observed_at"),
+        }
+    reason = (note or {}).get("reason")
+    if reason == "rate-limited":
+        retry_at = (note or {}).get("retry_at")
+        return {
+            "id": "netatmo",
+            "status": "rate-limited",
+            "retry_at": (datetime.fromtimestamp(retry_at, tz=timezone.utc).isoformat()
+                         if isinstance(retry_at, (int, float)) else None),
+        }
+    if raw is not None:
+        return {"id": "netatmo", "status": "none-nearby"}
+    return {"id": "netatmo", "status": "no-data", "reason": reason or "slow", "detail": (note or {}).get("detail")}
 
 
 def _source_status(
@@ -4213,6 +4398,8 @@ def _source_status(
     weatherxm: tuple[Any, dict | None, dict[str, Any] | None],
     warnings: dict[str, tuple[Any, int]],
     rain_ensemble_members: int | None = None,
+    netatmo: tuple[Any, dict | None, dict[str, Any] | None] = (None, None, None),
+    community: tuple[Any, dict | None] = (None, None),
 ) -> list[dict[str, Any]]:
     """
     Every source and what it did for this answer, for the "data sources" view.
@@ -4220,8 +4407,9 @@ def _source_status(
     status: "used" (it contributed), "off" (not configured on this server),
     "none-nearby" (answered, but nothing close enough or fresh enough),
     "no-data" (did not answer in time, failed, or had nothing to give),
-    and for WeatherXM also "rate-limited" (the daily quota is spent, with when
-    it comes back), "key-rejected" (the key was refused, which no amount of
+    and for WeatherXM also "rate-limited" (the monthly quota is spent, with when
+    it comes back), "paused" (the app's own daily budget is spent, until the
+    next UTC day), "key-rejected" (the key was refused, which no amount of
     waiting fixes) and "stale" (a station answered, but too long ago to count).
     Both of the first two carry the other side's own wording as "detail".
     Warning feeds are "used" when they were read, with how many apply here.
@@ -4255,9 +4443,19 @@ def _source_status(
     })
     raw, norm, note = weatherxm
     out.append(_weatherxm_row(configured=keys.get("weatherxm", True), raw=raw, norm=norm, note=note))
-    configured = keys.get("netatmo", True)
-    out.append({"id": "netatmo",
-                "status": "used" if used["netatmo"] else ("no-data" if configured else "off")})
+    raw, norm, note = netatmo
+    out.append(_netatmo_row(configured=keys.get("netatmo", True), raw=raw, norm=norm, note=note))
+    raw, norm = community
+    if not keys.get("sensor-community", True):
+        out.append({"id": "sensor-community", "status": "off"})
+    else:
+        out.append({
+            "id": "sensor-community",
+            "status": "used" if norm else ("none-nearby" if raw is not None else "no-data"),
+            "sensors": norm.get("sensors") if norm else None,
+            "distance_km": norm.get("distance_km") if norm else None,
+            "observed_at": norm.get("observed_at") if norm else None,
+        })
 
     for source, (feed, count) in warnings.items():
         out.append({"id": source, "status": "used" if feed is not None else "no-data", "count": count})
@@ -4276,13 +4474,30 @@ async def _collect_weather(
     netatmo_client_id: str,
     netatmo_client_secret: str,
     netatmo_refresh_token: str,
+    stations: bool = True,
 ) -> dict[str, Any]:
-    """Fetch every provider concurrently (cached, time-bounded) and merge them."""
+    """Fetch every provider concurrently (cached, time-bounded) and merge them.
+
+    ``stations=False`` leaves out the station networks asked one area at a
+    time (WeatherXM, Netatmo, Sensor.Community): a forecast for later, such as
+    a route point's, needs no "now" measured there, and those services have
+    tight limits. The country-wide feeds (official stations, airports) stay.
+    """
     days = min(max(int(forecast_days), 1), 16)
     cell = _coord_key(lat, lon)
+    if not stations:
+        weatherxm_api_key = netatmo_client_id = netatmo_client_secret = netatmo_refresh_token = ""
+
+    async def community() -> Any | None:
+        if not stations:
+            return None
+        return await _cached_optional("Sensor.Community", ("sensor-community", cell), _with_ttl(
+            lambda: sensor_community.fetch_area(cell[0], cell[1], client), TTL_COMMUNITY_S))
+
     async with http_client_scope() as client:
         (om_data, ens_raw, rain_ens_raw, area_raw, past_rain_raw, owm_current, owm_forecast, owm_air, om_air, met_raw,
-         pw_raw, wxm_raw, netatmo_raw, meteoalarm_feed, stations_raw, metar_raw, nowcast_feed) = await asyncio.gather(
+         pw_raw, wxm_raw, netatmo_raw, community_raw, meteoalarm_feed, stations_raw, metar_raw,
+         nowcast_feed) = await asyncio.gather(
             _forecast_cache.get_or_fetch(
                 ("open-meteo", cell, days),
                 _with_ttl(lambda: _fetch_openmeteo(lat, lon, client, forecast_days=days),
@@ -4311,10 +4526,11 @@ async def _collect_weather(
                              lambda: _fetch_met_norway(lat, lon, client, met_user_agent)),
             _cached_optional("Pirate Weather", ("pirate-weather", cell), _with_ttl(
                 lambda: _fetch_pirate_weather(lat, lon, pirate_weather_key, client), TTL_PIRATE_S)),
-            # Station providers keep their own per-~1 km caches and backoff.
+            # Station providers keep their own per-area caches, budgets and backoff.
             _await_optional("WeatherXM", _fetch_weatherxm(lat, lon, weatherxm_api_key, client)),
             _await_optional("Netatmo", _fetch_netatmo(
                 lat, lon, netatmo_client_id, netatmo_client_secret, netatmo_refresh_token, client)),
+            community(),
             # One feed covers the whole country, so every location shares the entry.
             _cached_optional("Meteoalarm", ("meteoalarm", meteoalarm.feed_url()), _with_ttl(
                 lambda: meteoalarm.fetch_feed(client, met_user_agent), TTL_METEOALARM_S)),
@@ -4338,6 +4554,7 @@ async def _collect_weather(
     pw_norm = _normalize_pw_current(pw_raw)
     wxm_norm = _normalize_wxm_current(wxm_raw)
     netatmo_norm = _normalize_netatmo_current(netatmo_raw)
+    community_norm = sensor_community.normalize(community_raw, lat, lon)
     metar_obs = metar.nearest(metar_raw, lat, lon)
     met_daily = _aggregate_met_daily(met_raw, utc_offset)
 
@@ -4353,9 +4570,10 @@ async def _collect_weather(
     _apply_wet_road(hourly, past_rain_raw)
     current = _merge_current(om_data, owm_current, owm_air, om_air, met_norm, pw_norm,
                              wxm_norm, netatmo_norm, hourly=hourly,
-                             official_norm=official_norm, metar_obs=metar_obs)
+                             official_norm=official_norm, metar_obs=metar_obs, community_norm=community_norm)
     # Before the daily scores are built, so the day counts the hours as corrected.
-    _carry_measured_bias(om_data, hourly, current, _measured_fields(wxm_norm, netatmo_norm, official_norm))
+    _carry_measured_bias(om_data, hourly, current,
+                         _measured_fields(wxm_norm, netatmo_norm, official_norm, community_norm))
     _sync_current_hour(om_data, hourly, current)
     if _verification_sink is not None:
         try:
@@ -4381,6 +4599,7 @@ async def _collect_weather(
             "pirate-weather": bool(pirate_weather_key),
             "weatherxm": bool(weatherxm_api_key),
             "netatmo": bool(netatmo_client_id and netatmo_client_secret),
+            "sensor-community": stations,
         },
         used={
             "openweathermap": owm_current is not None,
@@ -4391,7 +4610,9 @@ async def _collect_weather(
         },
         stations=(stations_raw, official_norm),
         airports=(metar_raw, metar_obs),
-        weatherxm=(wxm_raw, wxm_norm, _wxm_note.get((round(lat, 2), round(lon, 2)))),
+        weatherxm=(wxm_raw, wxm_norm, _wxm_note.get(cell)),
+        netatmo=(netatmo_raw, netatmo_norm, _netatmo_note.get(cell)),
+        community=(community_raw, community_norm),
         warnings={
             "anm-nowcast": (nowcast_feed, len(nowcast_alerts)),
             "meteoalarm": (meteoalarm_feed, len(county_alerts)),

@@ -59,7 +59,7 @@ export function FavoritesCompare({ onShow }: FavoritesCompareProps) {
       list,
       CONCURRENCY,
       async (p, _index, signal) => {
-        const { data } = await api.weather(p, signal, COMPARE_DAYS);
+        const { data } = await api.weather(p, signal, COMPARE_DAYS, 'forecast');
         return { daily: data.daily, today: localNowIso(data.utc_offset_seconds).slice(0, 10) };
       },
       controller.signal,

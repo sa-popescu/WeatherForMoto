@@ -63,7 +63,7 @@ export function useDriveWeather(points: readonly SamplePoint[], tripKey: string)
       CONCURRENCY,
       async (p) => {
         try {
-          const res = await api.weather({ name: p.name, lat: p.lat, lon: p.lon }, controller.signal, DAYS);
+          const res = await api.weather({ name: p.name, lat: p.lat, lon: p.lon }, controller.signal, DAYS, 'forecast');
           settle(p, { status: 'ready', forecast: { hourly: res.data.hourly, utcOffsetSeconds: res.data.utc_offset_seconds, sun: sunDays(res.data.daily ?? []) } });
         } catch (err) {
           if (isAbort(err) || controller.signal.aborted) return;
