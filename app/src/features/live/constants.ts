@@ -7,12 +7,17 @@ export const LIVE_PATH = '/live';
 /** How often the position is sent, and asked for; the Worker refuses updates under 25 s apart. */
 export const SEND_EVERY_MS = 30_000;
 
-/** The link a viewer opens: the id travels after the "#", so it stays out of every server log. */
+/**
+ * The link a rider sends. The Worker (worker/live.ts) sends people on to the
+ * live page, /#/live/<id>, and gives a chat app's preview robot the ride's
+ * destination and arrival, which a link to the hash could not. The share
+ * adds "?lang=en" for that preview in English (LiveShareControl.tsx).
+ */
 export function liveUrl(id: string, origin: string = window.location.origin): string {
-  return `${origin}/#/live/${id}`;
+  return `${origin}/l/${id}`;
 }
 
-/** The id in a live link's hash, or null. */
+/** The id in the live page's hash, or null. */
 export function liveIdFromHash(hash: string): string | null {
   const match = /^#\/live\/([A-Za-z0-9_-]{22})$/.exec(hash);
   return match ? match[1] : null;

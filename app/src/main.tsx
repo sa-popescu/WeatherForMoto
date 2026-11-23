@@ -20,6 +20,7 @@ import './ui/ui.css';
 import App from './App';
 // Registers the beforeinstallprompt listener at start-up, before the Eu tab is ever opened.
 import './features/account/installPrompt';
+import { liveIdFromHash } from './features/live/constants';
 import { receiveMove } from './features/move/move';
 import { pruneOfflineMaps } from './features/route/offlineMapStore';
 import { api } from './lib/api';
@@ -65,7 +66,10 @@ void receiveMove().finally(() => {
   );
 });
 
-initServiceWorker();
+// Someone opening a live location link wants the map, not the whole app kept
+// for offline use (about 1.2 MB the service worker would fetch in the
+// background): that page goes without it. The app itself installs it as usual.
+if (!liveIdFromHash(window.location.hash)) initServiceWorker();
 keepPhonesUpright();
 // Route maps kept for offline use go after 30 days (features/route/offlineMapStore.ts).
 void pruneOfflineMaps();

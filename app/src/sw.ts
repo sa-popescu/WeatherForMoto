@@ -36,8 +36,9 @@ cleanupOutdatedCaches();
 
 registerRoute(
   new NavigationRoute(createHandlerBoundToURL('/index.html'), {
-    // Short route links (/s/<id>) must reach the Worker, which redirects them to the plan.
-    denylist: [/\/privacy-policy/, /\/legacy/, /^\/s(\/|$)/],
+    // Short route links (/s/<id>) and live location links (/l/<id>) must reach
+    // the Worker, which sends them on to the plan or the live page.
+    denylist: [/\/privacy-policy/, /\/legacy/, /^\/s(\/|$)/, /^\/l(\/|$)/],
   }),
 );
 

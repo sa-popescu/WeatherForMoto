@@ -7,7 +7,9 @@
   // The server code here is the short route links (app/src/worker/shortLinks.ts):
   // POST /s stores a shared ride plan in Workers KV for 90 days, GET /s/<id>
   // redirects to it; the live location of a ride (app/src/worker/live.ts),
-  // under /live, kept in Durable Objects for at most 12 hours; and the old
+  // under /live, kept in Durable Objects for at most 12 hours, and the /l/<id>
+  // links riders send; a chat app's preview robot gets the route's or the
+  // ride's own title on /s/ and /l/ (app/src/worker/preview.ts); and the old
   // address's redirect (app/src/worker/moved.ts), which sends page loads on
   // weatherformoto.bluemouse.cc to motonor.bluemouse.cc.
   // `run_worker_first` sends only those paths and the pages to the script;
@@ -25,7 +27,7 @@
     "directory": "./dist",
     "binding": "ASSETS",
     "not_found_handling": "none",
-    "run_worker_first": ["/s", "/s/*", "/live", "/live/*", "/", "/index.html", "/privacy-policy.html", "/privacy-policy-en.html"]
+    "run_worker_first": ["/s", "/s/*", "/l/*", "/live", "/live/*", "/", "/index.html", "/privacy-policy.html", "/privacy-policy-en.html"]
   },
   // The namespace id is set explicitly. With no id, wrangler's automatic
   // provisioning created the namespace on the first preview build and the
