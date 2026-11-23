@@ -7,6 +7,9 @@ import { Button, cx, Spinner } from '../../ui/primitives';
 import { aheadLine } from '../ride/aheadText';
 import { fmtKm, fmtTimeLeft } from '../ride/logic/rideFormat';
 import { OfflineMapButton } from '../route/OfflineMapPanel';
+import { isDefaultOptions, useRouteOptions } from '../route/routeOptions';
+import { RouteOptionsButton } from '../route/RouteOptionsSheet';
+import { RO_S } from '../route/routeOptionsStrings';
 import { localDay, seasonRisk, type SeasonRisk } from '../route/seasonalClosures';
 import { DepartureStrip } from './DepartureStrip';
 import type { DepartureOption } from './logic/departures';
@@ -108,6 +111,8 @@ export function DriveRoutes(props: DriveRoutesProps) {
   const { destination, state, outlooks, selectedId, fromLabel, locating, canRide, departures, bestDeparture, departMs, onDepart } = props;
   const { onSelect, onClose, onRetry, onStart, onDetailed } = props;
   const s = useStrings(DRIVE_S);
+  const ro = useStrings(RO_S);
+  const routeOptions = useRouteOptions();
   const ready = state.status === 'ready' ? state : null;
   const fastestId = ready ? [...ready.routes].sort((a, b) => a.durationS - b.durationS)[0]?.id : null;
   const season = seasonRisk(localDay(departMs ?? Date.now()));
@@ -129,6 +134,8 @@ export function DriveRoutes(props: DriveRoutesProps) {
           <Icon name="close" size={20} />
         </button>
       </header>
+
+      <RouteOptionsButton />
 
       {(state.status === 'loading' || locating) && (
         <p className="drive-sheet__status" role="status">
@@ -159,6 +166,8 @@ export function DriveRoutes(props: DriveRoutesProps) {
             ))}
           </ul>
           {ready.source === 'osrm' && <p className="drive-sheet__note">{s.fallback}</p>}
+          {ready.source === 'osrm' && !isDefaultOptions(routeOptions) && <p className="drive-sheet__note">{ro.notApplied}</p>}
+          {ready.relaxed && <p className="drive-sheet__note">{ro.relaxed}</p>}
           <DepartureStrip options={departures} best={bestDeparture} selected={departMs} noTraffic={ready.source === 'osrm'} onPick={onDepart} />
           {canRide && (
             <>

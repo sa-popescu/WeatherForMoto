@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { isAbort } from '../../lib/api';
 import { runPool } from '../route/pool';
+import { queryKey, type RouteOptions } from '../route/routeOptions';
 import type { LatLon } from '../route/types';
 import { departureTimes } from './logic/departures';
 import type { DriveRoute, RouteSource } from './logic/driveRoute';
@@ -8,7 +9,8 @@ import { fetchTrafficRoutes } from './routeService';
 
 // The later departures of "Plecarea perfectă": for each, TomTom's best route
 // with the traffic predicted for that moment (one request each, two at a
-// time). Asked once per pair of ends, only when TomTom answered for now.
+// time), with the same route options as the routes for now. Asked once per
+// pair of ends and options, only when TomTom answered for now.
 
 export interface LaterDeparture {
   departMs: number;
@@ -30,12 +32,16 @@ const keyOf = (p: LatLon | null): string | null => (p ? `${p.lat.toFixed(KEY_DEC
 /**
  * `source` is who drew the route for leaving now: TomTom is worth asking
  * about later too; with OSRM the later departures ride the same route. Null
- * until that route is known.
+ * until that route is known. `options` are the ones the routes for now
+ * follow, so every departure compares the same kind of route.
  */
-export function useDepartures(origin: LatLon | null, destination: LatLon | null, source: RouteSource | null): Departures {
+export function useDepartures(origin: LatLon | null, destination: LatLon | null, source: RouteSource | null, options: RouteOptions | null): Departures {
   const [state, setState] = useState<Departures>(() => ({ baseMs: Date.now(), later: [] }));
   const originKey = keyOf(origin);
   const destinationKey = keyOf(destination);
+  const optionsKey = options ? queryKey(options) : null;
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
 
   useEffect(() => {
     const baseMs = Date.now();
@@ -61,7 +67,14 @@ export function useDepartures(origin: LatLon | null, destination: LatLon | null,
       CONCURRENCY,
       async (departMs) => {
         try {
-          const found = await fetchTrafficRoutes({ lat: oLat, lon: oLon }, { lat: dLat, lon: dLon }, { alternatives: 0, departMs }, controller.signal);
+          const found = await fetchTrafficRoutes(
+            [
+              { lat: oLat, lon: oLon },
+              { lat: dLat, lon: dLon },
+            ],
+            { alternatives: 0, departMs, options: optionsRef.current ?? undefined },
+            controller.signal,
+          );
           const route = found?.routes[0];
           settle(departMs, route ? { status: 'ready', route: { ...route, id: `at-${departMs}` } } : { status: 'error' });
         } catch (err) {
@@ -71,7 +84,7 @@ export function useDepartures(origin: LatLon | null, destination: LatLon | null,
       controller.signal,
     );
     return () => controller.abort();
-  }, [originKey, destinationKey, source]);
+  }, [originKey, destinationKey, source, optionsKey]);
 
   return state;
 }

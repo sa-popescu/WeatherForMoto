@@ -58,6 +58,22 @@ export function roadSpans(instructions: readonly UrbanInstruction[], distanceKm:
   return spans;
 }
 
+/**
+ * Where each stop falls along the route, km: from the length of each leg,
+ * scaled to the whole distance; just the two ends without them.
+ */
+export function stopKmOf(legsM: readonly number[] | undefined, distanceKm: number): number[] {
+  const total = (legsM ?? []).reduce((sum, m) => sum + Math.max(0, m), 0);
+  if (!legsM || legsM.length === 0 || total <= 0) return [0, distanceKm];
+  const stops = [0];
+  let along = 0;
+  for (const m of legsM) {
+    along += Math.max(0, m);
+    stops.push((along / total) * distanceKm);
+  }
+  return stops;
+}
+
 /** A TomTom route as "Drum" uses it, or null when it has no usable line. */
 export function fromUrban(route: UrbanRoute, index: number): DriveRoute | null {
   const coords = route.coords.filter(([lat, lon]) => Number.isFinite(lat) && Number.isFinite(lon)).map(([lat, lon]) => ({ lat, lon }));
@@ -78,7 +94,7 @@ export function fromUrban(route: UrbanRoute, index: number): DriveRoute | null {
   return {
     id: `tomtom-${index}`,
     source: 'tomtom',
-    line: { coords, cumKm, distanceKm, stopKm: [0, distanceKm], roads: roadSpans(route.instructions, distanceKm) },
+    line: { coords, cumKm, distanceKm, stopKm: stopKmOf(route.legs_m, distanceKm), roads: roadSpans(route.instructions, distanceKm) },
     durationS: Math.max(60, route.duration_s),
     delayS: Math.max(0, route.delay_s),
     traffic,

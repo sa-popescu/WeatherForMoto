@@ -21,6 +21,7 @@ export const KEYS = {
   driveRecent: 'motonorDriveRecentV1',
   installDismissed: 'pwaInstallDismissed',
   fuelRange: 'motonorFuelRangeV1',
+  routeOptions: 'motonorRouteOptionsV1',
   offlineMaps: 'motonorOfflineMapsV1',
   liveShare: 'motonorLiveShareV1',
   installInvite: 'motonorInstallInviteV1',

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { HourlyWeather, UrbanInstruction, UrbanRoute } from '../../../lib/types';
 import type { PointWeather } from '../../route/types';
-import { fromOsrm, fromUrban, mainRoad, roadSpans, routeKmh } from './driveRoute';
+import { fromOsrm, fromUrban, mainRoad, roadSpans, routeKmh, stopKmOf } from './driveRoute';
 import { planDriveWeather, routeOutlook, weatherForRoute } from './driveWeather';
 
 const OFFSET = 2 * 3600;
@@ -46,6 +46,20 @@ describe('fromUrban', () => {
     const route = fromUrban(urban(5, { traffic: [{ from: null, to: 3, category: 'JAM', magnitude: 1, delay_s: 30, speed_kmh: null }] }), 1);
     expect(route?.traffic).toEqual([]);
     expect(route?.id).toBe('tomtom-1');
+  });
+
+  it('places each stop along the route from the lengths of the legs', () => {
+    expect(fromUrban(urban(10, { legs_m: [2000, 3000, 5000] }), 0)!.line.stopKm).toEqual([0, 2, 5, 10]);
+    // Without them (an older server), only the two ends.
+    expect(fromUrban(urban(10), 0)!.line.stopKm).toEqual([0, 10]);
+  });
+});
+
+describe('stopKmOf', () => {
+  it('scales the legs to the whole distance', () => {
+    expect(stopKmOf([1000, 1000], 4)).toEqual([0, 2, 4]);
+    expect(stopKmOf([], 4)).toEqual([0, 4]);
+    expect(stopKmOf([0, 0], 4)).toEqual([0, 4]);
   });
 });
 

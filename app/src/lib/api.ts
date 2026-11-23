@@ -221,11 +221,13 @@ export const api = {
   /**
    * Motorcycle routes with live traffic between two or more points (up to two
    * alternatives between two). With `departMs`, for that later departure, with
-   * predicted traffic.
+   * predicted traffic. `route` carries the rider's route options
+   * (features/route/routeOptions.ts optionsQuery); `traffic: false` asks for
+   * the usual road speeds, for a plan made ahead.
    */
   urbanRoute: (
     points: ReadonlyArray<{ lat: number; lon: number }>,
-    options: { alternatives?: number; departMs?: number | null } = {},
+    options: { alternatives?: number; departMs?: number | null; route?: Readonly<Record<string, string | number | undefined>>; traffic?: boolean } = {},
     signal?: AbortSignal,
   ): Promise<UrbanRouteResponse> =>
     json('/route/urban', {
@@ -233,6 +235,8 @@ export const api = {
         points: points.map((p) => `${p.lat.toFixed(5)},${p.lon.toFixed(5)}`).join(';'),
         alternatives: options.alternatives ?? 2,
         depart_at: options.departMs ? new Date(options.departMs).toISOString().replace(/\.\d{3}Z$/, 'Z') : null,
+        ...options.route,
+        traffic: options.traffic === false ? 'false' : undefined,
       },
       timeoutMs: URBAN_ROUTE_TIMEOUT_MS,
       signal,

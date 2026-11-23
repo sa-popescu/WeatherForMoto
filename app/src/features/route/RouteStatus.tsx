@@ -2,12 +2,13 @@ import { fmt, useStrings } from '../../lib/i18n';
 import { CORE } from '../../i18n/core';
 import { Icon } from '../../ui/icons';
 import { Banner, Button, Card, Spinner } from '../../ui/primitives';
+import { RO_S } from './routeOptionsStrings';
 import { MAX_STOPS } from './stops';
 import { RS } from './strings';
 import type { PlanState } from './useRoutePlan';
 
-// Progress per step, errors with retry, the "stops changed" hint and the
-// empty state with a ready-made example.
+// Progress per step, errors with retry, the "stops changed" hint, whether the
+// road follows the route options, and the empty state with a ready-made example.
 
 interface RouteStatusProps {
   state: PlanState;
@@ -22,7 +23,8 @@ interface RouteStatusProps {
 export function RouteStatus({ state, settled, failed, stale, onRetry, onRetryWeather, onExample }: RouteStatusProps) {
   const s = useStrings(RS);
   const core = useStrings(CORE);
-  const { step, error, points } = state;
+  const ro = useStrings(RO_S);
+  const { step, error, points, routeInfo } = state;
 
   if (step === 'geocoding' || step === 'routing') {
     return (
@@ -82,6 +84,12 @@ export function RouteStatus({ state, settled, failed, stale, onRetry, onRetryWea
           {s.stale}
         </Banner>
       )}
+      {routeInfo?.optionsDropped && (
+        <Banner tone="info" icon="info">
+          {routeInfo.relaxed ? ro.relaxed : ro.notApplied}
+        </Banner>
+      )}
+      {routeInfo?.attribution && <p className="route-credit">{routeInfo.attribution}</p>}
     </>
   );
 }

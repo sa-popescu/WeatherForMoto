@@ -6,14 +6,17 @@ import type { Place } from '../../lib/types';
 import { noteUse } from '../../lib/usage';
 import { sunDays } from './daylight';
 import { routeSummit } from './elevation';
-import { fetchRoute, RouteError, type RouteErrorKind } from './osrm';
+import { RouteError, type RouteErrorKind } from './osrm';
+import { fetchPlannedRoute, type PlannedRouteInfo } from './plannedRoute';
+import { getRouteOptions } from './routeOptions';
 import { nearestKnown } from './stops';
 import { runPool } from './pool';
 import { buildSamplePoints, withSummit, type NameBetween, type NameSummit } from './samples';
 import { nameTrackPoints } from './trackNames';
 import type { PointWeather, RouteLine, SamplePoint, StopDraft } from './types';
 
-// Orchestrates one calculation: resolve typed stops, route with OSRM, look for
+// Orchestrates one calculation: resolve typed stops, route them (TomTom with the
+// rider's route options, OSRM when it cannot answer; plannedRoute.ts), look for
 // a summit between the weather points, then load the weather of every point
 // (3 at a time, filling in as they arrive). An imported GPX track skips the
 // first two steps. A new calculation or unmounting cancels everything in flight.
@@ -36,9 +39,11 @@ export interface PlanState {
    * which depend on where the points are, do not reload on every new name.
    */
   placeNames: Record<string, string>;
+  /** Who drew the road, for routed stops; null for an imported track, which is its own road. */
+  routeInfo: PlannedRouteInfo | null;
 }
 
-const INITIAL: PlanState = { step: 'idle', error: null, route: null, points: [], weather: {}, days: 0, placeNames: {} };
+const INITIAL: PlanState = { step: 'idle', error: null, route: null, points: [], weather: {}, days: 0, placeNames: {}, routeInfo: null };
 
 /** A stop as it was resolved, with the county that tells homonyms apart. */
 export interface ResolvedStop extends Place {
@@ -179,11 +184,11 @@ export function useRoutePlan() {
         if (controller.signal.aborted) return;
         onResolved(places);
         setState((s) => ({ ...s, step: 'routing' }));
-        const route = await fetchRoute(places, controller.signal);
+        const { route, info } = await fetchPlannedRoute(places, getRouteOptions(), controller.signal);
         if (controller.signal.aborted) return;
         const points = await pointsFor(route, places, { nameBetween, nameSummit }, controller.signal);
         if (controller.signal.aborted) return;
-        setState((s) => ({ ...s, route, points }));
+        setState((s) => ({ ...s, route, points, routeInfo: info }));
         noteUse('plan:route');
         await loadWeather(points, days, controller);
       } catch (err) {

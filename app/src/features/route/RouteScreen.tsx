@@ -14,6 +14,7 @@ import { RouteDetails, RouteOverview } from './RouteResults';
 import { RouteStatus } from './RouteStatus';
 import { SavedRoutesSheet } from './SavedRoutesSheet';
 import { LogRideSheet, SaveRouteSheet, SignInSheet } from './SimpleSheets';
+import { RouteOptionsButton } from './RouteOptionsSheet';
 import { StopsEditor } from './StopsEditor';
 import { RS } from './strings';
 import { SWEEP_LAST } from './sweep';
@@ -132,6 +133,8 @@ export default function RouteScreen({ active }: ScreenProps) {
           </Banner>
         )}
         <DepartureControls dates={dates} departure={departure} onDeparture={setDeparture} speed={speed} onSpeed={setSpeed} />
+        {/* New options redraw a routed road at once; an imported track is its own road. */}
+        <RouteOptionsButton onChanged={() => plan.routeInfo && calc.run(stopsState.stops)} />
         <Button variant="primary" size="lg" full icon="route" busy={busy} onClick={() => calc.run(stopsState.stops)}>
           {plan.route ? s.recalculate : s.calculate}
         </Button>
