@@ -21,13 +21,48 @@ function sameSpot(a: LatLon, b: LatLon): boolean {
   return Math.abs(a.lat - b.lat) < 1e-4 && Math.abs(a.lon - b.lon) < 1e-4;
 }
 
-/** Returns `recenter`, which flies back to the current place. */
-export function usePlaceView(map: MapLibreMap | null, place: Place, reducedMotion: boolean): () => void {
+/**
+ * Puts the map on a spot with that spot `offsetY` pixels above the map's
+ * middle, at once (a flight takes the offset itself).
+ */
+function jumpWithOffset(map: MapLibreMap, at: LatLon, zoom: number, offsetY: number): void {
+  map.jumpTo({ center: [at.lon, at.lat], zoom });
+  if (offsetY !== 0) map.panBy([0, offsetY], { duration: 0 });
+}
+
+/**
+ * Returns `recenter`, which flies back to the current place. The place is
+ * shown `offsetY` pixels above the map's middle: in the middle of the part
+ * the panels leave free (useFreeArea.ts).
+ */
+export function usePlaceView(map: MapLibreMap | null, place: Place, reducedMotion: boolean, offsetY = 0): () => void {
   const [recenterRequests, setRecenterRequests] = useState(0);
   // The map is created centred on the first place.
   const shown = useRef<LatLon>({ lat: place.lat, lon: place.lon });
   const handledRequests = useRef(0);
   const marker = useRef<Marker | null>(null);
+  /** The rider moved the map since the place was last put in view: leave the view alone. */
+  const movedByHand = useRef(false);
+  const offset = useRef(offsetY);
+  offset.current = offsetY;
+
+  useEffect(() => {
+    if (!map) return undefined;
+    const onMoveStart = (event: { originalEvent?: unknown }): void => {
+      // Moves the app makes have no input event behind them.
+      if (event.originalEvent) movedByHand.current = true;
+    };
+    map.on('movestart', onMoveStart);
+    return () => {
+      map.off('movestart', onMoveStart);
+    };
+  }, [map]);
+
+  // The free part changed (the band's panel filled in, the phone turned): the place keeps its spot in it.
+  useEffect(() => {
+    if (!map || movedByHand.current || map.getContainer().clientWidth === 0) return;
+    jumpWithOffset(map, shown.current, map.getZoom(), offsetY);
+  }, [map, offsetY]);
 
   useEffect(() => {
     if (!map) return undefined;
@@ -46,11 +81,12 @@ export function usePlaceView(map: MapLibreMap | null, place: Place, reducedMotio
     handledRequests.current = recenterRequests;
     if (!requested && sameSpot(shown.current, place)) return;
     shown.current = { lat: place.lat, lon: place.lon };
+    movedByHand.current = false;
     const zoom = Math.max(map.getZoom(), REGIONAL_ZOOM);
     // A flight needs a measured map; while the tab is hidden it would compute NaN.
     const hidden = map.getContainer().clientWidth === 0;
-    if (reducedMotion || hidden) map.jumpTo({ center: [place.lon, place.lat], zoom });
-    else map.flyTo({ center: [place.lon, place.lat], zoom, duration: 800 });
+    if (reducedMotion || hidden) jumpWithOffset(map, shown.current, zoom, offset.current);
+    else map.flyTo({ center: [place.lon, place.lat], zoom, duration: 800, offset: [0, -offset.current] });
   }, [map, place, recenterRequests, reducedMotion]);
 
   return useCallback(() => setRecenterRequests((n) => n + 1), []);

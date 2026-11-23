@@ -1,12 +1,13 @@
+import { readField } from './fieldReader';
 import { geometryKey, tilesFor, type FieldGeometry } from './mercator';
-import { canvasFor, loadImage } from './pictures';
 import { RADAR_MAX_NATIVE_ZOOM, radarValueTileAt, type RadarFrame } from './radar';
-import { CHANNELS, decodePixels, smoothRadarField, type ValueField } from './rainValues';
+import type { ValueField } from './rainValues';
 
 // Observed radar frames as rain values over the canvas: RainViewer's tiles
 // laid side by side, read back pixel by pixel into rain strength and snow
-// (rainValues.ts), and lightly smoothed. Shared by the map and the
-// extrapolation, and kept across tab switches.
+// (rainValues.ts), and lightly smoothed, in a worker where the browser allows
+// (fieldReader.ts). Shared by the map and the extrapolation, and kept across
+// tab switches.
 
 /** Fields kept: a band of radar frames and a few spare; each is width x height x 2 bytes. */
 const KEPT = 16;
@@ -19,25 +20,15 @@ export function cachedRadarValues(geometry: FieldGeometry, path: string): ValueF
   return fields.get(keyOf(geometry, path));
 }
 
-async function readFrame(host: string, frame: RadarFrame, geometry: FieldGeometry, signal: AbortSignal): Promise<ValueField> {
-  // The canvas sits on the tiles' own pixels: nothing is stretched, so every colour comes back as drawn.
-  if (geometry.z > RADAR_MAX_NATIVE_ZOOM) throw new Error(`radar values are read at zoom ${RADAR_MAX_NATIVE_ZOOM} at most`);
-  const ctx = canvasFor(geometry);
-  const slots = tilesFor(geometry);
-  const results = await Promise.allSettled(
-    slots.map(async (slot) => {
-      const img = await loadImage(radarValueTileAt(host, frame, geometry.z, slot.x, slot.y), signal);
-      ctx.drawImage(img, slot.left, slot.top);
-    }),
-  );
-  const failed = results.filter((r) => r.status === 'rejected').length;
-  if (failed > slots.length / 2) throw new Error(`${failed} of ${slots.length} radar tiles failed`);
-  // Throws if a tile came back without CORS: the canvas is then unreadable.
-  const rgba = ctx.getImageData(0, 0, geometry.width, geometry.height).data;
-  const field: ValueField = new Uint8ClampedArray(geometry.width * geometry.height * CHANNELS);
-  decodePixels(rgba, field);
-  smoothRadarField(field, geometry.width, geometry.height);
-  return field;
+/** The frame's tiles laid side by side on the canvas's own pixels: nothing is stretched, so every colour comes back as drawn. */
+function readFrame(host: string, frame: RadarFrame, geometry: FieldGeometry): Promise<ValueField> {
+  if (geometry.z > RADAR_MAX_NATIVE_ZOOM) return Promise.reject(new Error(`radar values are read at zoom ${RADAR_MAX_NATIVE_ZOOM} at most`));
+  const tiles = tilesFor(geometry).map((slot) => ({
+    url: radarValueTileAt(host, frame, geometry.z, slot.x, slot.y),
+    left: slot.left,
+    top: slot.top,
+  }));
+  return readField({ kind: 'radar', width: geometry.width, height: geometry.height, tiles });
 }
 
 /**
@@ -51,7 +42,7 @@ export function radarValues(host: string, frame: RadarFrame, geometry: FieldGeom
   if (cached) return Promise.resolve(cached);
   let request = pending.get(key);
   if (!request) {
-    request = readFrame(host, frame, geometry, new AbortController().signal)
+    request = readFrame(host, frame, geometry)
       .then((field) => {
         fields.set(key, field);
         while (fields.size > KEPT) {

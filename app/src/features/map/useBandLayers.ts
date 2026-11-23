@@ -39,6 +39,8 @@ interface Options {
   model: ModelSource | null;
   opacity: number;
   fadeMs: number;
+  /** Read the observed fields of the whole band ahead, or only those on screen and next. */
+  readAhead: boolean;
 }
 
 export interface BandLayers {
@@ -50,10 +52,12 @@ export interface BandLayers {
   radarFailed: boolean;
 }
 
+const NOTHING: readonly string[] = [];
+
 const newestFirst = (times: Iterable<number>): string[] => [...new Set(times)].sort((a, b) => b - a).map(String);
 
 export function useBandLayers(map: MapLibreMap | null, options: Options): BandLayers {
-  const { geometry, current, following, view, radar, observedTimes, satellite, lightning, nowcast, model, opacity, fadeMs } = options;
+  const { geometry, current, following, view, radar, observedTimes, satellite, lightning, nowcast, model, opacity, fadeMs, readAhead } = options;
   const gkey = geometry ? geometryKey(geometry) : '';
   const onObserved = current?.source === 'radar';
   const nextObserved = following?.source === 'radar' ? following : null;
@@ -65,7 +69,7 @@ export function useBandLayers(map: MapLibreMap | null, options: Options): BandLa
   const radarBand = useMemo(() => [...radar.frames].sort((a, b) => b.time - a.time).map((frame) => frame.path), [radar.frames]);
   const radarState = useBandFields({
     scope: radar.on && radar.host && geometry ? `radar|${radar.host}|${gkey}` : null,
-    band: radarBand,
+    band: readAhead ? radarBand : NOTHING,
     onScreen: [radarOnScreen?.path ?? null, radarNext?.path ?? null],
     read: (path) => {
       const frame = byPath.get(path);
@@ -84,7 +88,7 @@ export function useBandLayers(map: MapLibreMap | null, options: Options): BandLa
   const cloudBand = useMemo(() => (cloudView ? newestFirst(satellite.band) : []), [cloudView, satellite.band]);
   const cloudState = useBandFields({
     scope: cloudView && geometry ? `clouds|${gkey}` : null,
-    band: cloudBand,
+    band: readAhead ? cloudBand : NOTHING,
     onScreen: [cloudTime, nextCloudTime].map((t) => (t === null ? null : String(t))),
     read: (id) => (geometry ? satelliteField('clouds', geometry, Number(id)) : Promise.reject(new Error('no canvas'))),
     cached: (id) => geometry !== null && cachedSatelliteField('clouds', geometry, Number(id)) !== undefined,
@@ -102,7 +106,7 @@ export function useBandLayers(map: MapLibreMap | null, options: Options): BandLa
   );
   const lightningState = useBandFields({
     scope: lightning.on && geometry ? `lightning|${gkey}` : null,
-    band: lightningBand,
+    band: readAhead ? lightningBand : NOTHING,
     onScreen: [lightningTime, nextLightningTime].map((t) => (t === null ? null : String(t))),
     read: (id) => (geometry ? satelliteField('lightning', geometry, Number(id)) : Promise.reject(new Error('no canvas'))),
     cached: (id) => geometry !== null && cachedSatelliteField('lightning', geometry, Number(id)) !== undefined,

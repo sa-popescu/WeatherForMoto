@@ -1,15 +1,14 @@
-import { cloudField } from './cloudValues';
 import { CLOUD_MASK, imageTime, imageUrl, IR_CLOUDS, LIGHTNING } from './eumetsat';
-import { lightningField } from './lightningValues';
+import { readField } from './fieldReader';
 import { geometryKey, type FieldGeometry } from './mercator';
-import { canvasFor, loadImage } from './pictures';
 import type { ValueField } from './rainValues';
 
 // EUMETSAT's images as values over the canvas: clouds from the infrared
 // picture and the cloud mask (cloudValues.ts), lightning from the flash area
 // (lightningValues.ts). Images smaller than the canvas (see pixelKm) are
-// stretched with smoothing before they are read. Shared by the map and the
-// cloud extrapolation, and kept across tab switches.
+// stretched with smoothing before they are read, in a worker where the
+// browser allows (fieldReader.ts). Shared by the map and the cloud
+// extrapolation, and kept across tab switches.
 
 export type SatelliteKind = 'clouds' | 'lightning';
 
@@ -24,25 +23,16 @@ export function cachedSatelliteField(kind: SatelliteKind, geometry: FieldGeometr
   return fields.get(keyOf(kind, geometry, timeSec));
 }
 
-/** An image stretched over the whole canvas, read back as RGBA. */
-function stretched(ctx: CanvasRenderingContext2D, image: HTMLImageElement, geometry: FieldGeometry): Uint8ClampedArray {
-  ctx.clearRect(0, 0, geometry.width, geometry.height);
-  ctx.drawImage(image, 0, 0, geometry.width, geometry.height);
-  // Throws if the image came back without CORS: the canvas is then unreadable.
-  return ctx.getImageData(0, 0, geometry.width, geometry.height).data;
-}
-
-async function read(kind: SatelliteKind, geometry: FieldGeometry, timeSec: number, signal: AbortSignal): Promise<ValueField> {
-  const ctx = canvasFor(geometry);
-  if (kind === 'lightning') {
-    const flashes = await loadImage(imageUrl(LIGHTNING, geometry, timeSec), signal);
-    return lightningField(stretched(ctx, flashes, geometry), geometry.width, geometry.height);
-  }
-  const [ir, mask] = await Promise.all([
-    loadImage(imageUrl(IR_CLOUDS, geometry, timeSec), signal),
-    loadImage(imageUrl(CLOUD_MASK, geometry, imageTime(CLOUD_MASK, timeSec, null)), signal),
-  ]);
-  return cloudField(stretched(ctx, ir, geometry), stretched(ctx, mask, geometry), geometry.width, geometry.height);
+function read(kind: SatelliteKind, geometry: FieldGeometry, timeSec: number): Promise<ValueField> {
+  const { width, height } = geometry;
+  if (kind === 'lightning') return readField({ kind, width, height, url: imageUrl(LIGHTNING, geometry, timeSec) });
+  return readField({
+    kind,
+    width,
+    height,
+    ir: imageUrl(IR_CLOUDS, geometry, timeSec),
+    mask: imageUrl(CLOUD_MASK, geometry, imageTime(CLOUD_MASK, timeSec, null)),
+  });
 }
 
 /**
@@ -56,7 +46,7 @@ export function satelliteField(kind: SatelliteKind, geometry: FieldGeometry, tim
   if (cached) return Promise.resolve(cached);
   let request = pending.get(key);
   if (!request) {
-    request = read(kind, geometry, timeSec, new AbortController().signal)
+    request = read(kind, geometry, timeSec)
       .then((field) => {
         fields.set(key, field);
         while (fields.size > KEPT) {
