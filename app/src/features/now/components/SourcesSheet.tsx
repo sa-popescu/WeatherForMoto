@@ -22,6 +22,7 @@ const STATE_LABEL: Record<SourceState, keyof (typeof S_SOURCES)['ro']> = {
   'none-nearby': 'statusNoneNearby',
   off: 'statusOff',
   'rate-limited': 'statusRateLimited',
+  paused: 'statusPaused',
   stale: 'statusStale',
   'key-rejected': 'statusKeyRejected',
 };
@@ -31,27 +32,50 @@ function text(s: Strings, id: string, part: 'name' | 'role'): string | null {
   return value ?? (part === 'name' ? id : null);
 }
 
+/** Further away than this, a comeback is said as a day ("1 decembrie"), not a time. */
+const RETRY_AS_DATE_MS = 20 * 3_600_000;
+
+const REASON_KEY: Readonly<Record<string, 'reasonUnavailable' | 'reasonToken' | 'reasonSlow'>> = {
+  unavailable: 'reasonUnavailable',
+  token: 'reasonToken',
+  slow: 'reasonSlow',
+};
+
 function detail(s: Strings, source: SourceStatus, nowMs: number, lang: Lang): string | null {
+  const locale = lang === 'ro' ? 'ro-RO' : 'en-GB';
   // A source that is quiet for a reason says it: when it comes back, and what
   // the other side itself gave as the reason.
-  if (source.status === 'rate-limited' || source.status === 'key-rejected') {
+  if (source.status === 'rate-limited' || source.status === 'key-rejected' || source.status === 'paused') {
     const parts: string[] = [];
     const at = source.retry_at ? new Date(source.retry_at) : null;
     if (at && !Number.isNaN(at.getTime())) {
-      parts.push(fmt(s.retryAt, {
-        time: at.toLocaleTimeString(lang === 'ro' ? 'ro-RO' : 'en-GB', { hour: '2-digit', minute: '2-digit' }),
-      }));
+      parts.push(
+        at.getTime() - nowMs > RETRY_AS_DATE_MS
+          ? fmt(s.retryOn, { date: at.toLocaleDateString(locale, { day: 'numeric', month: 'long' }) })
+          : fmt(s.retryAt, { time: at.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }) }),
+      );
     }
+    if (source.status === 'paused') parts.push(s.pausedWhy);
     if (source.detail) parts.push(source.detail);
     return parts.length ? parts.join(' · ') : null;
   }
+  if (source.status === 'no-data' && source.reason) {
+    const key = REASON_KEY[source.reason];
+    return key ? [s[key], source.detail].filter(Boolean).join(' · ') : null;
+  }
   if (source.status !== 'used') return null;
-  if (source.station && source.distance_km != null) {
-    const km = source.distance_km.toLocaleString(lang === 'ro' ? 'ro-RO' : 'en-GB', { maximumFractionDigits: 1 });
+  if (source.sensors != null) {
+    const km = source.distance_km?.toLocaleString(locale, { maximumFractionDigits: 1 }) ?? '?';
     const minutes = minutesAgo(source.observed_at, nowMs);
-    if (minutes === null) return fmt(s.stationNoTime, { station: source.station, km });
+    return fmt(s.sensorsDetail, { n: source.sensors, km, ago: minutes === null ? '' : fmt(s.ago, { min: minutes }) }).replace(/ · $/, '');
+  }
+  if (source.distance_km != null && (source.station || source.id === 'netatmo')) {
+    const station = source.station || s.netatmoStation;
+    const km = source.distance_km.toLocaleString(locale, { maximumFractionDigits: 1 });
+    const minutes = minutesAgo(source.observed_at, nowMs);
+    if (minutes === null) return fmt(s.stationNoTime, { station, km });
     const ago = minutes < 90 ? fmt(s.ago, { min: minutes }) : fmt(s.agoHours, { h: Math.round(minutes / 60) });
-    return fmt(s.stationDetail, { station: source.station, km, ago });
+    return fmt(s.stationDetail, { station, km, ago });
   }
   if (source.models != null) return fmt(s.modelsDetail, { n: source.models });
   if (source.members != null) return fmt(s.membersDetail, { n: source.members });

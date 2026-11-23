@@ -156,7 +156,7 @@ export function useRoutePlan() {
       WEATHER_CONCURRENCY,
       async (p) => {
         try {
-          const res = await api.weather({ name: p.name, lat: p.lat, lon: p.lon }, controller.signal, days);
+          const res = await api.weather({ name: p.name, lat: p.lat, lon: p.lon }, controller.signal, days, 'forecast');
           if (controller.signal.aborted) return;
           settle(p.id, {
             status: 'ready',

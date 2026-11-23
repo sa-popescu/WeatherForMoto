@@ -39,7 +39,7 @@ from datetime import timezone
 import pathlib
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator, Awaitable, Callable
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from dotenv import load_dotenv
 
@@ -451,6 +451,11 @@ async def weather(
         int,
         Query(ge=1, le=16, description="Forecast days (7 free, up to 16 premium)"),
     ] = 7,
+    purpose: Annotated[
+        Literal["now", "forecast"],
+        Query(description="'now' for the place on screen; 'forecast' (route points, favourites) "
+                          "skips the station networks with tight limits"),
+    ] = "now",
 ):
     """
     Return aggregated weather data.
@@ -491,7 +496,8 @@ async def weather(
                                  weatherxm_api_key=WEATHERXM_API_KEY,
                                  netatmo_client_id=NETATMO_CLIENT_ID,
                                  netatmo_client_secret=NETATMO_CLIENT_SECRET,
-                                 netatmo_refresh_token=NETATMO_REFRESH_TOKEN)
+                                 netatmo_refresh_token=NETATMO_REFRESH_TOKEN,
+                                 stations=purpose == "now")
     except Exception as exc:
         logger.exception("Weather fetch error: %s", exc)
         # The reason travels to the screen: a rider sending a screenshot of the

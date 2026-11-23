@@ -743,13 +743,17 @@ class NetworkTests(unittest.IsolatedAsyncioTestCase):
         ws.clear_caches()
         ws._wxm_cache.clear()
 
-    async def test_weatherxm_stale_cached_observation_is_refetched(self) -> None:
+    def _reset_weatherxm(self) -> None:
+        ws._wxm_cache.clear()
+        ws._wxm_near_cache.clear()
+        ws._wxm_note.clear()
+        ws._wxm_spent.clear()
+
+    async def test_weatherxm_spends_its_requests_sparingly(self) -> None:
+        self._reset_weatherxm()
         now = datetime.now(timezone.utc)
         fresh = {"observation": {"timestamp": now.isoformat(), "temperature": 21.0}}
-        recent = {"observation": {"timestamp": (now - timedelta(minutes=5)).isoformat(),
-                                  "temperature": 20.0}}
-        stale = {"observation": {"timestamp": (now - timedelta(minutes=45)).isoformat(),
-                                 "temperature": 30.0}}
+        stale = {"observation": {"timestamp": (now - timedelta(minutes=45)).isoformat(), "temperature": 30.0}}
         paths: list[str] = []
 
         async def handler(request: httpx.Request) -> httpx.Response:
@@ -758,24 +762,75 @@ class NetworkTests(unittest.IsolatedAsyncioTestCase):
                 return httpx.Response(200, json={"stations": [{"id": "s1", "lastDayQod": 0.9}]})
             return httpx.Response(200, json=fresh)
 
-        key = (round(44.43, 2), round(26.10, 2))
         async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-            with patch.object(ws, "_wxm_backoff_loaded", True), patch.object(ws, "_wxm_backoff_until", 0.0):
-                # Stale, but fetched 2 minutes ago: no refetch yet (quota guard).
-                ws._wxm_cache[key] = (time.monotonic() - 120, stale)
+            with patch.object(ws, "_wxm_backoff_loaded", True), patch.object(ws, "_wxm_backoff_until", 0.0), \
+                 patch.object(ws, "_wxm_spent_loaded", True), patch.object(ws, "_backoff_write_str", lambda *a: None):
+                first = await ws._fetch_weatherxm(44.43, 26.10, "key", client)
+                # The same area again, and a point next to it: from memory, no request.
+                self.assertIs(await ws._fetch_weatherxm(44.431, 26.101, "key", client), first)
+                self.assertEqual(len(paths), 2)
+                # A reading gone stale is asked for again, but not within half an hour of the last ask.
+                ws._wxm_cache["s1"] = (time.monotonic() - 120, stale)
                 self.assertIs(await ws._fetch_weatherxm(44.43, 26.10, "key", client), stale)
-                # Still-fresh observation cached 15 minutes ago: served from cache.
-                ws._wxm_cache[key] = (time.monotonic() - 900, recent)
-                self.assertIs(await ws._fetch_weatherxm(44.43, 26.10, "key", client), recent)
-                self.assertEqual(paths, [])
-                # Stale observation cached 15 minutes ago: refetched.
-                ws._wxm_cache[key] = (time.monotonic() - 900, stale)
-                result = await ws._fetch_weatherxm(44.43, 26.10, "key", client)
+                ws._wxm_cache["s1"] = (time.monotonic() - 3600, stale)
+                again = await ws._fetch_weatherxm(44.43, 26.10, "key", client)
+        # The station list was asked for once; each reading cost one request.
+        self.assertEqual(sum(p.endswith("/stations/near") for p in paths), 1)
+        self.assertEqual(len(paths), 3)
+        self.assertEqual(again["observation"], fresh["observation"])
         # The station that answered rides along, for the sources screen.
-        self.assertEqual(result["observation"], fresh["observation"])
-        self.assertEqual(result["station"]["id"], "s1")
-        self.assertEqual(len(paths), 2)
-        self.assertIsNotNone(_normalize_wxm_current(result))
+        self.assertEqual(again["station"]["id"], "s1")
+        self.assertIsNotNone(_normalize_wxm_current(again))
+        self.assertEqual(sum(ws._wxm_spent.values()), 3)
+
+    async def test_weatherxm_stops_at_the_daily_budget(self) -> None:
+        self._reset_weatherxm()
+        calls: list[str] = []
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            calls.append(request.url.path)
+            return httpx.Response(200, json={"stations": []})
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            with patch.object(ws, "_wxm_backoff_loaded", True), patch.object(ws, "_wxm_backoff_until", 0.0), \
+                 patch.object(ws, "_wxm_spent_loaded", True), patch.object(ws, "_backoff_write_str", lambda *a: None):
+                ws._wxm_spent[ws._wxm_day()] = ws.WXM_DAILY_BUDGET
+                self.assertIsNone(await ws._fetch_weatherxm(44.43, 26.10, "key", client))
+        self.assertEqual(calls, [])
+        note = ws._wxm_note[ws._coord_key(44.43, 26.10)]
+        self.assertEqual(note["reason"], "budget")
+        self.assertEqual(ws._weatherxm_row(configured=True, raw=None, norm=None, note=note)["status"], "paused")
+
+    async def test_weatherxm_waits_for_the_month_after_a_refusal(self) -> None:
+        self._reset_weatherxm()
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(429, json={"message": "Request limit reached"})
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            with patch.object(ws, "_wxm_backoff_loaded", True), patch.object(ws, "_wxm_backoff_until", 0.0), \
+                 patch.object(ws, "_wxm_spent_loaded", True), patch.object(ws, "_backoff_write_str", lambda *a: None), \
+                 patch.object(ws, "_backoff_write", lambda *a: None):
+                self.assertIsNone(await ws._fetch_weatherxm(44.43, 26.10, "key", client))
+                # It asks again the next UTC day, not before.
+                self.assertGreater(ws._wxm_backoff_until, time.time() + 600)
+                self.assertLessEqual(ws._wxm_backoff_until, time.time() + 86400 + 1)
+        note = ws._wxm_note[ws._coord_key(44.43, 26.10)]
+        self.assertEqual(note["detail"], "Request limit reached")
+        # The screen says the first of next month.
+        back = datetime.fromtimestamp(note["retry_at"], tz=timezone.utc)
+        self.assertEqual((back.day, back.hour), (1, 0))
+        self.assertGreater(back, datetime.now(timezone.utc))
+
+    def test_month_reset(self) -> None:
+        self.assertEqual(
+            datetime.fromtimestamp(ws._wxm_month_reset_at(datetime(2026, 12, 20, tzinfo=timezone.utc).timestamp()), tz=timezone.utc),
+            datetime(2027, 1, 1, tzinfo=timezone.utc),
+        )
+        self.assertEqual(
+            datetime.fromtimestamp(ws._wxm_month_reset_at(datetime(2026, 11, 23, 22, tzinfo=timezone.utc).timestamp()), tz=timezone.utc),
+            datetime(2026, 12, 1, tzinfo=timezone.utc),
+        )
 
     def count(self, name: str) -> None:
         self.calls[name] = self.calls.get(name, 0) + 1

@@ -157,9 +157,14 @@ export interface RideInput {
 }
 
 export const api = {
-  async weather(place: Place, signal?: AbortSignal, days: number = FORECAST_DAYS): Promise<WeatherResult> {
+  /**
+   * The weather of a place. `purpose` 'forecast' (route points, favourites)
+   * tells the server no "now" is measured there, so it leaves out the station
+   * networks with tight limits (backend get_weather stations=False).
+   */
+  async weather(place: Place, signal?: AbortSignal, days: number = FORECAST_DAYS, purpose: 'now' | 'forecast' = 'now'): Promise<WeatherResult> {
     const res = await send('/weather', {
-      query: { lat: place.lat.toFixed(4), lon: place.lon.toFixed(4), city: place.name, days },
+      query: { lat: place.lat.toFixed(4), lon: place.lon.toFixed(4), city: place.name, days, purpose: purpose === 'now' ? undefined : purpose },
       timeoutMs: WEATHER_TIMEOUT_MS,
       signal,
     });

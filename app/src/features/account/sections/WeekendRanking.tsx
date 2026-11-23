@@ -57,7 +57,7 @@ export function WeekendRanking() {
       list,
       CONCURRENCY,
       async (p, _index, signal) => {
-        const { data } = await api.weather(p, signal, FORECAST_DAYS);
+        const { data } = await api.weather(p, signal, FORECAST_DAYS, 'forecast');
         return pickWeekend(data.daily, localNowIso(data.utc_offset_seconds).slice(0, 10));
       },
       controller.signal,

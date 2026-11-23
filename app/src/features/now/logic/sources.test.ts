@@ -30,6 +30,18 @@ describe('groupSources', () => {
     ]);
     expect(groupSources(undefined, null)).toEqual([{ group: 'models', items: [{ id: 'open-meteo', status: 'used' }] }]);
   });
+
+  it('lists the citizens’ sensors with the stations, and a paused source before a silent one', () => {
+    const stations = groupSources(
+      [
+        { id: 'netatmo', status: 'no-data', reason: 'unavailable' },
+        { id: 'weatherxm', status: 'paused', retry_at: '2026-11-24T00:00:00Z' },
+        { id: 'sensor-community', status: 'used', sensors: 4 },
+      ],
+      null,
+    ).find((g) => g.group === 'stations');
+    expect(stations?.items.map((s) => s.id)).toEqual(['sensor-community', 'weatherxm', 'netatmo']);
+  });
 });
 
 describe('minutesAgo', () => {
