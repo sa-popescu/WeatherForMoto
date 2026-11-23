@@ -1,3 +1,5 @@
+import { reloadToNewBuild } from './staleBuild';
+
 // What is left on screen when React gives up on the whole app (an error
 // while drawing it). Plain DOM, since React has just unmounted everything:
 // a short note and a reload button, instead of an empty screen.
@@ -35,7 +37,12 @@ export function showCrashScreen(): void {
   reload.type = 'button';
   reload.className = 'btn btn--primary btn--lg';
   reload.textContent = text.reload;
-  reload.addEventListener('click', () => window.location.reload());
+  // Through the new service worker, if one waits: a plain reload could bring
+  // back the same page from the old one (lib/staleBuild.ts).
+  reload.addEventListener('click', () => {
+    reload.disabled = true;
+    void reloadToNewBuild();
+  });
 
   screen.append(title, body, reload);
   document.body.append(screen);

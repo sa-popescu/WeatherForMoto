@@ -11,14 +11,20 @@
   // address's redirect (app/src/worker/moved.ts), which sends page loads on
   // weatherformoto.bluemouse.cc to motonor.bluemouse.cc.
   // `run_worker_first` sends only those paths and the pages to the script;
-  // every other request is a static file, served as before.
+  // every other request is a static file, served as before. A request that
+  // matches no file reaches the script too ("not_found_handling": "none"):
+  // app/src/worker/staleAssets.ts answers a missing /assets/ file with a plain
+  // 404 nobody keeps, and any other page with the app, as the single-page
+  // fallback did. The fallback used to answer a file of an older build with
+  // the app's page under the year-long cache of /assets/*, which kept that
+  // page from ever loading the screen again.
   "name": "weatherformoto",
   "compatibility_date": "2026-07-01",
   "main": "app/src/worker/index.ts",
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
-    "not_found_handling": "single-page-application",
+    "not_found_handling": "none",
     "run_worker_first": ["/s", "/s/*", "/live", "/live/*", "/", "/index.html", "/privacy-policy.html"]
   },
   // The namespace id is set explicitly. With no id, wrangler's automatic

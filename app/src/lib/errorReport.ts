@@ -86,10 +86,19 @@ export function buildPayload(
 
 const sent = new Set<string>();
 
+/**
+ * The map library needs a browser from 2020 on: String.replaceAll, among
+ * others. An older one (or a robot that passes for one) breaks inside the
+ * library, which says nothing about the app, so it is not reported.
+ */
+export function browserTooOld(): boolean {
+  return typeof (String.prototype as { replaceAll?: unknown }).replaceAll !== 'function';
+}
+
 /** Report one error, unless it is noise, already sent or over the session cap. */
 export function reportError(kind: ErrorKind, error: unknown, extraStack?: string): void {
   // In development the console already shows everything.
-  if (import.meta.env.DEV) return;
+  if (import.meta.env.DEV || browserTooOld()) return;
   const payload = buildPayload(kind, error, {
     hash: window.location.hash,
     userAgent: navigator.userAgent,
