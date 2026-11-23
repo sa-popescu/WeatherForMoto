@@ -4,12 +4,12 @@
 
 export const TILE_SIZE = 256;
 /**
- * Deepest zoom a canvas is painted at: one level past the radar tiles (zoom 7,
- * stretched smoothly), so the edges of model rain and the satellite clouds stay
- * fine in a closer view. Deeper is out of reach anyway: FIELD_MIN_SPAN_KM at
- * zoom 9 is wider than FIELD_MAX_PX.
+ * Deepest zoom weather values are read at: the radar's own (RainViewer stops
+ * at 7, about 0.9 km a pixel over Romania), finer than the satellite images
+ * and the models. A closer view needs no more: the graphics card reads the
+ * values smoothly for every pixel of the screen (valueLayer.ts).
  */
-export const FIELD_MAX_ZOOM = 8;
+export const FIELD_MAX_ZOOM = 7;
 /** Largest canvas side painted per frame: sharp on a phone, cheap enough to redraw while playing. */
 export const FIELD_MAX_PX = 1400;
 /** Extra room around the view, as a share of its size, so a small pan stays covered. */
@@ -18,7 +18,6 @@ export const FIELD_PAD = 0.2;
  * Never narrower than this: rain moving in has to be on the canvas before it
  * arrives. The extrapolation reaches 90 minutes, about 180 km for the fastest
  * rain it follows and 240 km for high cloud, inside the 250 km on either side.
- * Any wider and zoom 8 would not fit FIELD_MAX_PX over northern Romania.
  */
 export const FIELD_MIN_SPAN_KM = 500;
 

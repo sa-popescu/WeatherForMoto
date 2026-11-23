@@ -1,20 +1,21 @@
-import type { FieldGeometry } from './mercator';
+import { lonToX, type FieldGeometry } from './mercator';
 import type { LevelOf } from './nowcast';
 import { bilinearAt, gridColumns, gridRow, type GridBox } from './rainPaint';
 
-// Rain as values, not pictures. Every source (observed radar, the radar moved
-// on, the model) becomes a field of rain strength over the canvas, and the
-// map colours it itself, per screen pixel (rainLayer.ts). Pure helpers only.
+// Weather as values, not pictures. Every source (observed radar, the radar
+// moved on, the model; the satellite clouds and lightning the same way, see
+// cloudValues.ts and lightningValues.ts) becomes a field over the canvas, and
+// the map colours it itself, per screen pixel (valueLayer.ts). Pure helpers.
 //
-// A field has two bytes per pixel: the strength as a code (0 for nothing,
-// else the reflectivity in thirds of a dBZ, see dbzToCode) and how surely it
-// is snow (0 to 255). A third of a dBZ is finer than any colour step, and one
-// byte keeps the textures small.
+// A field has two bytes per pixel. For rain: the strength as a code (0 for
+// nothing, else the reflectivity in thirds of a dBZ, see dbzToCode) and how
+// surely it is snow (0 to 255). A third of a dBZ is finer than any colour
+// step, and one byte keeps the textures small.
 
 export const CHANNELS = 2;
 
-/** A rain field: CHANNELS bytes per pixel, row by row over a FieldGeometry. */
-export type RainField = Uint8ClampedArray<ArrayBuffer>;
+/** A field: CHANNELS bytes per pixel, row by row over a FieldGeometry. */
+export type ValueField = Uint8ClampedArray<ArrayBuffer>;
 
 const CODES_PER_DBZ = 3;
 /** Code 0 is no rain; code 3 is -10 dBZ, the weakest echo RainViewer draws; 255 is 74 dBZ. */
@@ -118,7 +119,7 @@ const matched = new Map<number, number>();
 const MATCHED_KEPT = 65_536;
 
 /** RGBA pixels of RainViewer tiles (unsmoothed, snow shown) into a rain field. */
-export function decodePixels(rgba: Uint8ClampedArray, out: RainField): void {
+export function decodePixels(rgba: Uint8ClampedArray, out: ValueField): void {
   const count = Math.min(rgba.length / 4, out.length / CHANNELS);
   for (let p = 0; p < count; p += 1) {
     const i = p * 4;
@@ -142,26 +143,39 @@ export function decodePixels(rgba: Uint8ClampedArray, out: RainField): void {
 }
 
 /**
- * Blurs one channel of a field in place: `passes` box blurs of `radius`
- * pixels each way, which together come close to a Gaussian. Edges repeat
- * their last pixel.
+ * Blurs one plane of an image in place (bytes `offset`, `offset + stride`, …):
+ * `passes` box blurs of `radius` pixels each way, which together come close
+ * to a Gaussian. Edges repeat their last pixel.
  */
-export function blurChannel(field: RainField, width: number, height: number, channel: number, radius: number, passes: number): void {
+export function blurPlane(
+  data: Uint8ClampedArray,
+  width: number,
+  height: number,
+  stride: number,
+  offset: number,
+  radius: number,
+  passes: number,
+): void {
   const size = 2 * radius + 1;
   const line = new Float32Array(Math.max(width, height));
   const run = (start: number, step: number, count: number): void => {
-    for (let i = 0; i < count; i += 1) line[i] = field[start + i * step];
+    for (let i = 0; i < count; i += 1) line[i] = data[start + i * step];
     let sum = line[0] * (radius + 1);
     for (let i = 1; i <= radius; i += 1) sum += line[Math.min(count - 1, i)];
     for (let i = 0; i < count; i += 1) {
-      field[start + i * step] = sum / size;
+      data[start + i * step] = sum / size;
       sum += line[Math.min(count - 1, i + radius + 1)] - line[Math.max(0, i - radius)];
     }
   };
   for (let pass = 0; pass < passes; pass += 1) {
-    for (let y = 0; y < height; y += 1) run(y * width * CHANNELS + channel, CHANNELS, width);
-    for (let x = 0; x < width; x += 1) run(x * CHANNELS + channel, width * CHANNELS, height);
+    for (let y = 0; y < height; y += 1) run(y * width * stride + offset, stride, width);
+    for (let x = 0; x < width; x += 1) run(x * stride + offset, width * stride, height);
   }
+}
+
+/** Blurs one channel of a field in place (see blurPlane). */
+export function blurChannel(field: ValueField, width: number, height: number, channel: number, radius: number, passes: number): void {
+  blurPlane(field, width, height, CHANNELS, channel, radius, passes);
 }
 
 /**
@@ -171,7 +185,7 @@ export function blurChannel(field: RainField, width: number, height: number, cha
  * RainViewer marks snow on a coarse grid, and its steps would show where snow
  * turns to rain.
  */
-export function smoothRadarField(field: RainField, width: number, height: number): void {
+export function smoothRadarField(field: ValueField, width: number, height: number): void {
   blurChannel(field, width, height, 0, 1, 2);
   blurChannel(field, width, height, 1, 3, 2);
 }
@@ -202,8 +216,19 @@ export const codeLevel: LevelOf = (r, _g, _b, a) => (a === 0 ? 0 : LEVEL_OF_CODE
 
 // ---- The model ------------------------------------------------------------------
 
-/** Model rain (mm/h on its own grid) as a field over the canvas, read between cells; the model has no snow here. */
-export function modelField(grid: GridBox, values: Float32Array, geometry: FieldGeometry): RainField {
+/** How many canvas pixels one cell of the model grid spans, west to east. */
+function cellPixels(grid: GridBox, geometry: FieldGeometry): number {
+  return (lonToX(grid.east, geometry.z) - lonToX(grid.west, geometry.z)) / grid.cols;
+}
+
+/**
+ * A model field (values on its own latitude-longitude grid) over the canvas:
+ * each pixel read between the model's cells, then turned into the field's
+ * first byte by `toByte`. The second byte stays 0. Read straight between
+ * cells, a coarse grid leaves corners and straight edges where its cells
+ * meet, so the field is then blurred over about a third of a cell.
+ */
+export function gridToField(grid: GridBox, values: Float32Array, geometry: FieldGeometry, toByte: (value: number) => number): ValueField {
   const { width, height } = geometry;
   const field = new Uint8ClampedArray(width * height * CHANNELS);
   const us = gridColumns(grid, geometry, width, 0.5);
@@ -211,11 +236,24 @@ export function modelField(grid: GridBox, values: Float32Array, geometry: FieldG
     const v = gridRow(grid, geometry, y, 0.5);
     if (v < -0.5 || v > grid.rows - 0.5) continue;
     for (let x = 0; x < width; x += 1) {
-      const mm = bilinearAt(values, grid.cols, grid.rows, us[x], v);
-      if (mm > 0) field[(y * width + x) * CHANNELS] = mmToCode(mm);
+      const value = bilinearAt(values, grid.cols, grid.rows, us[x], v);
+      if (!Number.isNaN(value)) field[(y * width + x) * CHANNELS] = toByte(value);
     }
   }
+  const radius = Math.round(cellPixels(grid, geometry) / 3);
+  if (radius >= 1) blurPlane(field, width, height, CHANNELS, 0, radius, 2);
   return field;
+}
+
+/** Model rain (mm/h) as a field; the model has no snow here. */
+export function modelField(grid: GridBox, values: Float32Array, geometry: FieldGeometry): ValueField {
+  return gridToField(grid, values, geometry, mmToCode);
+}
+
+/** The model showing through a field by `weight` (0 keeps the field, 1 is all model), both bytes mixed straight, in place. */
+export function blendLinear(field: ValueField, model: Uint8ClampedArray, weight: number): void {
+  const keep = 1 - weight;
+  for (let i = 0; i < field.length; i += 1) field[i] = field[i] * keep + model[i] * weight;
 }
 
 /**
@@ -223,7 +261,7 @@ export function modelField(grid: GridBox, values: Float32Array, geometry: FieldG
  * model), in place. Mixed as rain amounts, so rain fading out gets lighter on
  * its way, as it would.
  */
-export function blendFields(field: RainField, model: Uint8ClampedArray, weight: number): void {
+export function blendFields(field: ValueField, model: Uint8ClampedArray, weight: number): void {
   const keep = 1 - weight;
   for (let i = 0; i < field.length; i += CHANNELS) {
     const a = field[i];

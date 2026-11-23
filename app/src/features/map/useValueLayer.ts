@@ -1,12 +1,12 @@
 import type { MapLibreMap } from 'maplibre-gl';
 import { useEffect, useRef } from 'react';
-import { RainLayer } from './rainLayer';
-import type { RainFrame } from './rainFrames';
-import type { RainField } from './rainValues';
-import { addInSlot, setCredit, slotId } from './weatherSlots';
+import type { ValueField } from './rainValues';
+import type { ValueFrame } from './valueFrames';
+import { ValueLayer } from './valueLayer';
+import { addInSlot, setCredit, slotId, type Slot } from './weatherSlots';
 
-// Puts the rain of the moment on screen (rainLayer.ts), in the radar's place
-// among the weather layers: under lightning, over the satellite clouds. A
+// Puts one kind of weather of the moment on screen (valueLayer.ts) in its
+// slot among the weather layers: clouds, then rain, then lightning on top. A
 // moment whose values are still on their way leaves the last one on screen.
 // The few moments around the one on screen are kept, so scrubbing back and
 // forth does not work them out again.
@@ -15,8 +15,13 @@ import { addInSlot, setCredit, slotId } from './weatherSlots';
 const KEPT_FIELDS = 6;
 
 interface Options {
-  /** Null when there is no rain to show at this moment of the band. */
-  frame: RainFrame | null;
+  /** The layer's own name, also used for its credit. */
+  name: string;
+  slot: Slot;
+  /** 256 x 2 RGBA, built once per map. */
+  palette: () => Uint8Array;
+  /** Null when there is nothing of this kind to show at this moment of the band. */
+  frame: ValueFrame | null;
   opacity: number;
   /** Credit for what is on screen. */
   attribution: string;
@@ -24,33 +29,34 @@ interface Options {
   fadeMs: number;
 }
 
-const LAYER_ID = slotId('radar', 'rain');
+export function useValueLayer(map: MapLibreMap | null, { name, slot, palette, frame, opacity, attribution, fadeMs }: Options): void {
+  const layer = useRef<ValueLayer | null>(null);
+  const fields = useRef(new Map<string, ValueField>());
+  const paletteOf = useRef(palette);
+  paletteOf.current = palette;
+  const id = slotId(slot, name);
 
-export function useRainLayer(map: MapLibreMap | null, { frame, opacity, attribution, fadeMs }: Options): void {
-  const layer = useRef<RainLayer | null>(null);
-  const fields = useRef(new Map<string, RainField>());
-
-  // One layer per map, added on top of the radar's slot.
+  // One layer per map, added on top of its slot.
   useEffect(() => {
     if (!map) return undefined;
-    const created = new RainLayer(LAYER_ID, fadeMs);
+    const created = new ValueLayer(id, paletteOf.current(), fadeMs);
     try {
-      addInSlot(map, 'radar', created);
+      addInSlot(map, slot, created);
       layer.current = created;
     } catch (err) {
-      console.warn('[map] the rain layer could not be added', err);
+      console.warn(`[map] the ${name} layer could not be added`, err);
     }
     return () => {
       layer.current = null;
       try {
-        if (map.getLayer(LAYER_ID)) map.removeLayer(LAYER_ID);
-        setCredit(map, 'radar', null);
+        if (map.getLayer(id)) map.removeLayer(id);
+        setCredit(map, name, null);
       } catch {
         // The map is gone, and its layers with it.
       }
     };
     // The fade length is passed on below, without a new layer.
-  }, [map]);
+  }, [map, id, slot, name]);
 
   useEffect(() => {
     layer.current?.setFadeMs(fadeMs);
@@ -61,7 +67,7 @@ export function useRainLayer(map: MapLibreMap | null, { frame, opacity, attribut
     if (!map || !target) return;
     if (!frame) {
       target.clear();
-      setCredit(map, 'radar', null);
+      setCredit(map, name, null);
       return;
     }
     let field = fields.current.get(frame.key) ?? null;
@@ -77,6 +83,6 @@ export function useRainLayer(map: MapLibreMap | null, { frame, opacity, attribut
       }
     }
     target.show(frame.key, frame.geometry, field, opacity);
-    setCredit(map, 'radar', attribution);
-  }, [map, frame, opacity, attribution]);
+    setCredit(map, name, attribution);
+  }, [map, name, frame, opacity, attribution]);
 }

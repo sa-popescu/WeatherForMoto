@@ -1,11 +1,12 @@
-import { alphaLevel, echoLevel, estimateMotion, type LevelOf, type MotionField, type MotionOptions, type RadarPicture } from './nowcast';
+import { amountLevel } from './cloudValues';
+import { echoLevel, estimateMotion, type LevelOf, type MotionField, type MotionOptions, type RadarPicture } from './nowcast';
 import { codeLevel } from './rainValues';
 
 // Measures motion off the main thread, so the map keeps panning and the band
 // keeps playing while new pictures are being analysed.
 
-/** Radar tiles as pictures, satellite clouds, or rain values sent in RGBA form (rainValues.ts). */
-export type PictureKind = 'radar' | 'cloud' | 'value';
+/** Radar tiles as pictures ("Acum"), or rain and cloud values sent in RGBA form (rainValues.fieldToRgba). */
+export type PictureKind = 'radar' | 'rain' | 'cloud';
 
 export interface MotionRequest {
   id: number;
@@ -25,7 +26,7 @@ interface WorkerScope {
 
 const scope = self as unknown as WorkerScope;
 
-const LEVELS: Record<PictureKind, LevelOf> = { radar: echoLevel, cloud: alphaLevel, value: codeLevel };
+const LEVELS: Record<PictureKind, LevelOf> = { radar: echoLevel, rain: codeLevel, cloud: amountLevel };
 
 scope.onmessage = (event) => {
   const { id, kind, pictures, width, height, options } = event.data;

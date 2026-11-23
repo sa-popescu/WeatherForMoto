@@ -14,10 +14,10 @@ import {
   mmToCode,
   modelField,
   smoothRadarField,
-  type RainField,
+  type ValueField,
 } from './rainValues';
 
-const field = (codes: number[], snow: number[] = []): RainField =>
+const field = (codes: number[], snow: number[] = []): ValueField =>
   Uint8ClampedArray.from(codes.flatMap((code, i) => [code, snow[i] ?? 0]));
 
 describe('strength codes', () => {
@@ -46,7 +46,7 @@ describe('decodePixels', () => {
       0x9f, 0xdf, 0xff, 0xff, // snow, 15 dBZ
       0, 0, 0, 0, // nothing
     ]);
-    const out: RainField = new Uint8ClampedArray(4 * CHANNELS);
+    const out: ValueField = new Uint8ClampedArray(4 * CHANNELS);
     decodePixels(rgba, out);
     expect([out[0], out[1]]).toEqual([dbzToCode(15), 0]);
     expect([out[2], out[3]]).toEqual([dbzToCode(35), 0]);
@@ -56,7 +56,7 @@ describe('decodePixels', () => {
 
   it('places a see-through drizzle colour by its opacity, though a canvas rounds its colour off', () => {
     // 0 dBZ is 827b69 at opacity 0x49; premultiplied and back it comes out a little off.
-    const out: RainField = new Uint8ClampedArray(CHANNELS);
+    const out: ValueField = new Uint8ClampedArray(CHANNELS);
     decodePixels(Uint8ClampedArray.from([0x84, 0x7a, 0x6b, 0x49]), out);
     expect(out[0]).toBe(dbzToCode(0));
     expect(out[1]).toBe(0);
@@ -64,7 +64,7 @@ describe('decodePixels', () => {
 });
 
 describe('blurChannel and smoothRadarField', () => {
-  const strength = (f: RainField): number[] => Array.from(f).filter((_, i) => i % CHANNELS === 0);
+  const strength = (f: ValueField): number[] => Array.from(f).filter((_, i) => i % CHANNELS === 0);
 
   it('spreads a lone cell evenly and keeps its total', () => {
     const lone = field(Array.from({ length: 25 }, (_, i) => (i === 12 ? 180 : 0)));
@@ -128,15 +128,18 @@ describe('the model as values', () => {
   it('reads the model rate under every pixel, with no snow', () => {
     const g = geometryOver();
     const grid = { west: 25, south: 44, east: 27, north: 46, cols: 2, rows: 2 };
-    const out = modelField(grid, Float32Array.from([3, 0, 0, 0]), g);
     const at = (lon: number, lat: number): number => {
       const x = Math.floor(lonToX(lon, g.z) - g.x0);
       const y = Math.floor(latToY(lat, g.z) - g.y0);
       return (y * g.width + x) * CHANNELS;
     };
-    expect(codeToMm(out[at(25.1, 45.9)])).toBeCloseTo(3, 0);
-    expect(out[at(25.1, 45.9) + 1]).toBe(0);
-    expect(out[at(26.9, 44.1)]).toBe(0);
+    const even = modelField(grid, Float32Array.from([3, 3, 3, 3]), g);
+    expect(codeToMm(even[at(26, 45)])).toBeCloseTo(3, 0);
+    expect(even[at(26, 45) + 1]).toBe(0);
+    // One wet cell: its middle is wet, the far corner of the opposite cell dry.
+    const one = modelField(grid, Float32Array.from([3, 0, 0, 0]), g);
+    expect(codeToMm(one[at(25.5, 45.5)])).toBeGreaterThan(1);
+    expect(one[at(26.9, 44.1)]).toBe(0);
   });
 
   it('lets the model show through as rain amounts, so fading rain gets lighter', () => {

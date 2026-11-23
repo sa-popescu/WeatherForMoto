@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cloudRgba, rainRgba, type ForecastData } from './forecast';
+import type { ForecastData } from './forecast';
 import type { RainGrid } from './iconEu';
 import { gridSource, iconEuSource } from './modelField';
 
@@ -11,7 +11,6 @@ const grid = (value: number): RainGrid => ({ west: 25, south: 44, east: 27, nort
 describe('iconEuSource', () => {
   it('reads rain between the hourly totals and says when it cannot', () => {
     const source = iconEuSource(new Map([[T, grid(2)], [T + HOUR, grid(4)]]), 'a');
-    expect(source.color).toBe(rainRgba);
     expect(source.sample(T)?.values[0]).toBe(3);
     expect(source.sample(T - HOUR / 2)?.values[0]).toBe(2);
     expect(source.sample(T + 5 * HOUR)).toBeNull();
@@ -30,7 +29,6 @@ describe('gridSource', () => {
 
   it('interpolates cloud cover between the hours', () => {
     const source = gridSource(data, bounds, 'cloud', 'c');
-    expect(source.color).toBe(cloudRgba);
     expect(source.sample(T + HOUR / 2)?.values[0]).toBeCloseTo(50, 5);
     expect(source.sample(T)?.values[0]).toBe(20);
     expect(source.sample(T)?.grid).toMatchObject({ ...bounds, cols: 1, rows: 1 });

@@ -11,7 +11,6 @@ import {
   LIGHTNING,
   maskShare,
   mercatorBbox,
-  paintClouds,
   recentTimes,
   wmsTime,
 } from './eumetsat';
@@ -57,7 +56,7 @@ describe('imageUrl', () => {
 
   it('asks a close view for no more pixels than the satellite has, blended only where blending means something', () => {
     // Bucharest at zoom 10: a zoom 8 canvas, about 0.43 km a pixel.
-    const g = fieldGeometry({ south: 44.3, west: 25.9, north: 44.6, east: 26.3 }, 10);
+    const g = fieldGeometry({ south: 44.3, west: 25.9, north: 44.6, east: 26.3 }, 10, 8);
     const ir = new URL(imageUrl(IR_CLOUDS, g, T)).searchParams;
     expect(Number(ir.get('width'))).toBe(Math.round(g.width * imageScale(IR_CLOUDS, g)));
     expect(Number(ir.get('width'))).toBeLessThan(g.width / 2);
@@ -76,22 +75,5 @@ describe('clouds from the satellite pictures', () => {
     expect(maskShare(255, 255, 255, 255)).toBe(1);
     expect(maskShare(0, 190, 0, 255)).toBe(0);
     expect(maskShare(0, 0, 255, 255)).toBe(0);
-  });
-
-  it('draws clear ground transparent, low cloud as a veil, high cloud near white', () => {
-    const ir = Uint8ClampedArray.from([
-      40, 40, 40, 255, // clear land
-      45, 45, 45, 255, // low warm cloud: infrared alone would call it ground
-      190, 190, 190, 255, // high cold top
-      190, 190, 190, 0, // no infrared value, but the mask says cloud
-    ]);
-    const mask = Uint8ClampedArray.from([0, 190, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255]);
-    paintClouds(ir, mask);
-    expect(ir[3]).toBe(0);
-    expect(ir[7]).toBe(90);
-    expect(ir[4]).toBe(148);
-    expect(ir[11]).toBe(230);
-    expect(ir[8]).toBeGreaterThan(230);
-    expect(ir[15]).toBe(90);
   });
 });

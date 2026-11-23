@@ -1,11 +1,11 @@
-import { CLOUD_MASK, imageTime, imageUrl, IR_CLOUDS, paintClouds } from './eumetsat';
-import { geometryKey, tilesFor, type FieldGeometry } from './mercator';
+import { tilesFor, type FieldGeometry } from './mercator';
 import type { RadarPicture } from './nowcast';
 import { RADAR_MAX_NATIVE_ZOOM, radarTileAt, type RadarFrame } from './radar';
 
-// Loading observed pictures as raw pixels over the canvas: radar frames from
-// RainViewer tiles, cloud pictures from the EUMETSAT infrared image and cloud
-// mask. Both hosts answer with CORS, so the pixels can be read.
+// Loading observed pictures as raw pixels over the canvas: here radar frames
+// from RainViewer tiles for the rain ahead on "Acum", and the image loading and
+// canvas the map's own readers share (radarValues.ts, satelliteValues.ts). The
+// hosts answer with CORS, so the pixels can be read.
 
 const IMAGE_TIMEOUT_MS = 15_000;
 
@@ -74,85 +74,4 @@ export async function radarPicture(host: string, frame: RadarFrame, geometry: Fi
   if (failed > slots.length / 2) throw new Error(`${failed} of ${slots.length} radar tiles failed`);
   // Throws if a tile came back without CORS: the canvas is then unreadable.
   return { rgba: ctx.getImageData(0, 0, geometry.width, geometry.height).data, timeSec: frame.time };
-}
-
-// Cloud pictures are shared by the observed frames and the extrapolation, and
-// kept across tab switches. Each is width x height x 4 bytes.
-const CLOUD_PICTURES_KEPT = 8;
-const cloudPictures = new Map<string, Uint8ClampedArray<ArrayBuffer>>();
-const pending = new Map<string, Promise<Uint8ClampedArray<ArrayBuffer>>>();
-
-const cloudKey = (geometry: FieldGeometry, timeSec: number): string => `${geometryKey(geometry)}|${timeSec}`;
-
-export function cachedCloudPicture(geometry: FieldGeometry, timeSec: number): Uint8ClampedArray<ArrayBuffer> | undefined {
-  return cloudPictures.get(cloudKey(geometry, timeSec));
-}
-
-/**
- * Both images of a cloud picture fetched ahead into the browser's own cache
- * (EUMETSAT lets them be kept a week), without turning them into pixels: a
- * later cloudPicture for that moment then finds them there instead of
- * downloading. About 250 KB per moment for a desktop-sized map.
- */
-export async function prefetchCloudImages(geometry: FieldGeometry, timeSec: number, signal: AbortSignal): Promise<void> {
-  if (cloudPictures.has(cloudKey(geometry, timeSec)) || pending.has(cloudKey(geometry, timeSec))) return;
-  await Promise.all([
-    loadImage(imageUrl(IR_CLOUDS, geometry, timeSec), signal),
-    loadImage(imageUrl(CLOUD_MASK, geometry, imageTime(CLOUD_MASK, timeSec, null)), signal),
-  ]);
-}
-
-/** The infrared image for the canvas, turned into clouds (see paintClouds). */
-export function cloudPicture(geometry: FieldGeometry, timeSec: number, signal: AbortSignal): Promise<Uint8ClampedArray<ArrayBuffer>> {
-  const key = cloudKey(geometry, timeSec);
-  const cached = cloudPictures.get(key);
-  if (cached) return Promise.resolve(cached);
-  let request = pending.get(key);
-  if (!request) {
-    // Not tied to one caller's signal: another frame may still want the same picture.
-    const own = new AbortController();
-    request = (async () => {
-      try {
-        const [ir, mask] = await Promise.all([
-          loadImage(imageUrl(IR_CLOUDS, geometry, timeSec), own.signal),
-          loadImage(imageUrl(CLOUD_MASK, geometry, imageTime(CLOUD_MASK, timeSec, null)), own.signal),
-        ]);
-        // Both images may be smaller than the canvas (see pixelKm); they are stretched with smoothing.
-        const ctx = canvasFor(geometry);
-        ctx.drawImage(ir, 0, 0, geometry.width, geometry.height);
-        const pixels = ctx.getImageData(0, 0, geometry.width, geometry.height).data;
-        ctx.clearRect(0, 0, geometry.width, geometry.height);
-        ctx.drawImage(mask, 0, 0, geometry.width, geometry.height);
-        paintClouds(pixels, ctx.getImageData(0, 0, geometry.width, geometry.height).data);
-        cloudPictures.set(key, pixels);
-        while (cloudPictures.size > CLOUD_PICTURES_KEPT) {
-          const oldest = cloudPictures.keys().next().value;
-          if (oldest === undefined) break;
-          cloudPictures.delete(oldest);
-        }
-        return pixels;
-      } finally {
-        pending.delete(key);
-      }
-    })();
-    pending.set(key, request);
-  }
-  return new Promise((resolve, reject) => {
-    const onAbort = (): void => reject(abortError());
-    if (signal.aborted) {
-      onAbort();
-      return;
-    }
-    signal.addEventListener('abort', onAbort, { once: true });
-    request.then(
-      (pixels) => {
-        signal.removeEventListener('abort', onAbort);
-        resolve(pixels);
-      },
-      (err: unknown) => {
-        signal.removeEventListener('abort', onAbort);
-        reject(err);
-      },
-    );
-  });
 }

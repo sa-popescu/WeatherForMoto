@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { rainRgba } from './forecast';
-import type { RainGrid } from './iconEu';
 import { latToY, lonToX, type FieldGeometry } from './mercator';
-import { crossFade, mixValues, paintModelRain } from './rainPaint';
+import { bilinearAt, mixValues } from './rainPaint';
+import { CHANNELS, gridToField } from './rainValues';
 
 /** A canvas over exactly 25-27 E, 44-46 N at zoom 6. */
 function geometryOver(): FieldGeometry {
@@ -14,90 +13,50 @@ function geometryOver(): FieldGeometry {
   return { z, x0, y0, width: x1 - x0, height: y1 - y0, bounds: { south: 44, west: 25, north: 46, east: 27 } };
 }
 
-describe('paintModelRain', () => {
-  // 2 x 2 cells of one degree: only the north-west cell has rain.
-  const grid: RainGrid = { west: 25, south: 44, east: 27, north: 46, cols: 2, rows: 2, values: Float32Array.from([3, 0, 0, 0]) };
+describe('bilinearAt', () => {
+  const values = Float32Array.from([0, 10, 20, Number.NaN]);
 
-  it('paints the rain where the model has it, in the radar colours, and nothing elsewhere', () => {
-    const g = geometryOver();
-    const pixels = paintModelRain(grid, grid.values, g);
-    const at = (lon: number, lat: number): number[] => {
-      const x = Math.floor(lonToX(lon, g.z) - g.x0);
-      const y = Math.floor(latToY(lat, g.z) - g.y0);
-      const i = (y * g.width + x) * 4;
-      return Array.from(pixels.slice(i, i + 4));
-    };
-    expect(at(25.1, 45.9)).toEqual(rainRgba(3));
-    expect(at(26.9, 44.1)).toEqual([0, 0, 0, 0]);
+  it('reads between cell centres, and a missing cell leaves the others to decide', () => {
+    expect(bilinearAt(values, 2, 2, 0, 0)).toBe(0);
+    expect(bilinearAt(values, 2, 2, 0.5, 0)).toBe(5);
+    expect(bilinearAt(values, 2, 2, 0, 0.5)).toBe(10);
+    // Near the missing cell: only its three neighbours count, in their own proportions.
+    expect(bilinearAt(values, 2, 2, 0.75, 0.75)).toBeCloseTo((0.1875 * 10 + 0.1875 * 20) / 0.4375, 6);
   });
 
+  it('has nothing off the grid', () => {
+    expect(bilinearAt(values, 2, 2, -0.6, 0)).toBeNaN();
+    expect(bilinearAt(values, 2, 2, 0, 1.6)).toBeNaN();
+  });
+});
+
+describe('a model field on the canvas', () => {
   it('places rows by latitude, not by pixel share', () => {
-    // Rain in the whole northern row: the edge sits near 45 N, which is not the canvas middle in Mercator.
-    const north: RainGrid = { ...grid, values: Float32Array.from([5, 5, 0, 0]) };
+    // A value in the whole northern row: the edge sits near 45 N, which is not the canvas middle in Mercator.
+    const grid = { west: 25, south: 44, east: 27, north: 46, cols: 2, rows: 2 };
     const g = geometryOver();
-    const pixels = paintModelRain(north, north.values, g);
+    const field = gridToField(grid, Float32Array.from([5, 5, 0, 0]), g, (v) => (v > 0.1 ? 200 : 0));
     const column = Math.floor(g.width / 2);
-    // The canvas starts on a whole pixel just north of the grid, so the scan starts at the rain.
+    // The canvas starts on a whole pixel just north of the grid, so the scan starts at the value.
     let edge = -1;
-    let seenRain = false;
+    let seen = false;
     for (let y = 0; y < g.height; y += 1) {
-      const alpha = pixels[(y * g.width + column) * 4 + 3];
-      if (alpha > 0) seenRain = true;
-      else if (seenRain) {
+      // Halfway down the value: the softened edge stays centred on where it was.
+      if (field[(y * g.width + column) * CHANNELS] > 100) seen = true;
+      else if (seen) {
         edge = y;
         break;
       }
     }
-    // Interpolation moves the 0.1 mm edge south of the cell centre line by design; it must sit
+    // Interpolation moves the edge south of the cell centre line by design; it must sit
     // within the second degree band, measured in latitude.
     expect(edge).toBeGreaterThan(Math.floor(latToY(45.3, g.z) - g.y0));
     expect(edge).toBeLessThan(Math.ceil(latToY(44.4, g.z) - g.y0));
   });
-
-  it('blends the edge between two bands over a single pixel', () => {
-    // Light rain in the west column, moderate in the east: one band edge, near 26.1 E.
-    const step: RainGrid = { ...grid, values: Float32Array.from([0.5, 1, 0.5, 1]) };
-    const g = geometryOver();
-    const pixels = paintModelRain(step, step.values, g);
-    const light = rainRgba(0.5);
-    const moderate = rainRgba(1);
-    const same = (px: number[], c: readonly number[]): boolean => px.every((v, k) => v === c[k]);
-    let blended = 0;
-    for (let y = 5; y < g.height - 5; y += 7) {
-      const between: number[][] = [];
-      // The outermost pixels are left out: the grid ends inside them.
-      for (let x = 5; x < g.width - 5; x += 1) {
-        const i = (y * g.width + x) * 4;
-        const px = Array.from(pixels.slice(i, i + 4));
-        if (!same(px, light) && !same(px, moderate)) between.push(px);
-      }
-      expect(between.length).toBeLessThanOrEqual(1);
-      for (const px of between) {
-        expect(px[3]).toBeGreaterThan(light[3]);
-        expect(px[3]).toBeLessThan(moderate[3]);
-      }
-      blended += between.length;
-    }
-    expect(blended).toBeGreaterThan(0);
-  });
 });
 
-describe('mixValues and crossFade', () => {
+describe('mixValues', () => {
   it('mixes hourly totals and lets a missing value take the other', () => {
     expect(Array.from(mixValues(Float32Array.from([1, Number.NaN, 4]), Float32Array.from([3, 2, Number.NaN]), 0.5))).toEqual([2, 2, 4]);
-  });
-
-  it('fades between two frames without darkening colours', () => {
-    const rain = Uint8ClampedArray.from([0, 85, 136, 255]);
-    const clear = Uint8ClampedArray.from([0, 0, 0, 0]);
-    const kept = Uint8ClampedArray.from(rain);
-    crossFade(kept, clear, 0);
-    expect(Array.from(kept)).toEqual([0, 85, 136, 255]);
-    const fading = Uint8ClampedArray.from(rain);
-    crossFade(fading, clear, 0.5);
-    expect(Array.from(fading)).toEqual([0, 85, 136, 128]);
-    const appearing = Uint8ClampedArray.from(clear);
-    crossFade(appearing, rain, 1);
-    expect(Array.from(appearing)).toEqual([0, 85, 136, 255]);
   });
 });
