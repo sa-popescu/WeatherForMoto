@@ -112,7 +112,14 @@ export function useWmsTimeLayer(map: MapLibreMap | null, { product, time, next, 
     for (const t of [time, next]) {
       if (t === null || layers.current.has(t)) continue;
       const id = slotId(slot, `${product.layer.replace(/[^a-zA-Z0-9]/g, '_')}-${t}`);
-      map.addSource(id, { type: 'raster', tiles: [wmsTileUrl(product, t)], tileSize: TILE_SIZE, attribution: EUMETSAT_ATTRIBUTION });
+      map.addSource(id, {
+        type: 'raster',
+        tiles: [wmsTileUrl(product, t)],
+        tileSize: TILE_SIZE,
+        // Past this the map stretches the tiles it has, smoothly (see SatelliteProduct.maxZoom).
+        ...(product.maxZoom === undefined ? {} : { maxzoom: product.maxZoom }),
+        attribution: EUMETSAT_ATTRIBUTION,
+      });
       addInSlot(map, slot, { id, type: 'raster', source: id, paint: { 'raster-opacity': 0, 'raster-fade-duration': 0 } });
       layers.current.set(t, id);
     }

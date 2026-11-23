@@ -5,6 +5,7 @@ import {
   FIELD_MIN_SPAN_KM,
   fieldGeometry,
   geometryServes,
+  kmPerPixel,
   latToY,
   lonToX,
   TILE_SIZE,
@@ -46,6 +47,14 @@ describe('fieldGeometry', () => {
     expect((g.bounds.north - g.bounds.south) * 111.32).toBeGreaterThanOrEqual(FIELD_MIN_SPAN_KM - 1);
   });
 
+  it('paints a close view over northern Romania one level deeper than the radar tiles', () => {
+    // Iasi at zoom 10: the canvas still fits at zoom 8 with its full span around it.
+    const g = fieldGeometry({ south: 47.1, west: 27.5, north: 47.25, east: 27.7 }, 10);
+    expect(g.z).toBe(8);
+    expect(Math.max(g.width, g.height)).toBeLessThanOrEqual(FIELD_MAX_PX);
+    expect(kmPerPixel(g)).toBeCloseTo(0.41, 1);
+  });
+
   it('steps the zoom down rather than paint a canvas too large to redraw', () => {
     const g = fieldGeometry({ south: 30, west: -20, north: 65, east: 45 }, 6);
     expect(g.z).toBeLessThan(6);
@@ -76,5 +85,22 @@ describe('tilesFor', () => {
       expect(slot.top).toBeGreaterThan(-TILE_SIZE);
       expect(slot.top).toBeLessThan(g.height);
     }
+  });
+
+  it('stretches tiles of a shallower zoom over a deeper canvas', () => {
+    const g = fieldGeometry({ south: 44.3, west: 25.9, north: 44.6, east: 26.3 }, 10);
+    expect(g.z).toBe(8);
+    const slots = tilesFor(g, 7);
+    expect(slots.every((slot) => slot.size === TILE_SIZE * 2)).toBe(true);
+    // Every canvas pixel lies on exactly one tile.
+    const covered = (x: number, y: number): number =>
+      slots.filter((s) => x >= s.left && x < s.left + s.size && y >= s.top && y < s.top + s.size).length;
+    for (const [x, y] of [[0, 0], [g.width - 1, 0], [0, g.height - 1], [g.width - 1, g.height - 1], [g.width >> 1, g.height >> 1]]) {
+      expect(covered(x, y)).toBe(1);
+    }
+    // The tile under the canvas's top-left corner is the zoom 7 tile of that place.
+    const corner = slots.find((s) => s.left <= 0 && s.top <= 0);
+    expect(corner?.x).toBe(Math.floor(lonToX(g.bounds.west, 7) / TILE_SIZE));
+    expect(corner?.y).toBe(Math.floor(latToY(g.bounds.north, 7) / TILE_SIZE));
   });
 });

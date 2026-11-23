@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   capabilitiesUrl,
+  CLOUD_MASK,
   cloudShare,
+  imageScale,
   imageTime,
   imageUrl,
   IR_CLOUDS,
@@ -51,6 +53,18 @@ describe('imageUrl', () => {
     expect(west).toBeCloseTo((g.bounds.west * 20037508.342789244) / 180, 0);
     expect(east).toBeGreaterThan(west);
     expect(north).toBeGreaterThan(south);
+  });
+
+  it('asks a close view for no more pixels than the satellite has, blended only where blending means something', () => {
+    // Bucharest at zoom 10: a zoom 8 canvas, about 0.43 km a pixel.
+    const g = fieldGeometry({ south: 44.3, west: 25.9, north: 44.6, east: 26.3 }, 10);
+    const ir = new URL(imageUrl(IR_CLOUDS, g, T)).searchParams;
+    expect(Number(ir.get('width'))).toBe(Math.round(g.width * imageScale(IR_CLOUDS, g)));
+    expect(Number(ir.get('width'))).toBeLessThan(g.width / 2);
+    expect(ir.get('interpolations')).toBe('bilinear');
+    const mask = new URL(imageUrl(CLOUD_MASK, g, T)).searchParams;
+    expect(Number(mask.get('width'))).toBeLessThan(Number(ir.get('width')));
+    expect(mask.get('interpolations')).toBeNull();
   });
 });
 
