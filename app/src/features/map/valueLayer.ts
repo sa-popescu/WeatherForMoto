@@ -1,15 +1,16 @@
 import type { CustomLayerInterface, CustomRenderMethodInput, MapLibreMap } from 'maplibre-gl';
 import { mercatorBox, type FieldGeometry } from './mercator';
-import { paletteTexture } from './rainPalette';
-import type { RainField } from './rainValues';
+import type { ValueField } from './rainValues';
 
-// The rain on the map, drawn by the graphics card from rain values
-// (rainValues.ts) rather than shown as a picture. For every pixel of the
-// screen the field is read smoothly (a cubic B-spline over its cells) and
-// only then coloured (rainPalette.ts), so edges stay smooth at any zoom and
-// light rain fades out instead of ending in a fringe. A new moment does not
-// cross-fade two pictures: the values themselves move from one moment to the
-// next, so a shower grows or shrinks instead of showing twice.
+// Weather on the map (rain, clouds, lightning), drawn by the graphics card
+// from values (rainValues.ts) rather than shown as a picture. For every pixel
+// of the screen the field is read smoothly (a cubic B-spline over its cells)
+// and only then coloured from the layer's palette: 256 columns by the first
+// byte, two rows mixed by the second (rain and snow, low and high cloud). So
+// edges stay smooth at any zoom and light rain fades out instead of ending in
+// a fringe. A new moment does not cross-fade two pictures: the values
+// themselves move from one moment to the next, so a shower grows or shrinks
+// instead of showing twice.
 
 type Box = ReturnType<typeof mercatorBox>;
 
@@ -17,7 +18,7 @@ interface Entry {
   box: Box;
   width: number;
   height: number;
-  field: RainField;
+  field: ValueField;
   /** On the graphics card, once uploaded (again after a lost context). */
   texture: WebGLTexture | null;
 }
@@ -58,7 +59,7 @@ uniform float u_mix;
 uniform float u_opacity;
 out vec4 fragColor;
 
-// Rain strength with a cubic B-spline, from four bilinear reads instead of sixteen (GPU Gems 2, chapter 20).
+// The first byte with a cubic B-spline, from four bilinear reads instead of sixteen (GPU Gems 2, chapter 20).
 float strengthAt(sampler2D field, vec2 uv, vec2 size) {
   vec2 p = uv * size - 0.5;
   vec2 f = fract(p);
@@ -80,7 +81,7 @@ float strengthAt(sampler2D field, vec2 uv, vec2 size) {
   return g0.y * (g0.x * a + g1.x * b) + g1.y * (g0.x * c + g1.x * d);
 }
 
-// Strength and snow at this pixel; the field fades out over its last cell, so its edge never shows as a line.
+// Both bytes at this pixel; the field fades out over its last cell, so its edge never shows as a line.
 vec2 valueAt(sampler2D field, vec4 placement, vec2 size) {
   vec2 uv = v_pos * placement.xy + placement.zw;
   vec2 inside = min(uv, 1.0 - uv) * size;
@@ -107,7 +108,7 @@ function compile(gl: WebGL2RenderingContext, type: number, source: string): WebG
   return shader;
 }
 
-function createProgram(gl: WebGL2RenderingContext): Program {
+function createProgram(gl: WebGL2RenderingContext, palette: Uint8Array): Program {
   const program = gl.createProgram();
   if (!program) throw new Error('no program');
   gl.attachShader(program, compile(gl, gl.VERTEX_SHADER, VERTEX));
@@ -127,17 +128,17 @@ function createProgram(gl: WebGL2RenderingContext): Program {
   gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
   gl.bindVertexArray(null);
 
-  const palette = gl.createTexture();
-  if (!palette) throw new Error('no palette texture');
-  gl.bindTexture(gl.TEXTURE_2D, palette);
+  const paletteTexture = gl.createTexture();
+  if (!paletteTexture) throw new Error('no palette texture');
+  gl.bindTexture(gl.TEXTURE_2D, paletteTexture);
   gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
   gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
   gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, 256, 2, 0, gl.RGBA, gl.UNSIGNED_BYTE, paletteTexture());
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, 256, 2, 0, gl.RGBA, gl.UNSIGNED_BYTE, palette);
   setSampling(gl);
 
   const uniforms = Object.fromEntries(UNIFORMS.map((name) => [name, gl.getUniformLocation(program, name)])) as Program['uniforms'];
-  return { program, vao, buffer, palette, uniforms };
+  return { program, vao, buffer, palette: paletteTexture, uniforms };
 }
 
 /** Smooth reads that stop at the edge. */
@@ -185,7 +186,7 @@ export function placement(field: Box, box: Box): [number, number, number, number
   return [box.width / field.width, box.height / field.height, (box.x - field.x) / field.width, (box.y - field.y) / field.height];
 }
 
-export class RainLayer implements CustomLayerInterface {
+export class ValueLayer implements CustomLayerInterface {
   readonly type = 'custom';
   readonly renderingMode = '2d';
   private map: MapLibreMap | null = null;
@@ -202,6 +203,8 @@ export class RainLayer implements CustomLayerInterface {
 
   constructor(
     readonly id: string,
+    /** 256 x 2 RGBA, see above. */
+    private readonly palette: Uint8Array,
     private fadeMs: number,
   ) {}
 
@@ -210,7 +213,7 @@ export class RainLayer implements CustomLayerInterface {
   }
 
   /** Shows a field: at once if it is the one on screen, else moving to it from the one before. */
-  show(key: string, geometry: FieldGeometry, field: RainField, opacity: number): void {
+  show(key: string, geometry: FieldGeometry, field: ValueField, opacity: number): void {
     this.opacity = opacity;
     const known = this.entries.get(key);
     if (known) {
@@ -274,10 +277,10 @@ export class RainLayer implements CustomLayerInterface {
 
     if (!this.program) {
       try {
-        this.program = createProgram(gl);
+        this.program = createProgram(gl, this.palette);
       } catch (err) {
         // Without its program the layer stays empty rather than break the map's drawing.
-        console.warn('[map] the rain layer cannot be drawn on this device', err);
+        console.warn(`[map] the weather layer ${this.id} cannot be drawn on this device`, err);
         this.broken = true;
         return;
       }

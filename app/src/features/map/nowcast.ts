@@ -5,7 +5,7 @@ import { TILE_SIZE, type FieldGeometry } from './mercator';
 // what keeps the band continuous: ten minutes after the last radar frame the
 // map shows the same rain a little further on, not a different picture from a
 // model. The model takes over gradually (see modelWeight). The same engine
-// moves satellite cloud pictures, measured on their opacity (alphaLevel).
+// moves rain and cloud values (rainValues.ts, cloudValues.ts).
 // Pure helpers only, working on raw RGBA buffers.
 
 /** One radar interval, and how far the extrapolation reaches. */
@@ -72,9 +72,6 @@ export function echoLevel(r: number, g: number, b: number, a: number): number {
 
 /** What a pixel is worth when measuring motion; 0 for nothing to follow. */
 export type LevelOf = (r: number, g: number, b: number, a: number) => number;
-
-/** Cloud pictures carry their amount in the opacity (see paintClouds). */
-export const alphaLevel: LevelOf = (_r, _g, _b, a) => (a < 20 ? 0 : a / 6);
 
 export interface EchoField {
   data: Float32Array;

@@ -47,12 +47,14 @@ describe('fieldGeometry', () => {
     expect((g.bounds.north - g.bounds.south) * 111.32).toBeGreaterThanOrEqual(FIELD_MIN_SPAN_KM - 1);
   });
 
-  it('paints a close view over northern Romania one level deeper than the radar tiles', () => {
-    // Iasi at zoom 10: the canvas still fits at zoom 8 with its full span around it.
+  it('reads a close view at the zoom of the radar tiles, with its full span around it', () => {
+    // Iasi at zoom 10.
     const g = fieldGeometry({ south: 47.1, west: 27.5, north: 47.25, east: 27.7 }, 10);
-    expect(g.z).toBe(8);
+    expect(g.z).toBe(FIELD_MAX_ZOOM);
     expect(Math.max(g.width, g.height)).toBeLessThanOrEqual(FIELD_MAX_PX);
-    expect(kmPerPixel(g)).toBeCloseTo(0.41, 1);
+    expect(kmPerPixel(g)).toBeCloseTo(0.83, 1);
+    // Deeper canvases can still be asked for.
+    expect(fieldGeometry({ south: 47.1, west: 27.5, north: 47.25, east: 27.7 }, 10, 8).z).toBe(8);
   });
 
   it('steps the zoom down rather than paint a canvas too large to redraw', () => {
@@ -88,7 +90,7 @@ describe('tilesFor', () => {
   });
 
   it('stretches tiles of a shallower zoom over a deeper canvas', () => {
-    const g = fieldGeometry({ south: 44.3, west: 25.9, north: 44.6, east: 26.3 }, 10);
+    const g = fieldGeometry({ south: 44.3, west: 25.9, north: 44.6, east: 26.3 }, 10, 8);
     expect(g.z).toBe(8);
     const slots = tilesFor(g, 7);
     expect(slots.every((slot) => slot.size === TILE_SIZE * 2)).toBe(true);

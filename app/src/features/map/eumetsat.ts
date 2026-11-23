@@ -25,20 +25,14 @@ export interface SatelliteProduct {
    * pixel shows as a square block in a close view.
    */
   smooth?: boolean;
-  /**
-   * Deepest map zoom (MapLibre's, 512 px tiles) the map tiles are fetched at;
-   * a closer view stretches them with smoothing rather than show each pixel
-   * of the product as a hard square.
-   */
-  maxZoom?: number;
 }
 
 /**
  * MTG Lightning Imager, accumulated flash area over the last 5 minutes. Its
- * cells are 2-3 km over Romania; zoom 5 tiles are about 1.7 km a pixel, so
- * every cell still lands on a pixel.
+ * cells are 2-3 km over Romania; at 1.5 km a pixel every cell still lands on
+ * a pixel, and the image stays a few KB.
  */
-export const LIGHTNING: SatelliteProduct = { layer: 'mtg_fd:li_afa', style: '', stepSec: 300, maxZoom: 5 };
+export const LIGHTNING: SatelliteProduct = { layer: 'mtg_fd:li_afa', style: '', stepSec: 300, pixelKm: 1.5 };
 /**
  * MTG FCI infrared 10.5 µm, high resolution, as grey levels (cold cloud tops
  * bright). About 2 km a pixel over Romania, so 1.2 km keeps all its detail.
@@ -60,9 +54,6 @@ export const IR_CLOUDS: SatelliteProduct = {
  * halfway between sea and cloud is not land.
  */
 export const CLOUD_MASK: SatelliteProduct = { layer: 'msg_fes:clm', style: '', stepSec: 900, pixelKm: 4 };
-
-/** Colour the lightning layer is drawn in, for the legend. */
-export const LIGHTNING_COLOR = '#fef9bd';
 
 /** The layer's own capabilities (a few KB): its time dimension names the newest image. */
 export function capabilitiesUrl(product: SatelliteProduct): string {
@@ -131,7 +122,7 @@ export function imageUrl(product: SatelliteProduct, geometry: FieldGeometry, tim
   return `${EUMETVIEW_WMS}?${params.toString()}`;
 }
 
-// ---- Satellite pictures to clouds on the map ------------------------------------
+// ---- Reading the satellite pictures (cloudValues.ts turns them into clouds) -------
 
 /**
  * Grey levels of the infrared picture, measured against the cloud mask
@@ -140,10 +131,6 @@ export function imageUrl(product: SatelliteProduct, geometry: FieldGeometry, tim
  */
 const WARM_GREY = 60;
 const COLD_GREY = 165;
-const SLATE = [148, 163, 184];
-const WHITE = [241, 245, 249];
-/** A low cloud the infrared barely sees still shows as a veil this opaque. */
-const LOW_CLOUD_ALPHA = 90;
 
 /** How high and cold a cloud top is, 0 (warm, low) to 1 (cold, high), with soft ends. */
 export function cloudShare(grey: number): number {
@@ -156,25 +143,3 @@ export function maskShare(r: number, g: number, b: number, a: number): number {
   return a === 0 ? 0 : Math.min(r, g, b) / 255;
 }
 
-/**
- * Clouds over the map, written into `ir` in place. The mask decides where
- * cloud is, including the low cloud infrared misses; the infrared decides how
- * it looks, from a slate veil for low cloud to near white for high tops. A
- * cold top the mask has not caught yet still shows. The opacity carries the
- * cloud amount, which is what the motion is measured on.
- */
-export function paintClouds(ir: Uint8ClampedArray, mask: Uint8ClampedArray): void {
-  for (let i = 0; i < ir.length; i += 4) {
-    const height = ir[i + 3] === 0 ? 0 : cloudShare(ir[i]);
-    const presence = Math.max(maskShare(mask[i], mask[i + 1], mask[i + 2], mask[i + 3]), height * height);
-    const alpha = presence * (LOW_CLOUD_ALPHA + (230 - LOW_CLOUD_ALPHA) * height);
-    if (alpha < 8) {
-      ir[i + 3] = 0;
-      continue;
-    }
-    ir[i] = SLATE[0] + (WHITE[0] - SLATE[0]) * height;
-    ir[i + 1] = SLATE[1] + (WHITE[1] - SLATE[1]) * height;
-    ir[i + 2] = SLATE[2] + (WHITE[2] - SLATE[2]) * height;
-    ir[i + 3] = alpha;
-  }
-}

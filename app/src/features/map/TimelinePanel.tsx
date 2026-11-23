@@ -3,8 +3,8 @@ import { CORE } from '../../i18n/core';
 import { fmt, useLang, useStrings } from '../../lib/i18n';
 import { Icon } from '../../ui/icons';
 import { Button, cx, Spinner } from '../../ui/primitives';
-import { LIGHTNING_COLOR } from './eumetsat';
 import { ForecastLegend } from './ForecastLegend';
+import { LIGHTNING_SWATCH } from './lightningValues';
 import { frameClock } from './radar';
 import { RadarLegend } from './RadarLegend';
 import { MAP_STRINGS } from './strings';
@@ -148,7 +148,7 @@ export function TimelinePanel({ timeline }: { timeline: MapTimeline }) {
       {timeline.kind === 'cloud' ? <ForecastLegend kind="cloud" /> : <RadarLegend />}
       {timeline.lightningShown && (
         <p className="map-lightning-key">
-          <span className="map-lightning-key__swatch" style={{ background: LIGHTNING_COLOR }} aria-hidden="true" />
+          <span className="map-lightning-key__swatch" style={{ background: LIGHTNING_SWATCH }} aria-hidden="true" />
           {s.lightningKey}
         </p>
       )}

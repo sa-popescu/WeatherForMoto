@@ -1,4 +1,4 @@
-import { cloudRgba, rainRgba, type ForecastData, type GridBounds, type Rgba } from './forecast';
+import type { ForecastData, GridBounds } from './forecast';
 import { HOUR_S, rainWeights, type RainGrid } from './iconEu';
 import { mixValues, type GridBox } from './rainPaint';
 
@@ -16,7 +16,6 @@ export interface FieldSample {
 export interface ModelSource {
   /** Changes whenever the underlying data does. */
   id: string;
-  color: (value: number) => Rgba;
   sample: (tSec: number) => FieldSample | null;
 }
 
@@ -36,7 +35,7 @@ function sampleTotals(totals: ReadonlyMap<number, { grid: GridBox; values: Float
 export function iconEuSource(grids: ReadonlyMap<number, RainGrid>, id: string): ModelSource {
   const totals = new Map<number, { grid: GridBox; values: Float32Array }>();
   for (const [hour, grid] of grids) totals.set(hour, { grid, values: grid.values });
-  return { id, color: rainRgba, sample: (tSec) => sampleTotals(totals, tSec) };
+  return { id, sample: (tSec) => sampleTotals(totals, tSec) };
 }
 
 function toValues(frame: ReadonlyArray<number | null>): Float32Array {
@@ -57,11 +56,10 @@ export function gridSource(data: ForecastData, bounds: GridBounds, kind: 'rain' 
     if (!Number.isNaN(ms) && frames[i]) byHour.set(Math.round(ms / 1000), { grid, values: toValues(frames[i]) });
   });
 
-  if (kind === 'rain') return { id, color: rainRgba, sample: (tSec) => sampleTotals(byHour, tSec) };
+  if (kind === 'rain') return { id, sample: (tSec) => sampleTotals(byHour, tSec) };
 
   return {
     id,
-    color: cloudRgba,
     sample: (tSec) => {
       const hour = Math.floor(tSec / HOUR_S) * HOUR_S;
       const weight = (tSec - hour) / HOUR_S;
