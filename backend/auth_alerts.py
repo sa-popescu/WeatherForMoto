@@ -59,7 +59,8 @@ SMTP_HOST = os.getenv("SMTP_HOST")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER = os.getenv("SMTP_USER")
 SMTP_PASS = os.getenv("SMTP_PASS")
-SMTP_FROM = os.getenv("SMTP_FROM", SMTP_USER or "weatherformoto@bluemouse.cc")
+# The sender Brevo has on file for bluemouse.cc (weatherformoto@ until November 2026).
+SMTP_FROM = os.getenv("SMTP_FROM", SMTP_USER or "motonor@bluemouse.cc")
 # The name mail apps show instead of the bare address.
 SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "Motonor")
 BREVO_API_KEY = os.getenv("BREVO_API_KEY", "")
