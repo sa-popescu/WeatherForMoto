@@ -6,12 +6,13 @@ import type { RouteOutlook } from './driveWeather';
 const NOW = Date.UTC(2026, 10, 22, 9, 12);
 const at = (h: number, m: number): number => Date.UTC(2026, 10, 22, h, m);
 
-const dry: RouteOutlook = { settled: true, warning: null, worstScore: 80, dark: false };
+const dry: RouteOutlook = { settled: true, warning: null, worstScore: 80, dark: false, glare: null };
 const wet: RouteOutlook = {
   settled: true,
   warning: { kind: 'rain', band: 'moderata', minutes: 40, km: 60, name: 'Pitești', value: null, key: 'rain|60.0' },
   worstScore: 45,
   dark: false,
+  glare: null,
 };
 
 function option(departMs: number | null, durationMin: number, outlook: RouteOutlook | null, status: DepartureOption['status'] = 'ready'): DepartureOption {

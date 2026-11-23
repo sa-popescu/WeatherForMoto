@@ -10,13 +10,14 @@ import type { TimelineRow } from './plan';
 import { rainLine } from './rainText';
 import { fmtKm, scoreWord } from './routeFormat';
 import { RS } from './strings';
+import { timelineGlare, type GlareWarning } from './sunGlare';
 import type { RouteLine } from './types';
 
 // "Vremea pe drum": when you reach each point, its temperature, gusts (and
 // the side they hit you from when they are strong, see crosswind.ts), the
 // rain line (chance + amount + intensity, never a bare percentage) and the
 // backend's moto score for that hour. Points reached in the dark are marked
-// (see daylight.ts).
+// (see daylight.ts), and so is a stretch ridden into a low sun (sunGlare.ts).
 
 const SIDE_KEY = { head: 'windHead', tail: 'windTail', cross: 'windCross' } as const satisfies Record<WindSide, string>;
 
@@ -33,6 +34,23 @@ function CrossBanner({ warning }: { warning: CrossWarning }) {
   const more = warning.more === 0 ? '' : warning.more === 1 ? s.crossWarnOne : fmt(s.crossWarnMany, { n: warning.more });
   return (
     <Banner tone="warn" icon="wind">
+      {more ? `${main} ${more}` : main}
+    </Banner>
+  );
+}
+
+function GlareBanner({ warning }: { warning: GlareWarning }) {
+  const s = useStrings(RS);
+  const lang = useLang();
+  const main = fmt(s.glareWarn, {
+    time: hourOf(warning.localIso),
+    from: fmtKm(warning.stretch.fromKm, lang),
+    to: fmtKm(warning.stretch.toKm, lang),
+    place: warning.place,
+  });
+  const more = warning.more === 0 ? '' : warning.more === 1 ? s.glareWarnOne : fmt(s.glareWarnMany, { n: warning.more });
+  return (
+    <Banner tone="warn" icon="sun">
       {more ? `${main} ${more}` : main}
     </Banner>
   );
@@ -99,11 +117,13 @@ export function WaypointList({ rows, route }: WaypointListProps) {
   const winds = useMemo(() => roadWinds(route, rows), [route, rows]);
   const warning = useMemo(() => crossWarning(rows, winds), [rows, winds]);
   const dark = useMemo(() => firstDark(rows), [rows]);
+  const glare = useMemo(() => timelineGlare(route, rows), [route, rows]);
   return (
     <section className="route-wp" aria-labelledby="route-wp-title">
       <SectionLabel id="route-wp-title">{s.wpTitle}</SectionLabel>
       {dark && <DarkBanner row={dark} />}
       {warning && <CrossBanner warning={warning} />}
+      {glare && <GlareBanner warning={glare} />}
       <ol className="route-wp__list">
         {rows.map((row, i) => {
           const score = row.slot?.moto_score ?? null;
