@@ -38,6 +38,12 @@ android/
 # Local state of `wrangler dev` (the short links Worker)
 .wrangler/
 
+# Layout checks (app/e2e): what Playwright leaves behind, and the
+# TypeScript build cache
+test-results/
+playwright-report/
+*.tsbuildinfo
+
 Thumbs.db
 
 # Google Cloud SDK (installed locally, not part of the project)
