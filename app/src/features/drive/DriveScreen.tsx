@@ -13,6 +13,7 @@ import type { NameBetween } from '../route/samples';
 import { DEFAULT_SPEED, defaultDeparture, deviceOffsetSec } from '../route/timing';
 import type { ScreenProps } from '../types';
 import { DriveLocate } from './DriveLocate';
+import { DriveMapButtons } from './DriveMapButtons';
 import { boundsOf, setDriveData } from './driveMapLayers';
 import { DriveRoutes } from './DriveRoutes';
 import { DriveSearch, type SearchPurpose } from './DriveSearch';
@@ -32,6 +33,10 @@ import './drive.css';
 
 /** The map at street level, before there is a route to frame. */
 const HOME_ZOOM = 13;
+/** Room kept around the routes when the map frames them. */
+const FRAME_MARGIN = 36;
+/** The width the desktop map buttons take in the right corner (drive.css .drive-corner). */
+const CORNER_W = 64;
 
 export default function DriveScreen({ active }: ScreenProps) {
   const s = useStrings(DRIVE_S);
@@ -81,11 +86,21 @@ export default function DriveScreen({ active }: ScreenProps) {
     }
     const bounds = ready ? boundsOf(ready.routes, [destination]) : null;
     if (!bounds) return;
-    const height = map.getContainer().clientHeight;
-    const top = (topRef.current?.offsetHeight ?? 60) + 28;
-    const bottom = Math.min((bottomRef.current?.offsetHeight ?? 200) + 28, height * 0.6);
-    map.fitBounds(bounds, { padding: { top, bottom, left: 36, right: 36 }, duration: 600, maxZoom: 16 });
-  }, [map, mapReady, active, ready, destination, place.lat, place.lon]);
+    const card = bottomRef.current;
+    let padding: { top: number; bottom: number; left: number; right: number };
+    if (desktop) {
+      // The search and the card are a column on the left, the buttons sit in the right corner.
+      const column = card ? card.offsetLeft + card.offsetWidth : 432;
+      padding = { top: FRAME_MARGIN, bottom: FRAME_MARGIN, left: column + FRAME_MARGIN, right: CORNER_W + FRAME_MARGIN };
+    } else {
+      // The search on top, the card at the bottom.
+      const height = map.getContainer().clientHeight;
+      const top = (topRef.current?.offsetHeight ?? 60) + 28;
+      const bottom = Math.min((card?.offsetHeight ?? 200) + 28, height * 0.6);
+      padding = { top, bottom, left: FRAME_MARGIN, right: FRAME_MARGIN };
+    }
+    map.fitBounds(bounds, { padding, duration: 600, maxZoom: 16 });
+  }, [map, mapReady, active, ready, destination, desktop, place.lat, place.lon]);
 
   const pick = (picked: Place, why: SearchPurpose): void => {
     if (why !== 'go') {
@@ -179,13 +194,16 @@ export default function DriveScreen({ active }: ScreenProps) {
           />
         ) : (
           <>
-            <div className="drive-tools">
-              <DriveLocate onRecenter={recenter} />
-            </div>
+            {!desktop && (
+              <div className="drive-tools">
+                <DriveLocate onRecenter={recenter} />
+              </div>
+            )}
             <DriveWeatherCard active={active} />
           </>
         )}
       </div>
+      {desktop && <DriveMapButtons map={map} showLocate={!destination} onRecenter={recenter} />}
     </div>
   );
 }

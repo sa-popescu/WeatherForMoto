@@ -78,6 +78,8 @@ export const DRIVE_S = defineStrings(
     afterStop: 'după {stop}',
     myPosition: 'Poziția mea',
     locate: 'Locația mea',
+    zoomIn: 'Mărește',
+    zoomOut: 'Micșorează',
   },
   {
     mapLabel: 'Route map',
@@ -155,5 +157,7 @@ export const DRIVE_S = defineStrings(
     afterStop: 'after {stop}',
     myPosition: 'My position',
     locate: 'My location',
+    zoomIn: 'Zoom in',
+    zoomOut: 'Zoom out',
   },
 );

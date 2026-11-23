@@ -71,6 +71,16 @@ textarea {
   color: var(--muted);
 }
 
+/* With a mouse the scroll bars show, and on Windows they come wide, with
+   arrows, in the system grey. Thin ones in the theme's colours instead. A
+   phone draws its own over the content and is left as it is. */
+@media (hover: hover) and (pointer: fine) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-2) transparent;
+  }
+}
+
 .visually-hidden {
   position: absolute !important;
   width: 1px;
@@ -309,9 +319,11 @@ textarea {
     padding-bottom: 32px;
   }
 
+  /* Centred, like the forecast under it (.screen.now in now-desktop.css), and
+     in the same place over the radar map, so it does not jump between them. */
   .view-switch {
     max-width: 420px;
-    margin-inline: 32px;
+    margin-inline: auto;
   }
 
   .screen {

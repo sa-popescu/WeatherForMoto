@@ -2,6 +2,7 @@ import { fmt, useStrings } from '../../lib/i18n';
 import { CORE } from '../../i18n/core';
 import { Icon } from '../../ui/icons';
 import { Banner, Button, Card, Spinner } from '../../ui/primitives';
+import { MAX_STOPS } from './stops';
 import { RS } from './strings';
 import type { PlanState } from './useRoutePlan';
 
@@ -48,7 +49,8 @@ export function RouteStatus({ state, settled, failed, stale, onRetry, onRetryWea
           <Icon name="route" size={28} />
         </span>
         <h2 className="route-empty__title num">{s.emptyTitle}</h2>
-        <p className="muted">{s.emptyBody}</p>
+        {/* The stops between the start and the destination. */}
+        <p className="muted">{fmt(s.emptyBody, { n: MAX_STOPS - 2 })}</p>
         <p className="route-empty__example">{s.emptyExample}</p>
         <Button icon="play" onClick={onExample}>
           {s.tryExample}
