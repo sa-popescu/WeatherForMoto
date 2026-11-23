@@ -64,6 +64,7 @@ export default function MapScreen({ active }: ScreenProps) {
     kind: prefs.forecast,
     opacity: prefs.opacity,
     autoPlay: !reducedMotion,
+    fade: !reducedMotion,
   });
 
   const [selected, setSelected] = useState<Hazard | null>(null);

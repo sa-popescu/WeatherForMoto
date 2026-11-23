@@ -1,11 +1,15 @@
 import type { ErrorEvent, MapLibreMap, MapSourceDataEvent } from 'maplibre-gl';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Fader } from './fader';
 import { nextFrameIndex, RADAR_MAX_NATIVE_ZOOM, radarTileUrl, type RadarFrame } from './radar';
-import { addInSlot, removeLayerAndSource, slotId } from './weatherSlots';
+import { addInSlot, removeLayerAndSource, slotId, slotLayerOps } from './weatherSlots';
 
 // Radar tiles on the map. Only the frame on screen and the next one exist as
-// layers: the next one loads invisibly, so switching is instant. While a frame
-// the user jumped to is still loading, the last complete one stays visible.
+// layers: the next one loads invisibly, so it is ready when the band moves on.
+// While a frame the user jumped to is still loading, the last complete one
+// stays visible. The new frame fades in over the old one (fader.ts), so the
+// map never goes blank between two frames. Past the observed part of the band
+// the layers stay, hidden, for the way back.
 
 const RAINVIEWER_ATTRIBUTION = '<a href="https://www.rainviewer.com/api.html" target="_blank" rel="noopener">RainViewer</a>';
 /** Tile errors, with no tile loaded, before the radar counts as unavailable. */
@@ -19,6 +23,8 @@ interface Options {
   shown: boolean;
   /** Frame paths whose tiles finished loading (shared with playback). */
   loaded: Set<string>;
+  /** How long a new frame takes to fade in; 0 swaps at once. */
+  fadeMs: number;
 }
 
 export interface RadarLayerState {
@@ -29,15 +35,22 @@ export interface RadarLayerState {
 /** One id per frame; the path's slashes are not welcome in ids. */
 const frameId = (path: string): string => slotId('radar', path.replace(/[^a-zA-Z0-9]/g, '_'));
 
-export function useRadarLayer(map: MapLibreMap | null, { host, frames, index, opacity, shown, loaded }: Options): RadarLayerState {
+export function useRadarLayer(map: MapLibreMap | null, { host, frames, index, opacity, shown, loaded, fadeMs }: Options): RadarLayerState {
   /** Frame path -> layer id (the source has the same id). */
   const layers = useRef(new Map<string, string>());
   const lastComplete = useRef<string | null>(null);
   const health = useRef({ path: '', errors: 0, loads: 0 });
+  const fader = useRef<Fader | null>(null);
   const [version, setVersion] = useState(0);
   const [failed, setFailed] = useState(false);
 
   const bump = useCallback(() => setVersion((v) => v + 1), []);
+
+  // One fader per map; when a fade is done, the frames left underneath can go.
+  useEffect(() => {
+    fader.current = map ? new Fader(slotLayerOps(map, 'radar'), fadeMs, { under: true, onSettled: bump }) : null;
+    return () => fader.current?.reset();
+  }, [map, fadeMs, bump]);
 
   const removeFrame = useCallback(
     (path: string) => {
@@ -88,7 +101,9 @@ export function useRadarLayer(map: MapLibreMap | null, { host, frames, index, op
   }, [frames]);
 
   useEffect(() => {
-    if (!map || !shown || !host || index < 0 || index >= frames.length) {
+    const fade = fader.current;
+    if (!map || !fade || !host || index < 0 || index >= frames.length) {
+      fade?.reset();
       for (const path of [...layers.current.keys()]) removeFrame(path);
       lastComplete.current = null;
       return;
@@ -99,8 +114,10 @@ export function useRadarLayer(map: MapLibreMap | null, { host, frames, index, op
     if (currentReady) lastComplete.current = current.path;
     const fallback = currentReady ? null : lastComplete.current;
 
+    // The frame on screen, the next, the last complete one while waiting, and any still under a fade.
     const keep = new Set([current.path, next.path]);
     if (fallback) keep.add(fallback);
+    for (const [path, id] of layers.current) if (fade.isLeaving(id) || fade.current === id) keep.add(path);
     for (const path of [...layers.current.keys()]) if (!keep.has(path)) removeFrame(path);
     for (const frame of [current, next]) {
       if (layers.current.has(frame.path)) continue;
@@ -118,8 +135,16 @@ export function useRadarLayer(map: MapLibreMap | null, { host, frames, index, op
     }
     if (health.current.path !== current.path) health.current = { path: current.path, errors: 0, loads: 0 };
 
-    const visiblePath = fallback ?? current.path;
-    for (const [path, id] of layers.current) map.setPaintProperty(id, 'raster-opacity', path === visiblePath ? opacity : 0);
+    // Past the observed part of the band the rain ahead takes over, on top. The frames stay
+    // loaded and hidden, so the radar is there at once when the band comes back to it.
+    if (!shown) {
+      fade.hide();
+      return;
+    }
+
+    // A frame still loading is not shown yet: the last complete one stays until it is in.
+    const visible = layers.current.get(fallback ?? current.path);
+    if (visible && (fallback !== null || currentReady)) fade.show(visible, opacity);
   }, [map, shown, host, frames, index, opacity, loaded, removeFrame, version]);
 
   // Unmount (or a new map): take every radar layer off.
