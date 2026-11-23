@@ -32,6 +32,7 @@ import anm_nowcast
 import meteoalarm
 import metar
 import official_stations
+import opera_radar
 import calibration
 import last_good
 import rain_area
@@ -3006,8 +3007,8 @@ def _apply_rain_coverage(hourly: list[dict], area_raw: Any | None) -> None:
         )
 
 
-def _past_rain_before(past_raw: Any | None, first_time: str) -> list[float | None] | None:
-    """The past answer's rain for the hours before ``first_time``, oldest first; None without it."""
+def _past_rain_before(past_raw: Any | None, first_time: str) -> list[tuple[str, float | None]] | None:
+    """The past answer's rain for the hours before ``first_time`` as (local time, mm), oldest first; None without it."""
     if not isinstance(past_raw, dict):
         return None
     hourly = past_raw.get("hourly") or {}
@@ -3015,21 +3016,30 @@ def _past_rain_before(past_raw: Any | None, first_time: str) -> list[float | Non
     values = hourly.get("precipitation") or []
     if not times:
         return None
-    return [_to_float(_safe(values, i)) for i, t in enumerate(times) if str(t) < first_time]
+    return [(str(t), _to_float(_safe(values, i))) for i, t in enumerate(times) if str(t) < first_time]
 
 
-def _apply_wet_road(hourly: list[dict], past_raw: Any | None) -> None:
+def _apply_wet_road(hourly: list[dict], past_raw: Any | None, measured: dict[str, float] | None = None) -> None:
     """Mark the hours whose road is still wet, or that bring the first rain after dry days, and rescore them, in place.
 
     Runs once the rain of every hour is settled (after the fusion), and before
     the current block is merged, so the hour being lived can hand its state to
-    the gauge. A missing past answer leaves the start of the series dry and
-    first rains unknown, never wrong in the other direction.
+    the gauge. ``measured`` is the radar's rain of the last hours by local hour
+    (opera_radar.local_hours): where it has an hour, it stands for that hour's
+    rain instead of the model's. A missing past answer leaves the start of the
+    series dry and first rains unknown, never wrong in the other direction.
     """
     if not hourly:
         return
+    measured = measured or {}
     past = _past_rain_before(past_raw, str(hourly[0].get("time", "")))
-    for hour, state in zip(hourly, wet_road.road_states(hourly, past)):
+    past_rain = [measured.get(t, mm) for t, mm in past] if past is not None else None
+    # Copies, so the radar's hours shape the road's state without changing the forecast shown.
+    seen = [
+        {**hour, "precipitation_mm": measured[str(hour.get("time"))]} if str(hour.get("time")) in measured else hour
+        for hour in hourly
+    ]
+    for hour, state in zip(hourly, wet_road.road_states(seen, past_rain)):
         hour["wet_road"] = state
         if state is not None:
             _rescore_hour(hour)
@@ -4403,6 +4413,7 @@ def _source_status(
     rain_ensemble_members: int | None = None,
     netatmo: tuple[Any, dict | None, dict[str, Any] | None] = (None, None, None),
     community: tuple[Any, dict | None] = (None, None),
+    radar: dict[str, float] | None = None,
 ) -> list[dict[str, Any]]:
     """
     Every source and what it did for this answer, for the "data sources" view.
@@ -4459,6 +4470,13 @@ def _source_status(
             "distance_km": norm.get("distance_km") if norm else None,
             "observed_at": norm.get("observed_at") if norm else None,
         })
+    # The radar's rain of the last hours here, for the road's state after rain.
+    out.append({
+        "id": "opera-radar",
+        "status": "used" if radar else "no-data",
+        "hours": len(radar) if radar else None,
+        "rain_mm": round(sum(radar.values()), 1) if radar else None,
+    })
 
     for source, (feed, count) in warnings.items():
         out.append({"id": source, "status": "used" if feed is not None else "no-data", "count": count})
@@ -4499,7 +4517,7 @@ async def _collect_weather(
 
     async with http_client_scope() as client:
         (om_data, ens_raw, rain_ens_raw, area_raw, past_rain_raw, owm_current, owm_forecast, owm_air, om_air, met_raw,
-         pw_raw, wxm_raw, netatmo_raw, community_raw, meteoalarm_feed, stations_raw, metar_raw,
+         pw_raw, wxm_raw, netatmo_raw, community_raw, radar_rain, meteoalarm_feed, stations_raw, metar_raw,
          nowcast_feed) = await asyncio.gather(
             _forecast_cache.get_or_fetch(
                 ("open-meteo", cell, days),
@@ -4534,6 +4552,8 @@ async def _collect_weather(
             _await_optional("Netatmo", _fetch_netatmo(
                 lat, lon, netatmo_client_id, netatmo_client_secret, netatmo_refresh_token, client)),
             community(),
+            # The radar's files are shared by every place; most requests only read them.
+            _await_optional("OPERA radar", opera_radar.measured_rain(lat, lon, client)),
             # One feed covers the whole country, so every location shares the entry.
             _cached_optional("Meteoalarm", ("meteoalarm", meteoalarm.feed_url()), _with_ttl(
                 lambda: meteoalarm.fetch_feed(client, met_user_agent), TTL_METEOALARM_S)),
@@ -4570,7 +4590,7 @@ async def _collect_weather(
     # Off the request path: the log is read at most once a day, in a thread.
     calibration.refresh_soon(_calibration_since(), verification.RAIN_SOURCES, rain_fusion.WEIGHTS)
     _apply_rain_coverage(hourly, area_raw)
-    _apply_wet_road(hourly, past_rain_raw)
+    _apply_wet_road(hourly, past_rain_raw, opera_radar.local_hours(radar_rain, utc_offset))
     current = _merge_current(om_data, owm_current, owm_air, om_air, met_norm, pw_norm,
                              wxm_norm, netatmo_norm, hourly=hourly,
                              official_norm=official_norm, metar_obs=metar_obs, community_norm=community_norm)
@@ -4616,6 +4636,7 @@ async def _collect_weather(
         weatherxm=(wxm_raw, wxm_norm, _wxm_note.get(cell)),
         netatmo=(netatmo_raw, netatmo_norm, _netatmo_note.get(cell)),
         community=(community_raw, community_norm),
+        radar=radar_rain,
         warnings={
             "anm-nowcast": (nowcast_feed, len(nowcast_alerts)),
             "meteoalarm": (meteoalarm_feed, len(county_alerts)),

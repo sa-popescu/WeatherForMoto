@@ -95,6 +95,9 @@ export interface SourceStatus {
   reason?: string | null;
   /** How many sensors agreed (Sensor.Community). */
   sensors?: number | null;
+  /** Hours of measured rain, and their sum in mm (the OPERA radar). */
+  hours?: number | null;
+  rain_mm?: number | null;
   /** Warnings that apply to this place (warning feeds). */
   count?: number | null;
 }

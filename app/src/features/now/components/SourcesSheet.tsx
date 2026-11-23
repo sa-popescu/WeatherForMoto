@@ -64,6 +64,9 @@ function detail(s: Strings, source: SourceStatus, nowMs: number, lang: Lang): st
     return key ? [s[key], source.detail].filter(Boolean).join(' · ') : null;
   }
   if (source.status !== 'used') return null;
+  if (source.hours != null && source.rain_mm != null) {
+    return fmt(s.radarDetail, { mm: source.rain_mm.toLocaleString(locale, { maximumFractionDigits: 1 }), h: source.hours });
+  }
   if (source.sensors != null) {
     const km = source.distance_km?.toLocaleString(locale, { maximumFractionDigits: 1 }) ?? '?';
     const minutes = minutesAgo(source.observed_at, nowMs);
