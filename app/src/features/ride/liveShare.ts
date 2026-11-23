@@ -1,4 +1,5 @@
 import { KEYS, readJson, writeJson } from '../../lib/storage';
+import { noteUse } from '../../lib/usage';
 import { LIVE_PATH, liveUrl, SEND_EVERY_MS } from '../live/constants';
 import { averageKmh } from './logic/clock';
 import { arrivalAt } from './logic/follow';
@@ -96,6 +97,7 @@ class LiveShare {
       if (!isSession(session)) throw new Error('live: unexpected answer');
       writeJson(KEYS.liveShare, session);
       this.resume(session);
+      noteUse('ride:live');
       return this.state.url;
     } catch (err) {
       console.warn('[live] could not start sharing', err);

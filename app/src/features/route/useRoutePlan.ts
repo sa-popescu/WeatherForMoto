@@ -3,6 +3,7 @@ import { api, isAbort } from '../../lib/api';
 import { searchPlaces } from '../../lib/geo';
 import type { Lang } from '../../lib/i18n';
 import type { Place } from '../../lib/types';
+import { noteUse } from '../../lib/usage';
 import { sunDays } from './daylight';
 import { routeSummit } from './elevation';
 import { fetchRoute, RouteError, type RouteErrorKind } from './osrm';
@@ -183,6 +184,7 @@ export function useRoutePlan() {
         const points = await pointsFor(route, places, { nameBetween, nameSummit }, controller.signal);
         if (controller.signal.aborted) return;
         setState((s) => ({ ...s, route, points }));
+        noteUse('plan:route');
         await loadWeather(points, days, controller);
       } catch (err) {
         if (isAbort(err) || controller.signal.aborted) return;

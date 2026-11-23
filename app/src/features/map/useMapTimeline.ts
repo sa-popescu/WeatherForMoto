@@ -1,6 +1,7 @@
 import type { MapLibreMap } from 'maplibre-gl';
 import type { Theme } from '../../state/settings';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { noteUse } from '../../lib/usage';
 import { IR_CLOUDS, LIGHTNING, recentTimes } from './eumetsat';
 import type { ForecastKind } from './forecast';
 import { HOUR_S, iconEuCovers } from './iconEu';
@@ -280,7 +281,18 @@ export function useMapTimeline(map: MapLibreMap | null, { fetching, radar, light
     setIndex(next);
   }, []);
 
-  const togglePlay = useCallback(() => setPlaying((on) => !on), []);
+  // Only a tap counts as playing it (lib/usage.ts); noting twice does nothing.
+  const togglePlay = useCallback(
+    () =>
+      setPlaying((on) => {
+        if (!on) noteUse('map:play');
+        return !on;
+      }),
+    [],
+  );
+  useEffect(() => {
+    if (fetching && cloudView) noteUse('map:clouds');
+  }, [fetching, cloudView]);
 
   const retry = useCallback(() => {
     frames.reload();

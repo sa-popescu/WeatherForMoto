@@ -107,7 +107,8 @@
     <p class="updated">Ultima actualizare: 23 noiembrie 2026</p>
 
     <p>Motonor (fost MotoMeteo, proiectul WeatherForMoto) este un proiect personal, gratuit și necomercial: o aplicație
-        de vreme și drum pentru motocicliști. Nu are reclame, nu vinde nimic și nu folosește instrumente de urmărire sau statistici de trafic.
+        de vreme și drum pentru motocicliști. Nu are reclame, nu vinde nimic și nu folosește instrumente de urmărire;
+        numără doar, anonim, ce părți ale aplicației sunt folosite (secțiunea 4).
         Pagina de mai jos spune ce date folosește aplicația, de ce și unde ajung.</p>
 
     <h2>1. Fără cont</h2>
@@ -175,6 +176,13 @@
         erorii, câteva rânduri tehnice despre locul din cod unde a apărut, versiunea aplicației, tabul deschis și
         tipul browserului. Raportul nu conține coordonate, contul sau adresa de email. Ajunge în aceleași jurnale
         tehnice (cel mult 30 de zile), iar prima apariție a unei erori într-o zi ne este trimisă și pe email.</p>
+    <p>Ca să știm ce părți ale aplicației merită îmbunătățite, la închiderea sau ascunderea paginii aplicația
+        trimite la Cloudflare lista părților folosite în acea vizită (de exemplu: ecranul Drum, un traseu calculat,
+        o tură pornită, animația hărții). Se păstrează doar totaluri pe zi, câte vizite au folosit fiecare parte,
+        timp de cel mult 400 de zile: fără identificator, fără cookie, fără poziție și fără legătură cu contul.
+        Adresa IP e folosită doar sub formă de hash, doar în memorie și doar pe durata zilei, ca să limităm câte
+        raportări vin de la aceeași adresă. Dacă browserul tău cere site-urilor să nu te urmărească (Global Privacy
+        Control sau Do Not Track), aplicația nu trimite nimic.</p>
 
     <h2>5. Emailuri și notificări</h2>
     <p>Emailurile trimise sunt doar cele de cont: codul de autentificare, confirmarea adresei și resetarea parolei.
@@ -205,7 +213,7 @@
                 </tr>
                 <tr>
                     <td>Cloudflare</td>
-                    <td>găzduirea paginilor aplicației, a linkurilor scurte de traseu (90 de zile) și a locației live (cel mult 12 ore)</td>
+                    <td>găzduirea paginilor aplicației, a linkurilor scurte de traseu (90 de zile), a locației live (cel mult 12 ore) și a totalurilor anonime de utilizare (cel mult 400 de zile)</td>
                     <td>rețea globală</td>
                 </tr>
                 <tr>

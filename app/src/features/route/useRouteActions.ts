@@ -4,6 +4,7 @@ import { dayMonth, dayName } from '../../lib/format';
 import { fmt, useLang, useStrings } from '../../lib/i18n';
 import { shareLink } from '../../lib/share';
 import type { SavedRoute } from '../../lib/types';
+import { noteUse } from '../../lib/usage';
 import { CORE } from '../../i18n/core';
 import { useAuth } from '../../state/auth';
 import { useToast } from '../../state/toast';
@@ -74,6 +75,7 @@ export function useRouteActions({ route, points, stops, stats, speed, onSavedCha
           track: road ? savedTrackOf(road, stops) : null,
         });
         toast(as.saveOk, { tone: 'success' });
+        noteUse('route:save');
         onSavedChange();
         return true;
       } catch (err) {
@@ -114,6 +116,7 @@ export function useRouteActions({ route, points, stops, stats, speed, onSavedCha
       link.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
       toast(as.gpxOk, { tone: 'success' });
+      noteUse('route:gpx-export');
     } catch (err) {
       console.warn('[route] GPX export failed', err);
       toast(as.gpxErr, { tone: 'error' });
@@ -148,6 +151,7 @@ export function useRouteActions({ route, points, stops, stats, speed, onSavedCha
       try {
         await api.reportHazard(token, input);
         toast(as.hzOk, { tone: 'success' });
+        noteUse('hazard:report');
         onReported();
         return true;
       } catch (err) {
@@ -185,6 +189,7 @@ export function useRouteActions({ route, points, stops, stats, speed, onSavedCha
       });
       try {
         if ((await shareLink(url, text)) === 'copied') toast(as.shareCopied, { tone: 'success' });
+        noteUse('route:share');
       } catch (err) {
         console.warn('[route] share failed', err);
         toast(as.shareErr, { tone: 'error' });

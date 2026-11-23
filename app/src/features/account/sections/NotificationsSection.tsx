@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { api, ApiError } from '../../../lib/api';
 import { fmt, useStrings } from '../../../lib/i18n';
 import type { MeResponse } from '../../../lib/types';
+import { noteUse } from '../../../lib/usage';
 import { useAuth } from '../../../state/auth';
 import { useToast } from '../../../state/toast';
 import { Banner, Button, Card, Toggle } from '../../../ui/primitives';
@@ -60,6 +61,7 @@ export function NotificationsSection({ me, active }: { me: MeResponse; active: b
       const result = await push.enable();
       if (result === 'enabled') {
         toast(s.pushEnabled, { tone: 'success' });
+        noteUse('push:on');
         // Alerts switched off entirely server-side would make push silent.
         if (prefs && !prefs.enabled) update({ enabled: true }, { quiet: true });
       } else if (result === 'unsupported') {

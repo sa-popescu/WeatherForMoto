@@ -1,4 +1,5 @@
 import { fmt, useLang, useStrings } from '../../lib/i18n';
+import { noteUse } from '../../lib/usage';
 import { Icon } from '../../ui/icons';
 import { cx } from '../../ui/primitives';
 import { fmtClockTime, fmtTimeLeft } from '../ride/logic/rideFormat';
@@ -78,7 +79,10 @@ export function DepartureStrip({ options, best, selected, noTraffic, onPick }: D
               aria-pressed={o.departMs === selected}
               aria-label={fmt(s.departAria, { at: label(o), time, what }) + (i === best ? ` · ${s.best}` : '')}
               disabled={o.status === 'error'}
-              onClick={() => onPick(o.departMs)}
+              onClick={() => {
+                if (o.departMs !== null) noteUse('drive:departure');
+                onPick(o.departMs);
+              }}
             >
               <span className="drive-depart__at num">
                 {label(o)}

@@ -289,6 +289,12 @@ Setup în dashboard-ul Cloudflare Pages (Connect to Git):
 
 Linkuri scurte de traseu: Worker-ul are un singur script, `app/src/worker/shortLinks.ts`, care primește doar `/s` și `/s/*` (`run_worker_first` în `wrangler.jsonc`). `POST /s` păstrează planul unui traseu partajat în Workers KV (binding `SHORT_LINKS`) timp de 90 de zile, iar `GET /s/<id>` redirecționează către `/#/traseu?…`. Binding-ul KV are ID-ul spațiului scris în `wrangler.jsonc` (din dashboard: Storage & Databases › KV). Fără ID, crearea automată a lui wrangler pică la al doilea deploy din Workers Builds (eroarea 10014, cloudflare/workers-sdk#14284). Dacă binding-ul lipsește, `/s` răspunde 503 și aplicația trimite linkul lung.
 
+Statistici de utilizare (`app/src/worker/usage.ts`, `app/src/lib/usage.ts`): aplicația notează ce părți folosește o vizită (lista e în `app/src/lib/usageEvents.ts`) și le trimite o dată, cu `sendBeacon`, la `POST /usage`, când pagina e ascunsă sau închisă. Nu trimite nimic în dev sau când browserul cere Global Privacy Control / Do Not Track. Un Durable Object (`UsageStats`, binding `USAGE_STATS`) ține doar totaluri pe zi (ziua României), cel mult 400 de zile, cu o limită de raportări pe adresă și pe zi. Totalurile se văd la `https://motonor.bluemouse.cc/stats`, după cheia din secretul `STATS_KEY` (cel puțin 24 de caractere; fără el pagina spune că statisticile sunt oprite). Secretul se pune în dashboard: Workers & Pages › weatherformoto › Settings › Variables and Secrets › Add, tip Secret. O cheie aleatorie se poate face local, în PowerShell:
+
+```powershell
+$bytes = New-Object byte[] 30; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes); [Convert]::ToBase64String($bytes)
+```
+
 Pe backend (Cloud Run) setează `ALLOWED_ORIGINS` ca să includă originea frontend-ului:
 
 ```bash

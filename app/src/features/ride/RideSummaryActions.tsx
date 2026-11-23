@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useLang, useStrings, type Lang } from '../../lib/i18n';
+import { noteUse } from '../../lib/usage';
 import { useAuth } from '../../state/auth';
 import { useToast } from '../../state/toast';
 import { Button, cx } from '../../ui/primitives';
@@ -49,6 +50,7 @@ export function RideSummaryActions() {
     try {
       download(gpxFileName(title), buildRideGpx(title, rideRecorder.getPoints(), new Date(startedAt).toISOString()));
       toast(s.gpxOk, { tone: 'success' });
+      noteUse('ride:gpx');
     } catch (err) {
       console.warn('[ride] GPX export failed', err);
       toast(s.gpxErr, { tone: 'error' });

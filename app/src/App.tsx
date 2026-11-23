@@ -7,8 +7,10 @@ import { rideRecorder } from './features/ride/recorder';
 import { useRide } from './features/ride/useRide';
 import type { ScreenProps } from './features/types';
 import { CORE } from './i18n/core';
-import { useStrings } from './lib/i18n';
+import { useLang, useStrings } from './lib/i18n';
 import { applyUpdate, onUpdateReady } from './lib/pwa';
+import { noteUse, noteVisit } from './lib/usage';
+import { useAuth } from './state/auth';
 import { useToast } from './state/toast';
 import { Icon, type IconName } from './ui/icons';
 import { ViewSwitch } from './ui/ViewSwitch';
@@ -99,6 +101,20 @@ export default function App() {
   useEffect(() => {
     void rideRecorder.restoreUnfinished();
   }, []);
+
+  // Anonymous usage counts (lib/usage.ts): the visit, and the views it opened.
+  const lang = useLang();
+  const { status: authStatus } = useAuth();
+  useEffect(noteVisit, []);
+  useEffect(() => {
+    if (lang === 'en') noteUse('visit:en');
+  }, [lang]);
+  useEffect(() => {
+    if (authStatus === 'signed-in') noteUse('visit:signed-in');
+  }, [authStatus]);
+  useEffect(() => {
+    noteUse(liveId ? 'view:live' : `view:${view}`);
+  }, [view, liveId]);
 
   useEffect(() => {
     const onHash = (): void => {

@@ -1,5 +1,6 @@
 import { isAbort } from '../../lib/api';
 import type { Lang } from '../../lib/i18n';
+import { noteUse } from '../../lib/usage';
 import { fetchOneRoute } from '../drive/routeService';
 import { GapFiller, plausibleRoad, type GapFill } from './gapFill';
 import { RouteGuide } from './guide';
@@ -180,6 +181,7 @@ class RideRecorder {
   start({ lang, route }: StartOptions): void {
     if (this.snapshot.phase !== 'idle') return;
     const now = Date.now();
+    noteUse('ride:start');
     this.lang = lang;
     this.meta = { id: `ride-${now.toString(36)}`, createdAt: now, status: 'recording', clock: NEW_CLOCK, seg: 0, routeName: route?.name };
     this.track = EMPTY_TRACK;
