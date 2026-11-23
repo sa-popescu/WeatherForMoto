@@ -92,12 +92,12 @@ function widen(view: Box): Box {
 
 /**
  * The canvas for a view: its padded box at the map's zoom (never above
- * FIELD_MAX_ZOOM), stepping down a zoom level while the box would be wider or
+ * `maxZoom`), stepping down a zoom level while the box would be wider or
  * taller than FIELD_MAX_PX.
  */
-export function fieldGeometry(view: Box, mapZoom: number): FieldGeometry {
+export function fieldGeometry(view: Box, mapZoom: number, maxZoom: number = FIELD_MAX_ZOOM): FieldGeometry {
   const box = widen(view);
-  let z = Math.max(0, Math.min(FIELD_MAX_ZOOM, Math.floor(mapZoom)));
+  let z = Math.max(0, Math.min(maxZoom, Math.floor(mapZoom)));
   const tooBig = (zoom: number): boolean =>
     lonToX(box.east, zoom) - lonToX(box.west, zoom) > FIELD_MAX_PX || latToY(box.south, zoom) - latToY(box.north, zoom) > FIELD_MAX_PX;
   while (z > 0 && tooBig(z)) z -= 1;
@@ -116,10 +116,16 @@ export function fieldGeometry(view: Box, mapZoom: number): FieldGeometry {
 }
 
 /** Whether a canvas still serves a view: it covers it and has the zoom the view would pick. */
-export function geometryServes(geometry: FieldGeometry, view: Box, mapZoom: number): boolean {
+export function geometryServes(geometry: FieldGeometry, view: Box, mapZoom: number, maxZoom: number = FIELD_MAX_ZOOM): boolean {
   const b = geometry.bounds;
   const covers = view.south >= b.south && view.north <= b.north && view.west >= b.west && view.east <= b.east;
-  return covers && fieldGeometry(view, mapZoom).z === geometry.z;
+  return covers && fieldGeometry(view, mapZoom, maxZoom).z === geometry.z;
+}
+
+/** The canvas in the map's own Mercator units (0 to 1 across the world), for drawing it with WebGL. */
+export function mercatorBox(geometry: FieldGeometry): { x: number; y: number; width: number; height: number } {
+  const world = worldSize(geometry.z);
+  return { x: geometry.x0 / world, y: geometry.y0 / world, width: geometry.width / world, height: geometry.height / world };
 }
 
 export function geometryKey(geometry: FieldGeometry): string {

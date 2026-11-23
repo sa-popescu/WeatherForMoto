@@ -3,6 +3,7 @@ import type { FieldGeometry } from './mercator';
 import { alphaLevel, echoLevel, estimateMotion, motionOptions, type MotionField, type RadarPicture } from './nowcast';
 import type { MotionReply, MotionRequest, PictureKind } from './nowcastWorker';
 import { abortError } from './pictures';
+import { codeLevel, fieldToRgba } from './rainValues';
 
 // Loads the last observed pictures over the canvas and measures how they move:
 // radar echoes in the rain view, satellite clouds in the cloud view. Runs again
@@ -44,6 +45,7 @@ const yieldToBrowser = (): Promise<void> => new Promise((resolve) => window.setT
 /**
  * Motion for the pictures, in the worker when possible. The pictures are sent
  * as copies, so the newest one stays usable here as the extrapolation source.
+ * Rain values (kind 'value') are measured in their RGBA form.
  */
 export async function measureMotion(
   kind: PictureKind,
@@ -53,13 +55,14 @@ export async function measureMotion(
   signal: AbortSignal,
 ): Promise<MotionField> {
   const options = motionOptions(geometry, maxSpeedKmh);
+  const copies = pictures.map((p) => ({ rgba: kind === 'value' ? fieldToRgba(p.rgba) : p.rgba.slice(), timeSec: p.timeSec }));
   const target = motionWorker();
   if (!target) {
     await yieldToBrowser();
-    return estimateMotion(pictures, geometry.width, geometry.height, options, kind === 'cloud' ? alphaLevel : echoLevel);
+    const level = kind === 'cloud' ? alphaLevel : kind === 'value' ? codeLevel : echoLevel;
+    return estimateMotion(copies, geometry.width, geometry.height, options, level);
   }
   const id = (nextRequest += 1);
-  const copies = pictures.map((p) => ({ rgba: p.rgba.slice(), timeSec: p.timeSec }));
   return new Promise<MotionField>((resolve, reject) => {
     const onMessage = (event: MessageEvent<MotionReply>): void => {
       if (event.data.id !== id) return;

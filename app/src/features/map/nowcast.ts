@@ -456,7 +456,8 @@ const LATTICE_PX = 4;
  * The radar picture `steps` intervals later. Each pixel follows the motion
  * back, one interval at a time, and takes the colour it finds there. Colours
  * are copied, never mixed, so the picture keeps the radar's own palette; a
- * trail that leaves the canvas finds no rain.
+ * trail that leaves the canvas finds no rain. Works the same on rain values
+ * (rainValues.ts), which have fewer bytes per pixel (`channels`).
  */
 export function extrapolate(
   source: Uint8ClampedArray,
@@ -464,8 +465,9 @@ export function extrapolate(
   height: number,
   motion: MotionField,
   steps: number,
+  channels = 4,
 ): Uint8ClampedArray<ArrayBuffer> {
-  const pixels = new Uint8ClampedArray(width * height * 4);
+  const pixels = new Uint8ClampedArray(width * height * channels);
   const lw = Math.floor(width / LATTICE_PX) + 2;
   const lh = Math.floor(height / LATTICE_PX) + 2;
   const backX = new Float32Array(lw * lh);
@@ -501,12 +503,9 @@ export function extrapolate(
       const sx = Math.round(px - bx);
       const sy = Math.round(py - by);
       if (sx < 0 || sy < 0 || sx >= width || sy >= height) continue;
-      const from = (sy * width + sx) * 4;
-      const to = (py * width + px) * 4;
-      pixels[to] = source[from];
-      pixels[to + 1] = source[from + 1];
-      pixels[to + 2] = source[from + 2];
-      pixels[to + 3] = source[from + 3];
+      const from = (sy * width + sx) * channels;
+      const to = (py * width + px) * channels;
+      for (let c = 0; c < channels; c += 1) pixels[to + c] = source[from + c];
     }
   }
   return pixels;

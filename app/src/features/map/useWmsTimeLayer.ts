@@ -72,7 +72,8 @@ export function useWmsTimeLayer(map: MapLibreMap | null, { product, time, next, 
     if (!map) return undefined;
     const onData = (event: MapSourceDataEvent): void => {
       const entry = [...layers.current].find(([, id]) => id === event.sourceId);
-      if (!entry) return;
+      // A source being taken off still reports once; asking it whether it loaded would throw.
+      if (!entry || !map.getSource(event.sourceId)) return;
       const done = map.isSourceLoaded(event.sourceId);
       if (done !== loaded.current.has(entry[0])) {
         if (done) loaded.current.add(entry[0]);
