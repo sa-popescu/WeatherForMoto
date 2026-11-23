@@ -23,6 +23,7 @@ Vechiul frontend dintr-un singur fișier a fost retras: `index.html` și `sw.js`
 - Condiții curente + forecast daily + hourly
 - Moto score (0-100), calculat pe server pentru fiecare oră, cu etichete IDEAL (≥85), OK (60–84), ATENȚIE (40–59), EVITĂ (<40); constantele sunt publicate la `GET /meta/scoring`
 - Ploaia se punctează după șanse × intensitate (mm/h: urme, slabă, moderată, puternică), niciodată doar după procent: 70% cu 0,1 mm nu e tratat ca ploaie adevărată
+- Drumul după ploaie (`backend/wet_road.py`): după ce se oprește ploaia, drumul e socotit ud o vreme, mai mult la frig, umezeală, noapte, cer acoperit și fără vânt, mai puțin la soare și vânt; iar primele ore ale primei ploi după 5 zile uscate sunt mai alunecoase. Fiecare costă 8 puncte, fără plafon (`wet_road` și `first_rain` în `score_breakdown`, regulile în `/meta/scoring`). Ploaia zilelor trecute vine dintr-o cerere mică la Open-Meteo (`past_days=5`, doar precipitații); fără ea, începutul seriei e socotit uscat și nicio ploaie nu e numită prima. E o estimare, nu o măsurătoare
 - Căutare de locuri: orașe, sate, cartiere, străzi și locuri cunoscute (Photon, date OpenStreetMap, cu rezultatele din jurul locului curent primele; Open-Meteo ca rezervă), plus GPS
 - Linkurile de partajare poartă și coordonatele (`?q=Nume&ll=lat,lon`), ca un loc cu nume comun să se deschidă exact unde a fost trimis
 - Fereastră optimă de mers (azi/mâine)

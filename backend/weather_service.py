@@ -37,6 +37,7 @@ import last_good
 import rain_area
 import rain_fusion
 import verification
+import wet_road
 
 logger = logging.getLogger("weatherformoto.weather")
 
@@ -432,6 +433,15 @@ def _frost_factor(frost_risk: bool) -> dict[str, Any] | None:
     return _factor("frost", 0, FROST_RISK_CAP, "risc de gheață / polei pe carosabil")
 
 
+def _wet_road_factor(state: str | None) -> dict[str, Any] | None:
+    """The road still wet after rain, or the first rain after dry days (wet_road.py): a penalty, no cap."""
+    if state == wet_road.WET:
+        return _factor("wet_road", wet_road.WET_ROAD_PENALTY, None, "carosabil probabil încă ud după ploaie (estimare)")
+    if state == wet_road.FIRST_RAIN:
+        return _factor("first_rain", wet_road.FIRST_RAIN_PENALTY, None, "prima ploaie după zile uscate: asfalt alunecos (estimare)")
+    return None
+
+
 def _score_with_breakdown(
     feels_like: float | None,
     wind_gusts_kmh: float | None,
@@ -441,6 +451,7 @@ def _score_with_breakdown(
     *,
     visibility_m: float | None = None,
     frost_risk: bool = False,
+    wet_road_state: str | None = None,
 ) -> tuple[int | None, list[dict[str, Any]]]:
     """Compute the 0-100 moto score and the factors that explain it.
 
@@ -468,6 +479,7 @@ def _score_with_breakdown(
         _wind_factor(wind_gusts_kmh),
         *_temperature_factors(feels_like, precipitation_probability),
         _frost_factor(frost_risk),
+        _wet_road_factor(wet_road_state),
     ]
     factors = [
         f for f in candidates
@@ -489,6 +501,7 @@ def _moto_score(
     *,
     visibility_m: float | None = None,
     frost_risk: bool = False,
+    wet_road_state: str | None = None,
 ) -> int | None:
     """
     Compute a 0-100 'moto suitability' score (higher = better riding).
@@ -497,6 +510,7 @@ def _moto_score(
     score, _ = _score_with_breakdown(
         feels_like, wind_gusts_kmh, precipitation_mm, weather_code,
         precipitation_probability, visibility_m=visibility_m, frost_risk=frost_risk,
+        wet_road_state=wet_road_state,
     )
     return score
 
@@ -810,6 +824,8 @@ def scoring_metadata() -> dict[str, Any]:
             "dewpoint_margin_c": FROST_DEWPOINT_MARGIN_C,
             "cap": FROST_RISK_CAP,
         },
+        # The road still wet after rain, and the first rain after dry days (wet_road.py).
+        "wet_road": wet_road.metadata(),
         "daily": {
             "worst_hours_fraction": DAILY_WORST_HOURS_FRACTION,
             "worst_hours_weight": DAILY_WORST_HOURS_WEIGHT,
@@ -1169,6 +1185,8 @@ TTL_RAIN_ENSEMBLE_S = 60 * 60
 TTL_RAIN_AREA_S = 30 * 60
 # Coverage is only used for the wording of the next couple of days.
 RAIN_AREA_DAYS = 2
+# The rain of the past days moves only once an hour, as the newest hour fills in.
+TTL_PAST_RAIN_S = 30 * 60
 # Ensemble runs beyond a week add size, not skill, to a riding forecast.
 RAIN_ENSEMBLE_MAX_DAYS = 7
 TTL_METEOALARM_S = 10 * 60
@@ -1816,6 +1834,37 @@ async def _fetch_rain_area(
         return data
     except (httpx.HTTPError, ValueError) as exc:
         logger.warning("Open-Meteo rain area fetch failed: %s", _describe_error(exc))
+        return None
+
+
+async def _fetch_past_rain(
+    lat: float, lon: float, client: httpx.AsyncClient
+) -> Any | None:
+    """The rain of the past days and of today, hour by hour, for the state of the road (wet_road.py).
+
+    Only precipitation, so the answer stays small. The main forecast starts at
+    midnight; this one starts PAST_DAYS earlier, which is what a dry spell and
+    last night's rain need.
+    """
+    params = {
+        "latitude": lat,
+        "longitude": lon,
+        "hourly": "precipitation",
+        "timezone": "auto",
+        "past_days": wet_road.PAST_DAYS,
+        "forecast_days": 1,
+    }
+    try:
+        resp = await client.get(OPENMETEO_BASE, params=params,
+                                timeout=OPTIONAL_PROVIDER_HTTP_TIMEOUT_S)
+        resp.raise_for_status()
+        data = resp.json()
+        if isinstance(data, dict) and data.get("error"):
+            logger.warning("Open-Meteo past rain error: %s", data.get("reason", "unknown error"))
+            return None
+        return data
+    except (httpx.HTTPError, ValueError) as exc:
+        logger.warning("Open-Meteo past rain fetch failed: %s", _describe_error(exc))
         return None
 
 
@@ -2823,6 +2872,35 @@ def _apply_rain_coverage(hourly: list[dict], area_raw: Any | None) -> None:
         )
 
 
+def _past_rain_before(past_raw: Any | None, first_time: str) -> list[float | None] | None:
+    """The past answer's rain for the hours before ``first_time``, oldest first; None without it."""
+    if not isinstance(past_raw, dict):
+        return None
+    hourly = past_raw.get("hourly") or {}
+    times = hourly.get("time") or []
+    values = hourly.get("precipitation") or []
+    if not times:
+        return None
+    return [_to_float(_safe(values, i)) for i, t in enumerate(times) if str(t) < first_time]
+
+
+def _apply_wet_road(hourly: list[dict], past_raw: Any | None) -> None:
+    """Mark the hours whose road is still wet, or that bring the first rain after dry days, and rescore them, in place.
+
+    Runs once the rain of every hour is settled (after the fusion), and before
+    the current block is merged, so the hour being lived can hand its state to
+    the gauge. A missing past answer leaves the start of the series dry and
+    first rains unknown, never wrong in the other direction.
+    """
+    if not hourly:
+        return
+    past = _past_rain_before(past_raw, str(hourly[0].get("time", "")))
+    for hour, state in zip(hourly, wet_road.road_states(hourly, past)):
+        hour["wet_road"] = state
+        if state is not None:
+            _rescore_hour(hour)
+
+
 def _sync_current_hour(om_data: dict, hourly: list[dict], current: dict) -> None:
     """Give the hour being lived the measured conditions, in place.
 
@@ -2892,7 +2970,8 @@ def _rescore_hour(hour: dict[str, Any]) -> None:
                              hour.get("precipitation_mm"), hour.get("weather_code"))
     score = _moto_score(hour.get("feels_like"), hour.get("wind_gusts_kmh"), hour.get("precipitation_mm"),
                         hour.get("weather_code"), hour.get("precipitation_probability"),
-                        visibility_m=hour.get("visibility"), frost_risk=frost_risk)
+                        visibility_m=hour.get("visibility"), frost_risk=frost_risk,
+                        wet_road_state=hour.get("wet_road"))
     hour.update({
         "road_surface_temp": road_temp,
         "frost_risk": frost_risk,
@@ -3227,10 +3306,13 @@ def _merge_current(
     # The score must use the same code that drives the displayed icon and
     # description (effective_code), and the rain probability of the current
     # hour (without it a storm code with 0 mm used to score 100).
+    # The road's state comes from the hour (wet_road.py), checked against the rain measured now.
+    road_state = wet_road.current_state(current_hour.get("wet_road"), precipitation)
     score, breakdown = _score_with_breakdown(
         feels, wind_gusts, precipitation, effective_code, score_probability,
         visibility_m=visibility_km * 1000 if visibility_km is not None else None,
         frost_risk=frost_risk,
+        wet_road_state=road_state,
     )
 
     return {
@@ -3264,6 +3346,7 @@ def _merge_current(
         "is_day": is_day,
         "dew_point": dew_point,
         "frost_risk": frost_risk,
+        "wet_road": road_state,
         "moto_score": score,
         "moto_label": _moto_label(score),
         "score_breakdown": breakdown,
@@ -3515,6 +3598,8 @@ def _build_hourly(om_data: dict, ensemble: dict[str, dict[str, Any]] | None = No
             "is_day": is_day,
             "road_surface_temp": road_temp,
             "frost_risk": frost_risk,
+            # Set once the whole series is known (_apply_wet_road).
+            "wet_road": None,
             "moto_score": score,
             "moto_label": _moto_label(score),
             "forecast_confidence": ens_hour["confidence"] if ens_hour else None,
@@ -4196,8 +4281,8 @@ async def _collect_weather(
     days = min(max(int(forecast_days), 1), 16)
     cell = _coord_key(lat, lon)
     async with http_client_scope() as client:
-        (om_data, ens_raw, rain_ens_raw, area_raw, owm_current, owm_forecast, owm_air, om_air, met_raw, pw_raw,
-         wxm_raw, netatmo_raw, meteoalarm_feed, stations_raw, metar_raw, nowcast_feed) = await asyncio.gather(
+        (om_data, ens_raw, rain_ens_raw, area_raw, past_rain_raw, owm_current, owm_forecast, owm_air, om_air, met_raw,
+         pw_raw, wxm_raw, netatmo_raw, meteoalarm_feed, stations_raw, metar_raw, nowcast_feed) = await asyncio.gather(
             _forecast_cache.get_or_fetch(
                 ("open-meteo", cell, days),
                 _with_ttl(lambda: _fetch_openmeteo(lat, lon, client, forecast_days=days),
@@ -4211,6 +4296,8 @@ async def _collect_weather(
                 TTL_RAIN_ENSEMBLE_S)),
             _cached_optional("Open-Meteo rain area", ("rain-area", cell), _with_ttl(
                 lambda: _fetch_rain_area(lat, lon, client), TTL_RAIN_AREA_S)),
+            _cached_optional("Open-Meteo past rain", ("past-rain", cell), _with_ttl(
+                lambda: _fetch_past_rain(lat, lon, client), TTL_PAST_RAIN_S)),
             _cached_optional("OWM current", ("owm-current", cell), _with_ttl(
                 lambda: _fetch_owm_current(lat, lon, owm_api_key, client), TTL_OWM_S)),
             _cached_optional("OWM forecast", ("owm-forecast", cell), _with_ttl(
@@ -4263,6 +4350,7 @@ async def _collect_weather(
     # Off the request path: the log is read at most once a day, in a thread.
     calibration.refresh_soon(_calibration_since(), verification.RAIN_SOURCES, rain_fusion.WEIGHTS)
     _apply_rain_coverage(hourly, area_raw)
+    _apply_wet_road(hourly, past_rain_raw)
     current = _merge_current(om_data, owm_current, owm_air, om_air, met_norm, pw_norm,
                              wxm_norm, netatmo_norm, hourly=hourly,
                              official_norm=official_norm, metar_obs=metar_obs)

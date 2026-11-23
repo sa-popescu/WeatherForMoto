@@ -64,6 +64,11 @@ def is_area_request(request: httpx.Request) -> bool:
     """The rain-area call carries a whole ring of coordinates in one request."""
     return "," in request.url.params.get("latitude", "")
 
+
+def is_past_rain_request(request: httpx.Request) -> bool:
+    """The past rain call (the state of the road) is the only one asking for past days."""
+    return "past_days" in request.url.params
+
 def make_om_payload(now_local: datetime = FIXED_NOW, hours: int = 48, **hourly_overrides: Any) -> dict:
     """Open-Meteo-shaped payload: dry, mild, breezy; hourly from 00:00 of now_local's day."""
     start = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -956,7 +961,7 @@ class NetworkTests(unittest.IsolatedAsyncioTestCase):
 
         async def handler(request: httpx.Request) -> httpx.Response:
             if request.url.host == "api.open-meteo.com":
-                if is_ensemble_request(request) or is_area_request(request):
+                if is_ensemble_request(request) or is_area_request(request) or is_past_rain_request(request):
                     return httpx.Response(200, json={"hourly": {"time": []}})
                 self.count("om")
                 if self.calls["om"] == 1:
@@ -977,6 +982,8 @@ class NetworkTests(unittest.IsolatedAsyncioTestCase):
             if request.url.host == "api.open-meteo.com":
                 if is_area_request(request):
                     self.count("area")
+                elif is_past_rain_request(request):
+                    self.count("past")
                 else:
                     self.count("ensemble" if is_ensemble_request(request) else "om")
                 await asyncio.sleep(0.1)
@@ -992,8 +999,9 @@ class NetworkTests(unittest.IsolatedAsyncioTestCase):
             await ws.get_weather(44.43, 26.10, "C", "", forecast_days=2)
         self.assertEqual(self.calls["om"], 1)
         self.assertEqual(self.calls["ensemble"], 1)
-        # The ring around the cell is fetched once for the cell as well.
+        # The ring around the cell is fetched once for the cell as well, and so is the past rain.
         self.assertEqual(self.calls["area"], 1)
+        self.assertEqual(self.calls["past"], 1)
 
     async def test_cache_single_flight_ttl_and_bound(self) -> None:
         cache = ws._TTLCache("test", max_entries=2)

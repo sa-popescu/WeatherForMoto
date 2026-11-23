@@ -26,6 +26,8 @@ export interface ScoringMeta {
     cold_wet: { feels_below_c: number; min_probability_pct: number; penalty: number };
   };
   frost: { surface_max_c: number; dewpoint_margin_c: number; cap: number };
+  /** The road after rain (backend/wet_road.py); missing from older servers. */
+  wet_road?: { wet_penalty: number; first_rain: { penalty: number } };
 }
 
 let meta: ScoringMeta = defaultMeta as unknown as ScoringMeta;
