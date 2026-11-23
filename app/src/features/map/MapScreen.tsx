@@ -23,7 +23,9 @@ import { TimelinePanel } from './TimelinePanel';
 import { MAP_STRINGS } from './strings';
 import { usePageVisible, usePrefersReducedMotion } from './useEnvironment';
 import { onLongPress } from './longPress';
+import { useFreeAreaOffset } from './useFreeArea';
 import { useHazardLayer } from './useHazardLayer';
+import { useLessData } from './useLessData';
 import { REGIONAL_ZOOM, useMainMap } from './useMainMap';
 import { useMapTimeline } from './useMapTimeline';
 import { usePickedMarker, usePlaceView, usePointMarker } from './usePlaceView';
@@ -48,14 +50,20 @@ export default function MapScreen({ active }: ScreenProps) {
   const { token } = useAuth();
   const pageVisible = usePageVisible();
   const reducedMotion = usePrefersReducedMotion();
+  const lessData = useLessData();
   const onScreen = active && pageVisible;
 
   const wide = useWideLayout();
   const layersId = useId();
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const chipRef = useRef<HTMLButtonElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const [picking, setPicking] = useState(false);
   const { map, baseLoading } = useMainMap(containerRef, { center: place, active, theme });
-  const recenter = usePlaceView(map, place, reducedMotion);
+  // On a phone the place sits in the middle of the map left free above the band of time.
+  const freeOffset = useFreeAreaOffset(containerRef, chipRef, bottomRef, !wide, picking);
+  const recenter = usePlaceView(map, place, reducedMotion, freeOffset);
   const [prefs, setPrefs] = useLayerPrefs();
   const timeline = useMapTimeline(map, {
     fetching: onScreen,
@@ -63,7 +71,9 @@ export default function MapScreen({ active }: ScreenProps) {
     lightning: prefs.lightning,
     kind: prefs.forecast,
     opacity: prefs.opacity,
-    autoPlay: !reducedMotion,
+    // With the data saver on, only what is shown is downloaded: no playing by itself, no reading ahead.
+    autoPlay: !reducedMotion && !lessData,
+    readAhead: !lessData,
     fade: !reducedMotion,
   });
 
@@ -74,7 +84,6 @@ export default function MapScreen({ active }: ScreenProps) {
   );
   const hazards = useHazardLayer(map, { fetching: onScreen && prefs.hazards, shown: prefs.hazards, onSelect: setSelected, labelFor });
 
-  const [picking, setPicking] = useState(false);
   const [reportAt, setReportAt] = useState<LatLon | null>(null);
   usePickedMarker(map, token ? reportAt : null);
 
@@ -165,7 +174,7 @@ export default function MapScreen({ active }: ScreenProps) {
   // there. "Locația mea" (the target in the controls) is the GPS.
   const recenterLabel = fmt(s.recenter, { place: place.name });
   const placeChip = (
-    <button type="button" className="map-chip" onClick={recenter} aria-label={recenterLabel} title={recenterLabel}>
+    <button type="button" ref={chipRef} className="map-chip" onClick={recenter} aria-label={recenterLabel} title={recenterLabel}>
       {loading ? <Spinner size={18} /> : <Icon name="pin" size={18} />}
       <span className="map-chip__name">{place.name}</span>
     </button>
@@ -216,7 +225,7 @@ export default function MapScreen({ active }: ScreenProps) {
           </div>
         </>
       ) : (
-        <div className="map-bottom">
+        <div className="map-bottom" ref={bottomRef}>
           {picking ? (
             pickBar
           ) : (

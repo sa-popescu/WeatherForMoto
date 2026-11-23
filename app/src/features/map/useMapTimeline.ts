@@ -68,6 +68,8 @@ interface Options {
   kind: ForecastKind;
   opacity: number;
   autoPlay: boolean;
+  /** Read the observed moments of the whole band ahead (off with the data saver). */
+  readAhead: boolean;
   /** Fade from one moment to the next (off when the system asks for less motion). */
   fade: boolean;
 }
@@ -96,7 +98,7 @@ function useClock(running: boolean): number {
   return now;
 }
 
-export function useMapTimeline(map: MapLibreMap | null, { fetching, radar, lightning, kind, opacity, autoPlay, fade }: Options): MapTimeline {
+export function useMapTimeline(map: MapLibreMap | null, { fetching, radar, lightning, kind, opacity, autoPlay, readAhead, fade }: Options): MapTimeline {
   const fadeMs = fade ? FADE_MS : 0;
   const nowMs = useClock(fetching);
   const cloudView = kind === 'cloud';
@@ -260,6 +262,7 @@ export function useMapTimeline(map: MapLibreMap | null, { fetching, radar, light
     model,
     opacity,
     fadeMs,
+    readAhead,
   });
 
   const select = useCallback((next: number) => {
