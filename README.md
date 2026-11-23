@@ -298,7 +298,9 @@ gcloud run services update weatherformoto --region europe-west1 \
 
 Backend-ul permite și originile de preview, ca un PR să poată fi încercat cu vremea live înainte de merge: cele din Workers Builds (`<versiune sau branch>-weatherformoto.spopescu.workers.dev`) și cele vechi din Pages (`*.weatherformoto.pages.dev`). Un preview vorbește cu API-ul și baza de date de producție.
 
-> De când Worker-ul are Durable Objects (locația live), Cloudflare nu mai generează linkuri de preview pentru versiuni: Workers Builds încă rulează pe PR-uri, dar linkurile de mai sus răspund 404. Preview-ul Vercel din verificările PR-ului cere login în Vercel, iar originea lui nu e permisă de backend, deci acolo merge harta radar, dar nu datele meteo din API.
+> De când Worker-ul are Durable Objects (locația live), Cloudflare nu mai generează linkuri de preview pentru versiuni (`wrangler versions upload`). Preview-urile vin acum din Cloudflare Worker Previews: comanda de preview din Workers Builds (Settings > Build > Preview command) e `npx wrangler@^4.135.0 preview`, iar blocul `previews` din `wrangler.jsonc` le dă fiecăruia propriile Durable Objects și niciun KV (linkurile scurte sunt oprite acolo, aplicația trimite linkul întreg). Un preview e la `<branch>-weatherformoto.spopescu.workers.dev`, e public pentru oricine are linkul și vorbește cu API-ul de producție.
+>
+> Preview-ul Vercel din verificările PR-ului cere login în Vercel, iar originea lui nu e permisă de backend, deci acolo merge harta radar, dar nu datele meteo din API.
 
 > Cheia OpenWeatherMap nu mai este expusă în client. Este folosită doar server-side de backend; calea browser-direct (fallback când backend-ul nu răspunde) rulează fără ea, pe Open-Meteo.
 
