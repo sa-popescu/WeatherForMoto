@@ -53,6 +53,33 @@ describe('paintModelRain', () => {
     expect(edge).toBeGreaterThan(Math.floor(latToY(45.3, g.z) - g.y0));
     expect(edge).toBeLessThan(Math.ceil(latToY(44.4, g.z) - g.y0));
   });
+
+  it('blends the edge between two bands over a single pixel', () => {
+    // Light rain in the west column, moderate in the east: one band edge, near 26.1 E.
+    const step: RainGrid = { ...grid, values: Float32Array.from([0.5, 1, 0.5, 1]) };
+    const g = geometryOver();
+    const pixels = paintModelRain(step, step.values, g);
+    const light = rainRgba(0.5);
+    const moderate = rainRgba(1);
+    const same = (px: number[], c: readonly number[]): boolean => px.every((v, k) => v === c[k]);
+    let blended = 0;
+    for (let y = 5; y < g.height - 5; y += 7) {
+      const between: number[][] = [];
+      // The outermost pixels are left out: the grid ends inside them.
+      for (let x = 5; x < g.width - 5; x += 1) {
+        const i = (y * g.width + x) * 4;
+        const px = Array.from(pixels.slice(i, i + 4));
+        if (!same(px, light) && !same(px, moderate)) between.push(px);
+      }
+      expect(between.length).toBeLessThanOrEqual(1);
+      for (const px of between) {
+        expect(px[3]).toBeGreaterThan(light[3]);
+        expect(px[3]).toBeLessThan(moderate[3]);
+      }
+      blended += between.length;
+    }
+    expect(blended).toBeGreaterThan(0);
+  });
 });
 
 describe('mixValues and crossFade', () => {

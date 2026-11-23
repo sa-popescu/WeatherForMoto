@@ -3,17 +3,28 @@
 // Pure helpers only.
 
 export const TILE_SIZE = 256;
-/** RainViewer serves radar tiles up to this zoom; ICON-EU cells are ~7 km, so more adds nothing. */
-export const FIELD_MAX_ZOOM = 7;
+/**
+ * Deepest zoom a canvas is painted at: one level past the radar tiles (zoom 7,
+ * stretched smoothly), so the edges of model rain and the satellite clouds stay
+ * fine in a closer view. Deeper is out of reach anyway: FIELD_MIN_SPAN_KM at
+ * zoom 9 is wider than FIELD_MAX_PX.
+ */
+export const FIELD_MAX_ZOOM = 8;
 /** Largest canvas side painted per frame: sharp on a phone, cheap enough to redraw while playing. */
 export const FIELD_MAX_PX = 1400;
 /** Extra room around the view, as a share of its size, so a small pan stays covered. */
 export const FIELD_PAD = 0.2;
-/** Never narrower than this: rain moving in has to be on the canvas before it arrives. */
-export const FIELD_MIN_SPAN_KM = 600;
+/**
+ * Never narrower than this: rain moving in has to be on the canvas before it
+ * arrives. The extrapolation reaches 90 minutes, about 180 km for the fastest
+ * rain it follows and 240 km for high cloud, inside the 250 km on either side.
+ * Any wider and zoom 8 would not fit FIELD_MAX_PX over northern Romania.
+ */
+export const FIELD_MIN_SPAN_KM = 500;
 
 const MAX_LAT = 85.05112878;
 const KM_PER_DEGREE = 111.32;
+const EARTH_KM = 40_075;
 
 export interface Box {
   south: number;
@@ -80,9 +91,9 @@ function widen(view: Box): Box {
 }
 
 /**
- * The canvas for a view: its padded box at the zoom the radar tiles on screen
- * use (never above FIELD_MAX_ZOOM), stepping down a zoom level while the box
- * would be wider or taller than FIELD_MAX_PX.
+ * The canvas for a view: its padded box at the map's zoom (never above
+ * FIELD_MAX_ZOOM), stepping down a zoom level while the box would be wider or
+ * taller than FIELD_MAX_PX.
  */
 export function fieldGeometry(view: Box, mapZoom: number): FieldGeometry {
   const box = widen(view);
@@ -115,23 +126,36 @@ export function geometryKey(geometry: FieldGeometry): string {
   return `${geometry.z}/${geometry.x0}/${geometry.y0}/${geometry.width}x${geometry.height}`;
 }
 
+/** Ground kilometres one canvas pixel spans, at the canvas's middle latitude. */
+export function kmPerPixel(geometry: FieldGeometry): number {
+  const midLat = (geometry.bounds.north + geometry.bounds.south) / 2;
+  return (EARTH_KM * Math.cos((midLat * Math.PI) / 180)) / worldSize(geometry.z);
+}
+
 export interface TileSlot {
-  /** Tile address at the geometry's zoom. */
+  /** Tile address at the zoom asked for. */
   x: number;
   y: number;
   /** Where the tile's top-left corner lands on the canvas. */
   left: number;
   top: number;
+  /** The tile's side on the canvas: TILE_SIZE, or more when the canvas is deeper than the tiles. */
+  size: number;
 }
 
-/** Every tile that touches the canvas, with its position on it. */
-export function tilesFor(geometry: FieldGeometry): TileSlot[] {
-  const count = 2 ** geometry.z;
+/**
+ * Every tile that touches the canvas, with its position on it. The tiles may
+ * come from a shallower zoom than the canvas (radar tiles stop at zoom 7);
+ * each then covers more canvas pixels and is drawn stretched.
+ */
+export function tilesFor(geometry: FieldGeometry, tileZoom: number = geometry.z): TileSlot[] {
+  const size = TILE_SIZE * 2 ** (geometry.z - tileZoom);
+  const count = 2 ** tileZoom;
   const slots: TileSlot[] = [];
-  for (let ty = Math.floor(geometry.y0 / TILE_SIZE); ty * TILE_SIZE < geometry.y0 + geometry.height; ty += 1) {
+  for (let ty = Math.floor(geometry.y0 / size); ty * size < geometry.y0 + geometry.height; ty += 1) {
     if (ty < 0 || ty >= count) continue;
-    for (let tx = Math.floor(geometry.x0 / TILE_SIZE); tx * TILE_SIZE < geometry.x0 + geometry.width; tx += 1) {
-      slots.push({ x: ((tx % count) + count) % count, y: ty, left: tx * TILE_SIZE - geometry.x0, top: ty * TILE_SIZE - geometry.y0 });
+    for (let tx = Math.floor(geometry.x0 / size); tx * size < geometry.x0 + geometry.width; tx += 1) {
+      slots.push({ x: ((tx % count) + count) % count, y: ty, left: tx * size - geometry.x0, top: ty * size - geometry.y0, size });
     }
   }
   return slots;

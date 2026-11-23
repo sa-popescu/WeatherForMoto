@@ -4,7 +4,7 @@ import { fieldGeometry, geometryServes, type Box, type FieldGeometry } from './m
 import { tileZoom } from './useMainMap';
 
 // The canvas the rain ahead is painted on: the view with room around it, at
-// the zoom of the radar tiles. It only changes when the view leaves it or
+// the map's zoom (mercator.ts caps it). It only changes when the view leaves it or
 // needs another zoom, so panning a little never throws away painted frames.
 
 const DEBOUNCE_MS = 400;

@@ -1,7 +1,7 @@
-import { CLOUD_MASK, CLOUD_MASK_SCALE, imageTime, imageUrl, IR_CLOUDS, paintClouds } from './eumetsat';
+import { CLOUD_MASK, imageTime, imageUrl, IR_CLOUDS, paintClouds } from './eumetsat';
 import { geometryKey, tilesFor, type FieldGeometry } from './mercator';
 import type { RadarPicture } from './nowcast';
-import { radarTileAt, type RadarFrame } from './radar';
+import { RADAR_MAX_NATIVE_ZOOM, radarTileAt, type RadarFrame } from './radar';
 
 // Loading observed pictures as raw pixels over the canvas: radar frames from
 // RainViewer tiles, cloud pictures from the EUMETSAT infrared image and cloud
@@ -43,23 +43,30 @@ export function loadImage(url: string, signal: AbortSignal): Promise<HTMLImageEl
   });
 }
 
+/** A canvas of the geometry's size; images stretched onto it are smoothed, not drawn as blocks. */
 function canvasFor(geometry: FieldGeometry): CanvasRenderingContext2D {
   const canvas = document.createElement('canvas');
   canvas.width = geometry.width;
   canvas.height = geometry.height;
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
   if (!ctx) throw new Error('canvas 2D is not available');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
   return ctx;
 }
 
-/** One radar frame drawn onto the canvas from its tiles. */
+/**
+ * One radar frame drawn onto the canvas from its tiles. RainViewer stops at
+ * zoom 7, so a deeper canvas gets those tiles stretched.
+ */
 export async function radarPicture(host: string, frame: RadarFrame, geometry: FieldGeometry, signal: AbortSignal): Promise<RadarPicture> {
   const ctx = canvasFor(geometry);
-  const slots = tilesFor(geometry);
+  const tileZoom = Math.min(geometry.z, RADAR_MAX_NATIVE_ZOOM);
+  const slots = tilesFor(geometry, tileZoom);
   const results = await Promise.allSettled(
     slots.map(async (slot) => {
-      const img = await loadImage(radarTileAt(host, frame, geometry.z, slot.x, slot.y), signal);
-      ctx.drawImage(img, slot.left, slot.top);
+      const img = await loadImage(radarTileAt(host, frame, tileZoom, slot.x, slot.y), signal);
+      ctx.drawImage(img, slot.left, slot.top, slot.size, slot.size);
     }),
   );
   if (signal.aborted) throw abortError();
@@ -91,7 +98,7 @@ export async function prefetchCloudImages(geometry: FieldGeometry, timeSec: numb
   if (cloudPictures.has(cloudKey(geometry, timeSec)) || pending.has(cloudKey(geometry, timeSec))) return;
   await Promise.all([
     loadImage(imageUrl(IR_CLOUDS, geometry, timeSec), signal),
-    loadImage(imageUrl(CLOUD_MASK, geometry, imageTime(CLOUD_MASK, timeSec, null), CLOUD_MASK_SCALE), signal),
+    loadImage(imageUrl(CLOUD_MASK, geometry, imageTime(CLOUD_MASK, timeSec, null)), signal),
   ]);
 }
 
@@ -108,15 +115,13 @@ export function cloudPicture(geometry: FieldGeometry, timeSec: number, signal: A
       try {
         const [ir, mask] = await Promise.all([
           loadImage(imageUrl(IR_CLOUDS, geometry, timeSec), own.signal),
-          loadImage(imageUrl(CLOUD_MASK, geometry, imageTime(CLOUD_MASK, timeSec, null), CLOUD_MASK_SCALE), own.signal),
+          loadImage(imageUrl(CLOUD_MASK, geometry, imageTime(CLOUD_MASK, timeSec, null)), own.signal),
         ]);
+        // Both images may be smaller than the canvas (see pixelKm); they are stretched with smoothing.
         const ctx = canvasFor(geometry);
         ctx.drawImage(ir, 0, 0, geometry.width, geometry.height);
         const pixels = ctx.getImageData(0, 0, geometry.width, geometry.height).data;
-        // The small mask is stretched with smoothing, so its coarse cells get soft edges.
         ctx.clearRect(0, 0, geometry.width, geometry.height);
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(mask, 0, 0, geometry.width, geometry.height);
         paintClouds(pixels, ctx.getImageData(0, 0, geometry.width, geometry.height).data);
         cloudPictures.set(key, pixels);

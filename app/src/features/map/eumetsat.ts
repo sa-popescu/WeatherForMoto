@@ -1,4 +1,4 @@
-import { TILE_SIZE, type FieldGeometry } from './mercator';
+import { kmPerPixel, TILE_SIZE, type FieldGeometry } from './mercator';
 
 // Meteosat Third Generation imagery from EUMETSAT's open map service
 // (EUMETView, WMS, free, no key): lightning seen from space every 5 minutes
@@ -13,20 +13,53 @@ export interface SatelliteProduct {
   style: string;
   /** Time between two images. */
   stepSec: number;
+  /**
+   * Ground size of one pixel asked for over a canvas, when that is coarser
+   * than the canvas: finer adds nothing to the satellite's own pixels, and
+   * the canvas stretches the image smoothly instead.
+   */
+  pixelKm?: number;
+  /**
+   * The server blends neighbouring pixels when it scales the image
+   * (GeoServer's `interpolations`). Left to itself it repeats them, and a 2 km
+   * pixel shows as a square block in a close view.
+   */
+  smooth?: boolean;
+  /**
+   * Deepest map zoom (MapLibre's, 512 px tiles) the map tiles are fetched at;
+   * a closer view stretches them with smoothing rather than show each pixel
+   * of the product as a hard square.
+   */
+  maxZoom?: number;
 }
 
-/** MTG Lightning Imager, accumulated flash area over the last 5 minutes. */
-export const LIGHTNING: SatelliteProduct = { layer: 'mtg_fd:li_afa', style: '', stepSec: 300 };
-/** MTG FCI infrared 10.5 µm, high resolution, as grey levels (cold cloud tops bright). */
-export const IR_CLOUDS: SatelliteProduct = { layer: 'mtg_fd:ir105_hrfi', style: 'mtg_fd:mtg_fd_ir105_hrfi_grayscale', stepSec: 600 };
+/**
+ * MTG Lightning Imager, accumulated flash area over the last 5 minutes. Its
+ * cells are 2-3 km over Romania; zoom 5 tiles are about 1.7 km a pixel, so
+ * every cell still lands on a pixel.
+ */
+export const LIGHTNING: SatelliteProduct = { layer: 'mtg_fd:li_afa', style: '', stepSec: 300, maxZoom: 5 };
+/**
+ * MTG FCI infrared 10.5 µm, high resolution, as grey levels (cold cloud tops
+ * bright). About 2 km a pixel over Romania, so 1.2 km keeps all its detail.
+ */
+export const IR_CLOUDS: SatelliteProduct = {
+  layer: 'mtg_fd:ir105_hrfi',
+  style: 'mtg_fd:mtg_fd_ir105_hrfi_grayscale',
+  stepSec: 600,
+  pixelKm: 1.2,
+  smooth: true,
+};
 /**
  * Meteosat cloud mask (about 4 km over Romania): cloud white, clear land green,
  * clear sea blue. Infrared alone misses low, warm cloud, which over Romania is
  * most of it; the mask says where cloud is, the infrared how high and thick.
+ * It is asked for at about one pixel per cell and smoothed up on the canvas,
+ * so its cells blend into each other instead of showing as soft squares. It
+ * is a set of classes, not a measure, so the server must not blend them:
+ * halfway between sea and cloud is not land.
  */
-export const CLOUD_MASK: SatelliteProduct = { layer: 'msg_fes:clm', style: '', stepSec: 900 };
-/** The mask is requested at a third of the canvas size and smoothed up: its own cells are that coarse. */
-export const CLOUD_MASK_SCALE = 1 / 3;
+export const CLOUD_MASK: SatelliteProduct = { layer: 'msg_fes:clm', style: '', stepSec: 900, pixelKm: 4 };
 
 /** Colour the lightning layer is drawn in, for the legend. */
 export const LIGHTNING_COLOR = '#fef9bd';
@@ -72,8 +105,14 @@ export function mercatorBbox(geometry: FieldGeometry): string {
     .join(',');
 }
 
-/** One image of the product covering exactly the canvas, pixel for pixel (or at `scale` of its size). */
-export function imageUrl(product: SatelliteProduct, geometry: FieldGeometry, timeSec: number, scale = 1): string {
+/** Share of the canvas size an image of the product is asked for at (see pixelKm). */
+export function imageScale(product: SatelliteProduct, geometry: FieldGeometry): number {
+  return product.pixelKm === undefined ? 1 : Math.min(1, kmPerPixel(geometry) / product.pixelKm);
+}
+
+/** One image of the product covering exactly the canvas, pixel for pixel or smaller (see pixelKm). */
+export function imageUrl(product: SatelliteProduct, geometry: FieldGeometry, timeSec: number): string {
+  const scale = imageScale(product, geometry);
   const params = new URLSearchParams({
     service: 'WMS',
     version: '1.3.0',
@@ -88,6 +127,7 @@ export function imageUrl(product: SatelliteProduct, geometry: FieldGeometry, tim
     transparent: 'true',
     time: wmsTime(timeSec),
   });
+  if (product.smooth) params.set('interpolations', 'bilinear');
   return `${EUMETVIEW_WMS}?${params.toString()}`;
 }
 
