@@ -151,6 +151,40 @@
   box-shadow: inset 0 0 0 1px var(--line-2);
 }
 
+/* ---- Hover ----
+   With a mouse, what can be clicked answers the pointer. Touch screens skip
+   it: there a tap would leave the hover look stuck on. The features add
+   their own (drive.css, account.css, base.css) under the same query. */
+
+@media (hover: hover) and (pointer: fine) {
+  .btn--secondary:hover:not(:disabled),
+  .icon-btn:hover:not(:disabled) {
+    background: var(--surface-3);
+  }
+
+  .btn--primary:hover:not(:disabled) {
+    filter: brightness(1.08);
+  }
+
+  .btn--ghost:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+  }
+
+  .btn--danger:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--danger) 10%, transparent);
+  }
+
+  .chip:hover:not(.chip--selected):not(:disabled) {
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--line-2));
+    color: var(--ink);
+  }
+
+  .segmented__item:hover:not(.segmented__item--on) {
+    background: color-mix(in srgb, var(--surface-3) 60%, transparent);
+    color: var(--ink);
+  }
+}
+
 /* ---- Toggle ---- */
 
 .toggle-row {

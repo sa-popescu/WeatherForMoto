@@ -11,6 +11,33 @@
   }
 }
 
+/* On a computer, in place of the empty list (RidesScreen.tsx). */
+.rides-desktop {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.rides-desktop__icon {
+  color: var(--accent);
+}
+
+.rides-desktop__title {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.rides-desktop__lead {
+  font-size: 15px;
+  color: var(--ink-2);
+}
+
+.rides-desktop__signin {
+  margin-top: 4px;
+}
+
 .rides__title {
   padding-top: 6px;
   font-size: 28px;
