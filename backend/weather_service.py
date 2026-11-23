@@ -1739,6 +1739,9 @@ ENSEMBLE_MODELS: tuple[str, ...] = (
     "meteofrance_seamless",   # Météo-France, Toulouse
     "ukmo_seamless",          # Met Office, Exeter
     "gem_seamless",           # Environment Canada, Montreal
+    # ECMWF's machine learning model (AIFS Single, 0.25 degrees, open data,
+    # operational since 2025). No gusts: it votes on the other variables.
+    "ecmwf_aifs025_single",
 )
 
 ENSEMBLE_VARIABLES: tuple[str, ...] = (
