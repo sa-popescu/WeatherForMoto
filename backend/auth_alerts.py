@@ -133,7 +133,7 @@ STALE_CLAIM_MINUTES = 15
 
 VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY", "")
 VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY", "")
-VAPID_SUBJECT = os.getenv("VAPID_SUBJECT", "mailto:weatherformoto@bluemouse.cc")
+VAPID_SUBJECT = os.getenv("VAPID_SUBJECT", "mailto:motonor@bluemouse.cc")
 
 _TOO_MANY_ATTEMPTS = "Prea multe încercări. Încearcă din nou mai târziu."
 _TOO_MANY_REQUESTS = "Prea multe cereri. Încearcă din nou mai târziu."
