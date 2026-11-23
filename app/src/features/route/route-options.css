@@ -27,7 +27,10 @@
   font-weight: 600;
 }
 
+/* A width of 0 that grows: the summary never widens the column around it, it is cut with an ellipsis instead. */
 .ropt-button__value {
+  flex: 1 1 0;
+  width: 0;
   min-width: 0;
   color: var(--muted);
   overflow: hidden;

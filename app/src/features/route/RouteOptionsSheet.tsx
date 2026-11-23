@@ -150,7 +150,10 @@ export function RouteOptionsButton({ onChanged }: { onChanged?: () => void }) {
       <button type="button" className="ropt-button" aria-label={fmt(s.openAria, { summary })} onClick={() => setOpen(true)}>
         <Icon name="settings" size={18} />
         <span className="ropt-button__label">{s.rowLabel}</span>
-        <span className="ropt-button__value">{summary}</span>
+        {/* The inner span is the text; the outer one cuts it with an ellipsis. */}
+        <span className="ropt-button__value">
+          <span>{summary}</span>
+        </span>
       </button>
       <RouteOptionsSheet
         open={open}
