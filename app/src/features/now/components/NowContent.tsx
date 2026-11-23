@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { WeatherResponse } from '../../../lib/types';
-import { useDesktop } from '../../../lib/useMediaQuery';
+import { useWideLayout } from '../../../lib/useMediaQuery';
 import { usePersonalScore } from '../../ride/personalStore';
 import { hoursOfDay, tableDay } from '../logic/dayHours';
 import type { NowModel } from '../useNowModel';
@@ -24,7 +24,7 @@ interface NowContentProps {
 }
 
 export function NowContent({ data, model, selectedTime, onSelectTime, tableDate, onPickDay, onOpen }: NowContentProps) {
-  const desktop = useDesktop();
+  const wide = useWideLayout();
   // The timeline opens on the current hour: the first thing a rider wants from
   // it is what the weather is doing right now. The hour the verdict hinges on
   // is already named in the headline above. An hour picked by hand is kept
@@ -39,7 +39,7 @@ export function NowContent({ data, model, selectedTime, onSelectTime, tableDate,
   const today = model.nowIso.slice(0, 10);
   // A desktop has room for the hours of a day under the day cards, so a card
   // picks the day shown there; a phone opens the day's sheet instead.
-  const shownDay = desktop ? tableDay(data.daily, tableDate, today) : null;
+  const shownDay = wide ? tableDay(data.daily, tableDate, today) : null;
 
   return (
     <>

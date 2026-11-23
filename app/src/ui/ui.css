@@ -372,9 +372,9 @@
   pointer-events: none;
 }
 
-/* Desktop (DESKTOP_QUERY in lib/useMediaQuery.ts): centred on the content,
+/* Desktop (WIDE_QUERY in lib/useMediaQuery.ts): centred on the content,
    not on the window, since the nav rail takes the left edge. */
-@media (min-width: 1024px) {
+@media (min-width: 1024px), (orientation: landscape) and (max-height: 500px) and (min-width: 600px) {
   .toasts {
     left: var(--rail-w);
   }

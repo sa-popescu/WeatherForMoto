@@ -83,9 +83,9 @@
   display: none;
 }
 
-/* Desktop (DESKTOP_QUERY in lib/useMediaQuery.ts): room for the search to
+/* Desktop (WIDE_QUERY in lib/useMediaQuery.ts): room for the search to
    look like a field. It still opens the same place sheet. */
-@media (min-width: 1024px) {
+@media (min-width: 1024px), (orientation: landscape) and (max-height: 500px) and (min-width: 600px) {
   .place-head__actions {
     flex-direction: row-reverse;
   }

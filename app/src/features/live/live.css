@@ -67,13 +67,13 @@
   background: var(--surface);
 }
 
-/* Desktop (DESKTOP_QUERY in lib/useMediaQuery.ts): a card floating over the
+/* Desktop (WIDE_QUERY in lib/useMediaQuery.ts): a card floating over the
    map at the bottom left, like the Drum card, not a band across the window. */
-@media (min-width: 1024px) {
+@media (min-width: 1024px), (orientation: landscape) and (max-height: 500px) and (min-width: 600px) {
   .live__card {
     position: absolute;
-    left: 24px;
-    bottom: 24px;
+    left: calc(24px + var(--safe-left));
+    bottom: calc(24px + var(--safe-bottom));
     z-index: 2;
     width: 380px;
     padding: 16px 18px;

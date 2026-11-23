@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { fmt, useStrings } from '../../lib/i18n';
-import { useDesktop } from '../../lib/useMediaQuery';
+import { useComputer, useWideLayout } from '../../lib/useMediaQuery';
 import { useAuth } from '../../state/auth';
 import { Icon } from '../../ui/icons';
 import { Banner, Button } from '../../ui/primitives';
@@ -61,7 +61,9 @@ export default function RouteScreen({ active }: ScreenProps) {
   const [departure, setDeparture] = useState<Departure>(() => defaultDeparture(Date.now(), deviceOffsetSec()));
   const [speed, setSpeed] = useState<Speed>(DEFAULT_SPEED);
   const [sheet, setSheet] = useState<SheetKind>('none');
-  const desktop = useDesktop();
+  // The layout (a desktop window or a phone turned sideways) and the device (a computer rides nowhere).
+  const wide = useWideLayout();
+  const computer = useComputer();
 
   const stopsState = useStopsState();
   const { state: plan, calculate, calculateFromTrack, ensureDays, retryFailed } = useRoutePlan();
@@ -146,7 +148,7 @@ export default function RouteScreen({ active }: ScreenProps) {
           onExample={calc.runExample}
         />
         {/* A desktop column would be empty before the first route: the area and the stops so far. */}
-        {!plan.route && desktop && <RoutePreviewMap stops={stopsState.stops} appPlace={stopsState.appPlace} active={active} />}
+        {!plan.route && wide && <RoutePreviewMap stops={stopsState.stops} appPlace={stopsState.appPlace} active={active} />}
         {plan.route && (
           <RouteOverview
             active={active}
@@ -163,7 +165,7 @@ export default function RouteScreen({ active }: ScreenProps) {
             onNeedAllDays={needAllDays}
           />
         )}
-        {plan.route && !desktop && (
+        {plan.route && !computer && (
           <RouteRideStart
             route={plan.route}
             destination={derived.rows[derived.rows.length - 1]?.point.name ?? s.title}
@@ -178,7 +180,7 @@ export default function RouteScreen({ active }: ScreenProps) {
         {plan.route && (
           <RouteDetails route={plan.route} derived={derived} hazards={hazards} fuel={fuel} date={departure.date} signedIn={signedIn} onAction={onAction} />
         )}
-        {!plan.route && desktop && (
+        {!plan.route && wide && (
           <section className="route-road-hint" aria-labelledby="route-road-hint-title">
             <h2 className="eyebrow" id="route-road-hint-title">
               {s.roadHintTitle}

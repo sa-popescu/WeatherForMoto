@@ -601,7 +601,7 @@
 
 /* ---- Desktop: the map next to the rail, the cards in a column on the left ---- */
 
-@media (min-width: 1024px) {
+@media (min-width: 1024px), (orientation: landscape) and (max-height: 500px) and (min-width: 600px) {
   .drive {
     left: var(--rail-w);
     max-width: none;
@@ -641,6 +641,60 @@
   .drive-sheet {
     max-height: calc(100vh - var(--safe-top) - var(--safe-bottom) - 88px);
     max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 88px);
+  }
+}
+
+/* A phone turned sideways (see base.css): the map runs to the bottom edge
+   and under the camera cut-out, the column narrows to leave the map room,
+   and the quick destinations swipe again, since a finger can. */
+@media (orientation: landscape) and (max-height: 500px) and (min-width: 600px) {
+  .drive {
+    bottom: 0;
+  }
+
+  .drive-top {
+    top: 8px;
+    left: 8px;
+  }
+
+  .drive-bottom {
+    bottom: calc(8px + var(--safe-bottom));
+    left: 8px;
+  }
+
+  .drive-top,
+  .drive-bottom {
+    width: min(360px, 48%);
+  }
+
+  .drive-chips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+
+  .drive-weather {
+    padding: 10px 12px;
+  }
+
+  .drive-weather__score {
+    width: 52px;
+    height: 52px;
+  }
+
+  /* 8 px above the search, its 52 px, 8 px of gap and 8 px under the card. */
+  .drive-sheet {
+    max-height: calc(100vh - var(--safe-bottom) - 76px);
+    max-height: calc(100dvh - var(--safe-bottom) - 76px);
+  }
+
+  .drive-corner {
+    right: calc(12px + var(--safe-right));
+    bottom: calc(12px + var(--safe-bottom));
+  }
+
+  .drive-map .maplibregl-ctrl-bottom-right {
+    top: 8px;
+    right: var(--safe-right);
   }
 }
 

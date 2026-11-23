@@ -1,11 +1,15 @@
-/* "Acum" on a desktop (DESKTOP_QUERY in lib/useMediaQuery.ts). The same
+/* A phone turned sideways gets this layout too, with a smaller dial and less
+   padding (the block at the end of this file), so the score card and the
+   next hours fit side by side in its short screen.
+
+   "Acum" on a desktop (WIDE_QUERY in lib/useMediaQuery.ts). The same
    components as on a phone, spread out: the header, banners and warnings
    across the top, the score card next to the next 24 hours, then the days as
    a row of cards (two rows once all of them are shown).
    Every rule starts with .screen.now so it wins over the phone rules
    whatever order the stylesheets end up in. */
 
-@media (min-width: 1024px) {
+@media (min-width: 1024px), (orientation: landscape) and (max-height: 500px) and (min-width: 600px) {
   /* :not([hidden]) keeps the hidden tab hidden (.screen[hidden] in base.css). */
   .screen.now:not([hidden]) {
     display: grid;
@@ -347,5 +351,24 @@
   .screen.now .now-compare__cell--best:hover:not(:disabled) {
     border-color: var(--accent);
     background: color-mix(in srgb, var(--accent) 10%, transparent);
+  }
+}
+
+@media (orientation: landscape) and (max-height: 500px) and (min-width: 600px) {
+  .screen.now:not([hidden]) {
+    grid-template-columns: minmax(0, 300px) minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .screen.now .now-hero {
+    padding: 14px;
+  }
+
+  .screen.now .now-hero .gauge {
+    width: 190px;
+  }
+
+  .screen.now .now-hero__verdict {
+    font-size: 22px;
   }
 }

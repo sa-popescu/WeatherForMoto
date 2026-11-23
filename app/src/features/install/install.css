@@ -55,10 +55,10 @@
   }
 }
 
-/* Desktop (DESKTOP_QUERY in lib/useMediaQuery.ts): centred at the bottom of
+/* Desktop (WIDE_QUERY in lib/useMediaQuery.ts): centred at the bottom of
    the content, clear of the Drum card on the left and the map buttons on the
    right. */
-@media (min-width: 1024px) {
+@media (min-width: 1024px), (orientation: landscape) and (max-height: 500px) and (min-width: 600px) {
   .install-invite {
     left: calc(var(--rail-w) + (100vw - var(--rail-w) - 460px) / 2);
     right: auto;

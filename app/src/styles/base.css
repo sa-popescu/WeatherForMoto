@@ -196,7 +196,7 @@ textarea {
   gap: 8px;
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 1024px), (orientation: landscape) and (max-height: 500px) and (min-width: 600px) {
   .move-banner {
     left: calc(var(--rail-w) + 24px);
     right: auto;
@@ -299,13 +299,15 @@ textarea {
   display: none;
 }
 
-/* ---- Desktop shell ----
-   From 1024 px (DESKTOP_QUERY in lib/useMediaQuery.ts) the shell is a grid:
-   the nav turns into a narrow rail of icons down the left edge and the
-   content area takes the rest of the width. Everything above stays the
-   phone layout; each tab spreads its own content in its *-desktop.css. */
+/* ---- Wide shell ----
+   From 1024 px, and on a phone turned sideways (WIDE_QUERY in
+   lib/useMediaQuery.ts), the shell is a grid: the nav turns into a narrow
+   rail of icons down the left edge and the content area takes the rest of
+   the width. Everything above stays the phone layout; each tab spreads its
+   own content in its *-desktop.css. A phone sideways is then tightened for
+   its short screen in the block after this one. */
 
-@media (min-width: 1024px) {
+@media (min-width: 1024px), (orientation: landscape) and (max-height: 500px) and (min-width: 600px) {
   .shell {
     max-width: none;
     display: grid;
@@ -371,6 +373,57 @@ textarea {
 
   .bottom-nav__item[aria-current='page'] {
     background: var(--surface-3);
+  }
+}
+
+/* ---- A phone turned sideways ----
+   The wide layout with less of everything vertical: about 390 px of height
+   once the browser's bars are gone. The rail loses the app mark and stays
+   clear of the camera cut-out on the left; the content keeps clear of it on
+   the right (--safe-left and --safe-right in tokens.css). */
+
+@media (orientation: landscape) and (max-height: 500px) and (min-width: 600px) {
+  .shell {
+    --view-switch-h: 50px;
+  }
+
+  .shell__main {
+    padding-bottom: calc(12px + var(--safe-bottom));
+  }
+
+  .view-switch {
+    margin-top: 8px;
+  }
+
+  .view-switch__item {
+    font-size: 13px;
+  }
+
+  .screen {
+    padding-inline: 16px calc(16px + var(--safe-right));
+    padding-top: 12px;
+  }
+
+  .bottom-nav {
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 8px calc(8px + var(--safe-bottom)) calc(8px + var(--safe-left));
+  }
+
+  .bottom-nav__mark {
+    display: none;
+  }
+
+  .bottom-nav__item {
+    width: 48px;
+    min-height: 52px;
+    gap: 2px;
+    border-radius: 14px;
+    font-size: 9px;
+  }
+
+  .move-banner {
+    bottom: calc(12px + var(--safe-bottom));
   }
 }
 

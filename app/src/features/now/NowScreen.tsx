@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLang } from '../../lib/i18n';
 import type { Place } from '../../lib/types';
-import { useDesktop } from '../../lib/useMediaQuery';
+import { useWideLayout } from '../../lib/useMediaQuery';
 import { samePlace, usePlace } from '../../state/place';
 import { useWeather } from '../../state/weather';
 import { PlaceHeader } from '../place/PlaceHeader';
@@ -31,7 +31,7 @@ export default function NowScreen({ active }: ScreenProps) {
   const [sheet, setSheet] = useState<NowSheetState>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [tableDate, setTableDate] = useState<string | null>(null);
-  const desktop = useDesktop();
+  const wide = useWideLayout();
   const screenRef = useRef<HTMLDivElement>(null);
   // A favourite picked in the comparison, while its forecast loads: the day
   // to show in the hour table, and where to scroll once it is on screen.
@@ -104,7 +104,7 @@ export default function NowScreen({ active }: ScreenProps) {
         <NowSkeleton />
       )}
       {/* Outside the forecast above, so its results outlive a change of place. */}
-      {desktop && <FavoritesCompare onShow={showFavorite} />}
+      {wide && <FavoritesCompare onShow={showFavorite} />}
     </div>
   );
 }

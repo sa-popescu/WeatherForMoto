@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { fmt, useLang, useStrings } from '../../lib/i18n';
 import type { Place } from '../../lib/types';
-import { useDesktop } from '../../lib/useMediaQuery';
+import { useComputer, useWideLayout } from '../../lib/useMediaQuery';
 import { usePlace } from '../../state/place';
 import { useSettings } from '../../state/settings';
 import { useToast } from '../../state/toast';
@@ -43,7 +43,9 @@ export default function DriveScreen({ active }: ScreenProps) {
   const lang = useLang();
   const toast = useToast();
   const { theme } = useSettings();
-  const desktop = useDesktop();
+  // The layout (a desktop window or a phone turned sideways) and the device (a computer rides nowhere).
+  const wide = useWideLayout();
+  const computer = useComputer();
   const { place, source, locate, locating } = usePlace();
   const places = useDrivePlaces();
   const [destination, setDestination] = useState<Place | null>(null);
@@ -88,7 +90,7 @@ export default function DriveScreen({ active }: ScreenProps) {
     if (!bounds) return;
     const card = bottomRef.current;
     let padding: { top: number; bottom: number; left: number; right: number };
-    if (desktop) {
+    if (wide) {
       // The search and the card are a column on the left, the buttons sit in the right corner.
       const column = card ? card.offsetLeft + card.offsetWidth : 432;
       padding = { top: FRAME_MARGIN, bottom: FRAME_MARGIN, left: column + FRAME_MARGIN, right: CORNER_W + FRAME_MARGIN };
@@ -100,7 +102,7 @@ export default function DriveScreen({ active }: ScreenProps) {
       padding = { top, bottom, left: FRAME_MARGIN, right: FRAME_MARGIN };
     }
     map.fitBounds(bounds, { padding, duration: 600, maxZoom: 16 });
-  }, [map, mapReady, active, ready, destination, desktop, place.lat, place.lon]);
+  }, [map, mapReady, active, ready, destination, wide, place.lat, place.lon]);
 
   const pick = (picked: Place, why: SearchPurpose): void => {
     if (why !== 'go') {
@@ -181,7 +183,7 @@ export default function DriveScreen({ active }: ScreenProps) {
             selectedId={selectedId}
             fromLabel={fromGps ? s.fromHere : fmt(s.fromPlace, { place: place.name })}
             locating={locating}
-            canRide={!desktop}
+            canRide={!computer}
             departures={trip.departures}
             bestDeparture={trip.best}
             departMs={departMs}
@@ -194,7 +196,7 @@ export default function DriveScreen({ active }: ScreenProps) {
           />
         ) : (
           <>
-            {!desktop && (
+            {!wide && (
               <div className="drive-tools">
                 <DriveLocate onRecenter={recenter} />
               </div>
@@ -203,7 +205,7 @@ export default function DriveScreen({ active }: ScreenProps) {
           </>
         )}
       </div>
-      {desktop && <DriveMapButtons map={map} showLocate={!destination} onRecenter={recenter} />}
+      {wide && <DriveMapButtons map={map} showLocate={!destination} onRecenter={recenter} />}
     </div>
   );
 }

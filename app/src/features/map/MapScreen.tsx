@@ -2,7 +2,7 @@ import type { LngLat, MapMouseEvent } from 'maplibre-gl';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { PlaceSuggestion } from '../../lib/geo';
 import { fmt, useLang, useStrings } from '../../lib/i18n';
-import { useDesktop } from '../../lib/useMediaQuery';
+import { useWideLayout } from '../../lib/useMediaQuery';
 import type { Hazard } from '../../lib/types';
 import { useAuth } from '../../state/auth';
 import { usePlace } from '../../state/place';
@@ -50,7 +50,7 @@ export default function MapScreen({ active }: ScreenProps) {
   const reducedMotion = usePrefersReducedMotion();
   const onScreen = active && pageVisible;
 
-  const desktop = useDesktop();
+  const wide = useWideLayout();
   const layersId = useId();
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -97,14 +97,14 @@ export default function MapScreen({ active }: ScreenProps) {
     };
   }, [map]);
 
-  // Desktop: a click on the map shows the weather there in the side panel.
-  // Not while a report spot is being picked, and never on a phone, where a
-  // tap is for moving the map.
+  // Wide layout (a desktop, or a phone turned sideways): a click or a tap on
+  // the map shows the weather there in the side panel. Not while a report
+  // spot is being picked, nor in the tall phone layout, which has no panel.
   const [point, setPoint] = useState<PickedPoint | null>(null);
   const pointWeather = usePointWeather(point, lang);
-  usePointMarker(map, desktop ? point : null);
+  usePointMarker(map, wide ? point : null);
   useEffect(() => {
-    if (!map || !desktop || picking) return undefined;
+    if (!map || !wide || picking) return undefined;
     const onClick = (event: MapMouseEvent): void => {
       // A click on a marker (a hazard) is the marker's, not a point to look at.
       const target = event.originalEvent.target;
@@ -116,7 +116,7 @@ export default function MapScreen({ active }: ScreenProps) {
     return () => {
       map.off('click', onClick);
     };
-  }, [map, desktop, picking]);
+  }, [map, wide, picking]);
 
   const pickFound = (hit: PlaceSuggestion): void => {
     setPoint({ lat: hit.lat, lon: hit.lon, name: hit.name });
@@ -144,8 +144,8 @@ export default function MapScreen({ active }: ScreenProps) {
 
   // The point belongs to the desktop panel: a phone layout drops it.
   useEffect(() => {
-    if (!desktop) setPoint(null);
-  }, [desktop]);
+    if (!wide) setPoint(null);
+  }, [wide]);
 
   const mapCentre = (): LatLon | null => {
     if (!map) return null;
@@ -179,7 +179,7 @@ export default function MapScreen({ active }: ScreenProps) {
   // The canvas stays the first child in both layouts, so switching between
   // them never remounts the element the map lives in.
   return (
-    <div className={cx('map-screen', desktop && 'map-screen--desk', theme === 'dark' && 'map-screen--dark')} hidden={!active}>
+    <div className={cx('map-screen', wide && 'map-screen--desk', theme === 'dark' && 'map-screen--dark')} hidden={!active}>
       <div ref={containerRef} className="map-canvas" aria-label={s.mapLabel} />
 
       <div className="map-top">
@@ -187,7 +187,7 @@ export default function MapScreen({ active }: ScreenProps) {
         <span className="visually-hidden" role="status">
           {loading ? s.loadingMap : ''}
         </span>
-        <MapControls map={map} prefs={prefs} onPrefs={setPrefs} onRecenter={recenter} hazardsFailed={hazards.failed} showLayers={!desktop} />
+        <MapControls map={map} prefs={prefs} onPrefs={setPrefs} onRecenter={recenter} hazardsFailed={hazards.failed} showLayers={!wide} />
       </div>
 
       {picking && (
@@ -196,7 +196,7 @@ export default function MapScreen({ active }: ScreenProps) {
         </span>
       )}
 
-      {desktop ? (
+      {wide ? (
         // Desktop: a fixed panel on the right with the search, the weather at
         // the picked point, the layers, the report button and the band of
         // time (map-desktop.css).
