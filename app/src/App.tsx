@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { MoveBanner } from './features/move/MoveBanner';
 import { onOldAddress } from './features/move/move';
+import { liveIdFromHash } from './features/live/constants';
 import { rideRecorder } from './features/ride/recorder';
 import { useRide } from './features/ride/useRide';
 import type { ScreenProps } from './features/types';
@@ -26,6 +27,7 @@ const RidesScreen = lazy(() => import('./features/ride/RidesScreen'));
 const AccountScreen = lazy(() => import('./features/account/AccountScreen'));
 const ResetPasswordView = lazy(() => import('./features/account/ResetPasswordView'));
 const RideScreen = lazy(() => import('./features/ride/RideScreen'));
+const LiveView = lazy(() => import('./features/live/LiveView'));
 
 type View = 'drum' | 'traseu' | 'acum' | 'harta' | 'ture' | 'eu';
 type Tab = 'drum' | 'vreme' | 'ture' | 'eu';
@@ -89,6 +91,8 @@ export default function App() {
   const riding = useRide().phase !== 'idle';
   // The app moved to motonor.bluemouse.cc: the old address offers to move there.
   const oldAddress = useMemo(onOldAddress, []);
+  // A live location link (#/live/<id>) shows that ride instead of the app.
+  const [liveId, setLiveId] = useState(() => liveIdFromHash(window.location.hash));
 
   // A ride the app was closed in the middle of is offered again at start-up.
   useEffect(() => {
@@ -97,6 +101,7 @@ export default function App() {
 
   useEffect(() => {
     const onHash = (): void => {
+      setLiveId(liveIdFromHash(window.location.hash));
       const next = readView();
       setView(next);
       if (isWeatherView(next)) setWeatherView(next);
@@ -119,6 +124,14 @@ export default function App() {
     { tab: 'ture', href: '#/ture', icon: 'bike', label: s.tabRides },
     { tab: 'eu', href: '#/eu', icon: 'user', label: s.tabMe },
   ];
+
+  if (liveId) {
+    return (
+      <Suspense fallback={<div className="screen-fallback">{s.loading}</div>}>
+        <LiveView id={liveId} />
+      </Suspense>
+    );
+  }
 
   if (showReset && resetToken) {
     return (

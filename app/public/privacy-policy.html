@@ -127,6 +127,11 @@
             (motonor.bluemouse.cc/s/…): planul se păstrează la Cloudflare timp de 90 de zile, apoi se șterge
             automat. Nu e legat de cont, de dispozitiv sau de adresa IP, iar oricine are linkul îl poate deschide.</li>
     </ul>
+    <p>Dacă pornești partajarea locației live în timpul unei ture, telefonul trimite la Cloudflare, cam o dată la
+        30 de secunde, poziția, viteza și, dacă urmezi un traseu, numele destinației și ora estimată de sosire.
+        Oricine are linkul vede poziția și linia parcursă. Totul se șterge când închei tura sau oprești partajarea,
+        și cel mult după 12 ore. Partajarea nu e legată de cont; adresa IP e folosită, doar sub formă de hash și
+        doar pe durata zilei, ca să limităm câte partajări pornesc pe zi.</p>
     <p>Ca să verificăm cât de bine a nimerit fiecare sursă meteo, serverul păstrează un jurnal cu ce a prezis
         și ce au măsurat apoi stațiile. Jurnalul ține doar zona rotunjită la aproximativ 5 km și ora (UTC), fără
         nicio legătură cu tine, cu dispozitivul tău sau cu contul, și fără adresa IP. Se scrie cel mult o dată pe
@@ -189,7 +194,7 @@
                 </tr>
                 <tr>
                     <td>Cloudflare</td>
-                    <td>găzduirea paginilor aplicației și a linkurilor scurte de traseu (90 de zile)</td>
+                    <td>găzduirea paginilor aplicației, a linkurilor scurte de traseu (90 de zile) și a locației live (cel mult 12 ore)</td>
                     <td>rețea globală</td>
                 </tr>
                 <tr>

@@ -1,0 +1,41 @@
+import { defineStrings } from '../../lib/i18n';
+
+// Copy for the page a shared live location opens (LiveView.tsx).
+export const LIVE_VIEW_S = defineStrings(
+  {
+    title: 'Locația live',
+    mapLabel: 'Harta cu poziția motociclistului',
+    loading: 'Caut poziția…',
+    waiting: 'Tura a început. Aștept prima poziție.',
+    updatedNow: 'Actualizată acum câteva secunde',
+    updatedMin: 'Actualizată acum {n} min',
+    stale: 'Poate e într-o zonă fără semnal.',
+    speed: '{v} km/h',
+    towards: 'Spre {dest}',
+    eta: 'Sosire estimată {time}',
+    expires: 'Linkul expiră la {time}.',
+    gone: 'Tura s-a încheiat sau linkul a expirat.',
+    goneNote: 'Poziția nu se mai vede, iar tot ce s-a trimis a fost șters.',
+    error: 'Nu am putut încărca poziția. Reîncerc în 30 de secunde.',
+    follow: 'Centrează pe motociclist',
+    openApp: 'Deschide Motonor',
+  },
+  {
+    title: 'Live location',
+    mapLabel: 'Map with the rider’s position',
+    loading: 'Looking for the position…',
+    waiting: 'The ride has started. Waiting for the first position.',
+    updatedNow: 'Updated a few seconds ago',
+    updatedMin: 'Updated {n} min ago',
+    stale: 'The rider may be out of signal.',
+    speed: '{v} km/h',
+    towards: 'To {dest}',
+    eta: 'Expected at {time}',
+    expires: 'The link expires at {time}.',
+    gone: 'The ride has ended or the link has expired.',
+    goneNote: 'The position is no longer shown, and everything sent was deleted.',
+    error: 'The position could not be loaded. Trying again in 30 seconds.',
+    follow: 'Centre on the rider',
+    openApp: 'Open Motonor',
+  },
+);
