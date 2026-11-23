@@ -3,7 +3,9 @@ import { defineConfig, devices } from '@playwright/test';
 // Layout checks (e2e/layout.spec.ts): the built app in Chromium at the sizes
 // it has to work at, run in CI before anything is published. They look for
 // text running off the screen or over other text, and for rows cut off in the
-// wide layout, the kind of break unit tests cannot see.
+// wide layout, the kind of break unit tests cannot see. The map check
+// (e2e/map.spec.ts) makes sure the radar map still draws rain from radar
+// tiles, through the reading worker and the WebGL layer.
 
 const PORT = 4173;
 
