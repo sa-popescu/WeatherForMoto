@@ -1,8 +1,8 @@
 import { useSyncExternalStore } from 'react';
 import { isStandalone } from './lib/platform';
 
-// Captures Chrome/Edge/Android's beforeinstallprompt so "Instalează aplicația"
-// in the Eu tab can show the native install dialog later. The event fires
+// Captures Chrome/Edge/Android's beforeinstallprompt so the install invitation
+// and guide (features/install) can show the native install dialog later. The event fires
 // early, often before the lazy account chunk loads, so main.tsx imports this
 // module for its side effect:  import './features/account/installPrompt';
 

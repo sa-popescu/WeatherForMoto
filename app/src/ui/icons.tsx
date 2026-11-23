@@ -8,7 +8,7 @@ export type IconName =
   | 'bookmark' | 'download' | 'alert' | 'share' | 'refresh' | 'close' | 'star' | 'starFilled'
   | 'trash' | 'bell' | 'mail' | 'lock' | 'logout' | 'settings' | 'wind' | 'drop' | 'thermo'
   | 'road' | 'eye' | 'sun' | 'moon' | 'play' | 'pause' | 'layers' | 'grip' | 'clock' | 'flag'
-  | 'bike' | 'edit' | 'globe' | 'external' | 'radar' | 'fuel';
+  | 'bike' | 'edit' | 'globe' | 'external' | 'radar' | 'fuel' | 'iosShare' | 'addSquare';
 
 const PATHS: Record<IconName, ReactNode> = {
   gauge: <><path d="M3.5 17a8.5 8.5 0 1 1 17 0" /><path d="m12 17 4-5" /></>,
@@ -58,6 +58,9 @@ const PATHS: Record<IconName, ReactNode> = {
   external: <path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />,
   radar: <><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><path d="M12 12 18 6" /></>,
   fuel: <><path d="M5 20.5V5a1.5 1.5 0 0 1 1.5-1.5h6A1.5 1.5 0 0 1 14 5v15.5M3.5 20.5h12M7.5 8h4" /><path d="M14 10h1.5a1.5 1.5 0 0 1 1.5 1.5v5a1.5 1.5 0 0 0 3 0V8l-2.5-2.5" /></>,
+  // The iPhone's Share button and "Add to Home Screen", drawn as iOS draws them (install guide).
+  iosShare: <><path d="M12 15V3M8 7l4-4 4 4" /><path d="M5 11v8.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V11" /></>,
+  addSquare: <><rect x="4" y="4" width="16" height="16" rx="3" /><path d="M12 8.5v7M8.5 12h7" /></>,
 };
 
 interface IconProps {

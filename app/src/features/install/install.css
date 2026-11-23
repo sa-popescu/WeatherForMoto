@@ -1,0 +1,174 @@
+/* The install invitation (InstallInvite.tsx) and guide (InstallGuide.tsx).
+   Colours from the theme tokens, except the QR code, which stays black on
+   white for the cameras. */
+
+/* ---- Invitation: a card above the tabs on a phone ---- */
+
+.install-invite {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(var(--nav-h) + var(--safe-bottom) + 12px);
+  z-index: 36;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px 14px;
+  max-width: 536px;
+  margin-inline: auto;
+  padding: 16px;
+  border: 1px solid var(--accent);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.4);
+  animation: install-invite-in 0.3s ease-out both;
+}
+
+.install-invite__icon {
+  border-radius: 12px;
+}
+
+.install-invite__title {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.install-invite__lead {
+  margin-top: 2px;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+
+.install-invite__actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 8px;
+}
+
+.install-invite__actions > .btn--primary {
+  flex: 1;
+}
+
+@keyframes install-invite-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+/* Desktop (DESKTOP_QUERY in lib/useMediaQuery.ts): centred at the bottom of
+   the content, clear of the Drum card on the left and the map buttons on the
+   right. */
+@media (min-width: 1024px) {
+  .install-invite {
+    left: calc(var(--rail-w) + (100vw - var(--rail-w) - 460px) / 2);
+    right: auto;
+    bottom: 24px;
+    width: 460px;
+    margin: 0;
+  }
+}
+
+/* ---- Guide ---- */
+
+.install-lead {
+  font-size: 15px;
+  color: var(--ink-2);
+}
+
+.install-note {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.install-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.install-step {
+  display: grid;
+  grid-template-columns: 28px 36px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+}
+
+.install-step__n {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.install-step__icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+  color: var(--accent);
+}
+
+.install-step__text {
+  padding-top: 6px;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--ink);
+}
+
+/* On a computer: the QR code that opens Motonor on the phone. */
+.install-phone {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+}
+
+.install-qr {
+  flex: none;
+  display: block;
+  border-radius: 10px;
+}
+
+.install-qr--loading {
+  width: 168px;
+  height: 168px;
+  background: var(--surface-3);
+}
+
+.install-phone__text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.install-phone__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.install-phone__lead {
+  font-size: 14px;
+  color: var(--ink-2);
+}
+
+.install-phone__url {
+  font-size: 14px;
+  color: var(--accent);
+  overflow-wrap: anywhere;
+}
