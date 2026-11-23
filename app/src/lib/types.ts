@@ -3,6 +3,9 @@
 
 export type RainBand = 'none' | 'urme' | 'slaba' | 'moderata' | 'puternica';
 export type MotoLabel = 'IDEAL' | 'OK' | 'ATENȚIE' | 'EVITĂ';
+
+/** The road after rain (backend/wet_road.py): still wet, or the first rain after dry days. */
+export type WetRoadState = 'wet' | 'first_rain';
 export type Level = 'low' | 'medium' | 'high';
 export type MotoType = 'naked' | 'touring' | 'enduro' | 'sport' | 'scooter';
 
@@ -56,6 +59,8 @@ export interface CurrentWeather {
   is_day: boolean | null;
   dew_point: number | null;
   frost_risk: boolean | null;
+  /** Missing from older servers and from the browser-direct fallback. */
+  wet_road?: WetRoadState | null;
   moto_score: number | null;
   moto_label: MotoLabel | null;
   score_breakdown: ScoreFactor[] | null;
@@ -121,6 +126,8 @@ export interface HourlyWeather {
   is_day: boolean | null;
   road_surface_temp: number | null;
   frost_risk: boolean | null;
+  /** Missing from older servers and from the browser-direct fallback. */
+  wet_road?: WetRoadState | null;
   moto_score: number | null;
   moto_label: MotoLabel | null;
   forecast_confidence: Confidence | null;

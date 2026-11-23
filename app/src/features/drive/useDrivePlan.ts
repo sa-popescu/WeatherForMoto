@@ -83,7 +83,7 @@ export function useDrivePlan({ origin, destination, departMs, attempt, routeOpti
   const outlookOf = useCallback(
     (route: DriveRoute, atMs: number): RouteOutlook | null => {
       const rp = plan?.routes.find((r) => r.routeId === route.id);
-      return rp ? routeOutlook(rp.points, weatherForRoute(rp, weather), routeKmh(route), route.durationS / 60, atMs) : null;
+      return rp ? routeOutlook(rp.points, weatherForRoute(rp, weather), routeKmh(route), route.durationS / 60, atMs, route.line) : null;
     },
     [plan, weather],
   );

@@ -45,6 +45,14 @@ describe('scoreBreakdown (backend rules)', () => {
     expect(score({ frostRisk: true })).toBe(59);
     expect(score({ feelsLike: 3, probability: 40, precipitationMm: 0.3 })).toBe(52);
   });
+
+  it('takes the road state the server judged: a wet road and a first rain cost points, no cap', () => {
+    expect(score({ wetRoad: 'wet' })).toBe(92);
+    const first = scoreBreakdown({ ...calm, precipitationMm: 1, probability: 80, weatherCode: 61, wetRoad: 'first_rain' });
+    expect(first.factors.map((f) => f.factor)).toEqual(['rain', 'first_rain']);
+    expect(first.factors[1]).toMatchObject({ penalty: 8, cap: null });
+    expect(score({ wetRoad: null })).toBe(100);
+  });
 });
 
 describe('road and frost estimates', () => {

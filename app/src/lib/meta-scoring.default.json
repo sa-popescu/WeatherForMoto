@@ -79,6 +79,7 @@
     "cold_wet": { "feels_below_c": 5, "min_probability_pct": 30, "penalty": 12 }
   },
   "frost": { "surface_max_c": 1.0, "dewpoint_margin_c": 1.0, "cap": 59 },
+  "wet_road": { "wet_penalty": 8, "first_rain": { "penalty": 8 } },
   "daily": {
     "worst_hours_fraction": 0.25,
     "worst_hours_weight": 0.5,
