@@ -13,6 +13,7 @@
 // bundle: wrangler builds it on its own, through index.ts. Everything else
 // that reaches the Worker goes to the static files (staleAssets.ts).
 
+import { isPreviewRobot, previewLang, previewPage, routePreview } from './preview';
 import { serveFile } from './staleAssets';
 
 /** The two KV calls used here (Cloudflare's KVNamespace, trimmed). */
@@ -107,7 +108,7 @@ function unavailable(): Response {
   });
 }
 
-async function open(id: string, env: Env, origin: string): Promise<Response> {
+async function open(request: Request, id: string, env: Env, url: URL): Promise<Response> {
   if (!env.SHORT_LINKS) return unavailable();
   let query: string | null;
   try {
@@ -116,7 +117,13 @@ async function open(id: string, env: Env, origin: string): Promise<Response> {
     console.error('[short-links] read failed', err);
     return unavailable();
   }
-  return redirect(origin, isRouteQuery(query) ? query : GONE_QUERY);
+  const plan = isRouteQuery(query) ? query : GONE_QUERY;
+  // A chat app's preview robot gets the route's ends and departure (preview.ts).
+  if (isPreviewRobot(request)) {
+    const lang = previewLang(url);
+    return previewPage(routePreview(plan, `${url.origin}${ROUTE_TAB}${plan}`, lang), url, lang);
+  }
+  return redirect(url.origin, plan);
 }
 
 export async function handle(request: Request, env: Env): Promise<Response> {
@@ -126,7 +133,7 @@ export async function handle(request: Request, env: Env): Promise<Response> {
   }
   const match = /^\/s\/([^/]+)\/?$/.exec(url.pathname);
   if (match && (request.method === 'GET' || request.method === 'HEAD')) {
-    return ID_PATTERN.test(match[1]) ? open(match[1], env, url.origin) : redirect(url.origin, GONE_QUERY);
+    return ID_PATTERN.test(match[1]) ? open(request, match[1], env, url) : redirect(url.origin, GONE_QUERY);
   }
   return serveFile(request, env.ASSETS);
 }

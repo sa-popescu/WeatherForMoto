@@ -1,6 +1,6 @@
 import type { Env } from './shortLinks';
 import { handle } from './shortLinks';
-import { handleLive, type LiveEnv } from './live';
+import { handleLive, handleLiveLink, type LiveEnv } from './live';
 import { movedRedirect } from './moved';
 
 // The Worker's entry module (wrangler.jsonc "main"). It exports the handler
@@ -12,5 +12,5 @@ export { LiveBudget, LiveRide } from './live';
 
 export default {
   fetch: async (request: Request, env: Env & LiveEnv): Promise<Response> =>
-    movedRedirect(request) ?? (await handleLive(request, env)) ?? handle(request, env),
+    movedRedirect(request) ?? (await handleLive(request, env)) ?? (await handleLiveLink(request, env)) ?? handle(request, env),
 };

@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { fmt, useStrings } from '../../lib/i18n';
+import { fmt, useLang, useStrings } from '../../lib/i18n';
 import { shareLink } from '../../lib/share';
 import { useToast } from '../../state/toast';
 import { Icon } from '../../ui/icons';
@@ -12,12 +12,15 @@ import { LIVE_S } from './liveStrings';
 
 export function LiveShareControl({ now }: { now: number }) {
   const s = useStrings(LIVE_S);
+  const lang = useLang();
   const toast = useToast();
   const live = useSyncExternalStore(liveShare.subscribe, liveShare.getSnapshot);
 
   const send = async (url: string): Promise<void> => {
+    // The chat app's preview of the link speaks the rider's language (worker/preview.ts).
+    const link = lang === 'en' ? `${url}?lang=en` : url;
     try {
-      if ((await shareLink(url, s.shareText)) === 'copied') toast(s.copied, { tone: 'success' });
+      if ((await shareLink(link, s.shareText)) === 'copied') toast(s.copied, { tone: 'success' });
     } catch (err) {
       console.warn('[live] the link could not be shared', err);
       toast(s.shareFailed, { tone: 'error' });

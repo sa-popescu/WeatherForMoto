@@ -12,10 +12,15 @@
 //   PUT    /live/<id>   Bearer <key>  {lat, lon, speedKmh, dest, etaMs} -> 204
 //   DELETE /live/<id>   Bearer <key>      -> 204, everything deleted
 //   GET    /live/<id>                     -> 200 the position and the trail, 404 once ended
+//   GET    /l/<id>                        -> the link a rider sends: 302 to the app's
+//                                            live page, or the ride's preview for a
+//                                            chat app's robot (preview.ts)
 //
 // The id is in the link, so anyone with the link can watch; only the phone
 // that started the sharing holds the key that moves the position or ends it.
 // This file is not part of the app bundle: wrangler builds it through index.ts.
+
+import { isPreviewRobot, livePreview, previewLang, previewPage } from './preview';
 
 // ---- The few Cloudflare types used here (trimmed) ------------------------
 
@@ -346,4 +351,34 @@ export async function handleLive(request: Request, env: LiveEnv): Promise<Respon
     console.error('[live] request failed', err);
     return json(503, { error: 'store' });
   }
+}
+
+const LIVE_LINK = /^\/l\/([A-Za-z0-9_-]{22})\/?$/;
+
+/** The ride's state for a preview: null once it ended, or when it cannot be read. */
+async function stateForPreview(env: LiveEnv, id: string): Promise<LiveState | null> {
+  if (!env.LIVE_RIDES || !env.LIVE_BUDGET) return null;
+  try {
+    const answer = await rideStub(env as Required<LiveEnv>, id).fetch(new Request('https://live/state'));
+    return answer.ok ? ((await answer.json()) as LiveState) : null;
+  } catch (err) {
+    console.error('[live] the preview could not read the ride', err);
+    return null;
+  }
+}
+
+/**
+ * The link a rider sends, /l/<id>: people go on to the app's live page
+ * (/#/live/<id>), and a chat app's preview robot gets the ride's destination
+ * and arrival instead of the app's home page (preview.ts). Null for any
+ * other path.
+ */
+export async function handleLiveLink(request: Request, env: LiveEnv): Promise<Response | null> {
+  const url = new URL(request.url);
+  const match = LIVE_LINK.exec(url.pathname);
+  if (!match || (request.method !== 'GET' && request.method !== 'HEAD')) return null;
+  const target = `${url.origin}/#/live/${match[1]}`;
+  if (!isPreviewRobot(request)) return new Response(null, { status: 302, headers: { Location: target, ...COMMON_HEADERS } });
+  const lang = previewLang(url);
+  return previewPage(livePreview(await stateForPreview(env, match[1]), target, lang), url, lang);
 }
