@@ -1,6 +1,7 @@
 import type { FeatureCollection } from 'geojson';
 import type { AddLayerObject, MapLibreMap } from 'maplibre-gl';
 import { labelsAboveRoads } from '../../lib/vectorMap';
+import type { LayerOps } from './fader';
 
 // Where each weather layer goes in the map's style, so they stack the same way
 // whatever order they are added in: satellite clouds under the radar,
@@ -22,11 +23,40 @@ function slotOf(id: string): number {
   return SLOTS.findIndex((slot) => id.startsWith(`${PREFIX}${slot}-`));
 }
 
-/** Adds a layer in its slot: under the first weather layer of a higher slot, else under the labels. */
-export function addInSlot(map: MapLibreMap, slot: Slot, layer: AddLayerObject): void {
+/** Where a layer of this slot goes: under the first weather layer of a higher slot, else under the labels. */
+function slotTop(map: MapLibreMap, slot: Slot, except?: string): string | undefined {
   const rank = SLOTS.indexOf(slot);
-  const above = map.getStyle().layers.find((l) => slotOf(l.id) > rank);
-  map.addLayer(layer, above?.id ?? labelsAboveRoads(map));
+  const above = map.getStyle().layers.find((l) => l.id !== except && slotOf(l.id) > rank);
+  return above?.id ?? labelsAboveRoads(map);
+}
+
+const AT_ONCE = { duration: 0, delay: 0 };
+
+/**
+ * Adds a layer at the top of its slot. A raster layer changes opacity at once
+ * unless told otherwise: MapLibre would otherwise fade every change over
+ * 300 ms, which made the pictures flicker as the band moved (fader.ts fades
+ * them on purpose instead).
+ */
+export function addInSlot(map: MapLibreMap, slot: Slot, layer: AddLayerObject): void {
+  const placed =
+    layer.type === 'raster' ? { ...layer, paint: { 'raster-opacity-transition': AT_ONCE, ...layer.paint } } : layer;
+  map.addLayer(placed as AddLayerObject, slotTop(map, slot));
+}
+
+/** The map calls a Fader needs, for the raster layers of one slot. */
+export function slotLayerOps(map: MapLibreMap, slot: Slot): LayerOps {
+  return {
+    exists: (id) => map.getLayer(id) !== undefined,
+    setOpacity: (id, value, ms) => {
+      if (!map.getLayer(id)) return;
+      map.setPaintProperty(id, 'raster-opacity-transition', ms > 0 ? { duration: ms, delay: 0 } : AT_ONCE);
+      map.setPaintProperty(id, 'raster-opacity', value);
+    },
+    raise: (id) => {
+      if (map.getLayer(id)) map.moveLayer(id, slotTop(map, slot, id));
+    },
+  };
 }
 
 /** Takes a layer and its source off; a map already removed (theme switch, unmount) is left alone. */

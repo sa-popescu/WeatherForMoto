@@ -68,8 +68,12 @@ interface Options {
   kind: ForecastKind;
   opacity: number;
   autoPlay: boolean;
+  /** Fade from one moment to the next (off when the system asks for less motion). */
+  fade: boolean;
 }
 
+/** How long a new moment takes to fade in over the one before: shorter than the quickest step of playback. */
+const FADE_MS = 250;
 /** The forecast window slides with the clock; checking every few minutes is plenty. */
 const CLOCK_MS = 5 * 60_000;
 /** Satellite pictures in the observed part of the band when the radar is off: two hours. */
@@ -96,7 +100,8 @@ function useClock(running: boolean): number {
   return now;
 }
 
-export function useMapTimeline(map: MapLibreMap | null, { fetching, radar, lightning, kind, opacity, autoPlay }: Options): MapTimeline {
+export function useMapTimeline(map: MapLibreMap | null, { fetching, radar, lightning, kind, opacity, autoPlay, fade }: Options): MapTimeline {
+  const fadeMs = fade ? FADE_MS : 0;
   const nowMs = useClock(fetching);
   const cloudView = kind === 'cloud';
   const rainView = kind === 'rain';
@@ -241,10 +246,12 @@ export function useMapTimeline(map: MapLibreMap | null, { fetching, radar, light
   const radarLayer = useRadarLayer(map, {
     host: radarHost,
     frames: radarFrames,
-    index: onObserved && radar ? current.index : -1,
+    // Past the observed part the newest radar frame stays loaded, hidden, for the way back.
+    index: !radar ? -1 : onObserved ? current.index : observedRadar.length - 1,
     opacity,
     shown: radar && onObserved,
     loaded,
+    fadeMs,
   });
 
   const lightningShown = lightning && onObserved;
@@ -254,17 +261,23 @@ export function useMapTimeline(map: MapLibreMap | null, { fetching, radar, light
     next: lightning && nextObserved ? imageTime(LIGHTNING, nextObserved.timeSec, lightningLatest) : null,
     opacity: 1,
     slot: 'lightning',
+    fadeMs,
   });
 
   const satelliteTime = cloudView && onObserved && satelliteLatest !== null ? imageTime(IR_CLOUDS, current.timeSec, satelliteLatest) : null;
   const nextSatelliteTime = cloudView && nextObserved && satelliteLatest !== null ? imageTime(IR_CLOUDS, nextObserved.timeSec, satelliteLatest) : null;
-  const cloudVersion = useCloudPictures(cloudView && fetching ? geometry : null, [satelliteTime, nextSatelliteTime]);
+  // Every satellite picture of the band, fetched ahead so scrubbing finds them (useCloudPictures.ts).
+  const satelliteBand = useMemo(
+    () => (cloudView && satelliteLatest !== null ? recentTimes(IR_CLOUDS, satelliteLatest, SATELLITE_FRAMES) : EMPTY_TIMES),
+    [cloudView, satelliteLatest],
+  );
+  const cloudVersion = useCloudPictures(cloudView && fetching ? geometry : null, [satelliteTime, nextSatelliteTime], satelliteBand);
   const observedClouds = useMemo(
     () => (geometry && satelliteTime !== null ? pictureFrame(`${gkey}|satellite|${satelliteTime}`, cachedCloudPicture(geometry, satelliteTime)) : null),
     // cloudVersion marks pictures arriving in the shared cache.
     [geometry, gkey, satelliteTime, cloudVersion],
   );
-  useFieldLayer(map, { frame: observedClouds, geometry, opacity, slot: 'clouds', attribution: EUMETSAT_ATTRIBUTION });
+  useFieldLayer(map, { frame: observedClouds, geometry, opacity, slot: 'clouds', attribution: EUMETSAT_ATTRIBUTION, fadeMs });
 
   const aheadFrame = useMemo(() => {
     if (!geometry || !current || current.source === 'radar') return null;
@@ -276,6 +289,7 @@ export function useMapTimeline(map: MapLibreMap | null, { fetching, radar, light
     opacity,
     slot: 'ahead',
     attribution: rainView ? RAIN_AHEAD_ATTRIBUTION : CLOUDS_AHEAD_ATTRIBUTION,
+    fadeMs,
   });
 
   const select = useCallback((next: number) => {

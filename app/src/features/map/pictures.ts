@@ -81,6 +81,20 @@ export function cachedCloudPicture(geometry: FieldGeometry, timeSec: number): Ui
   return cloudPictures.get(cloudKey(geometry, timeSec));
 }
 
+/**
+ * Both images of a cloud picture fetched ahead into the browser's own cache
+ * (EUMETSAT lets them be kept a week), without turning them into pixels: a
+ * later cloudPicture for that moment then finds them there instead of
+ * downloading. About 250 KB per moment for a desktop-sized map.
+ */
+export async function prefetchCloudImages(geometry: FieldGeometry, timeSec: number, signal: AbortSignal): Promise<void> {
+  if (cloudPictures.has(cloudKey(geometry, timeSec)) || pending.has(cloudKey(geometry, timeSec))) return;
+  await Promise.all([
+    loadImage(imageUrl(IR_CLOUDS, geometry, timeSec), signal),
+    loadImage(imageUrl(CLOUD_MASK, geometry, imageTime(CLOUD_MASK, timeSec, null), CLOUD_MASK_SCALE), signal),
+  ]);
+}
+
 /** The infrared image for the canvas, turned into clouds (see paintClouds). */
 export function cloudPicture(geometry: FieldGeometry, timeSec: number, signal: AbortSignal): Promise<Uint8ClampedArray<ArrayBuffer>> {
   const key = cloudKey(geometry, timeSec);
