@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLang } from '../../lib/i18n';
 import type { Place } from '../../lib/types';
 import { useWideLayout } from '../../lib/useMediaQuery';
@@ -11,6 +11,8 @@ import { NowContent } from './components/NowContent';
 import { NowSheets, type NowSheetState } from './components/NowSheets';
 import { NowSkeleton } from './components/NowSkeleton';
 import { ErrorCard, StatusBanners } from './components/StatusBanners';
+import { WeatherSky } from './components/WeatherSky';
+import { skyOf } from './logic/sky';
 import { useClock } from './useClock';
 import { useNowModel } from './useNowModel';
 import { useRadarRain } from './useRadarRain';
@@ -19,6 +21,7 @@ import './now-desktop.css';
 
 // "Acum": can I ride now? Verdict, 24 h timeline, rain, readouts, days.
 // The previous data stays on screen during refreshes (no skeleton flashes).
+// Behind it, the weather right now (WeatherSky), hidden with the screen.
 
 export default function NowScreen({ active }: ScreenProps) {
   const weather = useWeather();
@@ -38,6 +41,7 @@ export default function NowScreen({ active }: ScreenProps) {
   const pendingDate = useRef<string | null>(null);
   const pendingScroll = useRef<ScrollTarget | null>(null);
   const data = weather.data;
+  const sky = useMemo(() => (data ? skyOf(data.current) : null), [data]);
 
   // A new place starts from the default timeline hour and today's hours (or
   // the day picked in the comparison), with no sheet open.
@@ -75,6 +79,7 @@ export default function NowScreen({ active }: ScreenProps) {
 
   return (
     <div className="screen now" hidden={!active} ref={screenRef}>
+      {sky && <WeatherSky sky={sky} />}
       <PlaceHeader
         utcOffsetSeconds={data?.utc_offset_seconds ?? null}
         sources={data?.current.sources?.length ?? null}

@@ -1,0 +1,463 @@
+/* The weather right now, behind the forecast (components/WeatherSky.tsx).
+   Fixed to the window and under everything else on the screen. Each scene
+   sets a sky (--sky-top, --sky-mid) that fades into the page colour lower
+   down, where the cards sit, and the colour of its clouds. The dark theme
+   keeps every sky dark enough for light text, the day theme light enough
+   for dark text. Moving parts animate only transform and opacity, and are
+   kept small: a composited layer the size of the screen costs memory. */
+
+.sky {
+  --sky-top: #1b4f8a;
+  --sky-mid: #2b6aa8;
+  --cloud: rgb(226 233 242 / 0.6);
+  --streak: rgb(200 218 240 / 0.6);
+  --flake: rgb(255 255 255 / 0.85);
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  contain: strict;
+  background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-mid) 42%, var(--bg) 88%);
+}
+
+.sky[data-sky='clear'][data-night] {
+  --sky-top: #081329;
+  --sky-mid: #101b33;
+}
+
+.sky[data-sky='partly'] {
+  --sky-top: #24507e;
+  --sky-mid: #3f6488;
+  --cloud: rgb(222 230 240 / 0.68);
+}
+
+.sky[data-sky='overcast'] {
+  --sky-top: #353d4a;
+  --sky-mid: #444c58;
+  --cloud: rgb(150 160 176 / 0.85);
+}
+
+.sky[data-sky='fog'] {
+  --sky-top: #434950;
+  --sky-mid: #50565d;
+}
+
+.sky[data-sky='drizzle'] {
+  --sky-top: #2a3441;
+  --sky-mid: #36414e;
+  --cloud: rgb(132 142 158 / 0.85);
+  --streak: rgb(190 208 232 / 0.5);
+}
+
+.sky[data-sky='rain'] {
+  --sky-top: #1f2833;
+  --sky-mid: #2b3541;
+  --cloud: rgb(112 122 140 / 0.9);
+}
+
+.sky[data-sky='storm'] {
+  --sky-top: #161a23;
+  --sky-mid: #222733;
+  --cloud: rgb(78 84 100 / 0.95);
+}
+
+.sky[data-sky='snow'] {
+  --sky-top: #3f4a59;
+  --sky-mid: #525e6c;
+  --cloud: rgb(180 190 204 / 0.7);
+}
+
+/* Night dims every sky but the starry one, which has its own colours. */
+.sky[data-night]:not([data-sky='clear'])::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgb(4 7 16 / 0.5);
+}
+
+:root[data-theme='day'] .sky {
+  --sky-top: #8fc0eb;
+  --sky-mid: #c6dff3;
+  --cloud: rgb(255 255 255 / 0.85);
+  --streak: rgb(50 80 120 / 0.35);
+  --flake: rgb(255 255 255 / 0.95);
+}
+
+:root[data-theme='day'] .sky[data-sky='clear'][data-night] {
+  --sky-top: #aab6d2;
+  --sky-mid: #c9d1e3;
+}
+
+:root[data-theme='day'] .sky[data-sky='partly'] {
+  --sky-top: #a5c4df;
+  --sky-mid: #d2e1ee;
+}
+
+:root[data-theme='day'] .sky[data-sky='overcast'],
+:root[data-theme='day'] .sky[data-sky='fog'] {
+  --sky-top: #b9bfc7;
+  --sky-mid: #d5d9dd;
+  --cloud: rgb(236 238 241 / 0.8);
+}
+
+:root[data-theme='day'] .sky[data-sky='drizzle'],
+:root[data-theme='day'] .sky[data-sky='rain'] {
+  --sky-top: #98a6b5;
+  --sky-mid: #c0c9d3;
+  --cloud: rgb(170 180 192 / 0.75);
+}
+
+:root[data-theme='day'] .sky[data-sky='storm'] {
+  --sky-top: #848d99;
+  --sky-mid: #aab2bb;
+  --cloud: rgb(130 138 150 / 0.8);
+}
+
+:root[data-theme='day'] .sky[data-sky='snow'] {
+  --sky-top: #c3ccd7;
+  --sky-mid: #e1e6ec;
+  --cloud: rgb(255 255 255 / 0.8);
+  --flake: rgb(120 140 165 / 0.7);
+}
+
+:root[data-theme='day'] .sky[data-night]:not([data-sky='clear'])::before {
+  background: rgb(30 40 70 / 0.15);
+}
+
+/* The page colour coming back over the lower half, under the cards. */
+.sky__scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 42%, color-mix(in srgb, var(--bg) 45%, transparent) 76%, var(--bg) 98%);
+}
+
+/* ---- Sun ---- */
+
+.sky__sun {
+  position: absolute;
+  top: -28vmin;
+  right: -28vmin;
+  width: 90vmin;
+  height: 90vmin;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(255 246 215) 0 10%, rgb(255 222 140 / 0.55) 24%, rgb(255 210 120 / 0.18) 46%, transparent 70%);
+  animation: sky-glow 7s ease-in-out infinite alternate;
+}
+
+.sky__sun--behind {
+  opacity: 0.6;
+  animation: none;
+}
+
+.sky__rays {
+  position: absolute;
+  top: -60vmin;
+  right: -60vmin;
+  width: 120vmin;
+  height: 120vmin;
+  border-radius: 50%;
+  background: repeating-conic-gradient(from 0deg, rgb(255 236 190 / 0.26) 0deg 5deg, transparent 5deg 17deg);
+  -webkit-mask-image: radial-gradient(circle, #000 12%, transparent 70%);
+  mask-image: radial-gradient(circle, #000 12%, transparent 70%);
+  will-change: transform;
+  animation: sky-turn 140s linear infinite;
+}
+
+:root[data-theme='day'] .sky__rays {
+  background: repeating-conic-gradient(from 0deg, rgb(255 255 255 / 0.4) 0deg 5deg, transparent 5deg 17deg);
+}
+
+@keyframes sky-glow {
+  from {
+    opacity: 0.8;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes sky-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---- Stars ---- */
+
+.sky__stars {
+  position: absolute;
+  inset: 0 0 40%;
+  background-image:
+    radial-gradient(1.6px 1.6px at 22px 34px, #fff, transparent),
+    radial-gradient(1px 1px at 81px 120px, #fff, transparent),
+    radial-gradient(2px 2px at 140px 62px, #fff, transparent),
+    radial-gradient(1px 1px at 190px 160px, #fff, transparent);
+  background-size: 230px 190px;
+  opacity: 0.9;
+  animation: sky-twinkle 5s ease-in-out infinite alternate;
+}
+
+.sky__stars--b {
+  background-image:
+    radial-gradient(1px 1px at 50px 90px, #fff, transparent),
+    radial-gradient(1.8px 1.8px at 120px 20px, #fff, transparent),
+    radial-gradient(1px 1px at 170px 130px, #fff, transparent);
+  background-size: 210px 170px;
+  background-position: 60px 40px;
+  animation-duration: 7s;
+  animation-delay: -3s;
+}
+
+:root[data-theme='day'] .sky__stars {
+  filter: invert(0.6);
+  opacity: 0.4;
+}
+
+@keyframes sky-twinkle {
+  from {
+    opacity: 0.45;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ---- Clouds: soft puffs drifting across, slowly ---- */
+
+.sky__cloud {
+  position: absolute;
+  top: var(--top);
+  left: 0;
+  width: var(--w);
+  aspect-ratio: 2.4;
+  opacity: var(--o);
+  background:
+    radial-gradient(ellipse 34% 46% at 30% 62%, var(--cloud), transparent 72%),
+    radial-gradient(ellipse 30% 52% at 54% 44%, var(--cloud), transparent 72%),
+    radial-gradient(ellipse 38% 38% at 72% 64%, var(--cloud), transparent 72%),
+    radial-gradient(ellipse 60% 30% at 50% 72%, var(--cloud), transparent 75%);
+  will-change: transform;
+  animation: sky-drift var(--dur) linear var(--delay) infinite;
+}
+
+@keyframes sky-drift {
+  from {
+    transform: translateX(calc(-1 * var(--w)));
+  }
+  to {
+    transform: translateX(100vw);
+  }
+}
+
+/* ---- Fog ---- */
+
+.sky__fog {
+  position: absolute;
+  top: 8%;
+  left: -50%;
+  width: 200%;
+  height: 45%;
+  background: radial-gradient(ellipse 50% 40% at 30% 50%, rgb(220 224 228 / 0.42), transparent 70%), radial-gradient(ellipse 40% 35% at 75% 40%, rgb(220 224 228 / 0.36), transparent 70%);
+  will-change: transform;
+  animation: sky-sway 38s ease-in-out infinite alternate;
+}
+
+.sky__fog--b {
+  top: 30%;
+  animation-duration: 52s;
+  animation-direction: alternate-reverse;
+}
+
+:root[data-theme='day'] .sky__fog {
+  background: radial-gradient(ellipse 50% 40% at 30% 50%, rgb(255 255 255 / 0.55), transparent 70%), radial-gradient(ellipse 40% 35% at 75% 40%, rgb(255 255 255 / 0.45), transparent 70%);
+}
+
+@keyframes sky-sway {
+  from {
+    transform: translateX(-12%);
+  }
+  to {
+    transform: translateX(12%);
+  }
+}
+
+/* ---- Rain falling past: thin streaks on tiles of one height, moved by
+   exactly that height, so the loop has no seam. Only over the top of the
+   screen: the cards cover the rest. ---- */
+
+.sky__rain {
+  position: absolute;
+  top: -200px;
+  left: 0;
+  right: 0;
+  height: calc(80% + 200px);
+  background-image:
+    radial-gradient(0.8px 13px at 12px 30px, var(--streak), transparent),
+    radial-gradient(0.8px 11px at 47px 140px, var(--streak), transparent),
+    radial-gradient(0.8px 14px at 83px 80px, var(--streak), transparent),
+    radial-gradient(0.8px 10px at 118px 175px, var(--streak), transparent),
+    radial-gradient(0.8px 12px at 30px 110px, var(--streak), transparent),
+    radial-gradient(0.8px 12px at 100px 20px, var(--streak), transparent);
+  background-size: 113px 200px;
+  -webkit-mask-image: linear-gradient(180deg, #000 60%, transparent);
+  mask-image: linear-gradient(180deg, #000 60%, transparent);
+  will-change: transform;
+  animation: sky-fall 0.55s linear infinite;
+}
+
+.sky__rain--near {
+  background-image:
+    radial-gradient(1.1px 20px at 30px 60px, var(--streak), transparent),
+    radial-gradient(1.1px 18px at 160px 150px, var(--streak), transparent),
+    radial-gradient(1.2px 22px at 95px 10px, var(--streak), transparent);
+  background-size: 181px 200px;
+  background-position: 70px 0;
+  animation-duration: 0.4s;
+}
+
+@keyframes sky-fall {
+  to {
+    transform: translateY(200px);
+  }
+}
+
+/* ---- Drops on the glass: beads that stay, and drops that hang a while,
+   then run down. ---- */
+
+.sky__glass {
+  position: absolute;
+  inset: 0 0 30%;
+  background-image:
+    radial-gradient(circle at 20px 26px, rgb(255 255 255 / 0.24) 0 1.5px, transparent 2.5px),
+    radial-gradient(circle at 74px 90px, rgb(255 255 255 / 0.18) 0 1px, transparent 2px),
+    radial-gradient(circle at 120px 40px, rgb(255 255 255 / 0.22) 0 2px, transparent 3px),
+    radial-gradient(circle at 160px 120px, rgb(255 255 255 / 0.1) 0 1px, transparent 2px);
+  background-size: 180px 150px;
+}
+
+.sky__drop {
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  width: var(--s);
+  height: calc(var(--s) * 1.2);
+  border-radius: 50% 50% 50% 50% / 58% 58% 42% 42%;
+  /* A lens: light caught on the lower edge, a small glint at the top, and
+     clear in between. */
+  background:
+    radial-gradient(circle at 36% 28%, rgb(255 255 255 / 0.9) 0 10%, transparent 16%),
+    radial-gradient(ellipse 70% 55% at 50% 78%, rgb(255 255 255 / 0.38), transparent 70%),
+    radial-gradient(circle at 50% 50%, rgb(255 255 255 / 0.06) 55%, rgb(255 255 255 / 0.32) 68%, transparent 72%);
+  box-shadow: 0 1.5px 1.5px -0.5px rgb(0 0 0 / 0.25);
+  will-change: transform;
+  animation: sky-run var(--dur) cubic-bezier(0.5, 0, 0.9, 0.6) var(--delay) infinite;
+}
+
+@keyframes sky-run {
+  0% {
+    transform: translateY(0) scale(0.6);
+    opacity: 0;
+  }
+  10% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+  55% {
+    transform: translateY(6px) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(60vh) scale(0.8, 1.15);
+    opacity: 0;
+  }
+}
+
+/* ---- Storm: a far flash, now and then ---- */
+
+.sky__flash {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 80% 50% at 30% 10%, rgb(225 235 255 / 0.6), transparent 72%);
+  opacity: 0;
+  animation: sky-flash 11s linear infinite;
+}
+
+@keyframes sky-flash {
+  0%,
+  88%,
+  90.5%,
+  93%,
+  100% {
+    opacity: 0;
+  }
+  89% {
+    opacity: 0.95;
+  }
+  91.5% {
+    opacity: 0.6;
+  }
+}
+
+/* ---- Snow ---- */
+
+.sky__snow {
+  position: absolute;
+  top: -240px;
+  left: 0;
+  right: 0;
+  height: calc(75% + 240px);
+  background-image:
+    radial-gradient(circle at 20px 40px, var(--flake) 0 1.5px, transparent 2.5px),
+    radial-gradient(circle at 90px 150px, var(--flake) 0 2px, transparent 3px),
+    radial-gradient(circle at 150px 90px, var(--flake) 0 1.2px, transparent 2.2px),
+    radial-gradient(circle at 60px 210px, var(--flake) 0 1.8px, transparent 2.8px),
+    radial-gradient(circle at 130px 20px, var(--flake) 0 1.4px, transparent 2.4px),
+    radial-gradient(circle at 10px 130px, var(--flake) 0 1.6px, transparent 2.6px);
+  background-size: 160px 240px;
+  -webkit-mask-image: linear-gradient(180deg, #000 60%, transparent);
+  mask-image: linear-gradient(180deg, #000 60%, transparent);
+  will-change: transform;
+  animation: sky-snow 9s linear infinite;
+}
+
+.sky__snow--near {
+  background-image:
+    radial-gradient(circle at 40px 60px, var(--flake) 0 2.6px, transparent 3.8px),
+    radial-gradient(circle at 170px 180px, var(--flake) 0 3px, transparent 4.2px);
+  background-size: 230px 240px;
+  animation-duration: 5.5s;
+}
+
+@keyframes sky-snow {
+  to {
+    transform: translate(-30px, 240px);
+  }
+}
+
+/* Reduced motion: the same scene, standing still. (base.css would rather
+   run every animation once, to its end, which would leave the drops and
+   flashes at their last, invisible, frame.) */
+@media (prefers-reduced-motion: reduce) {
+  .sky *,
+  .sky::before {
+    animation: none !important;
+  }
+
+  .sky__flash {
+    display: none;
+  }
+}
+
+/* The place's date and sources sit straight on the sky: a shade lighter
+   than on the plain page, with a soft shadow under the letters, so they
+   stay legible over a light cloud. */
+.screen.now .place-head__meta {
+  color: var(--ink-2);
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.45);
+}
+
+:root[data-theme='day'] .screen.now .place-head__meta {
+  color: var(--ink-2);
+  text-shadow: 0 1px 3px rgb(255 255 255 / 0.7);
+}
