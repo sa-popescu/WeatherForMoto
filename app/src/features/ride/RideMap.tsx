@@ -18,6 +18,8 @@ import { RIDE_S } from './strings';
 // direction of travel and tilts, with the arrow low on the screen so more of
 // the road ahead shows. A drag, a turn or a tilt by hand stops the following
 // until the button brings it back. Finished, it shows the whole ride, north up.
+// While riding the map fills the screen under the other parts of it; `insets`
+// say how much of it they cover, and the camera keeps the rider in the rest.
 
 /** Street level, where the next junction is in view. */
 const FOLLOW_ZOOM = 16;
@@ -28,6 +30,15 @@ const FOLLOW_OFFSET = 0.4;
 const HEADING_STEP_M = 8;
 
 type MapProblem = 'none' | 'offline' | 'webgl';
+
+/** How much of the map other things cover, in pixels from each edge. */
+export interface MapInsets {
+  top: number;
+  bottom: number;
+  left: number;
+}
+
+const NO_INSETS: MapInsets = { top: 0, bottom: 0, left: 0 };
 
 function prefersReducedMotion(): boolean {
   return typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -42,7 +53,7 @@ function riderElement(): HTMLElement {
   return el;
 }
 
-export function RideMap({ ride }: { ride: RideSnapshot }) {
+export function RideMap({ ride, insets = NO_INSETS }: { ride: RideSnapshot; insets?: MapInsets }) {
   const s = useStrings(RIDE_S);
   const { theme } = useSettings();
   const elRef = useRef<HTMLDivElement>(null);
@@ -146,16 +157,18 @@ export function RideMap({ ride }: { ride: RideSnapshot }) {
     markerRef.current.setRotation(heading.bearing ?? 0);
     markerRef.current.getElement().classList.toggle('ride-me--heading', heading.bearing !== null);
     if (!following || finished) return;
+    // The rider sits low in the part of the map left free, so more of the road ahead shows.
+    const free = Math.max(0, map.getContainer().clientHeight - insets.top - insets.bottom);
     map.easeTo({
       center: [lon, lat],
       zoom: zoomRef.current,
       bearing: heading.bearing ?? map.getBearing(),
       pitch: FOLLOW_PITCH,
-      padding: { top: map.getContainer().clientHeight * FOLLOW_OFFSET, right: 0, bottom: 0, left: 0 },
+      padding: { top: insets.top + free * FOLLOW_OFFSET, right: 0, bottom: insets.bottom, left: insets.left },
       duration: prefersReducedMotion() ? 0 : 900,
       easing: (t) => t,
     });
-  }, [lat, lon, following, finished]);
+  }, [lat, lon, following, finished, insets.top, insets.bottom, insets.left]);
 
   // Finished: the whole ride in view, flat and north up.
   useEffect(() => {

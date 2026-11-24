@@ -1,23 +1,19 @@
-import { fmt, useLang, useStrings, type Lang } from '../../lib/i18n';
+import { useLang, useStrings } from '../../lib/i18n';
 import { averageKmh, elapsedMs } from './logic/clock';
-import { arrivalAt } from './logic/follow';
-import { hasLean, MIN_LEAN_SPEED_MS, type LeanState } from './logic/lean';
-import { fmtClockTime, fmtDuration, fmtKm, fmtKmh, fmtTimeLeft, msToKmh } from './logic/rideFormat';
+import { hasLean, type LeanState } from './logic/lean';
+import { fmtDuration, fmtKm, fmtKmh, msToKmh } from './logic/rideFormat';
 import type { RideSnapshot } from './recorder';
 import { RIDE_S } from './strings';
 
-// The numbers of the ride. While riding: the speed as large as the screen
-// allows, the averages and the lean under it, then distance and time (or, on
-// a route, what is left of it). Once finished: the whole summary in one grid.
+// The numbers of a finished ride, in one grid. While the ride is recorded
+// they are laid over the map instead (RideLive.tsx), which reuses the grid.
 
 type RideText = { [K in keyof (typeof RIDE_S)['ro']]: string };
 
-/** A speed older than this is not "now" any more. */
-const LIVE_SPEED_STALE_MS = 5_000;
 /** A lean under this is riding straight, give or take, so it is shown without a side. */
 const LEAN_SIDE_MIN_DEG = 5;
 
-interface Stat {
+export interface Stat {
   key: string;
   label: string;
   value: string;
@@ -28,7 +24,7 @@ interface Stat {
   span?: boolean;
 }
 
-function StatGrid({ stats, wide }: { stats: readonly Stat[]; wide?: boolean }) {
+export function StatGrid({ stats, wide }: { stats: readonly Stat[]; wide?: boolean }) {
   return (
     <dl className={wide ? 'ride-stats ride-stats--wide' : 'ride-stats'}>
       {stats.map((st) => (
@@ -63,18 +59,10 @@ function leanStat(lean: LeanState, s: RideText): Stat {
   };
 }
 
-function leanText(deg: number, s: RideText): string {
+export function leanText(deg: number, s: RideText): string {
   const n = Math.round(Math.abs(deg));
   if (n < LEAN_SIDE_MIN_DEG) return `${n}°`;
   return `${n}° ${deg > 0 ? s.leanRight : s.leanLeft}`;
-}
-
-/** The lean while riding, once the GPS has given a course at speed; null until then. */
-function liveLean(lean: LeanState, speedKmh: number | null, s: RideText): string | null {
-  if (!hasLean(lean) && lean.nowDeg === null) return null;
-  const fast = speedKmh !== null && speedKmh >= msToKmh(MIN_LEAN_SPEED_MS);
-  const now = fast && lean.nowDeg !== null ? leanText(lean.nowDeg, s) : '–';
-  return fmt(s.leanLine, { now, max: Math.round(Math.max(lean.maxLeftDeg, lean.maxRightDeg)) });
 }
 
 export function RideGauges({ ride, now }: { ride: RideSnapshot; now: number }) {
@@ -85,67 +73,24 @@ export function RideGauges({ ride, now }: { ride: RideSnapshot; now: number }) {
   const avgMoving = averageKmh(totals.movingDistanceM, totals.movingMs);
   const avgTotal = averageKmh(totals.distanceM, elapsed);
   const top = totals.topSpeedMs > 0 ? msToKmh(totals.topSpeedMs) : null;
-
-  if (ride.phase === 'finished') {
-    const stats: Stat[] = [
-      { key: 'distance', label: s.distance, value: fmtKm(totals.distanceM, lang), unit: s.km },
-      { key: 'total', label: s.totalTime, value: fmtDuration(elapsed) },
-      { key: 'moving', label: s.movingTime, value: fmtDuration(totals.movingMs) },
-      { key: 'avg', label: s.avgMoving, value: fmtKmh(avgMoving, lang), unit: s.kmh },
-      { key: 'avgTotal', label: s.avgTotal, value: fmtKmh(avgTotal, lang), unit: s.kmh },
-      { key: 'top', label: s.topSpeed, value: fmtKmh(top, lang), unit: s.kmh },
-    ];
-    // Rides recorded without a course from the GPS have no lean to show.
-    const lean = hasLean(ride.lean);
-    if (lean) stats.push(leanStat(ride.lean, s));
-    return (
-      <section className="ride-gauges ride-gauges--done" aria-labelledby="ride-done-title">
-        <h2 id="ride-done-title" className="ride-gauges__title num">
-          {s.finishedTitle}
-        </h2>
-        <StatGrid stats={stats} wide />
-        <p className="ride-gauges__note">{lean ? `${s.finishedSaved} ${s.leanEstimate}` : s.finishedSaved}</p>
-      </section>
-    );
-  }
-
-  // A weak position still comes with a usable speed: the GPS measures it apart.
-  const fresh = ride.lastFixAt !== null && now - ride.lastFixAt <= LIVE_SPEED_STALE_MS && (ride.gps === 'ok' || ride.gps === 'weak');
-  const speed = fresh ? ride.speedKmh : null;
-  const onRoute = ride.route !== null && ride.follow !== null;
-  const stats: Stat[] = onRoute ? routeStats(ride, avgMoving, now, lang, s) : [
+  const stats: Stat[] = [
     { key: 'distance', label: s.distance, value: fmtKm(totals.distanceM, lang), unit: s.km },
-    { key: 'moving', label: s.movingTime, value: fmtDuration(totals.movingMs) },
     { key: 'total', label: s.totalTime, value: fmtDuration(elapsed) },
+    { key: 'moving', label: s.movingTime, value: fmtDuration(totals.movingMs) },
+    { key: 'avg', label: s.avgMoving, value: fmtKmh(avgMoving, lang), unit: s.kmh },
+    { key: 'avgTotal', label: s.avgTotal, value: fmtKmh(avgTotal, lang), unit: s.kmh },
+    { key: 'top', label: s.topSpeed, value: fmtKmh(top, lang), unit: s.kmh },
   ];
-  const lean = liveLean(ride.lean, speed, s);
+  // Rides recorded without a course from the GPS have no lean to show.
+  const lean = hasLean(ride.lean);
+  if (lean) stats.push(leanStat(ride.lean, s));
   return (
-    <section className="ride-gauges" aria-label={s.dialogLabel}>
-      <div className="ride-speed">
-        <span className="ride-speed__value num">{fmtKmh(speed, lang)}</span>
-        <span className="ride-speed__unit num">{s.kmh}</span>
-      </div>
-      <p className="ride-gauges__avg num">
-        {/* On a route the grid is about what is left, so what was ridden moves up here. */}
-        {onRoute && `${fmtKm(totals.distanceM, lang)} ${s.km} · `}
-        {s.avgMoving} {fmtKmh(avgMoving, lang)} · {s.topSpeed} {fmtKmh(top, lang)}
-      </p>
-      {lean && <p className="ride-gauges__avg ride-gauges__lean num">{lean}</p>}
-      <StatGrid stats={stats} />
+    <section className="ride-gauges ride-gauges--done" aria-labelledby="ride-done-title">
+      <h2 id="ride-done-title" className="ride-gauges__title num">
+        {s.finishedTitle}
+      </h2>
+      <StatGrid stats={stats} wide />
+      <p className="ride-gauges__note">{lean ? `${s.finishedSaved} ${s.leanEstimate}` : s.finishedSaved}</p>
     </section>
   );
-}
-
-/** What is left of the route: distance, time and the arrival on this phone's clock. */
-function routeStats(ride: RideSnapshot, avgMoving: number | null, now: number, lang: Lang, s: RideText): Stat[] {
-  const route = ride.route;
-  const km = ride.follow?.km ?? 0;
-  const remainingKm = route ? Math.max(0, route.distanceKm - km) : 0;
-  const arrival = route ? arrivalAt(remainingKm, avgMoving, ride.totals.movingMs, route.plannedKmh, now) : now;
-  const known = ride.follow?.km !== null && ride.follow?.km !== undefined;
-  return [
-    { key: 'remaining', label: s.remaining, value: fmtKm(remainingKm * 1000, lang), unit: s.km },
-    { key: 'left', label: s.timeLeft, value: known ? fmtTimeLeft(arrival - now) : '–' },
-    { key: 'arrival', label: s.arrival, value: known ? fmtClockTime(arrival, lang) : '–' },
-  ];
 }
