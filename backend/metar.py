@@ -18,7 +18,7 @@ from typing import Any
 
 import httpx
 
-logger = logging.getLogger("weatherformoto.metar")
+logger = logging.getLogger("motonor.metar")
 
 API_URL = "https://aviationweather.gov/api/data/metar"
 ATTRIBUTION_URL = "https://aviationweather.gov/"

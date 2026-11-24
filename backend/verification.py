@@ -35,7 +35,7 @@ from collections.abc import Sequence
 from datetime import datetime, timedelta
 from typing import Any
 
-logger = logging.getLogger("weatherformoto.verification")
+logger = logging.getLogger("motonor.verification")
 
 # Hours ahead worth checking: the next ride, later today, tomorrow, the day after.
 LEAD_HOURS: tuple[int, ...] = (1, 3, 6, 12, 24, 48)

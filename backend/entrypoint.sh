@@ -10,7 +10,7 @@
 # 48 h, and log access is restricted to project members.
 set -e
 PORT="${PORT:-8000}"
-echo "[entrypoint] Starting WeatherForMoto backend on port ${PORT}"
+echo "[entrypoint] Starting Motonor backend on port ${PORT}"
 exec uvicorn main:app \
   --host 0.0.0.0 \
   --port "${PORT}" \

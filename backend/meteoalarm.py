@@ -22,7 +22,7 @@ from xml.etree import ElementTree
 
 import httpx
 
-logger = logging.getLogger("weatherformoto.meteoalarm")
+logger = logging.getLogger("motonor.meteoalarm")
 
 # Romania's feed by default; another country is one environment variable away.
 DEFAULT_FEED_URL = "https://feeds.meteoalarm.org/feeds/meteoalarm-legacy-atom-romania"

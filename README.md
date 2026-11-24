@@ -1,6 +1,6 @@
 # Motonor
 
-Motonor (fost MotoMeteo, proiectul WeatherForMoto) este o aplicație de vreme și drum pentru motocicliști: scor moto pe ore, trasee cu trafic live și vremea pe care o prinzi pe drum, înregistrarea turelor și alerte personalizate (notificări push). Repo-ul se numește `motonor`; serviciile din cloud (Cloud Run, Worker-ul Cloudflare, baza Turso) păstrează numele `weatherformoto`.
+Motonor este o aplicație de vreme și drum pentru motocicliști: scor moto pe ore, trasee cu trafic live și vremea pe care o prinzi pe drum, înregistrarea turelor și alerte personalizate (notificări push). Repo-ul se numește `motonor`; serviciile din cloud (Cloud Run, Worker-ul Cloudflare, baza Turso) păstrează numele `weatherformoto`.
 
 Stack-ul actual este:
 
@@ -322,8 +322,8 @@ Backend-ul permite și originile de preview, ca un PR să poată fi încercat cu
 ### Docker local
 
 ```bash
-docker build -t weatherformoto .
-docker run --rm -p 8000:8000 --env-file backend/.env weatherformoto
+docker build -t motonor .
+docker run --rm -p 8000:8000 --env-file backend/.env motonor
 ```
 
 ## Observații practice

@@ -1,5 +1,5 @@
 """
-Accounts, authentication, alerts and hazards for WeatherForMoto.
+Accounts, authentication, alerts and hazards for Motonor.
 
 Storage is Turso (libSQL). Schema changes go through init_db(), which only
 runs when RUN_DB_MIGRATIONS=true at deploy time. Every code path that relies
@@ -46,7 +46,7 @@ import last_good
 import verification
 from weather_service import get_weather, _haversine_km
 
-logger = logging.getLogger("weatherformoto.auth_alerts")
+logger = logging.getLogger("motonor.auth_alerts")
 
 DB_PATH = os.getenv("APP_DB_PATH", os.path.join(os.path.dirname(__file__), "app.db"))
 TURSO_URL = os.getenv("TURSO_DATABASE_URL", "")
@@ -59,7 +59,7 @@ SMTP_HOST = os.getenv("SMTP_HOST")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER = os.getenv("SMTP_USER")
 SMTP_PASS = os.getenv("SMTP_PASS")
-# The sender Brevo has on file for bluemouse.cc (weatherformoto@ until November 2026).
+# The sender Brevo has on file for bluemouse.cc.
 SMTP_FROM = os.getenv("SMTP_FROM", SMTP_USER or "motonor@bluemouse.cc")
 # The name mail apps show instead of the bare address.
 SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "Motonor")

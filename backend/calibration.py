@@ -34,7 +34,7 @@ from typing import Any, Iterable, Sequence
 
 import verification
 
-logger = logging.getLogger("weatherformoto.calibration")
+logger = logging.getLogger("motonor.calibration")
 
 # How far back to read. Long enough for a season to show, short enough that a
 # model upgrade upstream is not judged on how it behaved months ago.

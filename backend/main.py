@@ -1,5 +1,5 @@
 """
-Motonor (WeatherForMoto) – FastAPI Backend
+Motonor – FastAPI Backend
 =================================
 Endpoints
 ---------
@@ -86,7 +86,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
-logger = logging.getLogger("weatherformoto")
+logger = logging.getLogger("motonor")
 # httpx logs every request URL at INFO, and some provider keys travel in the URL
 # (OWM query string, Pirate Weather path). Keep those URLs out of Cloud Run logs.
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -126,7 +126,7 @@ INDEX_HTML = _REPO_ROOT / "index.html"
 SW_JS = _REPO_ROOT / "sw.js"
 MANIFEST_JSON = _REPO_ROOT / "manifest.json"
 ICONS_DIR = _REPO_ROOT / "icons"
-APPLE_TOUCH_ICON = ICONS_DIR / "motometeo-touch-180.png"
+APPLE_TOUCH_ICON = ICONS_DIR / "motonor-touch-180.png"
 
 # ---------------------------------------------------------------------------
 # Lifespan (startup / shutdown)
@@ -141,7 +141,7 @@ async def lifespan(fastapi_app: FastAPI) -> AsyncIterator[None]:
     if os.getenv("RUN_DB_MIGRATIONS", "false").lower() == "true":
         logger.info("RUN_DB_MIGRATIONS=true — running schema migration at startup")
         await asyncio.to_thread(init_db)
-    logger.info("WeatherForMoto backend starting up")
+    logger.info("Motonor backend starting up")
     logger.info("INDEX_HTML path: %s (exists=%s)", INDEX_HTML, INDEX_HTML.is_file())
     logger.info("DEFAULT_CITY: %s", DEFAULT_CITY)
     logger.info(
