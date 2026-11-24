@@ -66,10 +66,14 @@ async function layoutProblems(page: Page, scope?: string): Promise<Problem[]> {
     };
 
     const scrolls = (value: string): boolean => value === 'auto' || value === 'scroll';
-    /** The part of a box that shows: inside the screen and inside every ancestor that clips. */
+    /**
+     * The part of a box that shows: inside the screen, and inside the text's own
+     * element and every ancestor that clips (a text cut to two lines keeps its
+     * third line's box, under the element).
+     */
     const shown = (el: Element, box: Box): Box | null => {
       let visible: Box | null = intersect(box, { left: 0, top: 0, right: vw, bottom: vh });
-      for (let parent = el.parentElement; parent && visible; parent = parent.parentElement) {
+      for (let parent: Element | null = el; parent && visible; parent = parent.parentElement) {
         const style = getComputedStyle(parent);
         if (style.overflowX !== 'visible' || style.overflowY !== 'visible') visible = intersect(visible, parent.getBoundingClientRect());
       }
@@ -182,6 +186,37 @@ test('the forecast, all 14 days and the day hours, stays in place', async ({ pag
   if (await more.count()) await more.first().click();
   await page.waitForTimeout(500);
   expect(await layoutProblems(page)).toEqual([]);
+});
+
+test.describe('the ride screen', () => {
+  // A phone in Bucharest, with the GPS allowed; the test moves it a little.
+  const START = { latitude: 44.4268, longitude: 26.1025, accuracy: 12 };
+  test.use({ geolocation: START, permissions: ['geolocation'] });
+  // A computer only shows how to record from the phone (RidesScreen), so there is no ride screen to check there.
+  test.skip(({ isMobile }) => !isMobile, 'rides are recorded on a phone');
+
+  test('while riding, the pieces over the map stay on screen and apart', async ({ page, context }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (err) => errors.push(err.message));
+    await prepare(page);
+    await page.goto('/#/ture');
+    await page.getByRole('button', { name: 'Pornește tura' }).first().click();
+    await page.locator('.ride--live').waitFor();
+    for (let i = 1; i <= 3; i += 1) {
+      await context.setGeolocation({ ...START, latitude: START.latitude + i * 0.0002, longitude: START.longitude + i * 0.00015 });
+      await page.waitForTimeout(400);
+    }
+    // The pieces float over the map on purpose: only the ride screen's own text
+    // is checked, first with the bar closed, then with the details open.
+    expect(await layoutProblems(page, '.ride--live')).toEqual([]);
+    await page.locator('.ride-summary').click();
+    await page.waitForTimeout(300);
+    expect(await layoutProblems(page, '.ride--live')).toEqual([]);
+    // The pieces at the bottom never reach over the ones at the top.
+    const [top, bottom] = await Promise.all([page.locator('.ride-top').boundingBox(), page.locator('.ride-bottom').boundingBox()]);
+    expect(top && bottom && bottom.y >= top.y + top.height).toBe(true);
+    expect(errors).toEqual([]);
+  });
 });
 
 test('the install invitation fits the screen', async ({ page }) => {

@@ -7,10 +7,13 @@ import { Button } from '../../ui/primitives';
 import { liveShare } from './liveShare';
 import { LIVE_S } from './liveStrings';
 
-// Under the ride buttons: share the position by link, then send the link
-// again or stop. The share ends by itself with the ride.
+// Sharing the position by link: a small button next to the ride buttons
+// (LiveShareButton) starts it or sends the link again, and the ride's details
+// (LiveShareControl) say what it does, send the link again or stop it. The
+// share ends by itself with the ride.
 
-export function LiveShareControl({ now }: { now: number }) {
+/** Starting, sending again: the same for the button and the details. */
+function useLiveShare() {
   const s = useStrings(LIVE_S);
   const lang = useLang();
   const toast = useToast();
@@ -29,8 +32,40 @@ export function LiveShareControl({ now }: { now: number }) {
 
   const onStart = async (): Promise<void> => {
     const url = await liveShare.start();
-    if (url) await send(url);
+    if (url) {
+      await send(url);
+      return;
+    }
+    // The button has no room for the reason; the details say it too.
+    const error = liveShare.getSnapshot().error;
+    if (error) toast(s[error], { tone: 'error' });
   };
+
+  return { s, live, send, onStart };
+}
+
+/** The share as one button: off it starts sharing, on (with a pulsing dot) it sends the link again. */
+export function LiveShareButton() {
+  const { s, live, send, onStart } = useLiveShare();
+  const on = live.status === 'on' && live.url !== null;
+  return (
+    <button
+      type="button"
+      className={on ? 'ride-live-btn ride-live-btn--on' : 'ride-live-btn'}
+      aria-label={on ? s.sendLink : s.start}
+      title={on ? s.sendLink : s.start}
+      aria-busy={live.status === 'starting' || undefined}
+      disabled={live.status === 'starting'}
+      onClick={() => void (on && live.url ? send(live.url) : onStart())}
+    >
+      <Icon name="share" size={22} />
+      {on && <span className="ride-live-btn__dot" aria-hidden="true" />}
+    </button>
+  );
+}
+
+export function LiveShareControl({ now }: { now: number }) {
+  const { s, live, send, onStart } = useLiveShare();
 
   if (live.status !== 'on' || !live.url) {
     return (

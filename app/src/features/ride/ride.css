@@ -1,6 +1,7 @@
-/* Ride screen: over the whole app, map in the middle, numbers and buttons at
-   the bottom where a thumb in a glove reaches. Colours come from the theme
-   tokens only. */
+/* Ride screen: over the whole app. While riding the map fills the screen and
+   the rest lies over it, the numbers and buttons at the bottom where a thumb
+   in a glove reaches; a finished ride is a report that scrolls. Colours come
+   from the theme tokens only. */
 
 .ride {
   position: fixed;
@@ -337,19 +338,18 @@
 .ride-speed {
   display: flex;
   align-items: baseline;
-  justify-content: center;
-  gap: 8px;
+  gap: 6px;
   line-height: 0.9;
 }
 
 .ride-speed__value {
-  font-size: clamp(72px, 24vw, 128px);
+  font-size: clamp(44px, 13vw, 64px);
   font-weight: 700;
   letter-spacing: -0.02em;
 }
 
 .ride-speed__unit {
-  font-size: 20px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--muted);
 }
@@ -532,7 +532,7 @@
 /* ---- A phone turned sideways (iOS does not keep the app upright) ---- */
 
 @media (orientation: landscape) and (max-height: 520px) {
-  .ride {
+  .ride:not(.ride--live) {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(280px, 42%);
     grid-template-rows: auto minmax(0, 1fr);
@@ -549,9 +549,6 @@
     justify-content: space-between;
   }
 
-  .ride-speed__value {
-    font-size: clamp(56px, 18vh, 96px);
-  }
 }
 
 /* ---- Live location (LiveShareControl.tsx) ---- */
@@ -635,4 +632,306 @@
   background: transparent;
   color: var(--ink);
   cursor: pointer;
+}
+
+/* ---- Riding: the map on the whole screen, the rest over it ---- */
+
+.ride--live {
+  --ride-glass: color-mix(in srgb, var(--surface) 86%, transparent);
+  padding: 0;
+  gap: 0;
+}
+
+.ride--live .ride-map {
+  position: absolute;
+  inset: 0;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+/* The map's own buttons stay clear of the pieces over it (sizes from RideScreen.tsx). */
+.ride--live .maplibregl-ctrl-bottom-right,
+.ride--live .maplibregl-ctrl-bottom-left {
+  bottom: var(--ride-bottom, 0px);
+}
+
+.ride--live .maplibregl-ctrl-bottom-left {
+  left: var(--ride-left, 0px);
+}
+
+.ride--live .maplibregl-ctrl-top-right {
+  top: var(--ride-top, 0px);
+}
+
+.ride--live .ride-map__recenter {
+  left: auto;
+  right: 10px;
+  bottom: calc(var(--ride-bottom, 0px) + 46px);
+}
+
+/* The map's own notice, in the free part of the map (beside the column when sideways). */
+.ride--live .ride-map__problem {
+  left: calc(var(--ride-left, 0px) + 10px);
+  bottom: calc(var(--ride-bottom, 0px) + 10px);
+}
+
+/* The pieces over the map. Between them the map stays draggable. */
+.ride-top,
+.ride-bottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-inline: max(12px, env(safe-area-inset-left, 0px)) max(12px, env(safe-area-inset-right, 0px));
+  pointer-events: none;
+}
+
+.ride-top > *,
+.ride-bottom > * {
+  pointer-events: auto;
+}
+
+.ride-top {
+  top: 0;
+  padding-top: calc(var(--safe-top) + 8px);
+}
+
+/* Never over the top one: with the details open on a short screen, the details scroll instead. */
+.ride-bottom {
+  bottom: 0;
+  max-height: calc(100% - var(--ride-top-edge, 0px) - 8px);
+  padding-bottom: calc(var(--safe-bottom) + 10px);
+}
+
+.ride-bottom > .ride-speed {
+  flex: none;
+}
+
+/* A see-through ground that keeps text readable over any part of the map. */
+.ride--live .ride-speed,
+.ride--live .ride-notes__gps,
+.ride--live .ride-notes__note,
+.ride-bar {
+  border: 1px solid var(--line);
+  background: var(--ride-glass);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+
+.ride--live .ride-turn {
+  gap: 10px;
+  padding: 8px 12px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+.ride--live .ride-turn__dist {
+  font-size: 24px;
+}
+
+.ride--live .ride-turn__what {
+  font-size: 15px;
+}
+
+/* The top band: the GPS and the voice as small pieces, the notes as short strips. */
+.ride--live .ride-notes__row {
+  min-height: 0;
+}
+
+.ride--live .ride-notes__gps {
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+}
+
+.ride--live .ride-notes__voice {
+  border: 1px solid var(--line);
+  background: var(--ride-glass);
+}
+
+.ride--live .ride-notes__note {
+  padding: 6px 10px;
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.ride--live .ride-notes__note > span {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.ride--live .ride-notes__note--ahead {
+  font-size: 15px;
+}
+
+.ride--live .ride-notes__note--off {
+  font-size: 15px;
+}
+
+.ride--live .ride-notes__note--warn {
+  background: color-mix(in srgb, var(--warn-bg) 88%, transparent);
+}
+
+/* The speed, low on the left. */
+.ride--live .ride-speed {
+  align-self: flex-start;
+  padding: 6px 14px 8px;
+  border-radius: var(--r-lg);
+}
+
+/* The bar: what is left (or ridden) in one line, the details under it when tapped, the buttons. */
+.ride-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  padding: 8px;
+  border-radius: var(--r-lg);
+}
+
+.ride-bar > .ride-summary,
+.ride-bar > .ride-actions {
+  flex: none;
+}
+
+.ride-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 6px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ride-summary__line {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 10px;
+  min-width: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.ride-summary__part {
+  white-space: nowrap;
+}
+
+.ride-summary__part + .ride-summary__part::before {
+  content: '·';
+  margin-right: 10px;
+  color: var(--muted-2);
+}
+
+.ride-summary__chevron {
+  flex: none;
+  color: var(--muted);
+  transition: transform 0.2s ease;
+}
+
+.ride-summary__chevron--open {
+  transform: rotate(180deg);
+}
+
+.ride-details {
+  display: flex;
+  flex: 0 1 auto;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  max-height: 45vh;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+
+.ride--live .ride-stats__item {
+  padding: 8px 10px;
+}
+
+.ride--live .ride-stats__value {
+  font-size: 18px;
+}
+
+.ride-details .ride-live {
+  margin-top: 0;
+}
+
+/* Pause, Stop and the live location in one row; still a glove's width each. */
+.ride-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.ride-actions .ride-controls--two {
+  gap: 8px;
+}
+
+.ride--live .ride-controls .btn--lg,
+.ride--live .ride-hold {
+  min-height: var(--tap);
+}
+
+.ride-live-btn {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: var(--tap);
+  height: var(--tap);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.ride-live-btn--on {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.ride-live-btn__dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .ride-live-btn__dot {
+    animation: ride-live-pulse 2s ease-in-out infinite;
+  }
+}
+
+/* On a tablet the pieces keep a phone's width, on the left, instead of
+   stretching across the screen. */
+@media (min-width: 720px) {
+  .ride-top,
+  .ride-bottom {
+    right: auto;
+    width: min(440px, 100%);
+  }
+}
+
+/* Sideways: the pieces in a column on the left, the map beside them. */
+@media (orientation: landscape) and (max-height: 520px) {
+  .ride-top,
+  .ride-bottom {
+    right: auto;
+    width: min(380px, 52vw);
+  }
 }
