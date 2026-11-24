@@ -161,17 +161,33 @@
   color: var(--muted);
 }
 
+/* The quick destinations swipe sideways; the planner's chip stays at the right. */
 .drive-chips {
   display: flex;
+  align-items: center;
   gap: 8px;
   margin-top: 8px;
+}
+
+.drive-chips__scroll {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 8px;
   padding-bottom: 2px;
   overflow-x: auto;
   scrollbar-width: none;
+  /* A fade at the edge says there is more to swipe to. */
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
 }
 
-.drive-chips::-webkit-scrollbar {
+.drive-chips__scroll::-webkit-scrollbar {
   display: none;
+}
+
+.drive-chip--plan {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line-2));
 }
 
 .drive-chip {
@@ -623,7 +639,14 @@
      departure times wrap instead of running off the edge of the column. */
   .drive-chips {
     flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .drive-chips__scroll {
+    flex-wrap: wrap;
     overflow: visible;
+    -webkit-mask-image: none;
+    mask-image: none;
   }
 
   .drive-depart__chips {
