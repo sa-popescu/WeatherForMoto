@@ -25,7 +25,7 @@ function glassDrops(count: number, seed: number): Vars[] {
   return Array.from({ length: count }, () => ({
     '--x': `${(rnd() * 100).toFixed(1)}%`,
     '--y': `${(rnd() * 70).toFixed(1)}%`,
-    '--s': `${(6 + rnd() * 10).toFixed(1)}px`,
+    '--s': `${(7 + rnd() * 13).toFixed(1)}px`,
     '--dur': `${(7 + rnd() * 9).toFixed(1)}s`,
     '--delay': `${(-rnd() * 16).toFixed(1)}s`,
   }));
@@ -43,7 +43,7 @@ const CLOUDS_FOR = { clear: 0, partly: 2, overcast: 4, fog: 0, drizzle: 4, rain:
 export const WeatherSky = memo(function WeatherSky({ sky }: { sky: Sky }) {
   const { kind, night } = sky;
   const wet = kind === 'drizzle' || kind === 'rain' || kind === 'storm';
-  const drops = useMemo(() => (wet ? glassDrops(kind === 'drizzle' ? 9 : 16, 7) : []), [wet, kind]);
+  const drops = useMemo(() => (wet ? glassDrops(kind === 'drizzle' ? 14 : 24, 7) : []), [wet, kind]);
   const clouds = CLOUDS.slice(0, CLOUDS_FOR[kind]);
 
   return (
