@@ -1,0 +1,49 @@
+name: Cleanup branches
+
+# Run by hand from the Actions tab (works from a phone too): deletes every
+# claude/* and autosave/* branch on GitHub, except one that still has an open
+# pull request. main and any other branch are never touched. With "dry run"
+# ticked it only lists what it would delete.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Only list, delete nothing'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      DRY_RUN: ${{ inputs.dry_run }}
+    steps:
+      - name: Delete old claude/* and autosave/* branches
+        run: |
+          set -euo pipefail
+          gh api "repos/$REPO/branches" --paginate -q '.[].name' \
+            | grep -E '^(claude|autosave)/' > candidates.txt || true
+          gh api "repos/$REPO/pulls?state=open" --paginate -q '.[].head.ref' > open.txt || true
+          count=0
+          while read -r b; do
+            [ -z "$b" ] && continue
+            if grep -qxF "$b" open.txt; then
+              echo "keep    $b (open pull request)"
+              continue
+            fi
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "would delete $b"
+            else
+              gh api -X DELETE "repos/$REPO/git/refs/heads/$b" >/dev/null
+              echo "deleted $b"
+            fi
+            count=$((count+1))
+          done < candidates.txt
+          echo "Done: $count branch(es)." | tee -a "$GITHUB_STEP_SUMMARY"
