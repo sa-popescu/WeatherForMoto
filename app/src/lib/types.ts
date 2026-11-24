@@ -55,6 +55,8 @@ export interface CurrentWeather {
   eu_aqi: number | null;
   us_aqi: number | null;
   pollen_index: number | null;
+  /** Saharan dust over the next 24 h (CAMS); null or absent when the air stays clean. */
+  dust?: DustOutlook | null;
   uv_index: number | null;
   is_day: boolean | null;
   dew_point: number | null;
@@ -212,6 +214,19 @@ export interface WeatherResponse {
   lightning?: Lightning | null;
   /** Present when the server served an older answer because its sources failed. */
   stale?: StaleMark | null;
+}
+
+/** Saharan dust near the ground over the next 24 hours, from CAMS. */
+export interface DustOutlook {
+  /** "notable" from 50 µg/m³ (haze, muddy rain), "strong" from 150 (poor visibility). */
+  level: 'notable' | 'strong';
+  now_ug: number | null;
+  peak_ug: number;
+  /** Local "YYYY-MM-DDTHH:MM" of the worst hour. */
+  peak_time: string;
+  /** First hour with rain while the dust is in the air, local time; null when none. */
+  muddy_rain_at: string | null;
+  source: string;
 }
 
 /** Lightning seen from space (EUMETSAT MTG Lightning Imager) around the point. */
