@@ -448,3 +448,16 @@
     display: none;
   }
 }
+
+/* The place's date and sources sit straight on the sky: a shade lighter
+   than on the plain page, with a soft shadow under the letters, so they
+   stay legible over a light cloud. */
+.screen.now .place-head__meta {
+  color: var(--ink-2);
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.45);
+}
+
+:root[data-theme='day'] .screen.now .place-head__meta {
+  color: var(--ink-2);
+  text-shadow: 0 1px 3px rgb(255 255 255 / 0.7);
+}

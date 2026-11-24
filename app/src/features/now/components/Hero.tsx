@@ -1,9 +1,10 @@
+import type { CSSProperties } from 'react';
 import { CORE } from '../../../i18n/core';
 import { fmtTemp, hourOf } from '../../../lib/format';
 import { fmt, useLang, useStrings } from '../../../lib/i18n';
 import { tierColor, tierOf } from '../../../lib/scoring';
-import { Banner } from '../../../ui/primitives';
 import type { CurrentWeather } from '../../../lib/types';
+import { Banner } from '../../../ui/primitives';
 import type { RideWindow } from '../logic/bestWindow';
 import { skyOf, type SkyKind } from '../logic/sky';
 import { warningText, type WarningKind } from '../logic/warnings';
@@ -22,9 +23,10 @@ interface HeroProps {
   onScore: () => void;
 }
 
-// The weather first, as on the sky behind it: the temperature and what the
-// sky is doing, the verdict, then the score on one row with a bar, which
-// opens its explanation.
+// The weather right now on the sky behind it (the temperature and the sky
+// in words), then one card like the rest of the screen: the score in a
+// small ring next to the verdict, which opens the score's explanation, and
+// under it the best windows to ride.
 
 export function Hero({ score, personal, model, current, onScore }: HeroProps) {
   const s = useStrings(S_NOW);
@@ -45,31 +47,39 @@ export function Hero({ score, personal, model, current, onScore }: HeroProps) {
   };
   const value = score == null ? 0 : Math.max(0, Math.min(100, score));
   const color = tierColor(score);
+  const ring = { '--p': String(value), '--c': color } as CSSProperties;
 
   return (
     <section className="now-hero" aria-labelledby="now-verdict">
-      <p className="now-hero__temp">{fmtTemp(current.temperature, lang)}</p>
-      <p className="now-hero__sky">{skyWord[skyOf(current).kind]}</p>
-      <h1 id="now-verdict" className="now-hero__verdict">
-        {title}
-      </h1>
-      {sub && <p className="now-hero__sub">{sub}</p>}
-      <button type="button" className="now-score" onClick={onScore} aria-label={aria} aria-haspopup="dialog">
-        <span className="now-score__label">{s.scoreLabel}</span>
-        <span className="now-score__num">{score ?? '–'}</span>
-        <span className="now-score__bar" aria-hidden="true">
-          <span className="now-score__fill" style={{ width: `${value}%`, background: color }} />
-        </span>
-        <span className="now-score__tier" style={{ color }}>
-          {word}
-        </span>
-      </button>
-      {personal !== null && score !== null && (
-        <p className="now-hero__mine num" title={s.mineHint}>
-          <span className="now-pill__dot" style={{ background: tierColor(personal) }} aria-hidden="true" />
-          {fmt(s.mineLine, { score: personal, general: score })}
-        </p>
-      )}
+      <div className="now-hero__weather">
+        <p className="now-hero__temp">{fmtTemp(current.temperature, lang)}</p>
+        <p className="now-hero__sky">{skyWord[skyOf(current).kind]}</p>
+      </div>
+      <div className="now-hero__card">
+        <div className="now-score">
+          <button type="button" className="now-score__ring" style={ring} onClick={onScore} aria-label={aria} aria-haspopup="dialog">
+            <span className="now-score__num" aria-hidden="true">
+              {score ?? '–'}
+            </span>
+          </button>
+          <div className="now-score__text">
+            <p className="now-score__eyebrow">
+              {s.scoreLabel} · <span style={{ color }}>{word}</span>
+            </p>
+            <h1 id="now-verdict" className="now-hero__verdict">
+              {title}
+            </h1>
+            {sub && <p className="now-hero__sub">{sub}</p>}
+          </div>
+        </div>
+        {personal !== null && score !== null && (
+          <p className="now-hero__mine" title={s.mineHint}>
+            <span className="now-dot" style={{ background: tierColor(personal) }} aria-hidden="true" />
+            {fmt(s.mineLine, { score: personal, general: score })}
+          </p>
+        )}
+        <Windows today={model.windows.today} tomorrow={model.windows.tomorrow} />
+      </div>
       {model.warnings.length > 0 && (
         <div className="now-hero__warnings">
           {model.warnings.map((w) => (
@@ -79,26 +89,30 @@ export function Hero({ score, personal, model, current, onScore }: HeroProps) {
           ))}
         </div>
       )}
-      <WindowPills today={model.windows.today} tomorrow={model.windows.tomorrow} />
     </section>
   );
 }
 
-function WindowPills({ today, tomorrow }: { today: RideWindow | null; tomorrow: RideWindow | null }) {
+/** The best windows to ride, today and tomorrow, as rows of the card. */
+function Windows({ today, tomorrow }: { today: RideWindow | null; tomorrow: RideWindow | null }) {
   const s = useStrings(S_NOW);
   const items = [
-    today ? { key: 'today', w: today, template: s.windowToday } : null,
-    tomorrow ? { key: 'tomorrow', w: tomorrow, template: s.windowTomorrow } : null,
-  ].filter((x): x is { key: string; w: RideWindow; template: string } => x !== null);
+    today ? { key: 'today', w: today, day: s.windowToday } : null,
+    tomorrow ? { key: 'tomorrow', w: tomorrow, day: s.windowTomorrow } : null,
+  ].filter((x): x is { key: string; w: RideWindow; day: string } => x !== null);
   if (!items.length) return null;
   return (
-    <div className="now-pills">
-      <span className="eyebrow">{s.windowLabel}</span>
-      <ul className="now-pills__row">
-        {items.map(({ key, w, template }) => (
-          <li key={key} className="now-pill num">
-            <span className="now-pill__dot" style={{ background: tierColor(w.avg) }} aria-hidden="true" />
-            {fmt(template, { from: hourOf(w.from), to: hourOf(w.to), score: w.avg })}
+    <div className="now-windows">
+      <p className="eyebrow">{s.windowLabel}</p>
+      <ul className="now-windows__list">
+        {items.map(({ key, w, day }) => (
+          <li key={key} className="now-windows__row">
+            <span className="now-windows__day">{day}</span>
+            <span className="now-windows__range num">{fmt(s.windowRange, { from: hourOf(w.from), to: hourOf(w.to) })}</span>
+            <span className="now-windows__score num">
+              <span className="now-dot" style={{ background: tierColor(w.avg) }} aria-hidden="true" />
+              {w.avg}
+            </span>
           </li>
         ))}
       </ul>

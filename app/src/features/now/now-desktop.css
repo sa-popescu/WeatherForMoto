@@ -33,16 +33,9 @@
     grid-column: 2;
   }
 
+  /* The weather over the card, at the top of its column. */
   .screen.now .now-hero {
-    justify-content: center;
-    padding: 22px;
-    border-radius: var(--r-xl);
-    border: 1px solid var(--line);
-    background: var(--surface);
-  }
-
-  .screen.now .now-hero__verdict {
-    font-size: 26px;
+    padding-top: 0;
   }
 
   /* The grid gap spaces the blocks; their phone margins would add to it. */
@@ -358,16 +351,16 @@
     gap: 12px;
   }
 
-  .screen.now .now-hero {
-    padding: 14px;
-  }
-
   .screen.now .now-hero__temp {
     font-size: 56px;
   }
 
+  .screen.now .now-hero__card {
+    padding: 14px;
+  }
+
   .screen.now .now-hero__verdict {
-    font-size: 22px;
+    font-size: 18px;
   }
 
   /* Seven cards across a phone are under 100 px each, too narrow for the

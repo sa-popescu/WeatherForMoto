@@ -3,8 +3,16 @@
 .now-hero {
   display: flex;
   flex-direction: column;
+  gap: 14px;
+  padding-top: 8px;
+}
+
+/* The weather right now, on the sky. */
+.now-hero__weather {
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  padding-top: 12px;
+  padding: 4px 0 2px;
   text-align: center;
 }
 
@@ -14,158 +22,164 @@
   line-height: 1.2;
   letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
+  animation: now-fade-up 0.7s ease-out both;
 }
 
 .now-hero__sky {
   margin-top: 2px;
-  font-size: 16px;
+  font-size: 17px;
   color: var(--ink-2);
 }
 
-.now-hero__verdict {
-  margin-top: 16px;
-  font-size: 24px;
-  font-weight: 500;
-  line-height: 1.2;
-  text-wrap: balance;
-  animation: now-fade-up 0.7s ease-out 0.15s both;
+/* One card for the score and the windows, like the cards under it. */
+.now-hero__card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  background: var(--surface);
 }
 
-/* The score on one row: label, number, a bar filled to it, the tier. It
-   opens the score's explanation. */
+/* The ring opens the score's explanation; its tap area covers the row. */
 .now-score {
-  display: grid;
-  grid-template-columns: auto auto minmax(60px, 1fr) auto;
+  position: relative;
+  display: flex;
   align-items: center;
-  gap: 10px;
-  width: min(100%, 340px);
-  min-height: var(--tap);
-  margin-top: 16px;
-  padding: 8px 16px;
-  border: 1px solid var(--line-2);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  gap: 16px;
+}
+
+.now-score__ring {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 68px;
+  height: 68px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(closest-side, var(--surface) 84%, transparent 86%),
+    conic-gradient(var(--c) calc(var(--p) * 1%), color-mix(in srgb, var(--ink) 12%, transparent) 0);
+  color: var(--ink);
   cursor: pointer;
 }
 
-.now-score:active {
-  transform: scale(0.99);
+.now-score__ring::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: var(--r-md);
 }
 
-.now-score__label {
-  font-size: 13px;
-  color: var(--muted);
+.now-score:active .now-score__ring {
+  transform: scale(0.97);
 }
 
 .now-score__num {
-  font-size: 20px;
+  font-size: 24px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
 
-.now-score__bar {
-  position: relative;
-  height: 6px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--ink) 14%, transparent);
-  overflow: hidden;
+.now-score__text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
 }
 
-.now-score__fill {
-  position: absolute;
-  inset: 0 auto 0 0;
-  border-radius: inherit;
-  transform-origin: left;
-  animation: now-score-fill 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-
-@keyframes now-score-fill {
-  from {
-    transform: scaleX(0);
-  }
-}
-
-.now-score__tier {
+.now-score__eyebrow {
   font-family: var(--font-num);
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted-2);
+}
+
+.now-hero__verdict {
+  font-size: 21px;
+  font-weight: 500;
+  line-height: 1.25;
+  text-wrap: balance;
+}
+
+.now-hero__sub {
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--muted);
+  text-wrap: pretty;
 }
 
 /* "Scorul tău": the rider's own score next to the general one. */
 .now-hero__mine {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 10px;
-  padding: 4px 12px;
-  border: 1px solid var(--line-2);
-  border-radius: 999px;
   font-size: 14px;
-  font-weight: 600;
   color: var(--ink-2);
 }
 
-.now-hero__sub {
-  max-width: 340px;
-  margin-top: 6px;
+.now-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+/* The best windows: rows under a line, as in the hour card below. */
+.now-windows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.now-windows__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.now-windows__row {
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  align-items: baseline;
+  gap: 10px;
   font-size: 15px;
-  line-height: 1.45;
+}
+
+.now-windows__day {
   color: var(--muted);
-  text-wrap: pretty;
-  animation: now-fade-up 0.7s ease-out 0.25s both;
+}
+
+.now-windows__range {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.now-windows__score {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 600;
 }
 
 .now-hero__warnings {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  width: 100%;
-  margin-top: 16px;
-  text-align: left;
 }
 
 .now-hero__warnings .banner {
   padding: 10px 12px;
-}
-
-.now-pills {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  margin-top: 16px;
-}
-
-.now-pills__row {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.now-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 32px;
-  padding: 0 12px;
-  border-radius: 999px;
-  border: 1px solid var(--line-2);
-  background: var(--surface);
-  color: var(--ink-2);
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-
-.now-pill__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
 }
 
 .now-card-head {
