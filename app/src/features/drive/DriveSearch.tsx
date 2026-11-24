@@ -11,7 +11,9 @@ import { DRIVE_S } from './strings';
 // "Unde mergi?": one search box with place suggestions (ARIA 1.2 combobox:
 // arrows move, Enter picks, Escape closes) and, under it, the quick
 // destinations: Acasă, Serviciu and the recent ones. A quick destination that
-// is not set yet turns the box into a search for its address.
+// is not set yet turns the box into a search for its address. The way to the
+// planner (stops, another day, a GPX) is pinned at the right of that row: with
+// a few recent places it used to sit past the edge, where nobody found it.
 
 export type SearchPurpose = 'go' | Shortcut;
 
@@ -105,8 +107,6 @@ export function DriveSearch({ destination, purpose, places, near, onPick, onClea
     { key: 'home', label: places.home ? s.home : s.setHome, set: places.home !== null, onClick: () => (places.home ? onPick(places.home, 'go') : onPurpose('home')) },
     { key: 'work', label: places.work ? s.work : s.setWork, set: places.work !== null, onClick: () => (places.work ? onPick(places.work, 'go') : onPurpose('work')) },
     ...places.recent.slice(0, 4).map((p, i) => ({ key: `r${i}`, label: p.name, set: true, onClick: () => onPick(p, 'go') })),
-    // The planner, for a ride with stops, another day or a GPX.
-    { key: 'plan', label: s.planChip, set: true, onClick: () => (window.location.hash = '#/traseu') },
   ];
 
   return (
@@ -185,15 +185,21 @@ export function DriveSearch({ destination, purpose, places, near, onPick, onClea
       )}
 
       {!showList && !destination && purpose === 'go' && (
-        <div className="drive-chips" role="group" aria-label={s.shortcuts}>
-          {chips.map((c) => (
-            <button key={c.key} type="button" className={cx('drive-chip', !c.set && 'drive-chip--unset')} onClick={c.onClick}>
-              {c.key === 'home' && <Icon name="pin" size={16} />}
-              {c.key === 'work' && <Icon name="flag" size={16} />}
-              {c.key === 'plan' && <Icon name="route" size={16} />}
-              <span className="drive-chip__label">{c.label}</span>
-            </button>
-          ))}
+        <div className="drive-chips">
+          <div className="drive-chips__scroll" role="group" aria-label={s.shortcuts}>
+            {chips.map((c) => (
+              <button key={c.key} type="button" className={cx('drive-chip', !c.set && 'drive-chip--unset')} onClick={c.onClick}>
+                {c.key === 'home' && <Icon name="pin" size={16} />}
+                {c.key === 'work' && <Icon name="flag" size={16} />}
+                <span className="drive-chip__label">{c.label}</span>
+              </button>
+            ))}
+          </div>
+          {/* The planner, for a ride with stops, another day or a GPX: always in sight. */}
+          <button type="button" className="drive-chip drive-chip--plan" aria-label={s.planChipAria} onClick={() => (window.location.hash = '#/traseu')}>
+            <Icon name="route" size={16} />
+            <span className="drive-chip__label">{s.planChip}</span>
+          </button>
         </div>
       )}
     </div>
