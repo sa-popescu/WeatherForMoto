@@ -4,7 +4,7 @@ import { rainBandOf } from '../../../lib/scoring';
 import type { CurrentWeather, DailyWeather, HourlyWeather } from '../../../lib/types';
 import { causeFromCurrent, causeFromHours, causeSentence, type Cause } from './cause';
 import { isDaylight, nextSunrise, sunTimes } from './daylight';
-import { capitalize, maxOf, rainNoun, rainPhrase, uncapitalize } from './formatting';
+import { capitalize, maxOf, rainNoun, rainPhrase, timePhrase, uncapitalize } from './formatting';
 import { RADAR_WET_MM_H, type RadarRain } from './radarRain';
 import { countedMm, isWetHour } from './rainOutlook';
 import { TEXTS } from './texts';
@@ -71,9 +71,10 @@ function withRadar(headline: Headline, radar: RadarRain | null | undefined, lang
   // after it. Printed side by side they read as a contradiction: the radar can
   // measure heavy rain overhead while the hourly peak, averaged over a cell, is
   // only moderate. Naming the second window keeps them from arguing — unless
-  // the forecast half already opens with its own hour ("De la 16:00: …"), which
-  // says it better and would otherwise collect a second colon.
-  const namesItsHour = headline.sub.startsWith(t.fromHour.split('{hour}')[0]);
+  // the forecast half already opens with its own hour ("De la 16:00: …",
+  // "Mâine de la 03:00: …"), which says it better and would otherwise
+  // collect a second colon.
+  const namesItsHour = /^[^:.]*\d{2}:\d{2}: /.test(headline.sub);
   const sub = headline.sub && !namesItsHour ? fmt(t.radarThenForecast, { text: uncapitalize(headline.sub) }) : headline.sub;
   return { ...headline, title, sub: sub ? `${note} ${sub}` : note };
 }
@@ -105,7 +106,7 @@ function calmSub(rest: ReadonlyArray<HourlyWeather>, nowIso: string, daily: Read
   const wet = rest.filter(isWetHour);
   if (wet.length) {
     const phrase = rainPhrase({ probability: maxOf(wet.map((h) => h.precipitation_probability)), mm: maxOf(wet.map(countedMm)) }, lang);
-    return wet[0].time.slice(0, 13) > nowIso.slice(0, 13) ? `${fmt(t.fromHour, { hour: hourOf(wet[0].time), text: phrase })}.` : `${capitalize(phrase)}.`;
+    return wet[0].time.slice(0, 13) > nowIso.slice(0, 13) ? `${capitalize(fmt(t.fromHour, { from: timePhrase('from', wet[0].time, nowIso, lang), text: phrase }))}.` : `${capitalize(phrase)}.`;
   }
   const gust = Math.round(maxOf(rest.map((h) => h.wind_gusts_kmh)) ?? 0);
   const { sunset } = sunTimes(nowIso.slice(0, 10), daily);

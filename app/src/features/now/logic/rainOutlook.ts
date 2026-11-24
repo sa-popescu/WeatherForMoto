@@ -3,7 +3,7 @@ import { fmt, pick, type Lang } from '../../../lib/i18n';
 import { rainBandOf } from '../../../lib/scoring';
 import type { HourlyWeather, RainBand } from '../../../lib/types';
 import { S_NOW } from '../strings';
-import { bandWord, timeLabel } from './formatting';
+import { bandWord, timeLabel, timePhrase } from './formatting';
 import { ALERT_TEXTS } from './texts';
 
 // The next rain episode in the coming hours: consecutive hours where rain is
@@ -112,7 +112,7 @@ export function rainPeakLine(o: RainOutlook, nowIso: string, lang: Lang): string
     p: o.peakProbability,
     mm: fmtMm(o.peakMm, lang),
     band: bandWord(o.band, lang),
-    hour: timeLabel(o.peakMmTime, nowIso, lang),
+    at: timePhrase('at', o.peakMmTime, nowIso, lang),
   });
 }
 

@@ -2,7 +2,7 @@ import { codeIsStale } from '../../../lib/directWeather';
 import { fmt, pick, type Lang } from '../../../lib/i18n';
 import { getScoringMeta } from '../../../lib/scoring';
 import type { CurrentWeather, HourlyWeather } from '../../../lib/types';
-import { fmtVisibility, timeLabel } from './formatting';
+import { fmtVisibility, timePhrase } from './formatting';
 import { ALERT_TEXTS } from './texts';
 
 // At most two compact hazard banners for now and the next hours, most
@@ -89,22 +89,22 @@ export function nowWarnings(current: CurrentWeather, hourly: ReadonlyArray<Hourl
 
 export function warningText(w: NowWarning, nowIso: string, lang: Lang): string {
   const t = pick(ALERT_TEXTS, lang);
-  const hour = w.at ? timeLabel(w.at, nowIso, lang) : '';
+  const from = w.at ? timePhrase('from', w.at, nowIso, lang) : '';
   const vis = w.value != null ? fmtVisibility(w.value, lang) : '–';
   const gust = Math.round(w.value ?? 0);
   const now = w.at === null;
   switch (w.kind) {
     case 'storm':
-      return now ? t.warnStormNow : fmt(t.warnStormAt, { hour });
+      return now ? t.warnStormNow : fmt(t.warnStormAt, { from });
     case 'ice':
-      return now ? t.warnIceNow : fmt(t.warnIceAt, { hour });
+      return now ? t.warnIceNow : fmt(t.warnIceAt, { from });
     case 'frost':
-      return now ? t.warnFrostNow : fmt(t.warnFrostAt, { hour });
+      return now ? t.warnFrostNow : fmt(t.warnFrostAt, { from });
     case 'snow':
-      return now ? t.warnSnowNow : fmt(t.warnSnowAt, { hour });
+      return now ? t.warnSnowNow : fmt(t.warnSnowAt, { from });
     case 'wind':
-      return now ? fmt(t.warnWindNow, { gust }) : fmt(t.warnWindAt, { gust, hour });
+      return now ? fmt(t.warnWindNow, { gust }) : fmt(t.warnWindAt, { gust, from });
     case 'fog':
-      return now ? fmt(t.warnFogNow, { vis }) : fmt(t.warnFogAt, { vis, hour });
+      return now ? fmt(t.warnFogNow, { vis }) : fmt(t.warnFogAt, { vis, from });
   }
 }

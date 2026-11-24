@@ -67,7 +67,7 @@ describe('the rain line under the bars', () => {
   it('gives the period, the chance and the peak of a rain that is coming', () => {
     const o = night((i) => (i < 6 ? { precipitation_mm: [0.2, 0.3, 0.4, 0.6, 0.4, 1.4][i], precipitation_probability: [70, 75, 80, 85, 90, 85][i] } : {}));
     expect(rainPeriod(o, NOW_ISO, 'ro')).toBe('Acum – mâine 04:00');
-    expect(rainPeakLine(o, NOW_ISO, 'ro')).toBe('Până la 90% șanse, maxim 1,4 mm/h (slabă) la mâine 03:00.');
+    expect(rainPeakLine(o, NOW_ISO, 'ro')).toBe('Până la 90% șanse, maxim 1,4 mm/h (slabă) mâine la 03:00.');
     expect(rainPeakLine(o, NOW_ISO, 'en')).toBe('Up to 90% chance, peaking at 1.4 mm/h (light) at tomorrow 03:00.');
   });
 
