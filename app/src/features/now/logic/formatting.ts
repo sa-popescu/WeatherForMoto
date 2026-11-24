@@ -27,6 +27,22 @@ export function timeLabel(localIso: string, todayIso: string, lang: Lang): strin
   return fmt(t.dayAt, { day: weekdayWord(date, lang), hour });
 }
 
+/**
+ * The same moment with its preposition, worded the way Romanian says it:
+ * "de la 16:00" today, "mâine de la 03:00", "joi de la 03:00" (never
+ * "de la mâine 03:00"). `at` gives "la 16:00", "mâine la 16:00".
+ */
+export function timePhrase(kind: 'from' | 'at', localIso: string, todayIso: string, lang: Lang): string {
+  const t = pick(TEXTS, lang);
+  const hour = hourOf(localIso);
+  const date = localIso.slice(0, 10);
+  const today = todayIso.slice(0, 10);
+  const [onToday, onTomorrow, onDay] = kind === 'from' ? [t.fromToday, t.fromTomorrow, t.fromDay] : [t.atToday, t.atTomorrow, t.atDay];
+  if (date === today) return fmt(onToday, { hour });
+  if (date === nextDate(today)) return fmt(onTomorrow, { hour });
+  return fmt(onDay, { day: weekdayWord(date, lang), hour });
+}
+
 export function capitalize(text: string): string {
   return text ? text.charAt(0).toUpperCase() + text.slice(1) : text;
 }
