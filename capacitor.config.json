@@ -1,5 +1,5 @@
 {
-    "appId": "ro.motometeo.app",
+    "appId": "ro.motonor.app",
     "appName": "Motonor",
     "webDir": "app/dist",
     "server": {
