@@ -32,7 +32,7 @@ from typing import Any
 
 import httpx
 
-logger = logging.getLogger("weatherformoto.opera")
+logger = logging.getLogger("motonor.opera")
 
 LIST_URL = "https://api.meteogate.eu/eu-eumetnet-weather-radar/collections/observations/locations/0-20010-0-OPERA"
 PARAMETER = "ACRR:comp"

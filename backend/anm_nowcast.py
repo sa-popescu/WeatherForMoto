@@ -21,7 +21,7 @@ import httpx
 
 import meteoalarm
 
-logger = logging.getLogger("weatherformoto.anm_nowcast")
+logger = logging.getLogger("motonor.anm_nowcast")
 
 FEED_URL = "https://www.meteoromania.ro/avertizari-nowcasting-xml-gis.php"
 ATTRIBUTION_URL = "https://www.meteoromania.ro/"

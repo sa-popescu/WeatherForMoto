@@ -565,7 +565,7 @@ class RateLimitTests(_Base):
 
     def test_429_logs_the_masked_client_ip(self) -> None:
         self.signup("logged@example.com")
-        with self.assertLogs("weatherformoto.auth_alerts", level="WARNING") as logs:
+        with self.assertLogs("motonor.auth_alerts", level="WARNING") as logs:
             for _ in range(aa.LOGIN_RATE_MAX + 1):
                 self.login("logged@example.com", "wrong-password", ip="6.6.6.6")
         joined = "\n".join(logs.output)

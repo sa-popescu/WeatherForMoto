@@ -20,7 +20,7 @@ from typing import Any
 
 import httpx
 
-logger = logging.getLogger("weatherformoto.stations")
+logger = logging.getLogger("motonor.stations")
 
 AREA_URL = "https://observations.meteogate.eu/collections/observations/area"
 LOCATIONS_URL = "https://observations.meteogate.eu/collections/observations/locations"

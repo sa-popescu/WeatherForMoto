@@ -23,7 +23,7 @@ from typing import Any, Iterable
 
 import httpx
 
-logger = logging.getLogger("weatherformoto.sensor_community")
+logger = logging.getLogger("motonor.sensor_community")
 
 AREA_URL = "https://data.sensor.community/airrohr/v1/filter/area={lat:.3f},{lon:.3f},{km:g}"
 # The API asks clients to say who they are.

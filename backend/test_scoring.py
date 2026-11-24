@@ -1126,7 +1126,7 @@ class NetworkTests(unittest.IsolatedAsyncioTestCase):
             with patch.dict("os.environ", {"MET_NORWAY_USER_AGENT": "TestAgent/2.0 (+https://example.test)"}):
                 await ws.get_weather(44.43, 26.10, "Test", "", forecast_days=2)
         self.assertEqual(seen, ["TestAgent/2.0 (+https://example.test)"])
-        with patch.dict("os.environ", {"MET_NORWAY_USER_AGENT": "X github.com/user/WeatherForMoto"}):
+        with patch.dict("os.environ", {"MET_NORWAY_USER_AGENT": "X github.com/user/motonor"}):
             self.assertEqual(ws._resolve_met_user_agent(None), ws.DEFAULT_MET_USER_AGENT)
 
 

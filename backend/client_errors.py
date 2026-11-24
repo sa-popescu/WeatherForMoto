@@ -32,7 +32,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable
 
-logger = logging.getLogger("weatherformoto.client_errors")
+logger = logging.getLogger("motonor.client_errors")
 
 # Largest body accepted. A report is a few hundred bytes; the stack is cut
 # well before this in the app too.

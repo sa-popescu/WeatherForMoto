@@ -1,5 +1,5 @@
 {
-  "name": "motometeo-app",
+  "name": "motonor-app",
   "private": true,
   "version": "2.0.0",
   "description": "Motonor frontend: weather for motorcyclists (Vite + React + TypeScript, PWA, Capacitor-ready)",

@@ -28,7 +28,7 @@ from typing import Any, Callable
 
 import httpx
 
-logger = logging.getLogger("weatherformoto.db_quota")
+logger = logging.getLogger("motonor.db_quota")
 
 API_BASE = "https://api.turso.tech/v1"
 # The free (Starter) plan, as of November 2026.

@@ -41,7 +41,7 @@ import sensor_community
 import verification
 import wet_road
 
-logger = logging.getLogger("weatherformoto.weather")
+logger = logging.getLogger("motonor.weather")
 
 # ---------------------------------------------------------------------------
 # Source URLs
@@ -2562,7 +2562,7 @@ async def _netatmo_access_token(
         return _netatmo_token
 
     import logging
-    _log = logging.getLogger("weatherformoto")
+    _log = logging.getLogger("motonor")
     # Prefer a persisted refresh token (handles rotation); fall back to env seed.
     persisted = await asyncio.to_thread(_backoff_read_str, _NETATMO_REFRESH_KEY)
     rt = persisted or refresh_token

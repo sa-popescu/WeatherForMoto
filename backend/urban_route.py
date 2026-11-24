@@ -35,7 +35,7 @@ from typing import Any
 
 import httpx
 
-logger = logging.getLogger("weatherformoto.urban")
+logger = logging.getLogger("motonor.urban")
 
 TOMTOM_API_KEY: str = os.getenv("TOMTOM_API_KEY", "").strip()
 TOMTOM_ROUTE_URL = "https://api.tomtom.com/routing/1/calculateRoute/{locations}/json"

@@ -26,7 +26,7 @@ import os
 import time
 from typing import Any
 
-logger = logging.getLogger("weatherformoto.last_good")
+logger = logging.getLogger("motonor.last_good")
 
 # Set LAST_GOOD_STORE=false to stop using the database without a code change.
 ENABLED = os.getenv("LAST_GOOD_STORE", "true").lower() != "false"
