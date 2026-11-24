@@ -44,7 +44,7 @@
   /* A fixed size: the button around it shrinks to fit, so a percentage
      would have nothing to resolve against. */
   .screen.now .now-hero .gauge {
-    width: 260px;
+    width: 210px;
   }
 
   .screen.now .now-hero__verdict {
@@ -369,13 +369,13 @@
   }
 
   .screen.now .now-hero .gauge {
-    width: 180px;
+    width: 160px;
   }
 
   /* The dial's number is sized by the window's width (ui.css): wide here, so
      it would outgrow the smaller dial and run over its label. */
   .screen.now .now-hero .gauge__score {
-    font-size: 52px;
+    font-size: 44px;
   }
 
   .screen.now .now-hero__verdict {

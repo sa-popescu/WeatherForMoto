@@ -522,11 +522,13 @@ body.sheet-open .toasts {
   }
 }
 
-/* ---- Gauge ---- */
+/* ---- Gauge ----
+   Kept calm: a thin arc in the tier's colour, no glow, the number in the
+   ink colour and the tier word under it in plain text. */
 
 .gauge {
   position: relative;
-  width: min(280px, 76vw);
+  width: min(200px, 54vw);
   aspect-ratio: 300 / 252;
 }
 
@@ -540,17 +542,16 @@ body.sheet-open .toasts {
 
 .gauge__track {
   fill: none;
-  stroke: var(--surface-3);
-  stroke-width: 18;
+  stroke: color-mix(in srgb, var(--ink) 14%, transparent);
+  stroke-width: 10;
   stroke-linecap: round;
 }
 
 .gauge__arc {
   fill: none;
   stroke: currentColor;
-  stroke-width: 18;
+  stroke-width: 10;
   stroke-linecap: round;
-  filter: drop-shadow(0 0 10px color-mix(in srgb, currentColor 45%, transparent));
   animation: gauge-sweep 1.2s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
@@ -562,46 +563,44 @@ body.sheet-open .toasts {
 
 .gauge__ticks {
   fill: none;
-  stroke: var(--line-2);
-  stroke-width: 2;
+  stroke: color-mix(in srgb, var(--ink) 18%, transparent);
+  stroke-width: 1.5;
   stroke-linecap: round;
 }
 
 .gauge__ticks--lit {
   stroke: currentColor;
+  opacity: 0.55;
 }
 
 .gauge__end {
-  fill: var(--dim);
+  fill: var(--muted-2);
   font-family: var(--font-num);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .gauge__center {
   position: absolute;
   left: 0;
   right: 0;
-  top: 24%;
+  top: 27%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .gauge__score {
   /* Sized so a three-digit "100" stays inside the tick ring. */
-  font-size: clamp(56px, 21vw, 82px);
-  font-weight: 700;
+  font-size: clamp(42px, 13vw, 52px);
+  font-weight: 600;
   line-height: 0.9;
   letter-spacing: -0.02em;
   color: var(--ink);
 }
 
 .gauge__label {
-  padding: 4px 14px;
-  border-radius: 999px;
-  border: 1.5px solid currentColor;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.16em;
 }

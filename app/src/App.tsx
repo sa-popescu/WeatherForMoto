@@ -15,11 +15,11 @@ import { useToast } from './state/toast';
 import { Icon, type IconName } from './ui/icons';
 import { ViewSwitch } from './ui/ViewSwitch';
 
-// App shell: four tabs (Drum, Vreme, Ture, Eu) over six views driven by the
+// App shell: four tabs (Vreme, Drum, Ture, Eu) over six views driven by the
 // URL hash (#/drum, #/traseu, #/acum, #/harta, #/ture, #/eu), so every view
-// works as a deep link and older links keep working. "Drum" holds the home
-// screen and the detailed planner it opens; "Vreme" holds the forecast and
-// the radar map, with a switch between them. A view stays mounted after its
+// works as a deep link and older links keep working. "Vreme" comes first and
+// is where the app opens: the forecast and the radar map, with a switch
+// between them. "Drum" holds the route screen and the detailed planner. A view stays mounted after its
 // first visit, so scroll position and map state survive switching.
 
 const DriveScreen = lazy(() => import('./features/drive/DriveScreen'));
@@ -38,7 +38,7 @@ type WeatherView = Extract<View, 'acum' | 'harta'>;
 
 const VIEWS: readonly View[] = ['drum', 'traseu', 'acum', 'harta', 'ture', 'eu'];
 /** Where the app opens without a link to somewhere else. */
-const HOME: View = 'drum';
+const HOME: View = 'acum';
 const TAB_OF: Record<View, Tab> = { drum: 'drum', traseu: 'drum', acum: 'vreme', harta: 'vreme', ture: 'ture', eu: 'eu' };
 
 function readView(): View {
@@ -136,8 +136,8 @@ export default function App() {
 
   const tab = TAB_OF[view];
   const navItems: { tab: Tab; href: string; icon: IconName; label: string }[] = [
-    { tab: 'drum', href: '#/drum', icon: 'route', label: s.tabDrive },
     { tab: 'vreme', href: `#/${weatherView}`, icon: 'sun', label: s.tabWeather },
+    { tab: 'drum', href: '#/drum', icon: 'route', label: s.tabDrive },
     { tab: 'ture', href: '#/ture', icon: 'bike', label: s.tabRides },
     { tab: 'eu', href: '#/eu', icon: 'user', label: s.tabMe },
   ];
