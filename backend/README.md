@@ -16,6 +16,7 @@ saved routes, ride logs and rider-reported hazards. It runs on Google Cloud Run
 | `metar.py` | Romanian airport METAR from NOAA AWC: present weather code and visibility |
 | `meteoalarm.py` | Meteoalarm CAP county warnings |
 | `anm_nowcast.py` | ANM nowcasting warnings with their drawn polygons |
+| `mtg_lightning.py` | lightning flashes from the MTG satellite (EUMETSAT Data Store), count and nearest flash around a point |
 | `db_quota.py` | daily look at the monthly Turso quota, email at 80% and 95% |
 | `migrate_to_turso.py` | one-off copy of a legacy SQLite file into Turso |
 | `entrypoint.sh` | container start (uvicorn, no access log) |

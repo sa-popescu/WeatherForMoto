@@ -208,8 +208,27 @@ export interface WeatherResponse {
   daily: DailyWeather[];
   /** Official warnings covering this point; empty when there are none. */
   alerts?: OfficialAlert[];
+  /** Flashes the MTG satellite saw around here lately; null when the source is off or unreadable. */
+  lightning?: Lightning | null;
   /** Present when the server served an older answer because its sources failed. */
   stale?: StaleMark | null;
+}
+
+/** Lightning seen from space (EUMETSAT MTG Lightning Imager) around the point. */
+export interface Lightning {
+  /** Flashes within radius_km in the last window_min minutes. */
+  count: number;
+  /** Of those, the ones within 10 km. */
+  near_count: number;
+  nearest_km: number | null;
+  /** Direction of the nearest flash from the point, degrees, 0 = north. */
+  bearing_deg: number | null;
+  last_minutes_ago: number | null;
+  radius_km: number;
+  window_min: number;
+  /** End of the newest satellite file read, ISO 8601. */
+  observed_until: string | null;
+  attribution: string;
 }
 
 export interface GeocodeResult {

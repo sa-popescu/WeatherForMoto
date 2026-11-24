@@ -5,7 +5,7 @@ import type { ReactNode } from 'react';
 export type IconName =
   | 'gauge' | 'route' | 'map' | 'user' | 'search' | 'pin' | 'locate'
   | 'chevronDown' | 'chevronRight' | 'chevronLeft' | 'check' | 'info' | 'plus' | 'minus'
-  | 'bookmark' | 'download' | 'alert' | 'share' | 'refresh' | 'close' | 'star' | 'starFilled'
+  | 'bookmark' | 'download' | 'alert' | 'bolt' | 'share' | 'refresh' | 'close' | 'star' | 'starFilled'
   | 'trash' | 'bell' | 'mail' | 'lock' | 'logout' | 'settings' | 'wind' | 'drop' | 'thermo'
   | 'road' | 'eye' | 'sun' | 'moon' | 'play' | 'pause' | 'layers' | 'grip' | 'clock' | 'flag'
   | 'bike' | 'edit' | 'globe' | 'external' | 'radar' | 'fuel' | 'iosShare' | 'addSquare';
@@ -28,6 +28,7 @@ const PATHS: Record<IconName, ReactNode> = {
   bookmark: <path d="M6 3.5h12v17l-6-4-6 4z" />,
   download: <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />,
   alert: <><path d="M12 3.5 21.5 20h-19Z" /><path d="M12 10v4.5M12 17.5v.01" /></>,
+  bolt: <path d="M13 2.5 5 13.5h6l-1 8 8-11h-6Z" />,
   share: <><circle cx="18" cy="5" r="2.5" /><circle cx="6" cy="12" r="2.5" /><circle cx="18" cy="19" r="2.5" /><path d="m8.2 10.8 7.6-4.6M8.2 13.2l7.6 4.6" /></>,
   refresh: <><path d="M20 11a8 8 0 1 0-2.3 5.7" /><path d="M20 4v7h-7" /></>,
   close: <path d="M6 6l12 12M18 6 6 18" />,

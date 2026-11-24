@@ -32,6 +32,7 @@ import anm_nowcast
 import meteoalarm
 import metar
 import official_stations
+import mtg_lightning
 import opera_radar
 import calibration
 import last_good
@@ -4414,6 +4415,7 @@ def _source_status(
     netatmo: tuple[Any, dict | None, dict[str, Any] | None] = (None, None, None),
     community: tuple[Any, dict | None] = (None, None),
     radar: dict[str, float] | None = None,
+    lightning: tuple[bool, dict[str, Any] | None] = (False, None),
 ) -> list[dict[str, Any]]:
     """
     Every source and what it did for this answer, for the "data sources" view.
@@ -4477,6 +4479,15 @@ def _source_status(
         "hours": len(radar) if radar else None,
         "rain_mm": round(sum(radar.values()), 1) if radar else None,
     })
+    # Flashes seen from space around here: "used" whenever the files were read, flashes or not.
+    configured, flashes = lightning
+    out.append({
+        "id": "mtg-lightning",
+        "status": ("used" if flashes is not None else "no-data") if configured else "off",
+        "count": flashes.get("count") if flashes else None,
+        "distance_km": flashes.get("nearest_km") if flashes else None,
+        "observed_at": flashes.get("observed_until") if flashes else None,
+    })
 
     for source, (feed, count) in warnings.items():
         out.append({"id": source, "status": "used" if feed is not None else "no-data", "count": count})
@@ -4518,7 +4529,7 @@ async def _collect_weather(
     async with http_client_scope() as client:
         (om_data, ens_raw, rain_ens_raw, area_raw, past_rain_raw, owm_current, owm_forecast, owm_air, om_air, met_raw,
          pw_raw, wxm_raw, netatmo_raw, community_raw, radar_rain, meteoalarm_feed, stations_raw, metar_raw,
-         nowcast_feed) = await asyncio.gather(
+         nowcast_feed, lightning) = await asyncio.gather(
             _forecast_cache.get_or_fetch(
                 ("open-meteo", cell, days),
                 _with_ttl(lambda: _fetch_openmeteo(lat, lon, client, forecast_days=days),
@@ -4564,6 +4575,8 @@ async def _collect_weather(
                 lambda: metar.fetch(client, met_user_agent), TTL_METAR_S)),
             _cached_optional("ANM nowcasting", ("anm-nowcast",), _with_ttl(
                 lambda: anm_nowcast.fetch_feed(client, met_user_agent), TTL_ANM_NOWCAST_S)),
+            # Satellite lightning: shared files, like the radar's.
+            _await_optional("MTG lightning", mtg_lightning.near(lat, lon, client)),
         )
         official_norm = official_stations.normalize(stations_raw)
         if official_norm and official_norm.get("lat") is not None:
@@ -4637,6 +4650,7 @@ async def _collect_weather(
         netatmo=(netatmo_raw, netatmo_norm, _netatmo_note.get(cell)),
         community=(community_raw, community_norm),
         radar=radar_rain,
+        lightning=(mtg_lightning.enabled(), lightning),
         warnings={
             "anm-nowcast": (nowcast_feed, len(nowcast_alerts)),
             "meteoalarm": (meteoalarm_feed, len(county_alerts)),
@@ -4654,6 +4668,8 @@ async def _collect_weather(
         "daily": daily,
         "hourly": hourly,
         "alerts": alerts,
+        # Measured, not a warning: flashes seen by the satellite around here lately.
+        "lightning": lightning,
     }
 
 
