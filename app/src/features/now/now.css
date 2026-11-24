@@ -4,32 +4,92 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding-top: 8px;
+  padding-top: 12px;
   text-align: center;
 }
 
-.now-hero__gauge {
-  display: flex;
-  justify-content: center;
-  padding: 0;
-  border: 0;
-  border-radius: 48% 48% 28px 28px;
-  background: none;
-  color: inherit;
-  cursor: pointer;
+.now-hero__temp {
+  font-size: 80px;
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
 }
 
-.now-hero__gauge:active .gauge {
-  transform: scale(0.985);
+.now-hero__sky {
+  margin-top: 2px;
+  font-size: 16px;
+  color: var(--ink-2);
 }
 
 .now-hero__verdict {
-  margin-top: 4px;
-  font-size: 32px;
-  font-weight: 600;
-  line-height: 1.1;
+  margin-top: 16px;
+  font-size: 24px;
+  font-weight: 500;
+  line-height: 1.2;
   text-wrap: balance;
-  animation: now-fade-up 0.7s ease-out 0.3s both;
+  animation: now-fade-up 0.7s ease-out 0.15s both;
+}
+
+/* The score on one row: label, number, a bar filled to it, the tier. It
+   opens the score's explanation. */
+.now-score {
+  display: grid;
+  grid-template-columns: auto auto minmax(60px, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: min(100%, 340px);
+  min-height: var(--tap);
+  margin-top: 16px;
+  padding: 8px 16px;
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  cursor: pointer;
+}
+
+.now-score:active {
+  transform: scale(0.99);
+}
+
+.now-score__label {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.now-score__num {
+  font-size: 20px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.now-score__bar {
+  position: relative;
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 14%, transparent);
+  overflow: hidden;
+}
+
+.now-score__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  transform-origin: left;
+  animation: now-score-fill 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes now-score-fill {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+.now-score__tier {
+  font-family: var(--font-num);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
 }
 
 /* "Scorul tău": the rider's own score next to the general one. */
@@ -48,12 +108,12 @@
 
 .now-hero__sub {
   max-width: 340px;
-  margin-top: 8px;
-  font-size: 16px;
+  margin-top: 6px;
+  font-size: 15px;
   line-height: 1.45;
   color: var(--muted);
   text-wrap: pretty;
-  animation: now-fade-up 0.7s ease-out 0.45s both;
+  animation: now-fade-up 0.7s ease-out 0.25s both;
 }
 
 .now-hero__warnings {

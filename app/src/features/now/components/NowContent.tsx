@@ -44,7 +44,7 @@ export function NowContent({ data, model, selectedTime, onSelectTime, tableDate,
   return (
     <>
       <AlertBanners alerts={data.alerts ?? []} />
-      <Hero score={score} personal={personal} model={model} onScore={() => onOpen({ kind: 'score' })} />
+      <Hero score={score} personal={personal} model={model} current={data.current} onScore={() => onOpen({ kind: 'score' })} />
       <Timeline
         bars={model.bars}
         outlook={model.rain}

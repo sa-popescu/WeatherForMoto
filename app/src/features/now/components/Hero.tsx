@@ -1,10 +1,11 @@
 import { CORE } from '../../../i18n/core';
-import { hourOf } from '../../../lib/format';
+import { fmtTemp, hourOf } from '../../../lib/format';
 import { fmt, useLang, useStrings } from '../../../lib/i18n';
 import { tierColor, tierOf } from '../../../lib/scoring';
-import { Gauge } from '../../../ui/Gauge';
 import { Banner } from '../../../ui/primitives';
+import type { CurrentWeather } from '../../../lib/types';
 import type { RideWindow } from '../logic/bestWindow';
+import { skyOf, type SkyKind } from '../logic/sky';
 import { warningText, type WarningKind } from '../logic/warnings';
 import { S_NOW } from '../strings';
 import type { NowModel } from '../useNowModel';
@@ -17,26 +18,52 @@ interface HeroProps {
   /** "Scorul tău", when the rider's own rides make it differ from the general score. */
   personal: number | null;
   model: NowModel;
+  current: CurrentWeather;
   onScore: () => void;
 }
 
-export function Hero({ score, personal, model, onScore }: HeroProps) {
+// The weather first, as on the sky behind it: the temperature and what the
+// sky is doing, the verdict, then the score on one row with a bar, which
+// opens its explanation.
+
+export function Hero({ score, personal, model, current, onScore }: HeroProps) {
   const s = useStrings(S_NOW);
   const core = useStrings(CORE);
   const lang = useLang();
   const word = tierWord(tierOf(score), core);
   const aria = score == null ? s.scoreAriaNone : fmt(s.scoreAria, { score, tier: word });
   const { title, sub } = model.headline;
+  const skyWord: Record<SkyKind, string> = {
+    clear: s.skyClear,
+    partly: s.skyPartly,
+    overcast: s.skyOvercast,
+    fog: s.skyFog,
+    drizzle: s.skyDrizzle,
+    rain: s.skyRain,
+    storm: s.skyStorm,
+    snow: s.skySnow,
+  };
+  const value = score == null ? 0 : Math.max(0, Math.min(100, score));
+  const color = tierColor(score);
 
   return (
     <section className="now-hero" aria-labelledby="now-verdict">
-      <button type="button" className="now-hero__gauge" onClick={onScore} aria-label={aria} aria-haspopup="dialog">
-        <Gauge score={score} label={word} ariaLabel={aria} />
-      </button>
-      <h1 id="now-verdict" className="now-hero__verdict num">
+      <p className="now-hero__temp">{fmtTemp(current.temperature, lang)}</p>
+      <p className="now-hero__sky">{skyWord[skyOf(current).kind]}</p>
+      <h1 id="now-verdict" className="now-hero__verdict">
         {title}
       </h1>
       {sub && <p className="now-hero__sub">{sub}</p>}
+      <button type="button" className="now-score" onClick={onScore} aria-label={aria} aria-haspopup="dialog">
+        <span className="now-score__label">{s.scoreLabel}</span>
+        <span className="now-score__num">{score ?? '–'}</span>
+        <span className="now-score__bar" aria-hidden="true">
+          <span className="now-score__fill" style={{ width: `${value}%`, background: color }} />
+        </span>
+        <span className="now-score__tier" style={{ color }}>
+          {word}
+        </span>
+      </button>
       {personal !== null && score !== null && (
         <p className="now-hero__mine num" title={s.mineHint}>
           <span className="now-pill__dot" style={{ background: tierColor(personal) }} aria-hidden="true" />

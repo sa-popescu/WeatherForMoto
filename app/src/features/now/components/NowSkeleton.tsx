@@ -11,10 +11,10 @@ export function NowSkeleton() {
         {core.loading}
       </p>
       <div className="now-skeleton__hero">
-        <Skeleton width="min(280px, 76vw)" height={200} radius={140} />
-        <Skeleton width="70%" height={34} />
-        <Skeleton width="86%" height={18} />
-        <Skeleton width="58%" height={18} />
+        <Skeleton width={120} height={80} radius={18} />
+        <Skeleton width="40%" height={18} />
+        <Skeleton width="70%" height={28} />
+        <Skeleton width="min(340px, 100%)" height={44} radius={999} />
       </div>
       <Skeleton height={262} radius={22} />
       <Skeleton height={236} radius={22} />

@@ -41,14 +41,8 @@
     background: var(--surface);
   }
 
-  /* A fixed size: the button around it shrinks to fit, so a percentage
-     would have nothing to resolve against. */
-  .screen.now .now-hero .gauge {
-    width: 210px;
-  }
-
   .screen.now .now-hero__verdict {
-    font-size: 28px;
+    font-size: 26px;
   }
 
   /* The grid gap spaces the blocks; their phone margins would add to it. */
@@ -368,14 +362,8 @@
     padding: 14px;
   }
 
-  .screen.now .now-hero .gauge {
-    width: 160px;
-  }
-
-  /* The dial's number is sized by the window's width (ui.css): wide here, so
-     it would outgrow the smaller dial and run over its label. */
-  .screen.now .now-hero .gauge__score {
-    font-size: 44px;
+  .screen.now .now-hero__temp {
+    font-size: 56px;
   }
 
   .screen.now .now-hero__verdict {
