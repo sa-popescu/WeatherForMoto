@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { CORE } from '../../../i18n/core';
 import { fmtNumber, hourOf } from '../../../lib/format';
 import { fmt, useLang, useStrings } from '../../../lib/i18n';
@@ -103,22 +103,33 @@ export function Hero({ score, personal, model, current, onScore }: HeroProps) {
 }
 
 /**
- * Why the sky reads as it does: the arbiter's sentence on rain, and on fog or
- * a storm when someone mentioned one ("Nu plouă: aeroportul Băneasa și 10
- * din 11 surse spun uscat."). Nothing from older servers or the fallback.
+ * Why the sky reads as it does, in one short line ("Nu plouă · 14 din 15
+ * surse"); a tap opens the arbiter's full reasons, on fog and storms too.
+ * Nothing from older servers or the fallback.
  */
 function Why({ current, lang }: { current: CurrentWeather; lang: 'ro' | 'en' }) {
+  const [open, setOpen] = useState(false);
   const v = current.verdict;
   if (!v) return null;
-  const pick = (p: { explanation: string; explanation_en: string }) => (lang === 'en' ? p.explanation_en : p.explanation);
-  const lines = [pick(v.precipitation), v.fog && pick(v.fog), v.storm && pick(v.storm)].filter(
-    (x): x is string => Boolean(x),
-  );
-  if (!lines.length) return null;
+  const en = lang === 'en';
+  const pick = (p: { explanation: string; explanation_en: string }) => (en ? p.explanation_en : p.explanation);
+  const rain = v.precipitation;
+  const short = (en ? rain.short_en : rain.short) ?? pick(rain);
+  const extra = [
+    v.fog?.state === 'fog' ? (en ? 'Fog' : 'Ceață') : null,
+    v.storm?.state === 'storm' ? (en ? 'Storm' : 'Furtună') : null,
+  ].filter((x): x is string => Boolean(x));
+  const details = [pick(rain), v.fog && pick(v.fog), v.storm && pick(v.storm)].filter((x): x is string => Boolean(x));
   return (
-    <p className="now-hero__why" title={`${v.precipitation.confidence}%`}>
-      {lines.join(' ')}
-    </p>
+    <div className="now-hero__why">
+      <button type="button" className="now-hero__why-line" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        {[...extra, short].join(' · ')}
+        <span className="now-hero__why-mark" aria-hidden="true">
+          {open ? '−' : 'i'}
+        </span>
+      </button>
+      {open && <p className="now-hero__why-more">{details.join(' ')}</p>}
+    </div>
   );
 }
 
