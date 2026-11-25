@@ -175,5 +175,45 @@ class NamesTests(unittest.TestCase):
         self.assertIsNone(arbiter.airport_name(None))
 
 
+class CivicCentreTests(unittest.TestCase):
+    """25 Nov 18:42, clear: the radar summed 0.1-0.8 mm an hour from 15:00 under
+    a mid-level overcast at 47-66% humidity; every gauge and the airport dry."""
+
+    def test_a_light_echo_in_air_under_75_percent_is_set_aside(self) -> None:
+        self.assertFalse(arbiter.radar_rain_plausible(0.24, 65.8))
+        self.assertTrue(arbiter.radar_rain_plausible(0.24, 80.0))
+        self.assertTrue(arbiter.radar_rain_plausible(2.0, 66.0))
+        self.assertFalse(arbiter.radar_rain_plausible(2.0, 52.0))
+        witnesses = arbiter.precipitation_witnesses(providers={"open-meteo": (0.0, 0)}, radar_mm=0.24, humidity=65.8)
+        verdict = arbiter.judge_precipitation(witnesses, hour_probability=0)
+        self.assertIn("Radarul vede ploaie, dar aer prea uscat (66%)", verdict["explanation"])
+
+    def test_the_road_ignores_it_too(self) -> None:
+        hour = {"precipitation_mm": 0.0, "relative_humidity": 65.8}
+        self.assertFalse(ws._radar_rain_plausible(hour, 0.24))
+
+    def test_gauges_that_measured_the_hour_dry_veto_the_radar(self) -> None:
+        self.assertTrue(ws._gauges_saw_dry_hour({"precipitation": 0.0, "distance_km": 8}, {"precipitation": 0}))
+        self.assertFalse(ws._gauges_saw_dry_hour({"precipitation": 0.4, "distance_km": 8}, {"precipitation": 0}))
+        self.assertFalse(ws._gauges_saw_dry_hour({"precipitation": 0.0, "distance_km": 60}))
+        self.assertFalse(ws._gauges_saw_dry_hour(None, {}))
+
+
+class ShortLineTests(unittest.TestCase):
+    def test_the_verdict_fits_one_line(self) -> None:
+        current = ws._merge_current(
+            dry_now(), owm(501, "ploaie moderată", 1.0), None,
+            met_norm=DRY_MET, pw_norm=DRY_PW, metar_obs=BANEASA)
+        verdict = current["verdict"]["precipitation"]
+        self.assertEqual(verdict["short"], "Nu plouă · 4 din 5 surse")
+        self.assertEqual(verdict["short_en"], "No rain · 4 of 5 sources")
+
+    def test_mixed_signals_say_so(self) -> None:
+        om = dry_now(40)
+        om["current"].update({"weather_code": 63, "precipitation": 3.0})
+        current = ws._merge_current(om, owm(501, "ploaie moderată", 3.0), None, metar_obs=BANEASA)
+        self.assertEqual(current["verdict"]["precipitation"]["short"], "Semnale amestecate · 2 din 3 surse dau ploaie")
+
+
 if __name__ == "__main__":
     unittest.main()

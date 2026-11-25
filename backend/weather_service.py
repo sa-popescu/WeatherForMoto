@@ -3167,20 +3167,36 @@ def _past_rain_before(past_raw: Any | None, first_time: str) -> list[tuple[str, 
 # sees over air this dry is rain evaporating on the way down, or no rain at all
 # (anomalous propagation bends the beam into the ground on cold, stable
 # evenings; Bucharest showed 2.2 mm "measured" at 52% humidity, airport CAVOK).
-RADAR_RAIN_MIN_HUMIDITY = 65.0
+RADAR_RAIN_MIN_HUMIDITY = arbiter.RADAR_MIN_HUMIDITY
 
 
 def _radar_rain_plausible(hour: dict[str, Any], radar_mm: float | None) -> bool:
     """False when the radar adds rain to an hour whose air was too dry for it to land.
 
     The radar saying "dry" is always taken (it removes rain the model invented);
-    only rain it adds over the model's is checked against the hour's humidity.
-    An hour without a humidity value trusts the radar.
+    only rain it adds over the model's is checked against the hour's humidity,
+    by the arbiter's rule (arbiter.radar_rain_plausible: a light echo needs
+    moister air than a real shower). An hour without a humidity value trusts
+    the radar.
     """
     if radar_mm is None or radar_mm <= (hour.get("precipitation_mm") or 0):
         return True
-    humidity = _to_float(hour.get("relative_humidity"))
-    return humidity is None or humidity >= RADAR_RAIN_MIN_HUMIDITY
+    return arbiter.radar_rain_plausible(radar_mm, _to_float(hour.get("relative_humidity")))
+
+
+def _gauges_saw_dry_hour(*gauges: dict | None) -> bool:
+    """True when every gauge that measured the last hour here found no rain.
+
+    The official station's and Netatmo's totals both cover the last full hour,
+    the same hour as the radar's newest sum. Rain the radar alone saw in it,
+    with each gauge around at 0 mm, did not reach the ground.
+    """
+    readings = [
+        _to_float(g.get("precipitation")) for g in gauges
+        if g and _to_float(g.get("precipitation")) is not None
+        and (_to_float(g.get("distance_km")) is None or _to_float(g.get("distance_km")) <= 25.0)
+    ]
+    return bool(readings) and all(r < RAIN_NEGLIGIBLE_MM_H for r in readings)
 
 
 def _apply_wet_road(hourly: list[dict], past_raw: Any | None, measured: dict[str, float] | None = None) -> None:
@@ -5157,11 +5173,20 @@ async def _collect_weather(
     calibration.refresh_soon(_calibration_since(), verification.RAIN_SOURCES, rain_fusion.WEIGHTS)
     _settle_hours(hourly)
     _apply_rain_coverage(hourly, area_raw)
-    _apply_wet_road(hourly, past_rain_raw, opera_radar.local_hours(radar_rain, utc_offset))
+    radar_hours = opera_radar.local_hours(radar_rain, utc_offset)
+    road_radar = radar_hours
+    # The newest radar hour is the one the gauges just measured: when they all
+    # found it dry, the radar's rain in it never landed (virga, clutter).
+    now_index = _current_hour_index(om_data, [str(h.get("time", "")) for h in hourly])
+    if now_index is not None and _gauges_saw_dry_hour(official_norm, netatmo_norm):
+        now_time = str(hourly[now_index].get("time", ""))
+        if radar_hours.get(now_time, 0) >= arbiter.WET_MM:
+            road_radar = {**radar_hours, now_time: 0.0}
+    _apply_wet_road(hourly, past_rain_raw, road_radar)
     current = _merge_current(om_data, owm_current, owm_air, om_air, met_norm, pw_norm,
                              wxm_norm, netatmo_norm, hourly=hourly,
                              official_norm=official_norm, metar_obs=metar_obs, community_norm=community_norm,
-                             radar_hours=opera_radar.local_hours(radar_rain, utc_offset),
+                             radar_hours=radar_hours,
                              learned_weights=learned.weights if learned else None)
     # Before the daily scores are built, so the day counts the hours as corrected.
     _carry_measured_bias(om_data, hourly, current,

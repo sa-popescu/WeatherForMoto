@@ -90,6 +90,9 @@ export interface VerdictPart {
   confidence: number;
   explanation: string;
   explanation_en: string;
+  /** The verdict in a few words, for one line (rain only; absent from older servers). */
+  short?: string;
+  short_en?: string;
   /** For rain: rain, drizzle, snow or ice, when something falls. */
   kind?: 'rain' | 'drizzle' | 'snow' | 'ice' | null;
 }
