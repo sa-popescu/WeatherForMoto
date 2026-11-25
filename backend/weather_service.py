@@ -4544,25 +4544,63 @@ def _provider_hours(met: dict | None, pirate: dict | None, utc_offset_seconds: i
             "relative_humidity": humidity * 100 if humidity is not None else None,
             "wind_speed_kmh": _mps_to_kmh(item.get("windSpeed")),
             "wind_gusts_kmh": _mps_to_kmh(item.get("windGust")),
+            "uv_index": _to_float(item.get("uvIndex")),
+            "visibility": (_to_float(item.get("visibility")) * 1000
+                           if _to_float(item.get("visibility")) is not None else None),
         }
         out["pirate-weather"][rain_fusion._local_hour(moment, utc_offset_seconds)] = {
             k: v for k, v in row.items() if v is not None}
     return out
 
 
+def _owm_visibility_hours(owm_forecast: dict | None, utc_offset_seconds: int) -> dict[str, float]:
+    """OpenWeatherMap's 3-hour visibility (m), given to each hour of its block."""
+    out: dict[str, float] = {}
+    for item in (owm_forecast or {}).get("list") or [] if isinstance(owm_forecast, dict) else []:
+        if not isinstance(item, dict):
+            continue
+        moment = rain_fusion._parse_utc(item.get("dt"))
+        visibility = _to_float(item.get("visibility"))
+        if moment is None or visibility is None:
+            continue
+        for shift in (-1, 0, 1):
+            out.setdefault(rain_fusion._local_hour(moment + timedelta(hours=shift), utc_offset_seconds), visibility)
+    return out
+
+
+# UV: Open-Meteo (CAMS) and Pirate Weather; MET gives only a clear-sky UV.
+HOURLY_UV_WEIGHTS: dict[str, float] = {"open-meteo": 1.2, "pirate-weather": 0.8}
+
+
 def _blend_provider_hours(hourly: list[dict], met: dict | None, pirate: dict | None,
-                          utc_offset_seconds: int) -> None:
+                          utc_offset_seconds: int, owm_forecast: dict | None = None) -> None:
     """Pull every hour toward MET Norway's and Pirate Weather's own forecast, in place.
 
-    The real feel moves with the temperature, and the hour is rescored.
+    The real feel moves with the temperature, and the hour is rescored. The UV
+    index is weighed from Open-Meteo and Pirate Weather; the visibility is the
+    median of Open-Meteo, Pirate Weather and OpenWeatherMap, each read up to
+    VISIBILITY_CAP_M, so one model's lone fog does not decide an hour alone.
     """
     by_provider = _provider_hours(met, pirate, utc_offset_seconds)
-    if not any(by_provider.values()):
+    owm_visibility = _owm_visibility_hours(owm_forecast, utc_offset_seconds)
+    if not any(by_provider.values()) and not owm_visibility:
         return
     for hour in hourly:
         slot = str(hour.get("time", ""))[:13] + ":00"
         changed = False
         old_temp = hour.get("temperature")
+        pirate_hour = by_provider.get("pirate-weather", {}).get(slot) or {}
+        if hour.get("uv_index") is not None and pirate_hour.get("uv_index") is not None:
+            hour["uv_index"] = round(_weighted_avg(
+                [float(hour["uv_index"]), pirate_hour["uv_index"]],
+                [HOURLY_UV_WEIGHTS["open-meteo"], HOURLY_UV_WEIGHTS["pirate-weather"]]), 1)
+        votes = [v for v in (_to_float(hour.get("visibility")), pirate_hour.get("visibility"),
+                             owm_visibility.get(slot)) if v is not None]
+        if len(votes) > 1:
+            visibility = float(_median([min(VISIBILITY_CAP_M, max(0.0, v)) for v in votes]))
+            if visibility != hour.get("visibility"):
+                hour["visibility"] = round(visibility)
+                changed = True
         for field in _HOURLY_PROVIDER_FIELDS:
             base = hour.get(field)
             if base is None:
@@ -5253,7 +5291,7 @@ async def _collect_weather(
 
     ensemble = _ensemble_by_time(ens_raw)
     hourly = _build_hourly(om_data, ensemble)
-    _blend_provider_hours(hourly, met_raw, pw_raw, utc_offset)
+    _blend_provider_hours(hourly, met_raw, pw_raw, utc_offset, owm_forecast)
     learned = calibration.current(rain_fusion.WEIGHTS)
     # What the log learned about the numbers here: station spreads and biases,
     # and how warm or cold the models run in this very cell.
