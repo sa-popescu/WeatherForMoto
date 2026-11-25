@@ -2,7 +2,7 @@ import { scoreBreakdown, scoreHour } from '../../../lib/directWeather';
 import { fmtTemp } from '../../../lib/format';
 import { fmt, pick, type Lang } from '../../../lib/i18n';
 import type { CurrentWeather, HourlyWeather, ScoreFactor } from '../../../lib/types';
-import { capitalize, fmtVisibility, maxOf, minOf, rainPhrase, timeLabel } from './formatting';
+import { capitalize, fmtVisibility, maxOf, minOf, rainPhrase, timePhrase } from './formatting';
 import { TEXTS } from './texts';
 
 // The main reason a score is low, in plain language. For "now" it uses the
@@ -130,11 +130,11 @@ export function causePhrase(c: Cause, lang: Lang): string {
   }
 }
 
-/** Full sentence; with `nowIso` and a later `from`, prefixed "De la 16:00: ...". */
+/** Full sentence; with `nowIso` and a later `from`, prefixed "De la 16:00: ..." or "Mâine de la 03:00: ...". */
 export function causeSentence(c: Cause, lang: Lang, nowIso?: string): string {
   const phrase = causePhrase(c, lang);
   if (nowIso && c.from && c.from.slice(0, 13) > nowIso.slice(0, 13)) {
-    return `${fmt(pick(TEXTS, lang).fromHour, { hour: timeLabel(c.from, nowIso, lang), text: phrase })}.`;
+    return `${capitalize(fmt(pick(TEXTS, lang).fromHour, { from: timePhrase('from', c.from, nowIso, lang), text: phrase }))}.`;
   }
   return `${capitalize(phrase)}.`;
 }
