@@ -64,7 +64,9 @@ describe('the radar in the headline', () => {
   const radar = (over: Partial<RadarRain>): RadarRain => ({
     nowMmPerHour: 0, arrivesInMin: null, stopsInMin: null, peakMmPerHour: 0, reachMin: 90, baseSec: 0, ...over,
   });
-  const headline = (r: RadarRain | null) => buildHeadline({ current: current(), hourly, startIndex: 10, daily: DAILY, lang: 'ro', radar: r });
+  // Damp air: radar rain over dry air with no forecast behind it is left out (trustedRadar).
+  const headline = (r: RadarRain | null) =>
+    buildHeadline({ current: current({ humidity: 85 }), hourly, startIndex: 10, daily: DAILY, lang: 'ro', radar: r });
 
   it('turns a yes into "yes, but" for a shower within the hour', () => {
     const h = headline(radar({ arrivesInMin: 22, peakMmPerHour: 3 }));
@@ -97,7 +99,7 @@ describe('the radar in the headline', () => {
       precipitation_mm: i >= 16 ? 3.8 : 0,
     }));
     const h = buildHeadline({
-      current: current({ moto_score: 94 }), hourly: wetLater, startIndex: 10, daily: DAILY, lang: 'ro',
+      current: current({ moto_score: 94, humidity: 85 }), hourly: wetLater, startIndex: 10, daily: DAILY, lang: 'ro',
       radar: radar({ nowMmPerHour: 9, peakMmPerHour: 9 }),
     });
     expect(h.sub).toContain('min. De la 16:00: 84% șanse');

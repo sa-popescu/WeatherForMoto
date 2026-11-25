@@ -242,5 +242,57 @@ class LearningTests(unittest.TestCase):
         self.assertEqual(window["forecasts"][0]["om_temp"], 6.5)
 
 
+class SkyTests(unittest.TestCase):
+    def test_an_overcast_airport_beats_a_clear_openweathermap(self) -> None:
+        om = make_om_payload()
+        om["current"]["weather_code"] = 2
+        owm = {"main": {"temp": 18.0, "feels_like": 18.0, "humidity": 60, "pressure": 1013},
+               "wind": {"speed": 3.0}, "weather": [{"id": 800, "description": "cer senin"}],
+               "clouds": {"all": 0}, "visibility": 10000}
+        airport = {"station": "LROP", "distance_km": 6.0, "wmo_code": None,
+                   "sky": {"cloud": 1.0, "sky": "OVC", "sees_high": True}}
+        current = ws._merge_current(om, owm, None, metar_obs=airport)
+        self.assertEqual(current["weather_code"], 3)
+        self.assertNotEqual(current["description"], "Cer senin")
+        self.assertGreater(current["cloud_cover"], 70)
+
+    def test_a_phenomenon_keeps_its_code(self) -> None:
+        sky = ws._judge_sky(metar_sky=None, model_cover=10.0, owm_cover=None, met_cover=None, pirate_cover=None)
+        self.assertEqual(sky["code"], 0)
+        self.assertIsNone(ws._judge_sky(metar_sky=None, model_cover=None, owm_cover=None,
+                                        met_cover=None, pirate_cover=None))
+
+
+class RainAmountTests(unittest.TestCase):
+    def test_the_amount_is_weighed_like_the_chance(self) -> None:
+        import rain_fusion
+        fused = rain_fusion.fuse_hour(
+            open_meteo_probability=80, wet_models=5, rain_models=6, model_amount=0.0,
+            votes={"ensemble": {"probability": 0.8, "amount": 1.6, "range": (0.4, 3.0), "members": 100},
+                   "pirate-weather": {"probability": 0.7, "amount": 1.2}})
+        self.assertGreater(fused["amount_mm"], 0.5)
+        self.assertLess(fused["amount_mm"], 1.6)
+
+    def test_a_day_sums_its_hours(self) -> None:
+        rain = [0.0] * 48
+        rain[14], rain[15] = 1.5, 2.5
+        om = make_om_payload(precipitation=rain, precipitation_probability=[80] * 48)
+        hourly = ws._build_hourly(om)
+        daily = ws._merge_daily(om, None, hourly=hourly, now_local="2024-06-01T00:00")
+        self.assertEqual(daily[0]["precipitation_mm"], round(sum(h["precipitation_mm"] for h in hourly[:24]), 1))
+
+
+class VisibilityTests(unittest.TestCase):
+    def test_a_near_airport_measures_it(self) -> None:
+        self.assertEqual(ws._judge_visibility(airport_m=800.0, airport_km=4.0, providers=[10000.0, 24000.0]), 800.0)
+
+    def test_one_provider_alone_cannot_call_fog(self) -> None:
+        self.assertEqual(ws._judge_visibility(airport_m=None, airport_km=None, providers=[10000.0, 600.0, 24000.0]),
+                         10000.0)
+
+    def test_a_far_airport_still_votes(self) -> None:
+        self.assertLess(ws._judge_visibility(airport_m=2000.0, airport_km=18.0, providers=[10000.0, 10000.0]), 10000.0)
+
+
 if __name__ == "__main__":
     unittest.main()
