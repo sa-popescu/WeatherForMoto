@@ -7,6 +7,7 @@ import { Choices, Group } from '../ui/controls';
 import { AlertLocation } from './AlertLocation';
 import { AlertThresholds } from './AlertThresholds';
 import { QuietHours } from './QuietHours';
+import { SevereAlerts } from './SevereAlerts';
 
 /** Props every alert sub-card gets: the merged prefs and the shared editor. */
 export interface AlertCardProps {
@@ -35,6 +36,7 @@ export function AlertsSection() {
         <h3 className="acct-sub">{s.severityTitle}</h3>
         <Choices label={s.severityTitle} options={severities} value={prefs.severity} onChange={(severity) => update({ severity })} />
       </Card>
+      <SevereAlerts prefs={prefs} update={update} />
       <AlertThresholds prefs={prefs} update={update} />
       <QuietHours prefs={prefs} update={update} />
     </Group>

@@ -282,6 +282,15 @@ gcloud scheduler jobs resume mm-dispatch-alerts --location europe-west1 --projec
 gcloud scheduler jobs pause mm-dispatch-alerts --location europe-west1 --project weatherformoto
 ```
 
+**Vreme severă:** furtună, vijelie, grindină, ploi torențiale (`backend/severe_alerts.py`). Ora de la `dispatch-all` le trimite deja. Ca o avertizare nowcasting ANM (valabilă 30 - 90 de minute) să ajungă la timp, `POST /alerts/dispatch-severe` verifică doar avertizările și fulgerele, fără furnizorii de prognoză, și e făcut să ruleze la 10 minute. Job-ul se creează o singură dată, cu același secret ca `mm-dispatch-alerts`:
+
+```bash
+gcloud scheduler jobs create http mm-dispatch-severe --location europe-west1 --project weatherformoto \
+  --schedule "*/10 * * * *" --time-zone "Europe/Bucharest" --http-method POST \
+  --uri "https://weatherformoto-1056457771445.europe-west1.run.app/alerts/dispatch-severe" \
+  --headers "X-Dispatch-Secret=<același secret ca la mm-dispatch-alerts>"
+```
+
 Deploy manual, dacă GitHub Actions nu e disponibil (păstrează variabilele și secretele serviciului):
 
 ```bash
