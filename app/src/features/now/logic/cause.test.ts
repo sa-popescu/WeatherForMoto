@@ -24,3 +24,22 @@ describe('the road after rain', () => {
     expect(causeSentence(onlyFirst!, 'ro')).toMatch(/^Prima ploaie după zile uscate, asfalt alunecos/);
   });
 });
+
+describe('the cold later today', () => {
+  it('says "down to" when the coldest feel is not the first hour (Rahova, 25 Nov 19:30)', () => {
+    const hours = [
+      hour('2026-11-25T19:00', { feels_like: -0.9 }),
+      hour('2026-11-25T22:00', { feels_like: -2.1 }),
+      hour('2026-11-25T23:00', { feels_like: -3.0 }),
+    ];
+    const cause = causeFromHours(hours);
+    expect(cause?.factor).toBe('cold');
+    expect(causeSentence(cause!, 'ro')).toBe('Frig, resimțit până la -3°.');
+    expect(causeSentence(cause!, 'en')).toBe('Cold, feeling down to -3°.');
+  });
+
+  it('keeps "resimțit" when the first hour is already the coldest', () => {
+    const cause = causeFromHours([hour('2026-11-25T19:00', { feels_like: -3.0 }), hour('2026-11-25T20:00', { feels_like: -2.0 })]);
+    expect(causeSentence(cause!, 'ro')).toBe('Frig, resimțit -3°.');
+  });
+});

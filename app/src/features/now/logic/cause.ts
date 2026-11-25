@@ -24,6 +24,8 @@ export interface Cause {
   mm: number | null;
   gust: number | null;
   feels: number | null;
+  /** The feel above is the span's extreme, reached after its first hour (so not "now"). */
+  feelsLater?: boolean;
   visibilityM: number | null;
   road: number | null;
 }
@@ -55,6 +57,7 @@ export function causeFromHours(hours: ReadonlyArray<HourlyWeather>): Cause | nul
   if (!top) return null;
   const hit = perHour.filter((x) => x.factors.some((f) => f.factor === top.factor && reductionOf(f) > 0)).map((x) => x.h);
   const feels = hit.map((h) => h.feels_like);
+  const extreme = top.factor === 'heat' ? maxOf(feels) : minOf(feels);
   return {
     factor: top.factor,
     from: hit[0]?.time ?? null,
@@ -62,7 +65,10 @@ export function causeFromHours(hours: ReadonlyArray<HourlyWeather>): Cause | nul
     probability: maxOf(hit.map((h) => h.precipitation_probability)),
     mm: maxOf(hit.map((h) => h.precipitation_mm)),
     gust: maxOf(hit.map((h) => h.wind_gusts_kmh)),
-    feels: top.factor === 'heat' ? maxOf(feels) : minOf(feels),
+    feels: extreme,
+    // "Frig, resimțit -3°" under a -0,9° now read as a contradiction when the
+    // -3° was tonight's: an extreme the first hour does not reach says "până la".
+    feelsLater: extreme != null && hit.length > 1 && hit[0].feels_like !== extreme,
     visibilityM: minOf(hit.map((h) => h.visibility)),
     road: minOf(hit.map((h) => h.road_surface_temp)),
   };
@@ -116,9 +122,9 @@ export function causePhrase(c: Cause, lang: Lang): string {
     case 'wind':
       return fmt(t.causeWind, { gust: Math.round(c.gust ?? 0) });
     case 'cold':
-      return fmt(t.causeCold, { feels });
+      return fmt(c.feelsLater ? t.causeColdDown : t.causeCold, { feels });
     case 'heat':
-      return fmt(t.causeHeat, { feels });
+      return fmt(c.feelsLater ? t.causeHeatUp : t.causeHeat, { feels });
     case 'cold_wet':
       return fmt(t.causeColdWet, { feels, rain });
     case 'frost':
