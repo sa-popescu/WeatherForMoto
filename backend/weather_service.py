@@ -30,6 +30,7 @@ import httpx
 
 import anm_nowcast
 import arbiter
+import value_arbiter
 import meteoalarm
 import metar
 import official_stations
@@ -994,6 +995,26 @@ def _road_surface_temp(
         road_temp -= 2.0
 
     return round(road_temp, 1)
+
+
+def _apparent_temperature(
+    temp_c: float | None, humidity_pct: float | None, wind_kmh: float | None
+) -> float | None:
+    """The real feel of the air: Steadman's apparent temperature, without the sun.
+
+    The formula Open-Meteo itself uses for apparent_temperature (Australian
+    Bureau of Meteorology): AT = T + 0.33 e - 0.70 v - 4.00, with the water
+    vapour pressure e in hPa and the 10 m wind v in m/s. Computed here from the
+    final temperature, humidity and wind, so a station that moves the
+    temperature moves the real feel with it.
+    """
+    if temp_c is None or humidity_pct is None or wind_kmh is None:
+        return None
+    t = float(temp_c)
+    rh = max(0.0, min(100.0, float(humidity_pct)))
+    vapour_hpa = rh / 100.0 * 6.105 * math.exp(17.27 * t / (237.7 + t))
+    wind_ms = max(0.0, float(wind_kmh)) / 3.6
+    return round(t + 0.33 * vapour_hpa - 0.70 * wind_ms - 4.00, 2)
 
 
 def _dew_point_c(temp_c: float | None, humidity_pct: float | None) -> float | None:
@@ -2897,6 +2918,13 @@ def _normalize_netatmo_current(payload: dict | None) -> dict | None:
         # The station behind the temperature, for the sources screen.
         "station": temp_from[1] if temp_from else None,
         "distance_km": round(temp_from[0], 1) if temp_from else None,
+        # Each field can come from another station: how far each one is.
+        "distances_km": {
+            key: round(best[field][0], 1)
+            for key, field in (("temp", "temp"), ("humidity", "humidity"),
+                               ("wind_speed_kmh", "wind"), ("wind_gusts_kmh", "gust"))
+            if field in best
+        },
         "observed_at": (datetime.fromtimestamp(temp_from[2], tz=timezone.utc).isoformat()
                         if temp_from else None),
     }
@@ -3673,6 +3701,7 @@ def _merge_current(
     community_norm: dict | None = None,
     radar_hours: dict[str, float] | None = None,
     learned_weights: dict[str, float] | None = None,
+    value_learning: dict[str, Any] | None = None,
 ) -> dict:
     c = om_data.get("current", {})
     nta = netatmo_norm or {}
@@ -3729,9 +3758,37 @@ def _merge_current(
             weights.append(COMMUNITY_SENSORS_WEIGHT)
         return _weighted_avg(values, weights)
 
-    temp = _wxm_or_blend(wxm_temp, [om_temp, owm_temp, met_temp, pw_temp], [1.2, 1.0, 1.1, 0.8],
-                         nta_val=nta.get("temp"), official_val=off.get("temp"), community_val=com.get("temp"))
-    feels = _wxm_or_blend(wxm_feel, [om_feel, owm_feel, pw_feel], [1.0, 1.0, 0.8])
+    # Every station is a witness with an uncertainty that grows with distance and
+    # age; the providers speak together as "the models" (value_arbiter.py). A
+    # station that disagrees with everyone else is set aside, not obeyed.
+    now_utc = datetime.now(timezone.utc)
+    station_sets = {"official": off, "weatherxm": wxm_norm or {}, "netatmo": nta, "sensor-community": com}
+
+    def _readings(key: str) -> dict[str, dict[str, Any]]:
+        out: dict[str, dict[str, Any]] = {}
+        for source, station in station_sets.items():
+            if not station or station.get(key) is None:
+                continue
+            observed = _parse_observation_time(station.get("observed_at"))
+            distance = (station.get("distances_km") or {}).get(key, station.get("distance_km"))
+            out[source] = {
+                "value": station.get(key),
+                "distance_km": distance,
+                "age_h": (now_utc - observed).total_seconds() / 3600 if observed else None,
+                "station": station.get("station"),
+            }
+        return out
+
+    value_verdicts: dict[str, Any] = {}
+
+    def _judged(variable: str, key: str, model_vals: list, model_weights: list[float]) -> float | None:
+        verdict = value_arbiter.judge_value(
+            variable, models=(model_vals, model_weights), stations=_readings(key),
+            learned=value_learning)
+        value_verdicts[variable] = verdict
+        return verdict["value"] if verdict else None
+
+    temp = _judged("temperature", "temp", [om_temp, owm_temp, met_temp, pw_temp], [1.2, 1.0, 1.1, 0.8])
 
     # --- humidity
     om_hum = c.get("relative_humidity_2m")
@@ -3739,9 +3796,7 @@ def _merge_current(
     met_hum = met_norm.get("humidity") if met_norm else None
     pw_hum = pw_norm.get("humidity") if pw_norm else None
     wxm_hum = wxm_norm.get("humidity") if wxm_norm else None
-    humidity = _wxm_or_blend(wxm_hum, [om_hum, owm_hum, met_hum, pw_hum], [1.2, 1.0, 1.1, 0.8],
-                             nta_val=nta.get("humidity"), official_val=off.get("humidity"),
-                             community_val=com.get("humidity"))
+    humidity = _judged("humidity", "humidity", [om_hum, owm_hum, met_hum, pw_hum], [1.2, 1.0, 1.1, 0.8])
 
     # --- wind speed (km/h) and gusts
     om_wind = c.get("wind_speed_10m")
@@ -3749,8 +3804,7 @@ def _merge_current(
     met_wind = met_norm.get("wind_speed_kmh") if met_norm else None
     pw_wind = pw_norm.get("wind_speed_kmh") if pw_norm else None
     wxm_wind = wxm_norm.get("wind_speed_kmh") if wxm_norm else None
-    wind_speed = _wxm_or_blend(wxm_wind, [om_wind, owm_wind, met_wind, pw_wind], [1.2, 1.0, 1.1, 0.8],
-                               nta_val=nta.get("wind_speed_kmh"), official_val=off.get("wind_speed_kmh"))
+    wind_speed = _judged("wind", "wind_speed_kmh", [om_wind, owm_wind, met_wind, pw_wind], [1.2, 1.0, 1.1, 0.8])
 
     om_gusts = c.get("wind_gusts_10m")
     # Only real gust values are blended; sustained wind never stands in for a gust.
@@ -3758,9 +3812,16 @@ def _merge_current(
     met_gusts = met_norm.get("wind_gusts_kmh") if met_norm else None
     pw_gusts = pw_norm.get("wind_gusts_kmh") if pw_norm else None
     wxm_gusts = wxm_norm.get("wind_gusts_kmh") if wxm_norm else None
-    wind_gusts = _wxm_or_blend(wxm_gusts, [om_gusts, owm_gusts, met_gusts, pw_gusts],
-                               [1.2, 0.8, 1.1, 1.0], nta_val=nta.get("wind_gusts_kmh"),
-                               official_val=off.get("wind_gusts_kmh"))
+    wind_gusts = _judged("gusts", "wind_gusts_kmh", [om_gusts, owm_gusts, met_gusts, pw_gusts],
+                         [1.2, 0.8, 1.1, 1.0])
+
+    # --- real feel: from the temperature, humidity and wind decided above, so it
+    # follows a station the same way the temperature does. The providers' own
+    # feels-like (each computed on its own model temperature) is only the
+    # fallback when one of the three is missing.
+    feels = _apparent_temperature(temp, humidity, wind_speed)
+    if feels is None:
+        feels = _wxm_or_blend(wxm_feel, [om_feel, owm_feel, pw_feel], [1.0, 1.0, 0.8])
 
     # A measured direction when the official station has one, else the model's.
     wind_dir = _first_not_none(off.get("wind_dir"), c.get("wind_direction_10m"))
@@ -4012,6 +4073,8 @@ def _merge_current(
             "storm": None,
             "summary": rain_verdict["explanation"],
             "summary_en": rain_verdict["explanation_en"],
+            # The numbers too: who said what, who was believed, and why.
+            "values": {name: verdict for name, verdict in value_verdicts.items() if verdict},
         },
         "road_surface_temp": road_temp,
         "road_surface_range": None,
@@ -4064,6 +4127,27 @@ def _owm_items_by_local_date(
         date: items for date, items in by_date.items()
         if len(items) * 3 >= MIN_DAY_COVERAGE_HOURS
     }
+
+
+def _day_extremes_from_hours(day_hours: list[dict[str, Any]]) -> dict[str, float] | None:
+    """The day's highs and lows read off its own hours; None for a day they only partly cover."""
+    if len(day_hours) < MIN_DAY_COVERAGE_HOURS:
+        return None
+
+    def values(field: str) -> list[float]:
+        return [float(h[field]) for h in day_hours if h.get(field) is not None]
+
+    out: dict[str, float] = {}
+    for field, key_max, key_min in (("temperature", "temp_max", "temp_min"),
+                                    ("feels_like", "feels_max", "feels_min")):
+        vals = values(field)
+        if len(vals) >= MIN_DAY_COVERAGE_HOURS:
+            out[key_max] = round(max(vals), 1)
+            out[key_min] = round(min(vals), 1)
+    gusts = values("wind_gusts_kmh")
+    if len(gusts) >= MIN_DAY_COVERAGE_HOURS:
+        out["gusts_max"] = round(max(gusts), 1)
+    return out or None
 
 
 def _merge_daily(
@@ -4123,6 +4207,16 @@ def _merge_daily(
         t_min = _weighted_avg([t_min_om, t_min_owm, t_min_met], [1.2, 1.0, 1.1])
         fa_max = _weighted_avg([fa_max_om, fa_max_owm], [1.0, 1.0])
         fa_min = _weighted_avg([fa_min_om, fa_min_owm], [1.0, 1.0])
+        # A day the hours fully cover takes its extremes from them: they already
+        # weigh every model and provider, and carry what a station measured, so
+        # the day's maximum can no longer disagree with its own hour list.
+        day_hours = hours_by_date.get(date, [])
+        from_hours = _day_extremes_from_hours(day_hours)
+        if from_hours:
+            t_max = _first_not_none(from_hours.get("temp_max"), t_max)
+            t_min = _first_not_none(from_hours.get("temp_min"), t_min)
+            fa_max = _first_not_none(from_hours.get("feels_max"), fa_max)
+            fa_min = _first_not_none(from_hours.get("feels_min"), fa_min)
 
         # precipitation (OWM/MET only for days they fully cover)
         prec_om = _safe(daily.get("precipitation_sum"), i)
@@ -4145,6 +4239,8 @@ def _merge_daily(
         gusts_owm = max(owm_gust_values) if owm_gust_values else None
         gusts_met = met_day.get("gust_max_kmh")
         wind_gusts = _weighted_avg([gusts_om, gusts_owm, gusts_met], [1.2, 0.8, 1.0])
+        if from_hours and from_hours.get("gusts_max") is not None:
+            wind_gusts = from_hours["gusts_max"]
 
         wind_max = _safe(daily.get("wind_speed_10m_max"), i)
 
@@ -4293,6 +4389,109 @@ def _build_hourly(om_data: dict, ensemble: dict[str, dict[str, Any]] | None = No
             **_road_inputs(hourly, i, ens_hour),
         })
     return result
+
+
+# The hourly forecasts of MET Norway and Pirate Weather join Open-Meteo's
+# (which already carries the seamless blend and the national models' mean,
+# weight HOURLY_BASE_WEIGHT together). Only hours a provider forecasts on the
+# hour count: MET's 6-hour blocks past the first days are left out.
+HOURLY_BASE_WEIGHT = 3.0
+HOURLY_PROVIDER_WEIGHTS: dict[str, float] = {"met-norway": 1.1, "pirate-weather": 0.8}
+_HOURLY_PROVIDER_FIELDS = ("temperature", "relative_humidity", "wind_speed_kmh", "wind_gusts_kmh")
+
+
+def _provider_hours(met: dict | None, pirate: dict | None, utc_offset_seconds: int) -> dict[str, dict[str, dict[str, float]]]:
+    """Per provider, per local hour "YYYY-MM-DDTHH:00": its temperature, humidity, wind and gusts."""
+    out: dict[str, dict[str, dict[str, float]]] = {"met-norway": {}, "pirate-weather": {}}
+    try:
+        series = met["properties"]["timeseries"] if isinstance(met, dict) else []
+    except (KeyError, TypeError):
+        series = []
+    for step in series if isinstance(series, list) else []:
+        if not isinstance(step, dict) or "next_1_hours" not in (step.get("data") or {}):
+            continue
+        moment = rain_fusion._parse_utc(step.get("time"))
+        details = ((step.get("data") or {}).get("instant") or {}).get("details") or {}
+        if moment is None:
+            continue
+        row = {
+            "temperature": _to_float(details.get("air_temperature")),
+            "relative_humidity": _to_float(details.get("relative_humidity")),
+            "wind_speed_kmh": _mps_to_kmh(details.get("wind_speed")),
+            "wind_gusts_kmh": _mps_to_kmh(details.get("wind_speed_of_gust")),
+        }
+        out["met-norway"][rain_fusion._local_hour(moment, utc_offset_seconds)] = {
+            k: v for k, v in row.items() if v is not None}
+    rows = ((pirate or {}).get("hourly") or {}).get("data") if isinstance(pirate, dict) else None
+    for item in rows if isinstance(rows, list) else []:
+        if not isinstance(item, dict):
+            continue
+        moment = rain_fusion._parse_utc(item.get("time"))
+        if moment is None:
+            continue
+        humidity = _to_float(item.get("humidity"))
+        row = {
+            "temperature": _to_float(item.get("temperature")),
+            "relative_humidity": humidity * 100 if humidity is not None else None,
+            "wind_speed_kmh": _mps_to_kmh(item.get("windSpeed")),
+            "wind_gusts_kmh": _mps_to_kmh(item.get("windGust")),
+        }
+        out["pirate-weather"][rain_fusion._local_hour(moment, utc_offset_seconds)] = {
+            k: v for k, v in row.items() if v is not None}
+    return out
+
+
+def _blend_provider_hours(hourly: list[dict], met: dict | None, pirate: dict | None,
+                          utc_offset_seconds: int) -> None:
+    """Pull every hour toward MET Norway's and Pirate Weather's own forecast, in place.
+
+    The real feel moves with the temperature, and the hour is rescored.
+    """
+    by_provider = _provider_hours(met, pirate, utc_offset_seconds)
+    if not any(by_provider.values()):
+        return
+    for hour in hourly:
+        slot = str(hour.get("time", ""))[:13] + ":00"
+        changed = False
+        old_temp = hour.get("temperature")
+        for field in _HOURLY_PROVIDER_FIELDS:
+            base = hour.get(field)
+            if base is None:
+                continue
+            values, weights = [float(base)], [HOURLY_BASE_WEIGHT]
+            for name, weight in HOURLY_PROVIDER_WEIGHTS.items():
+                value = (by_provider.get(name, {}).get(slot) or {}).get(field)
+                if value is not None:
+                    values.append(value)
+                    weights.append(weight)
+            if len(values) > 1:
+                hour[field] = _weighted_avg(values, weights)
+                changed = True
+        if not changed:
+            continue
+        if old_temp is not None and hour.get("temperature") is not None and hour.get("feels_like") is not None:
+            hour["feels_like"] = round(float(hour["feels_like"]) + float(hour["temperature"]) - float(old_temp), 2)
+        _rescore_hour(hour)
+
+
+def _apply_cell_temperature_bias(hourly: list[dict], bias_c: float | None) -> None:
+    """Take out what the log says the models add to the temperature in this cell, in place.
+
+    calibration.learn_values compares Open-Meteo's temperature an hour ahead
+    with the official station of the same cell; a cell where it keeps running
+    warm or cold (a valley, a city) gets every hour corrected by that amount,
+    already halved and capped there. The real feel moves with it.
+    """
+    if not bias_c:
+        return
+    for hour in hourly:
+        changed = False
+        for field in ("temperature", "feels_like"):
+            if hour.get(field) is not None:
+                hour[field] = round(float(hour[field]) - bias_c, 2)
+                changed = True
+        if changed:
+            _rescore_hour(hour)
 
 
 def _settle_hours(hourly: list[dict]) -> None:
@@ -5165,7 +5364,14 @@ async def _collect_weather(
 
     ensemble = _ensemble_by_time(ens_raw)
     hourly = _build_hourly(om_data, ensemble)
+    _blend_provider_hours(hourly, met_raw, pw_raw, utc_offset)
     learned = calibration.current(rain_fusion.WEIGHTS)
+    # What the log learned about the numbers here: station spreads and biases,
+    # and how warm or cold the models run in this very cell.
+    cell_id = verification.cell_key(cell)
+    value_learning = calibration.values_for_cell(learned.values, cell_id) if learned else None
+    _apply_cell_temperature_bias(hourly, calibration.cell_temperature_bias(
+        learned.values if learned else None, cell_id))
     rain_members, rain_by_source = _fuse_rain(hourly, ensemble, rain_ensemble=rain_ens_raw, pirate=pw_raw,
                                               owm_forecast=owm_forecast, met=met_raw,
                                               utc_offset_seconds=utc_offset, learned=learned)
@@ -5187,7 +5393,8 @@ async def _collect_weather(
                              wxm_norm, netatmo_norm, hourly=hourly,
                              official_norm=official_norm, metar_obs=metar_obs, community_norm=community_norm,
                              radar_hours=radar_hours,
-                             learned_weights=learned.weights if learned else None)
+                             learned_weights=learned.weights if learned else None,
+                             value_learning=value_learning)
     # Before the daily scores are built, so the day counts the hours as corrected.
     _carry_measured_bias(om_data, hourly, current,
                          _measured_fields(wxm_norm, netatmo_norm, official_norm, community_norm))

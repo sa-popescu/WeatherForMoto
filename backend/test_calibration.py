@@ -175,7 +175,7 @@ class RefreshTests(unittest.TestCase):
         calibration.reset_for_tests()
         self.addCleanup(calibration.reset_for_tests)
         self.stored: list[str] = []
-        self.read = mock.Mock(return_value=list(self.ROWS))
+        self.read = mock.Mock(return_value={"rain": list(self.ROWS), "observations": [], "forecasts": []})
         self.prune = mock.Mock()
         self.in_state: str | None = None
         for name, fake in (

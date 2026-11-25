@@ -53,7 +53,9 @@ export function Hero({ score, personal, model, current, onScore }: HeroProps) {
     <section className="now-hero" aria-labelledby="now-verdict">
       <div className="now-hero__weather">
         <div className="now-hero__temps">
-          <p className="now-hero__temp">{temp1(current.temperature, lang)}</p>
+          <p className="now-hero__temp" title={tempTitle(current, lang)}>
+            {temp1(current.temperature, lang)}
+          </p>
           {current.feels_like != null && (
             <p className="now-hero__feels">
               <span>{s.feelsLabel}</span>
@@ -119,7 +121,14 @@ function Why({ current, lang }: { current: CurrentWeather; lang: 'ro' | 'en' }) 
     v.fog?.state === 'fog' ? (en ? 'Fog' : 'Ceață') : null,
     v.storm?.state === 'storm' ? (en ? 'Storm' : 'Furtună') : null,
   ].filter((x): x is string => Boolean(x));
-  const details = [pick(rain), v.fog && pick(v.fog), v.storm && pick(v.storm)].filter((x): x is string => Boolean(x));
+  // The temperature's sentence joins the reasons when a station moved it or was set aside.
+  const temperature = v.values?.temperature;
+  const details = [
+    pick(rain),
+    v.fog && pick(v.fog),
+    v.storm && pick(v.storm),
+    temperature?.notable && pick(temperature),
+  ].filter((x): x is string => Boolean(x));
   return (
     <div className="now-hero__why">
       <button type="button" className="now-hero__why-line" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
@@ -131,6 +140,13 @@ function Why({ current, lang }: { current: CurrentWeather; lang: 'ro' | 'en' }) 
       {open && <p className="now-hero__why-more">{details.join(' ')}</p>}
     </div>
   );
+}
+
+/** How the temperature was decided, for the tooltip; undefined on older servers. */
+function tempTitle(current: CurrentWeather, lang: 'ro' | 'en'): string | undefined {
+  const t = current.verdict?.values?.temperature;
+  if (!t) return undefined;
+  return lang === 'en' ? t.explanation_en : t.explanation;
 }
 
 /** A temperature to a tenth of a degree: "1,4°", "-3,6°". */

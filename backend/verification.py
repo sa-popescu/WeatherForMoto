@@ -184,6 +184,47 @@ def rain_pairs(conn: Any, since: str, columns: Sequence[str]) -> list[dict[str, 
     return pairs
 
 
+def read_window(conn: Any, since: str, columns: Sequence[str]) -> dict[str, Any]:
+    """Blocking: everything calibration learns from, in two plain scans.
+
+    "rain" is what rain_pairs returns (see there for why the join is done in
+    Python). "observations" are the measured temperatures and gusts,
+    {"cell", "hour", "source", "distance_km", "temp", "gusts"}, and
+    "forecasts" the forecast side the numbers are judged on, {"cell",
+    "valid_hour", "lead_h", "om_temp", "gusts"}. The same two scans serve
+    both, so learning the numbers costs the database no extra rows.
+    """
+    observed: dict[tuple[str, str], int] = {}
+    observations: list[dict[str, Any]] = []
+    for row in conn.execute(
+        "SELECT cell, hour, source, distance_km, temp, gusts, raining FROM observation_log WHERE hour >= ?",
+        (since,),
+    ).fetchall():
+        if row["raining"] is not None:
+            key = (row["cell"], row["hour"])
+            observed[key] = max(observed.get(key, 0), int(row["raining"]))
+        if row["temp"] is not None or row["gusts"] is not None:
+            observations.append({name: row[name] for name in
+                                 ("cell", "hour", "source", "distance_km", "temp", "gusts")})
+
+    extra = [name for name in ("lead_h", "om_temp", "gusts") if name not in columns]
+    pairs: list[dict[str, Any]] = []
+    forecasts: list[dict[str, Any]] = []
+    for row in conn.execute(
+        f"SELECT cell, valid_hour, {', '.join([*columns, *extra])} FROM forecast_log WHERE issued_hour >= ?",
+        (since,),
+    ).fetchall():
+        forecasts.append({"cell": row["cell"], "valid_hour": row["valid_hour"], "lead_h": row["lead_h"],
+                          "om_temp": row["om_temp"], "gusts": row["gusts"]})
+        raining = observed.get((row["cell"], row["valid_hour"]))
+        if raining is None:
+            continue
+        pair = {column: row[column] for column in columns}
+        pair["raining"] = raining
+        pairs.append(pair)
+    return {"rain": pairs, "observations": observations, "forecasts": forecasts}
+
+
 def prune(conn: Any, now_utc: datetime) -> None:
     """Blocking: drop log rows older than RETENTION_DAYS.
 

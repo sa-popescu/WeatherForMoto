@@ -12,7 +12,14 @@ weights. This module closes the loop instead, and learns two things:
   "40%" rained one time in six, then 40% is not 40%, and the number shown is
   moved towards what actually happened.
 
-Both are deliberately timid. Nothing is learned from fewer pairs than the
+It also learns the numbers (learn_values): how far each station network reads
+from the official ANM station next to it (a bias and a spread), how far
+Open-Meteo's temperature an hour ahead lands from that station (globally, and
+per cell: the models that run cold in a valley), and the same for gusts. That
+goes to value_arbiter as uncertainties and biases, and to the hourly forecast
+as a per-cell temperature correction.
+
+All of it is deliberately timid. Nothing is learned from fewer pairs than the
 minimums below, the learned values are blended halfway with the hand-set ones
 rather than replacing them, and a database that is missing, empty or broken
 simply leaves the defaults in place. The maths here is pure; weather_service
@@ -28,10 +35,12 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 import time
 from datetime import datetime, timezone
 from typing import Any, Iterable, Sequence
 
+import value_arbiter
 import verification
 
 logger = logging.getLogger("motonor.calibration")
@@ -110,6 +119,125 @@ def learned_weights(
     return out
 
 
+# --- the numbers --------------------------------------------------------------
+
+# A station counts as the reference for a cell when it is at most this far.
+REFERENCE_MAX_KM = 15.0
+# Pairs needed before a spread or bias is learned, globally and for one cell.
+MIN_VALUE_PAIRS = 60
+MIN_CELL_PAIRS = 24
+# A per-cell correction is never more than this, in °C (before LEARNED_SHARE).
+CELL_BIAS_MAX_C = 3.0
+# How many cells are kept (the most observed first): the snapshot stays small.
+MAX_CELLS = 2000
+# Lead times the models are judged at. Temperature uses Open-Meteo's raw value
+# an hour ahead; gusts only the final value, at leads the station's own
+# correction no longer reaches (BIAS_FADE_HOURS in weather_service).
+TEMP_LEADS = (1,)
+GUST_LEADS = (6, 12)
+_VALUE_FIELDS = {"temperature": "temp", "gusts": "gusts"}
+
+
+def _mean(values: Sequence[float]) -> float:
+    return sum(values) / len(values)
+
+
+def _spread_and_bias(diffs: Sequence[float], reference_sigma: float) -> tuple[float, float]:
+    """(standard deviation without the reference's own error, mean difference)."""
+    bias = _mean(diffs)
+    variance = _mean([(d - bias) ** 2 for d in diffs]) - reference_sigma ** 2
+    return math.sqrt(max(variance, 0.01)), bias
+
+
+def learn_values(observations: Iterable[dict[str, Any]], forecasts: Iterable[dict[str, Any]]) -> dict[str, Any]:
+    """Uncertainties and biases for value_arbiter, from the measured numbers.
+
+    Returns {"sigma": {variable: {source: σ}}, "bias": {variable: {source: b}},
+    "cell_bias": {"temperature": {cell: b}}, "pairs": {...}}, already pulled
+    LEARNED_SHARE of the way from the hand-set values, so they can be used as
+    they are. Anything without enough pairs is left out (the default stands).
+    """
+    reference: dict[tuple[str, str], dict[str, Any]] = {}
+    others: list[dict[str, Any]] = []
+    for row in observations:
+        if row.get("source") == "official":
+            distance = row.get("distance_km")
+            if distance is None or float(distance) <= REFERENCE_MAX_KM:
+                reference[(str(row["cell"]), str(row["hour"]))] = row
+        else:
+            others.append(row)
+
+    sigma: dict[str, dict[str, float]] = {}
+    bias: dict[str, dict[str, float]] = {}
+    pairs: dict[str, int] = {}
+
+    def keep(variable: str, source: str, diffs: list[float]) -> None:
+        pairs[f"{variable}:{source}"] = len(diffs)
+        if len(diffs) < MIN_VALUE_PAIRS:
+            return
+        default = value_arbiter.SIGMA[variable][source]
+        spread, mean_diff = _spread_and_bias(diffs, value_arbiter.SIGMA[variable]["official"])
+        sigma.setdefault(variable, {})[source] = round(
+            default * (1 - LEARNED_SHARE) + spread * LEARNED_SHARE, 3)
+        bias.setdefault(variable, {})[source] = round(mean_diff * LEARNED_SHARE, 3)
+
+    # Station networks against the official station of the same cell and hour.
+    for variable, field in _VALUE_FIELDS.items():
+        for source in ("weatherxm", "netatmo"):
+            diffs = []
+            for row in others:
+                if row.get("source") != source or row.get(field) is None:
+                    continue
+                ref = reference.get((str(row["cell"]), str(row["hour"])))
+                if ref and ref.get(field) is not None:
+                    diffs.append(float(row[field]) - float(ref[field]))
+            keep(variable, source, diffs)
+
+    # The models against the same station, globally and per cell.
+    temp_by_cell: dict[str, list[float]] = {}
+    model_diffs: dict[str, list[float]] = {"temperature": [], "gusts": []}
+    for row in forecasts:
+        ref = reference.get((str(row["cell"]), str(row["valid_hour"])))
+        if not ref:
+            continue
+        lead = row.get("lead_h")
+        if lead in TEMP_LEADS and row.get("om_temp") is not None and ref.get("temp") is not None:
+            diff = float(row["om_temp"]) - float(ref["temp"])
+            model_diffs["temperature"].append(diff)
+            temp_by_cell.setdefault(str(row["cell"]), []).append(diff)
+        if lead in GUST_LEADS and row.get("gusts") is not None and ref.get("gusts") is not None:
+            model_diffs["gusts"].append(float(row["gusts"]) - float(ref["gusts"]))
+    for variable, diffs in model_diffs.items():
+        keep(variable, "models", diffs)
+
+    cells = sorted(((cell, diffs) for cell, diffs in temp_by_cell.items() if len(diffs) >= MIN_CELL_PAIRS),
+                   key=lambda item: -len(item[1]))[:MAX_CELLS]
+    cell_bias = {
+        cell: round(max(-CELL_BIAS_MAX_C, min(CELL_BIAS_MAX_C, _mean(diffs))) * LEARNED_SHARE, 3)
+        for cell, diffs in cells
+    }
+    out: dict[str, Any] = {"sigma": sigma, "bias": bias, "pairs": pairs}
+    if cell_bias:
+        out["cell_bias"] = {"temperature": cell_bias}
+    return out
+
+
+def values_for_cell(values: dict[str, Any] | None, cell: str) -> dict[str, Any] | None:
+    """The learned numbers as value_arbiter takes them, with this cell's own model bias."""
+    if not values:
+        return None
+    bias = {variable: dict(by_source) for variable, by_source in (values.get("bias") or {}).items()}
+    cell_temp = ((values.get("cell_bias") or {}).get("temperature") or {}).get(cell)
+    if cell_temp is not None:
+        bias.setdefault("temperature", {})["models"] = cell_temp
+    return {"sigma": values.get("sigma") or {}, "bias": bias}
+
+
+def cell_temperature_bias(values: dict[str, Any] | None, cell: str) -> float | None:
+    """How much warmer than the truth the models run in this cell, as learned (°C)."""
+    return ((((values or {}).get("cell_bias") or {}).get("temperature")) or {}).get(cell)
+
+
 def reliability_table(pairs: Sequence[Pair]) -> tuple[tuple[float, float], ...]:
     """(mean forecast, observed rate) per bin, for bins with enough pairs.
 
@@ -166,7 +294,7 @@ def calibrated(probability_pct: float | None, table: Sequence[tuple[float, float
 class Snapshot:
     """What was learned, plus how it was learned, for /meta/scoring to show."""
 
-    __slots__ = ("weights", "reliability", "pairs", "computed_at")
+    __slots__ = ("weights", "reliability", "pairs", "computed_at", "values")
 
     def __init__(
         self,
@@ -174,11 +302,14 @@ class Snapshot:
         reliability: tuple[tuple[float, float], ...] = (),
         pairs: int = 0,
         computed_at: float | None = None,
+        values: dict[str, Any] | None = None,
     ) -> None:
         self.weights = weights
         self.reliability = reliability
         self.pairs = pairs
         self.computed_at = computed_at
+        # What learn_values found for the numbers; {} until enough is logged.
+        self.values = values or {}
 
     @property
     def learned(self) -> bool:
@@ -194,11 +325,24 @@ class Snapshot:
             "reliability": [
                 {"forecast": round(f, 3), "observed": round(o, 3)} for f, o in self.reliability
             ],
+            "values": {
+                "sigma": self.values.get("sigma") or {},
+                "bias": self.values.get("bias") or {},
+                "pairs": self.values.get("pairs") or {},
+                "cells_corrected": len(((self.values.get("cell_bias") or {}).get("temperature")) or {}),
+            },
         }
 
 
-def compute(rows: Iterable[dict[str, Any]], sources: Sequence[str], defaults: dict[str, float]) -> Snapshot:
-    """Build a snapshot from the joined forecast/observation rows."""
+def compute(
+    rows: Iterable[dict[str, Any]],
+    sources: Sequence[str],
+    defaults: dict[str, float],
+    *,
+    observations: Iterable[dict[str, Any]] = (),
+    forecasts: Iterable[dict[str, Any]] = (),
+) -> Snapshot:
+    """Build a snapshot from the joined forecast/observation rows (and the numbers' rows)."""
     by_source: dict[str, list[Pair]] = {name: [] for name in sources}
     final: list[Pair] = []
     for row in rows:
@@ -217,6 +361,7 @@ def compute(rows: Iterable[dict[str, Any]], sources: Sequence[str], defaults: di
         reliability=reliability_table(final),
         pairs=len(final),
         computed_at=time.time(),
+        values=learn_values(observations, forecasts),
     )
 
 
@@ -235,6 +380,7 @@ def to_stored(snapshot: Snapshot, defaults: dict[str, float]) -> str:
         "pairs": snapshot.pairs,
         "weights": snapshot.weights,
         "reliability": [[forecast, observed] for forecast, observed in snapshot.reliability],
+        "values": snapshot.values,
         "settings": _settings(defaults),
     })
 
@@ -260,6 +406,7 @@ def from_stored(text: str | None, defaults: dict[str, float], now: float) -> Sna
             reliability=tuple((float(forecast), float(observed)) for forecast, observed in data["reliability"]),
             pairs=int(data["pairs"]),
             computed_at=computed_at,
+            values=data.get("values") if isinstance(data.get("values"), dict) else None,
         )
     except (ValueError, TypeError, KeyError, AttributeError):
         return None
@@ -293,8 +440,8 @@ def _store(snapshot: Snapshot, defaults: dict[str, float]) -> None:
     set_app_state(STATE_KEY, to_stored(snapshot, defaults))
 
 
-def _read(since: str, sources: Sequence[str]) -> list[dict[str, Any]] | None:
-    """Blocking: the forecast/observation pairs of the window.
+def _read(since: str, sources: Sequence[str]) -> dict[str, Any] | None:
+    """Blocking: the forecast/observation rows of the window (verification.read_window).
 
     None when the log tables are not there yet (the migration has not run).
     """
@@ -305,7 +452,7 @@ def _read(since: str, sources: Sequence[str]) -> list[dict[str, Any]] | None:
         if not _has_column(conn, "observation_log", "raining"):
             return None
         columns = ("precip_prob", *(f"prob_{name.replace('-', '_')}" for name in sources))
-        return verification.rain_pairs(conn, since, columns)
+        return verification.read_window(conn, since, columns)
     finally:
         conn.close()
 
@@ -349,9 +496,10 @@ def _refresh(since: str, sources: Sequence[str], defaults: dict[str, float]) -> 
             age_s = max(0.0, time.time() - (stored.computed_at or 0.0))
             _next_refresh = time.monotonic() + max(60.0, REFRESH_S - age_s)
             return
-        rows = _read(since, sources)
-        if rows is not None:
-            _snapshot = compute(rows, sources, defaults)
+        window = _read(since, sources)
+        if window is not None:
+            _snapshot = compute(window["rain"], sources, defaults,
+                                observations=window["observations"], forecasts=window["forecasts"])
             logger.info("calibration refreshed from %d pairs; weights=%s",
                         _snapshot.pairs, _snapshot.weights)
             _after_reading(_snapshot, defaults)
