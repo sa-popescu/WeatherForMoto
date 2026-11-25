@@ -1,16 +1,15 @@
 /* The weather right now, behind the forecast (components/WeatherSky.tsx).
    Fixed to the window and under everything else on the screen. Each scene
    sets a sky (--sky-top, --sky-mid) that fades into the page colour lower
-   down, where the cards sit, and the colour of its clouds. The dark theme
+   down, where the cards sit; its clouds come from WeatherSky. The dark theme
    keeps every sky dark enough for light text, the day theme light enough
    for dark text. Moving parts animate only transform and opacity, and are
    kept small: a composited layer the size of the screen costs memory. */
 
 .sky {
-  --sky-top: #1b4f8a;
-  --sky-mid: #2b6aa8;
-  --cloud: rgb(226 233 242 / 0.6);
-  --streak: rgb(200 218 240 / 0.6);
+  --sky-top: #123a63;
+  --sky-mid: #3d6c98;
+  --streak: rgb(200 216 236 / 0.4);
   --flake: rgb(255 255 255 / 0.85);
   position: fixed;
   inset: 0;
@@ -18,54 +17,49 @@
   overflow: hidden;
   pointer-events: none;
   contain: strict;
-  background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-mid) 42%, var(--bg) 88%);
+  /* Darker at the zenith, hazier towards the horizon, then the page. */
+  background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-mid) 46%, color-mix(in srgb, var(--sky-mid) 55%, var(--bg)) 66%, var(--bg) 92%);
 }
 
 .sky[data-sky='clear'][data-night] {
-  --sky-top: #081329;
-  --sky-mid: #101b33;
+  --sky-top: #050b18;
+  --sky-mid: #14213a;
 }
 
 .sky[data-sky='partly'] {
-  --sky-top: #24507e;
-  --sky-mid: #3f6488;
-  --cloud: rgb(222 230 240 / 0.68);
+  --sky-top: #1a3d62;
+  --sky-mid: #4a6f93;
 }
 
 .sky[data-sky='overcast'] {
-  --sky-top: #353d4a;
-  --sky-mid: #444c58;
-  --cloud: rgb(150 160 176 / 0.85);
+  --sky-top: #3a414b;
+  --sky-mid: #555d68;
 }
 
 .sky[data-sky='fog'] {
-  --sky-top: #434950;
-  --sky-mid: #50565d;
+  --sky-top: #4a4f55;
+  --sky-mid: #60656b;
 }
 
 .sky[data-sky='drizzle'] {
-  --sky-top: #2a3441;
-  --sky-mid: #36414e;
-  --cloud: rgb(132 142 158 / 0.85);
-  --streak: rgb(190 208 232 / 0.5);
+  --sky-top: #2c333c;
+  --sky-mid: #444c56;
+  --streak: rgb(200 216 236 / 0.3);
 }
 
 .sky[data-sky='rain'] {
-  --sky-top: #1f2833;
-  --sky-mid: #2b3541;
-  --cloud: rgb(112 122 140 / 0.9);
+  --sky-top: #22282f;
+  --sky-mid: #383f48;
 }
 
 .sky[data-sky='storm'] {
-  --sky-top: #161a23;
-  --sky-mid: #222733;
-  --cloud: rgb(78 84 100 / 0.95);
+  --sky-top: #15181e;
+  --sky-mid: #262a32;
 }
 
 .sky[data-sky='snow'] {
-  --sky-top: #3f4a59;
-  --sky-mid: #525e6c;
-  --cloud: rgb(180 190 204 / 0.7);
+  --sky-top: #48515c;
+  --sky-mid: #646d78;
 }
 
 /* Night dims every sky but the starry one, which has its own colours. */
@@ -79,7 +73,6 @@
 :root[data-theme='day'] .sky {
   --sky-top: #8fc0eb;
   --sky-mid: #c6dff3;
-  --cloud: rgb(255 255 255 / 0.85);
   --streak: rgb(50 80 120 / 0.35);
   --flake: rgb(255 255 255 / 0.95);
 }
@@ -98,26 +91,22 @@
 :root[data-theme='day'] .sky[data-sky='fog'] {
   --sky-top: #b9bfc7;
   --sky-mid: #d5d9dd;
-  --cloud: rgb(236 238 241 / 0.8);
 }
 
 :root[data-theme='day'] .sky[data-sky='drizzle'],
 :root[data-theme='day'] .sky[data-sky='rain'] {
   --sky-top: #98a6b5;
   --sky-mid: #c0c9d3;
-  --cloud: rgb(170 180 192 / 0.75);
 }
 
 :root[data-theme='day'] .sky[data-sky='storm'] {
   --sky-top: #848d99;
   --sky-mid: #aab2bb;
-  --cloud: rgb(130 138 150 / 0.8);
 }
 
 :root[data-theme='day'] .sky[data-sky='snow'] {
   --sky-top: #c3ccd7;
   --sky-mid: #e1e6ec;
-  --cloud: rgb(255 255 255 / 0.8);
   --flake: rgb(120 140 165 / 0.7);
 }
 
@@ -132,55 +121,27 @@
   background: linear-gradient(180deg, transparent 42%, color-mix(in srgb, var(--bg) 45%, transparent) 76%, var(--bg) 98%);
 }
 
-/* ---- Sun ---- */
+/* ---- Sun: a small bright disc in a wide, faint glow, as through haze ---- */
 
 .sky__sun {
   position: absolute;
-  top: -28vmin;
-  right: -28vmin;
-  width: 90vmin;
-  height: 90vmin;
+  top: -30vmin;
+  right: -24vmin;
+  width: 100vmin;
+  height: 100vmin;
   border-radius: 50%;
-  background: radial-gradient(circle, rgb(255 246 215) 0 10%, rgb(255 222 140 / 0.55) 24%, rgb(255 210 120 / 0.18) 46%, transparent 70%);
-  animation: sky-glow 7s ease-in-out infinite alternate;
+  background: radial-gradient(
+    circle,
+    rgb(255 250 235 / 0.95) 0 3.5%,
+    rgb(255 240 205 / 0.5) 6%,
+    rgb(255 228 180 / 0.18) 16%,
+    rgb(255 220 170 / 0.07) 34%,
+    transparent 62%
+  );
 }
 
 .sky__sun--behind {
-  opacity: 0.6;
-  animation: none;
-}
-
-.sky__rays {
-  position: absolute;
-  top: -60vmin;
-  right: -60vmin;
-  width: 120vmin;
-  height: 120vmin;
-  border-radius: 50%;
-  background: repeating-conic-gradient(from 0deg, rgb(255 236 190 / 0.26) 0deg 5deg, transparent 5deg 17deg);
-  -webkit-mask-image: radial-gradient(circle, #000 12%, transparent 70%);
-  mask-image: radial-gradient(circle, #000 12%, transparent 70%);
-  will-change: transform;
-  animation: sky-turn 140s linear infinite;
-}
-
-:root[data-theme='day'] .sky__rays {
-  background: repeating-conic-gradient(from 0deg, rgb(255 255 255 / 0.4) 0deg 5deg, transparent 5deg 17deg);
-}
-
-@keyframes sky-glow {
-  from {
-    opacity: 0.8;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes sky-turn {
-  to {
-    transform: rotate(360deg);
-  }
+  opacity: 0.55;
 }
 
 /* ---- Stars ---- */
@@ -223,31 +184,32 @@
   }
 }
 
-/* ---- Clouds: soft puffs drifting across, slowly ---- */
+/* ---- Clouds: a canvas over the top of the sky (WeatherSky.tsx) ---- */
 
-.sky__cloud {
+.sky__clouds {
   position: absolute;
-  top: var(--top);
+  top: 0;
   left: 0;
-  width: var(--w);
-  aspect-ratio: 2.4;
-  opacity: var(--o);
-  background:
-    radial-gradient(ellipse 34% 46% at 30% 62%, var(--cloud), transparent 72%),
-    radial-gradient(ellipse 30% 52% at 54% 44%, var(--cloud), transparent 72%),
-    radial-gradient(ellipse 38% 38% at 72% 64%, var(--cloud), transparent 72%),
-    radial-gradient(ellipse 60% 30% at 50% 72%, var(--cloud), transparent 75%);
-  will-change: transform;
-  animation: sky-drift var(--dur) linear var(--delay) infinite;
+  width: 100%;
+  height: 56%;
 }
 
-@keyframes sky-drift {
-  from {
-    transform: translateX(calc(-1 * var(--w)));
-  }
-  to {
-    transform: translateX(100vw);
-  }
+[data-sky='overcast'] .sky__clouds,
+[data-sky='drizzle'] .sky__clouds,
+[data-sky='rain'] .sky__clouds,
+[data-sky='storm'] .sky__clouds,
+[data-sky='snow'] .sky__clouds {
+  height: 68%;
+}
+
+/* Light clouds behind light text: a little less of them on the dark theme. */
+[data-sky='clear'] .sky__clouds,
+[data-sky='partly'] .sky__clouds {
+  opacity: 0.7;
+}
+
+:root[data-theme='day'] .sky__clouds {
+  opacity: 1;
 }
 
 /* ---- Fog ---- */
@@ -329,9 +291,9 @@
   position: absolute;
   inset: 0 0 30%;
   background-image:
-    radial-gradient(circle at 20px 26px, rgb(255 255 255 / 0.24) 0 1.5px, transparent 2.5px),
-    radial-gradient(circle at 74px 90px, rgb(255 255 255 / 0.18) 0 1px, transparent 2px),
-    radial-gradient(circle at 120px 40px, rgb(255 255 255 / 0.22) 0 2px, transparent 3px),
+    radial-gradient(circle at 20px 26px, rgb(255 255 255 / 0.14) 0 1.2px, transparent 2.5px),
+    radial-gradient(circle at 74px 90px, rgb(255 255 255 / 0.1) 0 0.8px, transparent 1.8px),
+    radial-gradient(circle at 120px 40px, rgb(255 255 255 / 0.12) 0 1.5px, transparent 3px),
     radial-gradient(circle at 160px 120px, rgb(255 255 255 / 0.1) 0 1px, transparent 2px);
   background-size: 180px 150px;
 }
@@ -343,13 +305,14 @@
   width: var(--s);
   height: calc(var(--s) * 1.2);
   border-radius: 50% 50% 50% 50% / 58% 58% 42% 42%;
-  /* A lens: light caught on the lower edge, a small glint at the top, and
-     clear in between. */
+  /* A lens on the glass: it flips what is behind it, so the bright sky
+     shows at its bottom edge and a dark rim at the top, with a tiny glint.
+     Mostly clear. */
   background:
-    radial-gradient(circle at 36% 28%, rgb(255 255 255 / 0.9) 0 10%, transparent 16%),
-    radial-gradient(ellipse 70% 55% at 50% 78%, rgb(255 255 255 / 0.38), transparent 70%),
-    radial-gradient(circle at 50% 50%, rgb(255 255 255 / 0.06) 55%, rgb(255 255 255 / 0.32) 68%, transparent 72%);
-  box-shadow: 0 1.5px 1.5px -0.5px rgb(0 0 0 / 0.25);
+    radial-gradient(circle at 40% 30%, rgb(255 255 255 / 0.7) 0 7%, transparent 13%),
+    radial-gradient(ellipse 80% 45% at 50% 82%, rgb(255 255 255 / 0.22), transparent 75%),
+    radial-gradient(circle at 50% 45%, transparent 58%, rgb(0 0 0 / 0.18) 70%, transparent 74%);
+  opacity: 0.85;
   will-change: transform;
   animation: sky-run var(--dur) cubic-bezier(0.5, 0, 0.9, 0.6) var(--delay) infinite;
 }
@@ -368,7 +331,7 @@
     opacity: 1;
   }
   100% {
-    transform: translateY(60vh) scale(0.8, 1.15);
+    transform: translateY(60vh) scale(0.9, 1.1);
     opacity: 0;
   }
 }
@@ -392,10 +355,10 @@
     opacity: 0;
   }
   89% {
-    opacity: 0.95;
+    opacity: 0.7;
   }
   91.5% {
-    opacity: 0.6;
+    opacity: 0.4;
   }
 }
 
@@ -449,6 +412,17 @@
   }
 }
 
+/* Text straight on the sky keeps a soft shadow under its letters. */
+.screen.now:has(> .sky) .place-head__name,
+.screen.now:has(> .sky) .now-hero__weather {
+  text-shadow: 0 1px 4px rgb(0 0 0 / 0.35);
+}
+
+:root[data-theme='day'] .screen.now:has(> .sky) .place-head__name,
+:root[data-theme='day'] .screen.now:has(> .sky) .now-hero__weather {
+  text-shadow: 0 1px 4px rgb(255 255 255 / 0.6);
+}
+
 /* The place's date and sources sit straight on the sky: a shade lighter
    than on the plain page, with a soft shadow under the letters, so they
    stay legible over a light cloud. */
@@ -460,4 +434,22 @@
 :root[data-theme='day'] .screen.now .place-head__meta {
   color: var(--ink-2);
   text-shadow: 0 1px 3px rgb(255 255 255 / 0.7);
+}
+
+/* ---- The cards over the sky ----
+   On the forecast the surfaces let the weather show through: the same
+   colours as tokens.css, part transparent. (Sheets open in a portal, outside
+   this screen, and stay solid.) */
+.screen.now:has(> .sky) {
+  --surface: rgb(20 22 18 / 0.62);
+  --surface-2: rgb(15 17 13 / 0.5);
+  --surface-3: rgb(28 31 25 / 0.6);
+  --line: rgb(255 255 255 / 0.08);
+}
+
+:root[data-theme='day'] .screen.now:has(> .sky) {
+  --surface: rgb(255 255 255 / 0.7);
+  --surface-2: rgb(247 248 243 / 0.6);
+  --surface-3: rgb(232 234 225 / 0.7);
+  --line: rgb(0 0 0 / 0.08);
 }

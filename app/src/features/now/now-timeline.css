@@ -2,8 +2,8 @@
    bars and the day's rain, in one card. */
 
 .now-tl {
-  margin-top: 12px;
-  padding: 16px 16px 14px;
+  margin-top: 4px;
+  padding: 12px 14px;
 }
 
 /* The panel is a button: it opens the picked hour's details. */
@@ -12,8 +12,8 @@
   flex-direction: column;
   gap: 10px;
   width: 100%;
-  margin-top: 12px;
-  padding: 12px;
+  margin-top: 10px;
+  padding: 10px 12px;
   border-radius: var(--r-md);
   border: 1px solid var(--line);
   background: var(--surface-2);

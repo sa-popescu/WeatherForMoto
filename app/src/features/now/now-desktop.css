@@ -14,7 +14,7 @@
   .screen.now:not([hidden]) {
     display: grid;
     grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
-    gap: 20px;
+    gap: 14px;
     max-width: 1360px;
     margin-inline: auto;
   }
@@ -71,7 +71,7 @@
     gap: 12px 8px;
     height: 100%;
     min-height: 0;
-    padding: 14px;
+    padding: 12px;
     border: 1px solid var(--line);
     border-radius: var(--r-lg);
     background: var(--surface);
@@ -352,7 +352,11 @@
   }
 
   .screen.now .now-hero__temp {
-    font-size: 56px;
+    font-size: 50px;
+  }
+
+  .screen.now .now-hero__feels-value {
+    font-size: 20px;
   }
 
   .screen.now .now-hero__card {
