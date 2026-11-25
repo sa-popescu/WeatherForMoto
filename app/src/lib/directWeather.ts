@@ -37,6 +37,7 @@ interface MetaExtras {
     code_implied_intensity?: { light: RainBand; heavy: RainBand };
   };
   stale_code_rule?: { codes_from: number; min_probability_pct: number; min_amount_mm: number };
+  unbacked_trace_rule?: { max_amount_mm: number; max_probability_pct: number };
   rain_chance_rule?: { codes: number[]; max_probability_pct: number; max_amount_mm: number; display_code: number };
   rain_character_rule?: { convective_cape_min: number; frontal_cape_max: number; inhibition_max: number };
   hazards: Record<string, { visibility_tiers?: { below_m: number; penalty: number; cap: number }[] }>;
@@ -68,6 +69,18 @@ function roundHalfEven(value: number): number {
 }
 
 const factor = (name: string, penalty: number, cap: number | null, detail: string): ScoreFactor => ({ factor: name, penalty: roundHalfEven(penalty), cap, detail });
+
+/** A trace the sources give almost no chance of is noise: the hour reads dry (same rule as the API). */
+export function withoutUnbackedTrace(amount: number | null, probability: number | null): number | null {
+  const rule = meta().unbacked_trace_rule ?? { max_amount_mm: 0.5, max_probability_pct: 20 };
+  if (amount == null || probability == null) return amount;
+  return amount > 0 && amount < rule.max_amount_mm && probability < rule.max_probability_pct ? 0 : amount;
+}
+
+/** The code the road and frost are judged on: a stale or chance-only rain code puts no water on it. */
+export function groundCode(code: number | null, amount: number | null, probability: number | null): number | null {
+  return codeIsStale(code, amount, probability) || rainChanceOnly(code, amount, probability) ? OVERCAST_CODE : code;
+}
 
 /** A rain / storm code with a known low probability and no amount is a leftover, not weather. */
 export function codeIsStale(code: number | null, amount: number | null, probability: number | null): boolean {
@@ -362,12 +375,13 @@ function buildHourly(raw: OpenMeteoForecast): HourlyWeather[] {
     const temp = num(h.temperature_2m, i);
     const humidity = num(h.relative_humidity_2m, i);
     const code = num(h.weather_code, i);
-    const precip = num(h.precipitation, i);
+    const precip = withoutUnbackedTrace(num(h.precipitation, i), num(h.precipitation_probability, i));
+    const ground = groundCode(code, precip, num(h.precipitation_probability, i));
     const dewRaw = num(h.dew_point_2m, i);
     const flag = num(h.is_day, i);
     const [rise, set] = sun.get(time.slice(0, 10)) ?? [null, null];
     const isDay = flag != null ? flag === 1 : rise && set ? time >= rise && time < set : null;
-    const road = roadSurfaceTemp(temp, humidity, code, precip, isDay);
+    const road = roadSurfaceTemp(temp, humidity, ground, precip, isDay);
     const character = rainCharacter(num(h.cape, i), num(h.convective_inhibition, i));
     const hour: HourlyWeather = {
       time,
@@ -392,7 +406,7 @@ function buildHourly(raw: OpenMeteoForecast): HourlyWeather[] {
       wind_direction_10m: num(h.wind_direction_10m, i),
       is_day: isDay,
       road_surface_temp: road,
-      frost_risk: frostRisk(temp, road, dewRaw ?? dewPoint(temp, humidity), precip, code),
+      frost_risk: frostRisk(temp, road, dewRaw ?? dewPoint(temp, humidity), precip, ground),
       moto_score: null,
       moto_label: null,
       // The browser-direct fallback talks to Open-Meteo alone, so there is no ensemble.
@@ -416,7 +430,8 @@ function buildCurrent(raw: OpenMeteoForecast, row: HourlyWeather | undefined): C
   // look better than the hour its own timeline shows (same rule as the API).
   const precipNow = pick('precipitation', row?.precipitation_mm);
   const precipHour = row?.precipitation_mm ?? null;
-  const precip = precipNow == null ? precipHour : Math.max(precipNow, precipHour ?? precipNow);
+  const probabilityNow = row?.precipitation_probability ?? null;
+  const precip = withoutUnbackedTrace(precipNow == null ? precipHour : Math.max(precipNow, precipHour ?? precipNow), probabilityNow);
   const gusts = pick('wind_gusts_10m', row?.wind_gusts_kmh);
   const speed = pick('wind_speed_10m', row?.wind_speed_kmh);
   const dir = pick('wind_direction_10m', row?.wind_direction_10m);
@@ -428,8 +443,9 @@ function buildCurrent(raw: OpenMeteoForecast, row: HourlyWeather | undefined): C
   const character = row?.rain_character ?? null;
   const code = codeToShow(rawCode, precip, probability, character);
   const dew = row?.dew_point_2m ?? dewPoint(temp, humidity);
-  const road = roadSurfaceTemp(temp, humidity, code, precip, isDay);
-  const frost = frostRisk(temp, road, dew, precip, code);
+  const ground = groundCode(code, precip, probability);
+  const road = roadSurfaceTemp(temp, humidity, ground, precip, isDay);
+  const frost = frostRisk(temp, road, dew, precip, ground);
   const { score, factors } = scoreBreakdown({ feelsLike: feels, gustsKmh: gusts, precipitationMm: precip, weatherCode: code, probability, visibilityM: visM, frostRisk: frost });
   const beaufort = speed == null ? null : BEAUFORT_MPS.findIndex((limit) => speed / 3.6 < limit);
   return {
