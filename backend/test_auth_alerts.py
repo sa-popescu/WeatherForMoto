@@ -135,10 +135,10 @@ class _Base(unittest.TestCase):
             raise self.email_error
         self.emails.append({"to": email, "subject": subject, "text": text, "links": list(links)})
 
-    def _fake_send_push(self, sub: Any, title: str, body: str, data: dict[str, Any]) -> None:
+    def _fake_send_push(self, sub: Any, title: str, body: str, data: dict[str, Any], **kwargs: Any) -> None:
         if self.push_error:
             raise self.push_error
-        self.pushes.append({"endpoint": sub["endpoint"], "title": title, "body": body})
+        self.pushes.append({"endpoint": sub["endpoint"], "title": title, "body": body, "data": data, **kwargs})
 
     async def _fake_get_weather(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
         return self.weather
@@ -1203,6 +1203,72 @@ class PushSendingTests(unittest.TestCase):
         error.response = response  # type: ignore[attr-defined]
         self.assertEqual(aa._push_error_detail(error), "HTTP 400: Ttl value conflicts")
         self.assertEqual(aa._push_error_detail(Exception("timeout")), "timeout")
+
+class SevereDispatchTests(_Base):
+    """Severe weather pushes, through the hourly run and the quick one."""
+
+    def nowcast(self, minutes: int = 60, level: str = "orange", wid: str = "anm-nowcast:77") -> dict[str, Any]:
+        now = datetime.now(timezone.utc)
+        return {
+            "id": wid, "event": "Avertizare nowcasting ANM",
+            "headline": "Vijelie, grindină și averse torențiale", "description": None,
+            "level": level, "awareness_type": "thunderstorm",
+            "onset": now.isoformat(), "expires": (now + timedelta(minutes=minutes)).isoformat(),
+        }
+
+    def test_an_anm_nowcast_is_pushed_once_with_high_urgency(self) -> None:
+        token, _ = self.alert_ready_user()
+        self.weather["alerts"] = [self.nowcast()]
+        first = self.client.post("/alerts/check-now", headers=_auth(token)).json()
+        self.assertEqual(first["delivered"], 1)
+        push = self.pushes[0]
+        self.assertEqual(push["title"], "Cod portocaliu: vijelie, grindină și ploi torențiale")
+        self.assertTrue(push["urgent"])
+        self.assertLessEqual(push["ttl"], 3600)
+        self.assertTrue(push["data"]["tag"].startswith("severe-anm-thunderstorm-orange:"))
+        again = self.client.post("/alerts/check-now", headers=_auth(token)).json()
+        self.assertEqual(again["delivered"], 0)
+        self.assertEqual(len(self.pushes), 1)
+
+    def test_a_rider_can_turn_severe_alerts_off(self) -> None:
+        token, _ = self.alert_ready_user()
+        self.assertEqual(self.put_prefs(token, alert_states='{"severe": false}').status_code, 200)
+        self.weather["alerts"] = [self.nowcast()]
+        self.client.post("/alerts/check-now", headers=_auth(token))
+        self.assertEqual(self.pushes, [])
+
+    def test_red_goes_through_quiet_hours_orange_waits(self) -> None:
+        token, _ = self.alert_ready_user()
+        hour = datetime.now(timezone.utc).hour
+        self.put_prefs(token, quiet_hours_enabled=True, quiet_start_hour=hour, quiet_end_hour=(hour + 2) % 24)
+        self.weather["alerts"] = [self.nowcast(level="orange")]
+        self.client.post("/alerts/check-now", headers=_auth(token))
+        self.assertEqual(self.pushes, [])
+        self.weather["alerts"] = [self.nowcast(level="red", wid="anm-nowcast:78")]
+        self.client.post("/alerts/check-now", headers=_auth(token))
+        self.assertEqual([p["title"][:8] for p in self.pushes], ["Cod roșu"])
+
+    def test_the_quick_run_reads_only_warnings_and_lightning(self) -> None:
+        self.alert_ready_user()
+        found = {"alerts": [self.nowcast()], "lightning": None}
+
+        async def fake_inputs(*args: Any, **kwargs: Any) -> dict[str, Any]:
+            return found
+
+        with mock.patch.dict(os.environ, {"ALERT_DISPATCH_SECRET": "s3cret-value"}), \
+                mock.patch.object(aa, "severe_inputs", new=fake_inputs), \
+                mock.patch.object(aa, "get_weather", side_effect=AssertionError("no forecast in the quick run")):
+            denied = self.client.post("/alerts/dispatch-severe", headers={"X-Dispatch-Secret": "nope"})
+            first = self.client.post("/alerts/dispatch-severe", headers={"X-Dispatch-Secret": "s3cret-value"}).json()
+            second = self.client.post("/alerts/dispatch-severe", headers={"X-Dispatch-Secret": "s3cret-value"}).json()
+        self.assertEqual(denied.status_code, 401)
+        self.assertEqual((first["users"], first["events"]), (1, 1))
+        self.assertEqual(second["events"], 0)
+        # The hourly run that follows knows it was sent.
+        self.weather["alerts"] = [self.nowcast()]
+        self.assertEqual(self.client.post("/alerts/dispatch-all", headers={"X-Dispatch-Secret": "x"}).status_code, 401)
+        self.assertEqual(len(self.pushes), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

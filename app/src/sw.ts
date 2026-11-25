@@ -206,6 +206,7 @@ interface PushPayload {
   body?: string;
   url?: string;
   tag?: string;
+  requireInteraction?: boolean;
   data?: { url?: string; [key: string]: unknown };
 }
 
@@ -223,6 +224,8 @@ self.addEventListener('push', (event) => {
       icon: '/icon-192.png',
       badge: '/icon-192.png',
       tag: payload.tag,
+      // Severe weather stays on screen until the rider sees it.
+      requireInteraction: payload.requireInteraction === true,
       data: { url },
     }),
   );

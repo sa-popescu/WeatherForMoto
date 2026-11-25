@@ -43,8 +43,9 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 
 import db_quota
 import last_good
+import severe_alerts
 import verification
-from weather_service import get_weather, _haversine_km
+from weather_service import get_weather, severe_inputs, _haversine_km
 
 logger = logging.getLogger("motonor.auth_alerts")
 
@@ -2856,7 +2857,10 @@ def _push_error_detail(exc: Exception) -> str:
     return f"HTTP {getattr(response, 'status_code', '?')}: {reason}".strip()
 
 
-def _send_push(subscription: Mapping[str, Any], title: str, body: str, data: dict[str, Any]) -> None:
+def _send_push(
+    subscription: Mapping[str, Any], title: str, body: str, data: dict[str, Any],
+    *, ttl: int | None = None, urgent: bool = False,
+) -> None:
     if not (VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY):
         raise RuntimeError("VAPID keys not configured")
     # Imported lazily: pywebpush pulls in requests + cryptography, which only
@@ -2871,6 +2875,10 @@ def _send_push(subscription: Mapping[str, Any], title: str, body: str, data: dic
         "badge": "/icon-192.png",
         "url": "/",
     }
+    if data.get("tag"):
+        payload["tag"] = data["tag"]
+    if urgent:
+        payload["requireInteraction"] = True
     sub = {
         "endpoint": subscription["endpoint"],
         "keys": {
@@ -2884,7 +2892,9 @@ def _send_push(subscription: Mapping[str, Any], title: str, body: str, data: dic
         data=json.dumps(payload),
         vapid_private_key=VAPID_PRIVATE_KEY,
         vapid_claims={"sub": VAPID_SUBJECT},
-        ttl=PUSH_TTL_SECONDS,
+        ttl=PUSH_TTL_SECONDS if ttl is None else max(60, int(ttl)),
+        # High urgency wakes a phone in battery saver; kept for severe weather.
+        headers={"Urgency": "high"} if urgent else None,
         timeout=10,
     )
 
@@ -2896,7 +2906,7 @@ def _send_push(subscription: Mapping[str, Any], title: str, body: str, data: dic
 _DISPATCH_PREF_COLUMNS = (
     "enabled, min_score, max_wind_gust, max_precip, max_rain_probability, min_temp, max_temp, "
     "frost_risk_enabled, quiet_hours_enabled, quiet_start_hour, quiet_end_hour, severity, "
-    "home_lat, home_lon, city"
+    "home_lat, home_lon, city, alert_states"
 )
 
 
@@ -2939,7 +2949,9 @@ def _load_dispatch_context(user_id: int, email: str) -> tuple[_DispatchContext |
         conn.close()
 
 
-def _claim_event(conn: _TursoConn, user_id: int, event_type: str, event_key: str) -> bool:
+def _claim_event(
+    conn: _TursoConn, user_id: int, event_type: str, event_key: str, cooldown_hours: float | None = None
+) -> bool:
     """Insert-first idempotency with the cooldown folded in: ONE conditional
     INSERT creates the row only if this key does not exist yet and no event of
     the same type was created within ALERT_COOLDOWN_HOURS. A single statement is
@@ -2947,7 +2959,8 @@ def _claim_event(conn: _TursoConn, user_id: int, event_type: str, event_key: str
     RETURNING, not rowcount (which libsql may not report like sqlite3), tells
     whether this caller created the row and may deliver."""
     now = _utc_now()
-    since = (now - timedelta(hours=ALERT_COOLDOWN_HOURS)).isoformat()
+    hours = ALERT_COOLDOWN_HOURS if cooldown_hours is None else cooldown_hours
+    since = (now - timedelta(hours=hours)).isoformat()
     type_prefix = event_type.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + ":%"
     row = conn.execute(
         "INSERT INTO alert_events(user_id, event_key, created_at) "
@@ -2977,13 +2990,36 @@ def _finish_event_claim(conn: _TursoConn, user_id: int, event_key: str, delivere
         logger.error("could not finalise alert event %s for user %s: %s", event_key, user_id, exc)
 
 
+def _severe_ttl(ev: Mapping[str, Any]) -> int:
+    """A storm warning is worth nothing once it expired: the push service may
+    hold it for an offline phone at most until then (and two hours at most)."""
+    expires = ev.get("expires")
+    limit = 2 * 3600
+    if not expires:
+        return limit
+    try:
+        moment = datetime.fromisoformat(str(expires).replace("Z", "+00:00"))
+    except ValueError:
+        return limit
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    return int(max(60, min(limit, (moment - _utc_now()).total_seconds())))
+
+
 def _push_to_all(conn: _TursoConn, ctx: _DispatchContext, ev: dict[str, Any]) -> int:
     """Send the event to every device; drop subscriptions the push service
     reports as gone. Returns the number of successful sends."""
     sent = 0
     for sub in ctx.subscriptions:
         try:
-            _send_push(sub, ev["title"], ev["body"], {"event": ev, "city": ctx.city})
+            data: dict[str, Any] = {"event": ev, "city": ctx.city}
+            if ev.get("url"):
+                data["url"] = ev["url"]
+            if ev.get("severe"):
+                # One notification per warning: a re-sent one replaces, not stacks.
+                data["tag"] = ev.get("key")
+            _send_push(sub, ev["title"], ev["body"], data,
+                       ttl=_severe_ttl(ev) if ev.get("severe") else None, urgent=bool(ev.get("severe")))
             sent += 1
         except Exception as exc:
             status = getattr(getattr(exc, "response", None), "status_code", None)
@@ -3005,10 +3041,10 @@ def _deliver_event(ctx: _DispatchContext, ev: dict[str, Any]) -> dict[str, Any]:
     the user turns push on."""
     if not ctx.subscriptions:
         return {"status": "no_channel", "push": 0}
-    event_key = f"{ev['type']}:{ev['when'][:13]}"
+    event_key = ev.get("key") or f"{ev['type']}:{ev['when'][:13]}"
     conn = _connect()
     try:
-        if not _claim_event(conn, ctx.user_id, ev["type"], event_key):
+        if not _claim_event(conn, ctx.user_id, ev["type"], event_key, ev.get("cooldown_hours")):
             return {"status": "duplicate", "push": 0}
 
         push_sent = _push_to_all(conn, ctx, ev)
@@ -3026,15 +3062,28 @@ async def _dispatch_for_user(user_id: int, email: str, owm_api_key: str) -> dict
 
     weather = await get_weather(ctx.lat, ctx.lon, ctx.city, owm_api_key, forecast_days=2)
     now_local = _local_now(weather)
-    events = _filter_by_severity(
-        _build_risk_events(weather.get("hourly", []), ctx.prefs, now_local),
-        ctx.prefs.get("severity"),
-    )
+    risk = _build_risk_events(weather.get("hourly", []), ctx.prefs, now_local)
+    severe: list[dict[str, Any]] = []
+    if severe_alerts.enabled(ctx.prefs):
+        verdict = (weather.get("current") or {}).get("verdict")
+        severe = severe_alerts.severe_events(
+            weather.get("alerts") or [],
+            weather.get("lightning"),
+            hourly=weather.get("hourly", []),
+            utc_offset_s=int(weather.get("utc_offset_seconds") or 0),
+            storm=verdict.get("storm") if isinstance(verdict, dict) else None,
+        )
+    events = _filter_by_severity(severe + risk, ctx.prefs.get("severity"))
+    return await _deliver_events(ctx, events, now_local)
+
+
+async def _deliver_events(ctx: _DispatchContext, events: list[dict[str, Any]], now_local: datetime) -> dict[str, Any]:
     result: dict[str, Any] = {"sent": 0, "delivered": 0, "events": events}
     if _in_quiet_hours(now_local.hour, ctx.prefs):
-        # Nothing is recorded, so still-relevant events go out after quiet hours.
+        # Nothing is recorded, so still-relevant events go out after quiet hours;
+        # only a red warning gets through now.
         result["reason"] = "quiet_hours"
-        return result
+        events = [ev for ev in events if ev.get("bypass_quiet")]
 
     for ev in events:
         outcome = await asyncio.to_thread(_deliver_event, ctx, ev)
@@ -3180,3 +3229,49 @@ async def alerts_dispatch_all(
         "purged": purged,
         "db_quota": db_quota_result,
     }
+
+
+async def _dispatch_severe_for_user(user_id: int, email: str) -> dict[str, Any]:
+    """The quick check: official warnings and lightning only, no forecast.
+    A yellow county warning needs the forecast to back it, so it waits for
+    the hourly run; the ANM nowcasts, orange and red go out now."""
+    ctx, reason = await asyncio.to_thread(_load_dispatch_context, user_id, email)
+    if ctx is None:
+        return {"sent": 0, "delivered": 0, "events": [], "reason": reason}
+    if not severe_alerts.enabled(ctx.prefs):
+        return {"sent": 0, "delivered": 0, "events": [], "reason": "severe_disabled"}
+    found = await severe_inputs(ctx.lat, ctx.lon, ctx.city)
+    now = _utc_now()
+    events = _filter_by_severity(
+        severe_alerts.severe_events(found["alerts"], found["lightning"], now),
+        ctx.prefs.get("severity"),
+    )
+    return await _deliver_events(ctx, events, severe_alerts.romania_clock(now))
+
+
+@router.post("/alerts/dispatch-severe")
+async def alerts_dispatch_severe(
+    request: Request,
+    x_dispatch_secret: str | None = Header(default=None, alias="X-Dispatch-Secret"),
+) -> dict[str, Any]:
+    """Severe weather between the hourly runs (storms, squalls, hail). Meant to
+    be called every 10 minutes by the scheduler, with the dispatch secret. It
+    asks no forecast provider and writes to the database only when it sends."""
+    await asyncio.to_thread(_verify_dispatch_secret, request, x_dispatch_secret)
+    users = await asyncio.to_thread(_list_alert_users)
+    semaphore = asyncio.Semaphore(DISPATCH_CONCURRENCY)
+
+    async def _run(u: Mapping[str, Any]) -> dict[str, Any]:
+        async with semaphore:
+            return await _dispatch_severe_for_user(int(u["id"]), u["email"])
+
+    results = await asyncio.gather(*[_run(u) for u in users], return_exceptions=True)
+    total_sent = total_events = failed = 0
+    for u, r in zip(users, results):
+        if isinstance(r, BaseException):
+            failed += 1
+            logger.warning("severe dispatch error for user %s: %s", u["id"], r)
+            continue
+        total_sent += int(r.get("sent", 0))
+        total_events += int(r.get("delivered", 0))
+    return {"ok": True, "users": len(users), "sent": total_sent, "events": total_events, "failed_users": failed}
