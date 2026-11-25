@@ -139,8 +139,55 @@ def _report_time(report: dict[str, Any]) -> datetime | None:
     return None
 
 
-def nearest(reports: list[dict[str, Any]] | None, lat: float, lon: float, now: datetime | None = None) -> dict[str, Any] | None:
-    """Present weather and visibility from the nearest fresh report within reach."""
+# Cloud amounts in oktas as a fraction of the sky, and the reports of a sky without them.
+_COVER_FRACTION = {"FEW": 0.19, "SCT": 0.44, "BKN": 0.75, "OVC": 1.0, "OVX": 1.0, "VV": 1.0}
+_CLEAR_REPORTS = frozenset({"CAVOK", "CLR", "SKC", "NSC", "NCD"})
+FEET_M = 0.3048
+# The infrared a cloud sends back falls with its height (road_surface.CLOUD_WEIGHT_*).
+_LOW_CLOUD_TOP_M, _MID_CLOUD_TOP_M = 2000.0, 6000.0
+
+
+def sky_cover(report: dict[str, Any]) -> dict[str, Any] | None:
+    """The cloud the report sees, as the road feels it in infrared (0..1), and how it was reported.
+
+    Layers combine as independent covers, each weighted by its height (low
+    cloud 1, middle 0.85, high 0.35). CAVOK and the "no cloud" reports see the
+    sky up to about 1500 m (CAVOK) or a few km (automatic sensors): above that
+    the models' high cloud still counts (weather_service). None when the
+    report says nothing about the sky.
+    """
+    layers = report.get("clouds")
+    cover = str(report.get("cover") or "").upper()
+    parts: list[tuple[float, float]] = []
+    if isinstance(layers, list):
+        for layer in layers:
+            if not isinstance(layer, dict):
+                continue
+            fraction = _COVER_FRACTION.get(str(layer.get("cover") or "").upper())
+            if fraction is None:
+                continue
+            try:
+                base_m = float(layer.get("base")) * FEET_M
+            except (TypeError, ValueError):
+                base_m = 0.0
+            weight = 1.0 if base_m < _LOW_CLOUD_TOP_M else 0.85 if base_m < _MID_CLOUD_TOP_M else 0.35
+            parts.append((fraction, weight))
+    if not parts:
+        if cover in _CLEAR_REPORTS:
+            return {"cloud": 0.0, "sky": cover, "sees_high": False}
+        fraction = _COVER_FRACTION.get(cover)
+        if fraction is None:
+            return None
+        parts.append((fraction, 1.0))
+    clear = 1.0
+    for fraction, weight in parts:
+        clear *= 1 - fraction * weight
+    return {"cloud": round(1 - clear, 3), "sky": cover or None, "sees_high": True}
+
+
+def nearest(reports: list[dict[str, Any]] | None, lat: float, lon: float, now: datetime | None = None,
+            max_km: float = MAX_DISTANCE_KM) -> dict[str, Any] | None:
+    """Present weather, visibility and sky from the nearest fresh report within ``max_km``."""
     if not reports:
         return None
     moment = now or datetime.now(timezone.utc)
@@ -153,7 +200,7 @@ def nearest(reports: list[dict[str, Any]] | None, lat: float, lon: float, now: d
         except (KeyError, TypeError, ValueError):
             continue
         observed = _report_time(report)
-        if distance > MAX_DISTANCE_KM or observed is None or (moment - observed).total_seconds() > MAX_AGE_S:
+        if distance > max_km or observed is None or (moment - observed).total_seconds() > MAX_AGE_S:
             continue
         if best is None or distance < best[0]:
             best = (distance, report, observed)
@@ -169,5 +216,6 @@ def nearest(reports: list[dict[str, Any]] | None, lat: float, lon: float, now: d
         "observed_at": observed.isoformat().replace("+00:00", "Z"),
         "wmo_code": weather_code(report.get("wxString")),
         "visibility_m": visibility_m(report.get("visib")),
+        "sky": sky_cover(report),
         "raw": report.get("rawOb"),
     }

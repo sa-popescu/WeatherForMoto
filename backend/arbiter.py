@@ -57,6 +57,13 @@ AIRPORT_FAR_WEIGHT = 0.4
 OFFICIAL_MAX_KM = 40.0
 # Radar rain over air drier than this rarely lands (virga, false echoes).
 RADAR_MIN_HUMIDITY = 65.0
+# A light echo (under RADAR_LIGHT_MM an hour) needs moister air still: it is
+# what virga from a mid-level overcast looks like to the radar, and what ground
+# clutter under a night inversion adds up to. Bucharest, 25 Nov 15-18: 0.1 to
+# 0.8 mm an hour under 100% cloud at 47-66% humidity, every gauge and the
+# airport dry.
+RADAR_LIGHT_MM = 0.5
+RADAR_LIGHT_MIN_HUMIDITY = 75.0
 
 # Evidence, in log-odds, for (wet) and against (dry).
 LLR = {
@@ -182,6 +189,17 @@ def _fade(distance_km: float | None, full_km: float, max_km: float, floor: float
     return 1.0 - (1.0 - floor) * (distance_km - full_km) / (max_km - full_km)
 
 
+def radar_rain_plausible(radar_mm: float | None, humidity: float | None) -> bool:
+    """False when the radar's rain falls into air too dry for it to reach the ground.
+
+    No rain, or no humidity to judge by, is always plausible.
+    """
+    if radar_mm is None or radar_mm < WET_MM or humidity is None:
+        return True
+    floor = RADAR_LIGHT_MIN_HUMIDITY if radar_mm < RADAR_LIGHT_MM else RADAR_MIN_HUMIDITY
+    return humidity >= floor
+
+
 def _forecast_wet_llr(amount: float) -> float:
     for from_mm, llr in FORECAST_WET_LLR:
         if amount >= from_mm:
@@ -252,7 +270,7 @@ def precipitation_witnesses(
 
     if radar_mm is not None:
         wet = radar_mm >= WET_MM
-        if wet and humidity is not None and humidity < RADAR_MIN_HUMIDITY:
+        if wet and not radar_rain_plausible(radar_mm, humidity):
             ev.add(Witness("radar", "radar", "radarul", "the radar", True, LLR["radar_dry_air"][0], amount_mm=radar_mm,
                            set_aside=f"aer prea uscat ({round(humidity)}%) ca ploaia să ajungă jos",
                            set_aside_en=f"air too dry ({round(humidity)}%) for the rain to reach the ground"))
@@ -432,6 +450,20 @@ def _explain(
     return ro, en
 
 
+def _short(state: str, kind: str, witnesses: list[Witness]) -> tuple[str, str]:
+    """The verdict in a few words, for one line: "Nu plouă · 14 din 15 surse"."""
+    total = sum(w.count for w in witnesses)
+    wet = sum((w.wet_count if w.count > 1 else int(w.wet)) for w in witnesses)
+    if state == "uncertain":
+        return (f"Semnale amestecate · {wet} din {_sources_ro(total)} dau ploaie" if total else "Semnale amestecate",
+                f"Mixed signals · {wet} of {_sources_en(total)} give rain" if total else "Mixed signals")
+    lead_ro, lead_en = (WET_WORD if state == "wet" else DRY_WORD)[kind]
+    agree = wet if state == "wet" else total - wet
+    if not total:
+        return lead_ro, lead_en
+    return f"{lead_ro} · {agree} din {_sources_ro(total)}", f"{lead_en} · {agree} of {_sources_en(total)}"
+
+
 def judge_precipitation(
     witnesses: list[Witness],
     *,
@@ -452,12 +484,15 @@ def judge_precipitation(
     kind = _kind_of(witnesses, temperature)
     ro, en = _explain(state, kind, witnesses, hour_probability)
     observed_wet = any(w.wet and not w.set_aside and w.kind in ("observation", "gauge", "radar") for w in witnesses)
+    short_ro, short_en = _short(state, kind, witnesses)
     return {
         "state": state,
         "kind": kind if state != "dry" else None,
         "probability": round(p * 100),
         "confidence": round(max(p, 1 - p) * 100),
         "observed": observed_wet,
+        "short": short_ro,
+        "short_en": short_en,
         "explanation": ro,
         "explanation_en": en,
         "witnesses": [w.as_dict() for w in witnesses],

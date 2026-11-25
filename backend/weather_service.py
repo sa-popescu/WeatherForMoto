@@ -40,6 +40,7 @@ import calibration
 import last_good
 import rain_area
 import rain_fusion
+import road_surface
 import sensor_community
 import verification
 import wet_road
@@ -891,6 +892,8 @@ def scoring_metadata() -> dict[str, Any]:
         },
         # The road still wet after rain, and the first rain after dry days (wet_road.py).
         "wet_road": wet_road.metadata(),
+        # The asphalt's temperature from its heat balance (road_surface.py).
+        "road_surface": road_surface.metadata(),
         "daily": {
             "worst_hours_fraction": DAILY_WORST_HOURS_FRACTION,
             "worst_hours_weight": DAILY_WORST_HOURS_WEIGHT,
@@ -1759,7 +1762,10 @@ async def _fetch_openmeteo(
             "temperature_2m,apparent_temperature,precipitation_probability,"
             "precipitation,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,"
             "uv_index,relative_humidity_2m,surface_pressure,pressure_msl,dew_point_2m,"
-            "cloud_cover,visibility,is_day,cape,convective_inhibition"
+            "cloud_cover,visibility,is_day,cape,convective_inhibition,"
+            # For the asphalt's heat balance (road_surface.py).
+            "shortwave_radiation,cloud_cover_low,cloud_cover_mid,cloud_cover_high,"
+            "soil_temperature_0cm,soil_temperature_54cm"
         ),
         "daily": (
             "weather_code,temperature_2m_max,temperature_2m_min,"
@@ -1839,6 +1845,11 @@ ENSEMBLE_VARIABLES: tuple[str, ...] = (
     "wind_speed_10m",
     "wind_gusts_10m",
     "weather_code",
+    # The asphalt's heat balance: the models' sun and cloud set the range of the
+    # road's temperature, their ground surface is a witness (road_surface.py).
+    "shortwave_radiation",
+    "cloud_cover",
+    "soil_temperature_0cm",
 )
 
 # Rain is skewed: one model with a 4 mm/h shower and four dry ones average to a
@@ -1933,20 +1944,29 @@ async def _fetch_rain_area(
         return None
 
 
+PAST_HOURLY_VARIABLES = (
+    "precipitation,temperature_2m,dew_point_2m,wind_speed_10m,weather_code,"
+    "shortwave_radiation,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,"
+    "soil_temperature_0cm,soil_temperature_6cm,soil_temperature_18cm,soil_temperature_54cm"
+)
+
+
 async def _fetch_past_rain(
     lat: float, lon: float, client: httpx.AsyncClient
 ) -> Any | None:
-    """The rain of the past days and of today, hour by hour, for the state of the road (wet_road.py).
+    """The weather of the past days and of today, hour by hour, for the state of the road.
 
-    Only precipitation, so the answer stays small. The main forecast starts at
-    midnight; this one starts PAST_DAYS earlier, which is what a dry spell and
-    last night's rain need.
+    The rain, for whether the road is wet (wet_road.py), and what heats and
+    cools the asphalt, for its temperature (road_surface.py): the column needs
+    the days before today to know how much heat it holds. The main forecast
+    starts at midnight; this one starts PAST_DAYS earlier.
     """
     params = {
         "latitude": lat,
         "longitude": lon,
-        "hourly": "precipitation",
+        "hourly": PAST_HOURLY_VARIABLES,
         "timezone": "auto",
+        "wind_speed_unit": "kmh",
         "past_days": wet_road.PAST_DAYS,
         "forecast_days": 1,
     }
@@ -2041,6 +2061,7 @@ def _ensemble_by_time(ens_data: dict | None) -> dict[str, dict[str, Any]]:
     for i, time_value in enumerate(times):
         means: dict[str, float] = {}
         spreads: dict[str, float] = {}
+        ranges: dict[str, tuple[float, float]] = {}
         codes: list[int] = []
         wet_models = rain_models = 0
         models = 0
@@ -2057,6 +2078,7 @@ def _ensemble_by_time(ens_data: dict | None) -> dict[str, dict[str, Any]]:
             else:
                 means[variable] = sum(values) / len(values)
             spreads[variable] = max(values) - min(values)
+            ranges[variable] = (min(values), max(values))
             if variable == "precipitation":
                 rain_models = len(values)
                 wet_models = sum(1 for v in values if v >= ENSEMBLE_WET_MM)
@@ -2065,6 +2087,7 @@ def _ensemble_by_time(ens_data: dict | None) -> dict[str, dict[str, Any]]:
         out[str(time_value)] = {
             "means": means,
             "spreads": spreads,
+            "ranges": ranges,
             "codes": codes,
             "wet_models": wet_models,
             "rain_models": rain_models,
@@ -2594,6 +2617,7 @@ def _normalize_wxm_current(wxm_data: dict | None, now: datetime | None = None) -
         "wind_dir": _to_float(obs.get("wind_direction")),
         "pressure": _to_float(obs.get("pressure")),
         "precipitation": _to_float(obs.get("precipitation_rate")),  # mm/h
+        "solar_wm2": _to_float(obs.get("solar_irradiance")),
         "wmo_code": _WXM_ICON_TO_WMO.get(icon) if icon else None,
         "observed_at": observed_at.isoformat(),
         # Which station answered, so the sources screen can name it.
@@ -3123,6 +3147,7 @@ def _current_hour_index(om_data: dict, hourly_times: list[str]) -> int | None:
 _CURRENT_HOUR_FIELDS: tuple[str, ...] = (
     "moto_score", "moto_label", "precipitation_mm", "rain_intensity",
     "precipitation_probability", "weather_code", "icon", "description",
+    "road_surface_temp", "road_surface_range", "frost_risk",
 )
 
 
@@ -3170,20 +3195,36 @@ def _past_rain_before(past_raw: Any | None, first_time: str) -> list[tuple[str, 
 # sees over air this dry is rain evaporating on the way down, or no rain at all
 # (anomalous propagation bends the beam into the ground on cold, stable
 # evenings; Bucharest showed 2.2 mm "measured" at 52% humidity, airport CAVOK).
-RADAR_RAIN_MIN_HUMIDITY = 65.0
+RADAR_RAIN_MIN_HUMIDITY = arbiter.RADAR_MIN_HUMIDITY
 
 
 def _radar_rain_plausible(hour: dict[str, Any], radar_mm: float | None) -> bool:
     """False when the radar adds rain to an hour whose air was too dry for it to land.
 
     The radar saying "dry" is always taken (it removes rain the model invented);
-    only rain it adds over the model's is checked against the hour's humidity.
-    An hour without a humidity value trusts the radar.
+    only rain it adds over the model's is checked against the hour's humidity,
+    by the arbiter's rule (arbiter.radar_rain_plausible: a light echo needs
+    moister air than a real shower). An hour without a humidity value trusts
+    the radar.
     """
     if radar_mm is None or radar_mm <= (hour.get("precipitation_mm") or 0):
         return True
-    humidity = _to_float(hour.get("relative_humidity"))
-    return humidity is None or humidity >= RADAR_RAIN_MIN_HUMIDITY
+    return arbiter.radar_rain_plausible(radar_mm, _to_float(hour.get("relative_humidity")))
+
+
+def _gauges_saw_dry_hour(*gauges: dict | None) -> bool:
+    """True when every gauge that measured the last hour here found no rain.
+
+    The official station's and Netatmo's totals both cover the last full hour,
+    the same hour as the radar's newest sum. Rain the radar alone saw in it,
+    with each gauge around at 0 mm, did not reach the ground.
+    """
+    readings = [
+        _to_float(g.get("precipitation")) for g in gauges
+        if g and _to_float(g.get("precipitation")) is not None
+        and (_to_float(g.get("distance_km")) is None or _to_float(g.get("distance_km")) <= 25.0)
+    ]
+    return bool(readings) and all(r < RAIN_NEGLIGIBLE_MM_H for r in readings)
 
 
 def _apply_wet_road(hourly: list[dict], past_raw: Any | None, measured: dict[str, float] | None = None) -> None:
@@ -3273,12 +3314,17 @@ def _measured_fields(*stations: dict | None) -> set[str]:
 
 
 def _rescore_hour(hour: dict[str, Any]) -> None:
-    """Recompute an hourly item's road temperature, frost risk and score, in place."""
+    """Recompute an hourly item's road temperature, frost risk and score, in place.
+
+    Once the asphalt's heat balance has run (_apply_road_surface) its value is
+    kept; before that, and without it, the quick estimate stands in.
+    """
     ground_code = _ground_code(hour.get("weather_code"), hour.get("precipitation_mm"),
                                hour.get("precipitation_probability"))
-    road_temp = _road_surface_temp(hour.get("temperature"), hour.get("relative_humidity"),
-                                   ground_code, hour.get("precipitation_mm"),
-                                   is_day=hour.get("is_day"))
+    simulated = hour.get("_road_sim")
+    road_temp = round(simulated, 1) if simulated is not None else _road_surface_temp(
+        hour.get("temperature"), hour.get("relative_humidity"), ground_code,
+        hour.get("precipitation_mm"), is_day=hour.get("is_day"))
     dew_point = _first_not_none(hour.get("dew_point_2m"),
                                 _dew_point_c(hour.get("temperature"), hour.get("relative_humidity")))
     frost_risk = _frost_risk(hour.get("temperature"), road_temp, dew_point,
@@ -3293,6 +3339,257 @@ def _rescore_hour(hour: dict[str, Any]) -> None:
         "moto_score": score,
         "moto_label": _moto_label(score),
     })
+
+
+# ---------------------------------------------------------------------------
+# Asphalt temperature: the heat balance of the road (road_surface.py)
+# ---------------------------------------------------------------------------
+# The column needs a few days behind it to know how much heat it holds; three
+# are plenty (the day's wave fades within 15 cm).
+ROAD_SPINUP_HOURS = 72
+# The clearer and cloudier skies run from a day before now to this far ahead.
+ROAD_RANGE_BEFORE_H = 24
+ROAD_RANGE_AHEAD_H = 72
+# Cloud is shared over a wider area than showers: an airport this close says what the sky is.
+ROAD_SKY_MAX_KM = 40.0
+# A station's sunshine sensor is often shaded or dirty: it counts as much as the models.
+STATION_SUN_SHARE = 0.5
+
+
+def _road_inputs(raw: dict[str, Any], i: int, ens_hour: dict[str, Any] | None) -> dict[str, Any]:
+    """An hourly item's private inputs for the asphalt: sun, cloud, the models' ground and soil."""
+    means = (ens_hour or {}).get("means") or {}
+    ranges = (ens_hour or {}).get("ranges") or {}
+    sun = _blend_with_model_mean(_to_float(_safe(raw.get("shortwave_radiation"), i)),
+                                 means.get("shortwave_radiation"))
+    total = _to_float(_safe(raw.get("cloud_cover"), i))
+    cloud = road_surface.cloud_effective(
+        total, _to_float(_safe(raw.get("cloud_cover_low"), i)),
+        _to_float(_safe(raw.get("cloud_cover_mid"), i)), _to_float(_safe(raw.get("cloud_cover_high"), i)))
+    # Pulled toward the national models' cloud with the weight the other blended values use.
+    if cloud is not None and total is not None and means.get("cloud_cover") is not None:
+        cloud = max(0.0, min(1.0, cloud + ENSEMBLE_MODEL_WEIGHT / (ENSEMBLE_MODEL_WEIGHT + ENSEMBLE_SEAMLESS_WEIGHT)
+                             * (means["cloud_cover"] - total) / 100))
+    sun_range = ranges.get("shortwave_radiation")
+    cloud_range = ranges.get("cloud_cover")
+    skin = _to_float(_safe(raw.get("soil_temperature_0cm"), i))
+    skins = [v for v in (skin, *(ranges.get("soil_temperature_0cm") or ())) if v is not None]
+    return {
+        "_sun": sun,
+        "_sun_spread": (sun_range[1] - sun_range[0]) / 2 if sun_range else 0.0,
+        "_cloud": cloud,
+        "_cloud_high": _to_float(_safe(raw.get("cloud_cover_high"), i)),
+        "_cloud_spread": (cloud_range[1] - cloud_range[0]) / 200 if cloud_range else 0.0,
+        "_skins": skins,
+        "_soil54": _to_float(_safe(raw.get("soil_temperature_54cm"), i)),
+    }
+
+
+def _observed_cloud(sky: dict[str, Any] | None, model_high: float | None) -> float | None:
+    """The airport's sky as the road feels it, with the models' high cloud it cannot see."""
+    if not sky or sky.get("cloud") is None:
+        return None
+    observed = float(sky["cloud"])
+    if sky.get("sees_high"):
+        return observed
+    high = road_surface.CLOUD_WEIGHT_HIGH * max(0.0, min(1.0, (model_high or 0) / 100))
+    return 1 - (1 - observed) * (1 - high)
+
+
+def _past_road_hours(past_raw: Any | None, first_time: str, utc_offset: int,
+                     temp_gap: float) -> tuple[list[road_surface.Hour], list[tuple[float, float | None]]]:
+    """The spin-up hours before ``first_time`` and the models' soil profile at the first of them."""
+    if not isinstance(past_raw, dict):
+        return [], []
+    raw = past_raw.get("hourly") or {}
+    times = [str(t) for t in raw.get("time") or []]
+    indices = [i for i, t in enumerate(times) if t < first_time][-ROAD_SPINUP_HOURS:]
+    hours: list[road_surface.Hour] = []
+    for k, i in enumerate(indices):
+        ts = road_surface.local_to_ts(times[i], utc_offset)
+        temp = _to_float(_safe(raw.get("temperature_2m"), i))
+        if ts is None or temp is None:
+            continue
+        # The model error the stations measure now was there in the hours before, fading back.
+        back = len(indices) - k
+        temp += temp_gap * max(0.0, 1 - back / BIAS_FADE_HOURS)
+        code = _safe(raw.get("weather_code"), i)
+        hours.append(road_surface.Hour(
+            ts=ts, temp=temp,
+            dew=_to_float(_safe(raw.get("dew_point_2m"), i)),
+            wind_kmh=_to_float(_safe(raw.get("wind_speed_10m"), i)),
+            cloud=road_surface.cloud_effective(
+                _to_float(_safe(raw.get("cloud_cover"), i)), _to_float(_safe(raw.get("cloud_cover_low"), i)),
+                _to_float(_safe(raw.get("cloud_cover_mid"), i)), _to_float(_safe(raw.get("cloud_cover_high"), i))),
+            sun=_to_float(_safe(raw.get("shortwave_radiation"), i)),
+            precip_mm=_to_float(_safe(raw.get("precipitation"), i)),
+            snowing=code in SNOW_CODES,
+            soil_deep=_to_float(_safe(raw.get("soil_temperature_54cm"), i)),
+        ))
+    profile: list[tuple[float, float | None]] = []
+    if indices:
+        first = indices[0]
+        profile = [(depth, _to_float(_safe(raw.get(f"soil_temperature_{cm}cm"), first)))
+                   for depth, cm in ((0.0, 0), (0.06, 6), (0.18, 18), (0.54, 54))]
+    return hours, profile
+
+
+def _apply_road_surface(
+    om_data: dict,
+    hourly: list[dict],
+    current: dict,
+    past_raw: Any | None,
+    *,
+    lat: float,
+    lon: float,
+    metar_sky: dict[str, Any] | None = None,
+    station_sun: float | None = None,
+) -> None:
+    """The asphalt's temperature for every hour and for now, from its heat balance, in place.
+
+    Runs once the hours carry the stations' corrections (_carry_measured_bias)
+    and before the hour being lived takes the current block's values. Each hour
+    gets ``road_surface_temp`` (and its likely range near now), its frost risk
+    and score again; the current block gets the value at this minute and
+    ``road_surface``: range, confidence, the witnesses and one sentence on why.
+    Without enough inputs nothing changes and the quick estimate stays.
+    """
+    if not hourly:
+        return
+    utc_offset = int(om_data.get("utc_offset_seconds") or 0)
+    times = [str(h.get("time", "")) for h in hourly]
+    index = _current_hour_index(om_data, times)
+    raw_temps = (om_data.get("hourly") or {}).get("temperature_2m") or []
+    temp_gap = 0.0
+    if index is not None and hourly[index].get("temperature") is not None and _safe(raw_temps, index) is not None:
+        temp_gap = float(hourly[index]["temperature"]) - float(raw_temps[index])
+    past, soil = _past_road_hours(past_raw, times[0], utc_offset, temp_gap)
+
+    hours = list(past)
+    positions: list[int | None] = []
+    sky_weight_now = 0.0
+    for j, hour in enumerate(hourly):
+        ts = road_surface.local_to_ts(times[j], utc_offset)
+        temp = _to_float(hour.get("temperature"))
+        if ts is None or temp is None:
+            positions.append(None)
+            continue
+        if index is not None and j < index:
+            temp += temp_gap * max(0.0, 1 - (index - j) / BIAS_FADE_HOURS)
+        cloud = hour.get("_cloud")
+        spread = hour.get("_cloud_spread") or 0.0
+        if index is not None and metar_sky:
+            observed = _observed_cloud(metar_sky, hour.get("_cloud_high"))
+            cloud, weight = road_surface.blend_observed_cloud(cloud, observed, j - index)
+            spread *= 1 - weight
+            if j == index:
+                sky_weight_now = weight
+        ground = _ground_code(hour.get("weather_code"), hour.get("precipitation_mm"),
+                              hour.get("precipitation_probability"))
+        positions.append(len(hours))
+        hours.append(road_surface.Hour(
+            ts=ts, temp=temp,
+            dew=_first_not_none(_dew_point_c(hour.get("temperature"), hour.get("relative_humidity")),
+                                hour.get("dew_point_2m")),
+            wind_kmh=_to_float(hour.get("wind_speed_kmh")),
+            cloud=cloud, cloud_spread=spread,
+            sun=hour.get("_sun"), sun_spread=hour.get("_sun_spread") or 0.0,
+            precip_mm=_to_float(hour.get("precipitation_mm")),
+            snowing=ground in SNOW_CODES,
+            soil_deep=hour.get("_soil54"),
+        ))
+    if len(hours) < 2:
+        return
+    # The bottom of the column without the models' soil: the mean air of the days run.
+    mean_air = sum(h.temp for h in hours) / len(hours)
+    for h in hours:
+        if h.soil_deep is None:
+            h.soil_deep = mean_air
+    start = road_surface.initial_profile(hours[0].temp, soil, hours[0].soil_deep)
+
+    now_pos = positions[index] if index is not None else None
+    sun_override: dict[int, float] = {}
+    if station_sun is not None and now_pos is not None and now_pos + 1 < len(hours):
+        model = hours[now_pos + 1].sun
+        sun_override[now_pos + 1] = (station_sun if model is None
+                                     else STATION_SUN_SHARE * station_sun + (1 - STATION_SUN_SHARE) * model)
+    window = None
+    if now_pos is not None:
+        window = (now_pos - ROAD_RANGE_BEFORE_H, now_pos + ROAD_RANGE_AHEAD_H + 1)
+    try:
+        result = road_surface.run(hours, lat, lon, start, sun_override=sun_override, window=window)
+    except (ArithmeticError, ValueError) as exc:  # a bad input must never cost the answer
+        logger.warning("road surface model failed: %s", exc)
+        return
+
+    in_window = (lambda p: window[0] <= p < window[1]) if window else (lambda p: False)
+    for hour, pos in zip(hourly, positions):
+        if pos is None:
+            continue
+        hour["_road_sim"] = result.temps[pos]
+        hour["road_surface_range"] = (
+            [round(result.lows[pos], 1), round(result.highs[pos], 1)] if in_window(pos) else None)
+        _rescore_hour(hour)
+
+    if now_pos is None:
+        return
+    now_local = str((om_data.get("current") or {}).get("time") or "")
+    try:
+        fraction = int(now_local[14:16]) / 60 if len(now_local) >= 16 else 0.0
+    except ValueError:
+        fraction = 0.0
+    nxt = min(now_pos + 1, len(hours) - 1)
+
+    def at_now(values: list[float]) -> float:
+        return values[now_pos] + (values[nxt] - values[now_pos]) * fraction
+
+    road, low, high = at_now(result.temps), at_now(result.lows), at_now(result.highs)
+    low, high = min(low, road), max(high, road)
+    now_hour = hourly[index]
+    is_day = bool(current.get("is_day", now_hour.get("is_day", True)))
+    skins = now_hour.get("_skins") or []
+    odd = road_surface.skin_is_odd(road, skins, is_day)
+    level = road_surface.confidence(low, high, odd)
+    cloud_now = _first_not_none(hours[now_pos].cloud, hours[nxt].cloud)
+    snowing = current.get("weather_code") in SNOW_CODES
+    sky_station = None
+    if metar_sky and sky_weight_now > 0:
+        sky_station = arbiter.airport_name(metar_sky)
+    ro, en = road_surface.explain(
+        road=road, air=_to_float(current.get("temperature")), is_day=is_day,
+        sun=hours[nxt].sun, cloud=cloud_now, wet=result.wet[now_pos], snowing=snowing,
+        observed_sky=sky_station, low=low, high=high, skin_odd=odd,
+    )
+    road_r = round(road, 1)
+    current["road_surface_temp"] = road_r
+    current["road_surface_range"] = [round(low, 1), round(high, 1)]
+    current["road_surface"] = {
+        "temp": road_r,
+        "low": round(low, 1),
+        "high": round(high, 1),
+        "confidence": level,
+        "explanation": ro,
+        "explanation_en": en,
+        "method": "heat-balance",
+        "sky": ({"station": metar_sky.get("station"), "name": metar_sky.get("name"),
+                 "distance_km": metar_sky.get("distance_km"), "reported": metar_sky.get("sky"),
+                 "cloud": metar_sky.get("cloud")} if sky_station else None),
+        "station_sun_wm2": station_sun,
+        "model_ground": [round(min(skins), 1), round(max(skins), 1)] if skins else None,
+    }
+    inputs = current.get("_score_inputs")
+    if not isinstance(inputs, dict):
+        return
+    frost = _frost_risk(current.get("temperature"), road_r, inputs.get("dew_point"),
+                        inputs.get("precipitation"), inputs.get("ground_code"))
+    if frost != current.get("frost_risk"):
+        score, breakdown = _score_with_breakdown(
+            inputs.get("feels"), inputs.get("gusts"), inputs.get("precipitation"), inputs.get("code"),
+            inputs.get("probability"), visibility_m=inputs.get("visibility_m"),
+            frost_risk=frost, wet_road_state=inputs.get("wet_road_state"),
+        )
+        current.update({"frost_risk": frost, "moto_score": score,
+                        "moto_label": _moto_label(score), "score_breakdown": breakdown})
 
 
 def _carry_measured_bias(om_data: dict, hourly: list[dict], current: dict, measured: set[str]) -> None:
@@ -3725,9 +4022,10 @@ def _merge_current(
     # hour (without it a storm code with 0 mm used to score 100).
     # The road's state comes from the hour (wet_road.py), checked against the rain measured now.
     road_state = wet_road.current_state(current_hour.get("wet_road"), precipitation)
+    score_visibility = visibility_km * 1000 if visibility_km is not None else None
     score, breakdown = _score_with_breakdown(
         feels, wind_gusts, precipitation, effective_code, score_probability,
-        visibility_m=visibility_km * 1000 if visibility_km is not None else None,
+        visibility_m=score_visibility,
         frost_risk=frost_risk,
         wet_road_state=road_state,
     )
@@ -3779,6 +4077,15 @@ def _merge_current(
             "values": {name: verdict for name, verdict in value_verdicts.items() if verdict},
         },
         "road_surface_temp": road_temp,
+        "road_surface_range": None,
+        # Filled by _apply_road_surface: range, confidence and why.
+        "road_surface": None,
+        # What the score was computed from, so a new asphalt value can redo it. Removed before the answer leaves.
+        "_score_inputs": {
+            "feels": feels, "gusts": wind_gusts, "precipitation": precipitation, "code": effective_code,
+            "probability": score_probability, "visibility_m": score_visibility,
+            "wet_road_state": road_state, "dew_point": dew_point, "ground_code": ground_code,
+        },
         # How much the national models agree on this hour, and how many answered.
         "forecast_confidence": current_hour.get("forecast_confidence"),
         "model_count": current_hour.get("model_count"),
@@ -4060,6 +4367,8 @@ def _build_hourly(om_data: dict, ensemble: dict[str, dict[str, Any]] | None = No
             "wind_direction_10m": _safe(hourly.get("wind_direction_10m"), i),
             "is_day": is_day,
             "road_surface_temp": road_temp,
+            # The likely range near now, set by _apply_road_surface.
+            "road_surface_range": None,
             "frost_risk": frost_risk,
             # Set once the whole series is known (_apply_wet_road).
             "wet_road": None,
@@ -4076,6 +4385,8 @@ def _build_hourly(om_data: dict, ensemble: dict[str, dict[str, Any]] | None = No
             # How many national models give rain, for the arbiter of the current hour.
             "_wet_models": ens_hour.get("wet_models") if ens_hour else None,
             "_rain_models": ens_hour.get("rain_models") if ens_hour else None,
+            # What the asphalt's heat balance needs (_apply_road_surface).
+            **_road_inputs(hourly, i, ens_hour),
         })
     return result
 
@@ -5068,16 +5379,33 @@ async def _collect_weather(
     calibration.refresh_soon(_calibration_since(), verification.RAIN_SOURCES, rain_fusion.WEIGHTS)
     _settle_hours(hourly)
     _apply_rain_coverage(hourly, area_raw)
-    _apply_wet_road(hourly, past_rain_raw, opera_radar.local_hours(radar_rain, utc_offset))
+    radar_hours = opera_radar.local_hours(radar_rain, utc_offset)
+    road_radar = radar_hours
+    # The newest radar hour is the one the gauges just measured: when they all
+    # found it dry, the radar's rain in it never landed (virga, clutter).
+    now_index = _current_hour_index(om_data, [str(h.get("time", "")) for h in hourly])
+    if now_index is not None and _gauges_saw_dry_hour(official_norm, netatmo_norm):
+        now_time = str(hourly[now_index].get("time", ""))
+        if radar_hours.get(now_time, 0) >= arbiter.WET_MM:
+            road_radar = {**radar_hours, now_time: 0.0}
+    _apply_wet_road(hourly, past_rain_raw, road_radar)
     current = _merge_current(om_data, owm_current, owm_air, om_air, met_norm, pw_norm,
                              wxm_norm, netatmo_norm, hourly=hourly,
                              official_norm=official_norm, metar_obs=metar_obs, community_norm=community_norm,
-                             radar_hours=opera_radar.local_hours(radar_rain, utc_offset),
+                             radar_hours=radar_hours,
                              learned_weights=learned.weights if learned else None,
                              value_learning=value_learning)
     # Before the daily scores are built, so the day counts the hours as corrected.
     _carry_measured_bias(om_data, hourly, current,
                          _measured_fields(wxm_norm, netatmo_norm, official_norm, community_norm))
+    sky_airport = metar.nearest(metar_raw, lat, lon, max_km=ROAD_SKY_MAX_KM)
+    _apply_road_surface(
+        om_data, hourly, current, past_rain_raw, lat=lat, lon=lon,
+        metar_sky={**sky_airport["sky"], "station": sky_airport.get("station"), "name": sky_airport.get("name"),
+                   "distance_km": sky_airport.get("distance_km")} if sky_airport and sky_airport.get("sky") else None,
+        station_sun=wxm_norm.get("solar_wm2") if wxm_norm and current.get("is_day") else None,
+    )
+    current.pop("_score_inputs", None)
     _sync_current_hour(om_data, hourly, current)
     _strip_private(hourly)
     lightning = _corroborated_lightning(lightning, current)
