@@ -98,6 +98,22 @@ export interface NowVerdict {
   storm: (VerdictPart & { state: 'storm' | 'none' }) | null;
   summary: string;
   summary_en: string;
+  /** The numbers, each weighed from every witness (absent from older servers). */
+  values?: Partial<Record<'temperature' | 'humidity' | 'wind' | 'gusts', ValueVerdict>>;
+}
+
+/** How a number of "now" was decided (backend/value_arbiter.py). */
+export interface ValueVerdict {
+  value: number;
+  /** One standard deviation of the decided value, in its units. */
+  sigma: number;
+  confidence: 'high' | 'medium' | 'low';
+  /** What the providers alone said. */
+  models_value: number | null;
+  /** True when stations moved the value or a station was set aside: worth a sentence. */
+  notable: boolean;
+  explanation: string;
+  explanation_en: string;
 }
 
 export type SourceState = 'used' | 'no-data' | 'none-nearby' | 'off' | 'rate-limited' | 'paused' | 'stale' | 'key-rejected';
