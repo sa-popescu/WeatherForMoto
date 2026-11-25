@@ -133,6 +133,15 @@ CODE_ACTIVE_MIN_AMOUNT_MM = 0.1
 # the blend kept ~0.2 mm, which kept OWM's rain code alive (above the stale
 # amount) and drew rain, "Urme" and a wet road on a dry evening.
 UNBACKED_TRACE_MAX_MM_H = 0.5
+# An airport this close that reports no precipitation right now (its observer
+# or sensor looks at the sky every 30 minutes) is a witness: a trace the
+# providers give for this moment did not happen. Further away it says little.
+AIRPORT_DRY_WITNESS_KM = 10.0
+# One satellite flash alone, in air that cannot make thunderstorms, is far more
+# often the Lightning Imager's noise (sun glint, a bright cloud edge) than a
+# storm: it is not shown. From this many flashes, or with convective air or a
+# real chance of rain, it is.
+LIGHTNING_MIN_UNCORROBORATED_FLASHES = 2
 
 # A rain code with nothing to measure is a chance, not a fact. Below the stale
 # threshold it is not worth a word (the sky is simply grey); from there up to
@@ -550,6 +559,38 @@ def _is_rain_chance_only(
     )
 
 
+def _ground_code(
+    code: int | None, amount_mm: float | None, probability: float | None
+) -> int | None:
+    """The code the road and the frost risk are judged on: what actually falls.
+
+    A stale code or a rain code that is only a chance puts no water on the
+    asphalt, so for the road it is a grey sky (3). Without this a leftover
+    snow code at 0% raised the ice warning, and a "possible showers" hour
+    was treated as a wet road.
+    """
+    if _code_is_stale(code, amount_mm, probability):
+        return 3
+    if _is_rain_chance_only(code, amount_mm, probability):
+        return 3
+    return code
+
+
+def _airport_saw_it_dry(obs: dict[str, Any] | None) -> bool:
+    """True when a recent METAR within AIRPORT_DRY_WITNESS_KM reports no precipitation.
+
+    metar.nearest already keeps only fresh reports; fog or mist alone is not
+    precipitation, so those still count as dry.
+    """
+    if not obs:
+        return False
+    distance = _to_float(obs.get("distance_km"))
+    if distance is None or distance > AIRPORT_DRY_WITNESS_KM:
+        return False
+    code = obs.get("wmo_code")
+    return code is None or code in FOG_CODES
+
+
 def _rain_character(cape: float | None, inhibition: float | None) -> str | None:
     """"convective", "frontal", or None when the air does not say.
 
@@ -785,6 +826,12 @@ def scoring_metadata() -> dict[str, Any]:
             "codes_from": STALE_CODE_MIN,
             "min_probability_pct": CODE_ACTIVE_MIN_PROBABILITY,
             "min_amount_mm": CODE_ACTIVE_MIN_AMOUNT_MM,
+        },
+        # A trace under max_amount_mm that the sources give under
+        # max_probability_pct is noise: the hour reads dry (amount 0).
+        "unbacked_trace_rule": {
+            "max_amount_mm": UNBACKED_TRACE_MAX_MM_H,
+            "max_probability_pct": CODE_ACTIVE_MIN_PROBABILITY,
         },
         # What the verification log has taught us so far, and whether it has.
         "calibration": calibration.current(rain_fusion.WEIGHTS).as_meta(),
@@ -1075,7 +1122,7 @@ def _wmo_icon(code: int | None) -> str:
 # ---------------------------------------------------------------------------
 # OWM weather-condition id → WMO-like code (approximate mapping)
 # ---------------------------------------------------------------------------
-def _owm_id_to_wmo(owm_id: int) -> int:
+def _owm_id_to_wmo(owm_id: int) -> int | None:
     """Best-effort mapping of OWM condition IDs to WMO codes."""
     if 200 <= owm_id < 300:
         return 95
@@ -1099,8 +1146,12 @@ def _owm_id_to_wmo(owm_id: int) -> int:
         return 75
     if owm_id in (741,):
         return 45
-    if owm_id in (701, 711, 721, 731, 751, 761, 762, 771, 781):
-        return 45
+    # Mist (701, 1-5 km), smoke, haze, dust, sand, ash, squalls and tornadoes
+    # are not fog (under 1 km): calling them "Ceață" was a false fog warning
+    # on a merely hazy afternoon. They say nothing about the sky, so the other
+    # providers' code decides (see _merge_current).
+    if 700 <= owm_id < 800:
+        return None
     if owm_id == 800:
         return 0
     if owm_id == 801:
@@ -3194,13 +3245,15 @@ def _measured_fields(*stations: dict | None) -> set[str]:
 
 def _rescore_hour(hour: dict[str, Any]) -> None:
     """Recompute an hourly item's road temperature, frost risk and score, in place."""
+    ground_code = _ground_code(hour.get("weather_code"), hour.get("precipitation_mm"),
+                               hour.get("precipitation_probability"))
     road_temp = _road_surface_temp(hour.get("temperature"), hour.get("relative_humidity"),
-                                   hour.get("weather_code"), hour.get("precipitation_mm"),
+                                   ground_code, hour.get("precipitation_mm"),
                                    is_day=hour.get("is_day"))
     dew_point = _first_not_none(hour.get("dew_point_2m"),
                                 _dew_point_c(hour.get("temperature"), hour.get("relative_humidity")))
     frost_risk = _frost_risk(hour.get("temperature"), road_temp, dew_point,
-                             hour.get("precipitation_mm"), hour.get("weather_code"))
+                             hour.get("precipitation_mm"), ground_code)
     score = _moto_score(hour.get("feels_like"), hour.get("wind_gusts_kmh"), hour.get("precipitation_mm"),
                         hour.get("weather_code"), hour.get("precipitation_probability"),
                         visibility_m=hour.get("visibility"), frost_risk=frost_risk,
@@ -3423,17 +3476,32 @@ def _merge_current(
     met_prec = met_norm.get("precipitation") if met_norm else None
     pw_prec = pw_norm.get("precipitation") if pw_norm else None
     wxm_prec = wxm_norm.get("precipitation") if wxm_norm else None
+    hour_probability = current_hour.get("precipitation_probability")
+    airport_dry = _airport_saw_it_dry(obs)
+    # A private Netatmo gauge is one bucket in someone's yard (a sprinkler, a
+    # tipped bucket, a bird): rain it alone reports, at a chance the sources
+    # put under CODE_ACTIVE_MIN_PROBABILITY and with the airport next door dry,
+    # is not taken as a measurement. WeatherXM stations are vetted and stand.
+    nta_prec = nta.get("precipitation")
+    if (
+        nta_prec is not None
+        and nta_prec >= RAIN_NEGLIGIBLE_MM_H
+        and airport_dry
+        and hour_probability is not None
+        and hour_probability < CODE_ACTIVE_MIN_PROBABILITY
+    ):
+        nta_prec = None
     # The official gauge's total covers the last full hour, not this moment: it
     # joins the blend, but does not count as the "station" reading below.
     precipitation = _wxm_or_blend(wxm_prec, [om_prec, owm_prec, met_prec, pw_prec], [1.0, 1.0, 1.1, 0.8],
-                                  nta_val=nta.get("precipitation"), official_val=off.get("precipitation"))
+                                  nta_val=nta_prec, official_val=off.get("precipitation"))
 
     # Without a physical station the blend can read ~0 mm while the hour you are
     # actually in is forecast with real rain: the models' "current" block lags,
     # and OWM omits its "rain" field, which the blend takes as a measured zero.
     # Keep the wetter of the two so the gauge can never look better than the hour
     # its own timeline shows. A station reading stays ground truth.
-    station_prec = _first_not_none(wxm_prec, nta.get("precipitation"))
+    station_prec = _first_not_none(wxm_prec, nta_prec)
     hour_prec = current_hour.get("precipitation_mm")
     if station_prec is None and hour_prec is not None:
         hour_prec = round(float(hour_prec), 2)
@@ -3441,19 +3509,25 @@ def _merge_current(
 
     # --- rain probability of the current hour. A station that is measuring
     # rain right now makes it a certainty for the score.
-    hour_probability = current_hour.get("precipitation_probability")
     score_probability = hour_probability
     if wxm_prec is not None and wxm_prec >= RAIN_NEGLIGIBLE_MM_H:
         score_probability = 100
-    # A trace that no gauge measures and that the hour's sources give almost no
-    # chance of is not rain (see UNBACKED_TRACE_MAX_MM_H): it is dropped, and the
-    # rain code that came with it then reads as stale below.
+    # A trace (under UNBACKED_TRACE_MAX_MM_H) is weighed against the witnesses
+    # before it is called rain. It is dropped when no gauge measures rain and
+    # any of these says it is not falling: a gauge here reads dry, the airport
+    # next door reports no precipitation, or the hour's sources give it almost
+    # no chance. The rain code that came with it then reads as a chance or as
+    # stale below, by the probability. A real amount (from 0.5 mm/h) stands.
+    gauge_wet = station_prec is not None and station_prec >= RAIN_NEGLIGIBLE_MM_H
     if (
-        station_prec is None
+        not gauge_wet
         and precipitation is not None
         and precipitation < UNBACKED_TRACE_MAX_MM_H
-        and score_probability is not None
-        and score_probability < CODE_ACTIVE_MIN_PROBABILITY
+        and (
+            station_prec is not None
+            or airport_dry
+            or (score_probability is not None and score_probability < CODE_ACTIVE_MIN_PROBABILITY)
+        )
     ):
         precipitation = 0.0
 
@@ -3480,8 +3554,9 @@ def _merge_current(
         effective_code, precipitation, score_probability, character
     )
     _downgraded = display_code != effective_code
-    # OWM's text describes its own code, so it is not used for an airport's.
-    if owm_current and not _downgraded and (metar_code is None or wxm_code is not None):
+    # OWM's text describes its own code, so it is used only when that code is
+    # the one shown (not for an airport's, nor for its haze, which maps to none).
+    if owm_current and not _downgraded and owm_code is not None and effective_code == owm_code:
         description = owm_current["weather"][0].get("description", _wmo_desc(display_code)).capitalize()
     else:
         description = _display_description(
@@ -3554,8 +3629,10 @@ def _merge_current(
         else bool(current_hour.get("is_day", True))
     )
     dew_point = _dew_point_c(temp, humidity)
-    road_temp = _road_surface_temp(temp, humidity, om_code, precipitation, is_day=is_day)
-    frost_risk = _frost_risk(temp, road_temp, dew_point, precipitation, effective_code)
+    # The road is judged on what falls, not on a leftover code (_ground_code).
+    ground_code = _ground_code(effective_code, precipitation, score_probability)
+    road_temp = _road_surface_temp(temp, humidity, ground_code, precipitation, is_day=is_day)
+    frost_risk = _frost_risk(temp, road_temp, dew_point, precipitation, ground_code)
 
     # --- moto score
     # The score must use the same code that drives the displayed icon and
@@ -3822,8 +3899,9 @@ def _build_hourly(om_data: dict, ensemble: dict[str, dict[str, Any]] | None = No
         dew_point_raw = _safe(hourly.get("dew_point_2m"), i)
         dew_point = dew_point_raw if dew_point_raw is not None else _dew_point_c(temp, humidity)
         is_day = _hour_is_day(_safe(hourly.get("is_day"), i), t, sun_by_date)
-        road_temp = _road_surface_temp(temp, humidity, code, precipitation, is_day=is_day)
-        frost_risk = _frost_risk(temp, road_temp, dew_point, precipitation, code)
+        ground_code = _ground_code(code, precipitation, probability)
+        road_temp = _road_surface_temp(temp, humidity, ground_code, precipitation, is_day=is_day)
+        frost_risk = _frost_risk(temp, road_temp, dew_point, precipitation, ground_code)
         score = _moto_score(feels, gusts, precipitation, code, probability,
                             visibility_m=visibility, frost_risk=frost_risk)
         character = _rain_character(_safe(hourly.get("cape"), i),
@@ -3864,8 +3942,51 @@ def _build_hourly(om_data: dict, ensemble: dict[str, dict[str, Any]] | None = No
             # Filled by _fuse_rain when other sources speak about rain.
             "rain_sources": None,
             "precipitation_range_mm": None,
+            # The models' own code, before display: _settle_hours re-reads it once
+            # the probability is fused. Removed before the answer leaves.
+            "_code": code,
         })
     return result
+
+
+def _settle_hours(hourly: list[dict]) -> None:
+    """Re-judge every hour's rain against its final, fused probability, in place.
+
+    _build_hourly picks each hour's code and words with Open-Meteo's own
+    probability; the fusion then replaces that number with what all sources
+    agree on. Without this pass an hour Open-Meteo gave 30% kept "Ploaie
+    posibilă" after the fusion brought it to 5%, and a model trace (0.2 mm)
+    at 0% kept its rain code, "Urme" and a wet road. Here a trace under
+    UNBACKED_TRACE_MAX_MM_H that the sources give under
+    CODE_ACTIVE_MIN_PROBABILITY is dropped, the display code and words are
+    chosen again from the models' code, and the hour is rescored.
+    """
+    for hour in hourly:
+        probability = hour.get("precipitation_probability")
+        amount = hour.get("precipitation_mm")
+        if (
+            amount is not None
+            and 0 < amount < UNBACKED_TRACE_MAX_MM_H
+            and probability is not None
+            and probability < CODE_ACTIVE_MIN_PROBABILITY
+        ):
+            amount = 0.0
+            hour["precipitation_mm"] = amount
+            hour["rain_intensity"] = _rain_intensity(amount)
+        code = hour.get("_code", hour.get("weather_code"))
+        character = hour.get("rain_character")
+        display_code = _effective_display_code(code, amount, probability, character)
+        hour["weather_code"] = display_code
+        hour["icon"] = _wmo_icon(display_code)
+        hour["description"] = _display_description(code, amount, probability, character)
+        _rescore_hour(hour)
+
+
+def _strip_private(hourly: list[dict]) -> None:
+    """Drop the working fields (leading underscore) before the hours are sent."""
+    for hour in hourly:
+        for key in [k for k in hour if k.startswith("_")]:
+            del hour[key]
 
 
 def _calibration_since() -> str:
@@ -4704,6 +4825,7 @@ async def _collect_weather(
                                               utc_offset_seconds=utc_offset, learned=learned)
     # Off the request path: the log is read at most once a day, in a thread.
     calibration.refresh_soon(_calibration_since(), verification.RAIN_SOURCES, rain_fusion.WEIGHTS)
+    _settle_hours(hourly)
     _apply_rain_coverage(hourly, area_raw)
     _apply_wet_road(hourly, past_rain_raw, opera_radar.local_hours(radar_rain, utc_offset))
     current = _merge_current(om_data, owm_current, owm_air, om_air, met_norm, pw_norm,
@@ -4713,6 +4835,8 @@ async def _collect_weather(
     _carry_measured_bias(om_data, hourly, current,
                          _measured_fields(wxm_norm, netatmo_norm, official_norm, community_norm))
     _sync_current_hour(om_data, hourly, current)
+    _strip_private(hourly)
+    lightning = _corroborated_lightning(lightning, current)
     if _verification_sink is not None:
         try:
             _verification_sink(_verification_snapshot(
@@ -4772,6 +4896,34 @@ async def _collect_weather(
         "alerts": alerts,
         # Measured, not a warning: flashes seen by the satellite around here lately.
         "lightning": lightning,
+    }
+
+
+def _corroborated_lightning(lightning: dict[str, Any] | None, current: dict[str, Any]) -> dict[str, Any] | None:
+    """The satellite's flashes, without a lone one the weather here cannot back.
+
+    Fewer than LIGHTNING_MIN_UNCORROBORATED_FLASHES flashes count only when
+    something else says a storm is possible: convective air, a storm code, or a
+    chance of rain from CODE_ACTIVE_MIN_PROBABILITY up. Otherwise the summary
+    is returned empty, with what was set aside under "unconfirmed".
+    """
+    if not lightning:
+        return lightning
+    count = int(lightning.get("count") or 0)
+    if count == 0 or count >= LIGHTNING_MIN_UNCORROBORATED_FLASHES:
+        return lightning
+    probability = current.get("precipitation_probability")
+    stormy = (
+        current.get("rain_character") == "convective"
+        or current.get("weather_code") in STORM_CODES
+        or (probability is not None and probability >= CODE_ACTIVE_MIN_PROBABILITY)
+    )
+    if stormy:
+        return lightning
+    return {
+        **lightning,
+        "count": 0, "near_count": 0, "nearest_km": None, "bearing_deg": None,
+        "last_minutes_ago": None, "unconfirmed": count,
     }
 
 
