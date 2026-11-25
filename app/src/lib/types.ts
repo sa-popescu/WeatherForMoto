@@ -67,6 +67,10 @@ export interface CurrentWeather {
   moto_label: MotoLabel | null;
   score_breakdown: ScoreFactor[] | null;
   road_surface_temp: number | null;
+  /** Likely [low, high] of the asphalt now (absent from older servers and the direct fallback). */
+  road_surface_range?: [number, number] | null;
+  /** The asphalt's heat balance: range, confidence and why (absent from older servers and the direct fallback). */
+  road_surface?: RoadSurface | null;
   forecast_confidence: Confidence | null;
   /** How many models answered for this hour. */
   model_count: number | null;
@@ -88,6 +92,22 @@ export interface VerdictPart {
   explanation_en: string;
   /** For rain: rain, drizzle, snow or ice, when something falls. */
   kind?: 'rain' | 'drizzle' | 'snow' | 'ice' | null;
+}
+
+/** The asphalt's temperature from its heat balance (backend/road_surface.py). */
+export interface RoadSurface {
+  temp: number;
+  low: number;
+  high: number;
+  confidence: Confidence;
+  explanation: string;
+  explanation_en: string;
+  method: 'heat-balance';
+  /** The airport whose observed sky was used around now. */
+  sky: { station: string | null; name: string | null; distance_km: number | null; reported: string | null; cloud: number | null } | null;
+  station_sun_wm2: number | null;
+  /** The national models' ground surface (grass, soil) at this hour: [min, max]. */
+  model_ground: [number, number] | null;
 }
 
 export interface NowVerdict {
@@ -159,6 +179,8 @@ export interface HourlyWeather {
   wind_direction_10m: number | null;
   is_day: boolean | null;
   road_surface_temp: number | null;
+  /** Likely [low, high] of the asphalt for the hours near now (absent further ahead, from older servers and the direct fallback). */
+  road_surface_range?: [number, number] | null;
   frost_risk: boolean | null;
   /** Missing from older servers and from the browser-direct fallback. */
   wet_road?: WetRoadState | null;
