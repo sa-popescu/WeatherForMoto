@@ -45,6 +45,13 @@
   text-align: left;
 }
 
+/* The tenth of a degree, smaller and lighter than the whole degrees. */
+.now-dec {
+  font-size: 0.65em;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
 .now-hero__feels-value {
   font-size: 24px;
   font-weight: 600;
