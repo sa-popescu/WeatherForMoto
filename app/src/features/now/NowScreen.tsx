@@ -79,7 +79,7 @@ export default function NowScreen({ active }: ScreenProps) {
 
   return (
     <div className="screen now" hidden={!active} ref={screenRef}>
-      {sky && <WeatherSky sky={sky} />}
+      {sky && <WeatherSky sky={sky} active={active} />}
       <PlaceHeader
         utcOffsetSeconds={data?.utc_offset_seconds ?? null}
         sources={data?.current.sources?.length ?? null}

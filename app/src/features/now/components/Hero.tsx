@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 import { CORE } from '../../../i18n/core';
-import { fmtTemp, hourOf } from '../../../lib/format';
+import { fmtNumber, hourOf } from '../../../lib/format';
 import { fmt, useLang, useStrings } from '../../../lib/i18n';
 import { tierColor, tierOf } from '../../../lib/scoring';
 import type { CurrentWeather } from '../../../lib/types';
@@ -52,7 +52,15 @@ export function Hero({ score, personal, model, current, onScore }: HeroProps) {
   return (
     <section className="now-hero" aria-labelledby="now-verdict">
       <div className="now-hero__weather">
-        <p className="now-hero__temp">{fmtTemp(current.temperature, lang)}</p>
+        <div className="now-hero__temps">
+          <p className="now-hero__temp">{temp1(current.temperature, lang)}</p>
+          {current.feels_like != null && (
+            <p className="now-hero__feels">
+              <span>{s.feelsLabel}</span>
+              <span className="now-hero__feels-value">{temp1(current.feels_like, lang)}</span>
+            </p>
+          )}
+        </div>
         <p className="now-hero__sky">{skyWord[skyOf(current).kind]}</p>
       </div>
       <div className="now-hero__card">
@@ -91,6 +99,11 @@ export function Hero({ score, personal, model, current, onScore }: HeroProps) {
       )}
     </section>
   );
+}
+
+/** A temperature to a tenth of a degree: "1,4°", "-3,6°". */
+function temp1(value: number | null, lang: 'ro' | 'en'): string {
+  return value == null ? '–' : `${fmtNumber(value, lang, 1)}°`;
 }
 
 /** The best windows to ride, today and tomorrow, as rows of the card. */
