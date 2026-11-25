@@ -72,6 +72,7 @@ export const S_SHEETS = defineStrings(
     hourlyTitle: 'Pe ore',
     rainSources: '{wet} din {total} surse dau ploaie',
     rainRange: 'între {low} și {high} mm/h',
+    roadRange: 'probabil {low}–{high}',
   },
   {
     rainSheetTitle: 'How to read rain',
@@ -143,5 +144,6 @@ export const S_SHEETS = defineStrings(
     hourlyTitle: 'By the hour',
     rainSources: '{wet} of {total} sources give rain',
     rainRange: 'between {low} and {high} mm/h',
+    roadRange: 'likely {low}–{high}',
   },
 );

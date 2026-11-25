@@ -52,11 +52,22 @@ export function HourSheet({ hour, current = null, nowIso, onClose }: HourSheetPr
     .filter(Boolean)
     .join(' · ');
 
+  // The asphalt: its likely range, and for the hour being lived why it sits there.
+  const roadRange = hour.road_surface_range;
+  const roadWhy = current?.road_surface ? (lang === 'en' ? current.road_surface.explanation_en : current.road_surface.explanation) : null;
+  const roadSub =
+    [
+      hour.frost_risk ? pick(READOUT_TEXTS, lang).asphaltFrost : null,
+      roadWhy ?? (roadRange && Math.round(roadRange[1]) > Math.round(roadRange[0]) ? fmt(s.roadRange, { low: fmtTemp(roadRange[0], lang), high: fmtTemp(roadRange[1], lang) }) : null),
+    ]
+      .filter(Boolean)
+      .join(' · ') || undefined;
+
   const stats: Stat[] = [
     { label: s.rain, value: rain, sub: rainSub, wide: true },
     { label: s.temperature, value: fmtTemp(hour.temperature, lang), sub: fmt(now.feels, { t: fmtTemp(hour.feels_like, lang) }) },
     { label: s.wind, value: `${fmtNumber(hour.wind_gusts_kmh, lang)} km/h`, sub: gustText(hour.wind_gusts_kmh, hour.wind_direction_10m, lang) },
-    { label: s.road, value: fmtTemp(hour.road_surface_temp, lang), sub: hour.frost_risk ? pick(READOUT_TEXTS, lang).asphaltFrost : undefined },
+    { label: s.road, value: fmtTemp(hour.road_surface_temp, lang), sub: roadSub, wide: roadWhy != null },
     { label: s.visibility, value: hour.visibility == null ? '–' : fmtVisibility(hour.visibility, lang) },
     { label: s.uv, value: fmtNumber(hour.uv_index, lang), sub: hour.uv_index == null ? undefined : uvWord(hour.uv_index, lang) },
     { label: s.humidity, value: hour.relative_humidity == null ? '–' : `${fmtNumber(hour.relative_humidity, lang)}%` },
