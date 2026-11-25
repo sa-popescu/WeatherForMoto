@@ -151,8 +151,9 @@
   color: var(--muted-2);
 }
 
+/* 17px: "Nu acum. Mâine de la 13:00, da." fits one line on a 390px phone. */
 .now-hero__verdict {
-  font-size: 19px;
+  font-size: 17px;
   font-weight: 500;
   line-height: 1.25;
   text-wrap: balance;
