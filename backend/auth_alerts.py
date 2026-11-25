@@ -41,6 +41,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.routing import APIRoute
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
+import daily_forecast
 import db_quota
 import last_good
 import severe_alerts
@@ -162,6 +163,21 @@ _URL_LIKE_RE = re.compile(
 )
 
 
+def _validate_tz(value: str | None) -> str | None:
+    """An IANA time zone this server knows, else None (the default zone applies)."""
+    if not value:
+        return None
+    value = value.strip()
+    if not re.fullmatch(r"[A-Za-z0-9_+\-]+(/[A-Za-z0-9_+\-]+){0,2}", value):
+        return None
+    try:
+        from zoneinfo import ZoneInfo
+        ZoneInfo(value)
+    except Exception:
+        return None
+    return value
+
+
 def _validate_city(value: str | None) -> str | None:
     if value is None:
         return None
@@ -247,6 +263,16 @@ class AlertPrefsPayload(BaseModel):
     comfort_temp: int = Field(default=20, ge=-20, le=50)
     wind_tolerance: str = Field(default="medium", pattern="^(low|medium|high)$")
     rain_tolerance: str = Field(default="medium", pattern="^(low|medium|high)$")
+    # The daily forecast push: off by default, at a local hour of the rider's
+    # device time zone (IANA name, checked below).
+    daily_forecast_enabled: bool = False
+    daily_forecast_hour: int = Field(default=8, ge=0, le=23)
+    daily_forecast_tz: str | None = Field(default=None, max_length=64)
+
+    @field_validator("daily_forecast_tz")
+    @classmethod
+    def _check_tz(cls, value: str | None) -> str | None:
+        return _validate_tz(value)
 
     @field_validator("city")
     @classmethod
@@ -766,6 +792,20 @@ def init_db() -> None:
             "rain_tolerance",
             "ALTER TABLE alert_prefs ADD COLUMN rain_tolerance TEXT NOT NULL DEFAULT 'medium'",
         )
+        # The daily forecast push (see daily_forecast.py and _dispatch_daily).
+        _ensure_column(
+            conn,
+            "alert_prefs",
+            "daily_forecast_enabled",
+            "ALTER TABLE alert_prefs ADD COLUMN daily_forecast_enabled INTEGER NOT NULL DEFAULT 0",
+        )
+        _ensure_column(
+            conn,
+            "alert_prefs",
+            "daily_forecast_hour",
+            "ALTER TABLE alert_prefs ADD COLUMN daily_forecast_hour INTEGER NOT NULL DEFAULT 8",
+        )
+        _ensure_column(conn, "alert_prefs", "daily_forecast_tz", "ALTER TABLE alert_prefs ADD COLUMN daily_forecast_tz TEXT")
         # The road of a route imported from GPX (see SavedTrackPayload); NULL for the others.
         _ensure_column(conn, "saved_routes", "track_json", "ALTER TABLE saved_routes ADD COLUMN track_json TEXT")
         conn.commit()
@@ -2038,8 +2078,10 @@ def me(user: SessionUser = Depends(get_current_user)) -> dict[str, Any]:
             "SELECT email, created_at, display_name FROM users WHERE id = ?",
             (user.user_id,),
         ).fetchone()
+        daily = ", daily_forecast_enabled, daily_forecast_hour, daily_forecast_tz" if _has_daily_columns(conn) else ""
         prefs = conn.execute(
-            "SELECT enabled, min_score, max_wind_gust, max_precip, max_rain_probability, min_temp, max_temp, frost_risk_enabled, quiet_hours_enabled, quiet_start_hour, quiet_end_hour, severity, home_lat, home_lon, city, alert_states, moto_type, comfort_temp, wind_tolerance, rain_tolerance FROM alert_prefs WHERE user_id = ?",
+            "SELECT enabled, min_score, max_wind_gust, max_precip, max_rain_probability, min_temp, max_temp, frost_risk_enabled, quiet_hours_enabled, quiet_start_hour, quiet_end_hour, severity, home_lat, home_lon, city, alert_states, moto_type, comfort_temp, wind_tolerance, rain_tolerance"
+            + daily + " FROM alert_prefs WHERE user_id = ?",
             (user.user_id,),
         ).fetchone()
         sub_count = conn.execute(
@@ -2053,6 +2095,8 @@ def me(user: SessionUser = Depends(get_current_user)) -> dict[str, Any]:
             "email_verified": _is_email_verified(conn, user.user_id),
             "prefs": dict(prefs) if prefs else None,
             "pushSubscriptions": int(sub_count),
+            # False until the migration adds the columns: the app then hides the setting.
+            "dailyForecastAvailable": bool(daily),
         }
     finally:
         conn.close()
@@ -2121,6 +2165,12 @@ def update_prefs(payload: AlertPrefsPayload, user: SessionUser = Depends(get_cur
                 now,
             ),
         )
+        if _has_daily_columns(conn):
+            conn.execute(
+                "UPDATE alert_prefs SET daily_forecast_enabled = ?, daily_forecast_hour = ?, daily_forecast_tz = ? "
+                "WHERE user_id = ?",
+                (int(payload.daily_forecast_enabled), payload.daily_forecast_hour, payload.daily_forecast_tz, user.user_id),
+            )
         conn.commit()
         return {"ok": True}
     finally:
@@ -3015,6 +3065,8 @@ def _push_to_all(conn: _TursoConn, ctx: _DispatchContext, ev: dict[str, Any]) ->
             data: dict[str, Any] = {"event": ev, "city": ctx.city}
             if ev.get("url"):
                 data["url"] = ev["url"]
+            if ev.get("tag"):
+                data["tag"] = ev["tag"]
             if ev.get("severe"):
                 # One notification per warning: a re-sent one replaces, not stacks.
                 data["tag"] = ev.get("key")
@@ -3090,6 +3142,158 @@ async def _deliver_events(ctx: _DispatchContext, events: list[dict[str, Any]], n
         result["sent"] += outcome["push"]
         result["delivered"] += int(outcome["status"] == "delivered")
     return result
+
+
+# ---------------------------------------------------------------------------
+# Daily forecast push (daily_forecast.py writes the text)
+# ---------------------------------------------------------------------------
+
+# The zone of a rider who never sent one (older app versions).
+DAILY_DEFAULT_TZ = os.getenv("DAILY_FORECAST_DEFAULT_TZ", "Europe/Bucharest")
+# The scheduler runs hourly; when one run is missed or every device fails, the
+# next ones may still send, as long as it is this close to the chosen hour.
+DAILY_CATCH_UP_HOURS = 2
+DAILY_COLUMNS = ("daily_forecast_enabled", "daily_forecast_hour", "daily_forecast_tz")
+
+
+def _has_daily_columns(conn: _TursoConn) -> bool:
+    return all(_has_column(conn, "alert_prefs", column) for column in DAILY_COLUMNS)
+
+
+def _device_now(tz_name: str | None, utc_now: datetime | None = None) -> datetime:
+    """Wall-clock time in the rider's zone (naive); the default zone when unknown."""
+    from zoneinfo import ZoneInfo
+
+    now = utc_now or _utc_now()
+    for name in (tz_name, DAILY_DEFAULT_TZ):
+        if not name:
+            continue
+        try:
+            return now.astimezone(ZoneInfo(name)).replace(tzinfo=None)
+        except Exception:
+            continue
+    return now.replace(tzinfo=None)
+
+
+def _daily_due(chosen_hour: int, device_now: datetime) -> bool:
+    """True from the chosen hour until DAILY_CATCH_UP_HOURS later."""
+    return (device_now.hour - int(chosen_hour)) % 24 < DAILY_CATCH_UP_HOURS
+
+
+def _list_daily_users() -> list[dict[str, Any]]:
+    """Blocking: riders with the daily forecast on, a location and a push device."""
+    conn = _connect()
+    try:
+        if not _has_daily_columns(conn):
+            return []
+        rows = conn.execute(
+            "SELECT u.id, u.email, p.home_lat, p.home_lon, p.city, p.daily_forecast_hour, p.daily_forecast_tz "
+            "FROM users u JOIN alert_prefs p ON p.user_id = u.id "
+            "WHERE p.daily_forecast_enabled = 1 AND p.home_lat IS NOT NULL AND p.home_lon IS NOT NULL "
+            "AND EXISTS (SELECT 1 FROM push_subscriptions s WHERE s.user_id = u.id)"
+        ).fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+
+def _load_daily_context(user_id: int, email: str) -> tuple[_DispatchContext | None, dict[str, Any], str | None]:
+    """Blocking: the rider's location, zone and devices for a forced send."""
+    conn = _connect()
+    try:
+        if not _has_daily_columns(conn):
+            return None, {}, "unavailable"
+        prefs = conn.execute(
+            "SELECT home_lat, home_lon, city, daily_forecast_hour, daily_forecast_tz FROM alert_prefs WHERE user_id = ?",
+            (user_id,),
+        ).fetchone()
+        if not prefs or prefs["home_lat"] is None or prefs["home_lon"] is None:
+            return None, {}, "missing_home_location"
+        subscriptions = conn.execute(
+            "SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ?", (user_id,)
+        ).fetchall()
+        return _DispatchContext(
+            user_id=user_id,
+            email=email,
+            prefs=dict(prefs),
+            lat=float(prefs["home_lat"]),
+            lon=float(prefs["home_lon"]),
+            city=prefs["city"] or "Locația mea",
+            subscriptions=list(subscriptions),
+        ), dict(prefs), None
+    finally:
+        conn.close()
+
+
+def _deliver_daily(ctx: _DispatchContext, ev: dict[str, Any], event_key: str | None) -> dict[str, Any]:
+    """Blocking: push to every device. With ``event_key`` the send is claimed
+    first, so one day gets one forecast; without it (a test) nothing is recorded."""
+    if not ctx.subscriptions:
+        return {"status": "no_channel", "push": 0}
+    conn = _connect()
+    try:
+        if event_key and not _claim_event(conn, ctx.user_id, "daily", event_key):
+            return {"status": "duplicate", "push": 0}
+        sent = _push_to_all(conn, ctx, ev)
+        if event_key:
+            _finish_event_claim(conn, ctx.user_id, event_key, sent > 0)
+        return {"status": "delivered" if sent else "failed", "push": sent}
+    finally:
+        conn.close()
+
+
+async def _daily_event(ctx: _DispatchContext) -> dict[str, Any] | None:
+    weather = await get_weather(ctx.lat, ctx.lon, ctx.city, OWM_API_KEY, forecast_days=2)
+    now_local = _local_now(weather)
+    digest = daily_forecast.build_digest(weather, now_local, ctx.city)
+    if digest is None:
+        return None
+    return {
+        "type": "daily",
+        "level": "INFO",
+        "when": now_local.isoformat(timespec="minutes"),
+        "title": digest.title,
+        "body": digest.body,
+        "tag": "daily-forecast",
+    }
+
+
+async def _dispatch_daily_for_user(row: Mapping[str, Any], utc_now: datetime) -> dict[str, Any]:
+    """The scheduled send: only when the rider's chosen hour has come."""
+    device_now = _device_now(row.get("daily_forecast_tz"), utc_now)
+    if not _daily_due(int(row.get("daily_forecast_hour") or 0), device_now):
+        return {"status": "not_due", "push": 0}
+    ctx, _, reason = await asyncio.to_thread(_load_daily_context, int(row["id"]), row["email"])
+    if ctx is None:
+        return {"status": reason or "skipped", "push": 0}
+    ev = await _daily_event(ctx)
+    if ev is None:
+        return {"status": "no_data", "push": 0}
+    return await asyncio.to_thread(_deliver_daily, ctx, ev, f"daily:{device_now.date().isoformat()}")
+
+
+@router.post("/daily-forecast/send-now")
+async def daily_forecast_send_now(user: SessionUser = Depends(get_current_user)) -> dict[str, Any]:
+    """Sends the daily forecast right away, as a test; it also returns the text."""
+    await asyncio.to_thread(
+        _enforce_limit_standalone,
+        f"dailynow:user:{user.user_id}",
+        CHECK_NOW_RATE_MAX,
+        3600,
+        "Prea multe trimiteri. Încearcă din nou mai târziu.",
+    )
+    ctx, _, reason = await asyncio.to_thread(_load_daily_context, user.user_id, user.email)
+    if ctx is None:
+        return {"ok": True, "status": reason, "push": 0}
+    try:
+        ev = await _daily_event(ctx)
+    except Exception as exc:
+        logger.exception("daily forecast failed for user %s: %s", user.user_id, exc)
+        raise HTTPException(status_code=502, detail="Prognoza nu a putut fi calculată acum.") from exc
+    if ev is None:
+        return {"ok": True, "status": "no_data", "push": 0}
+    outcome = await asyncio.to_thread(_deliver_daily, ctx, ev, None)
+    return {"ok": True, **outcome, "title": ev["title"], "body": ev["body"]}
 
 
 @router.post("/alerts/check-now")
@@ -3212,6 +3416,23 @@ async def alerts_dispatch_all(
             return await _dispatch_for_user(int(u["id"]), u["email"], OWM_API_KEY)
 
     results = await asyncio.gather(*[_run(u) for u in users], return_exceptions=True)
+
+    daily_users = await asyncio.to_thread(_list_daily_users)
+    utc_now = _utc_now()
+
+    async def _run_daily(row: Mapping[str, Any]) -> dict[str, Any]:
+        async with semaphore:
+            return await _dispatch_daily_for_user(row, utc_now)
+
+    daily_results = await asyncio.gather(*[_run_daily(r) for r in daily_users], return_exceptions=True)
+    daily_sent = daily_failed = 0
+    for row, r in zip(daily_users, daily_results):
+        if isinstance(r, BaseException):
+            daily_failed += 1
+            logger.warning("daily forecast error for user %s: %s", row["id"], r)
+            continue
+        daily_sent += int(r.get("status") == "delivered")
+
     total_sent = total_events = failed = 0
     for u, r in zip(users, results):
         if isinstance(r, BaseException):
@@ -3226,6 +3447,7 @@ async def alerts_dispatch_all(
         "sent": total_sent,
         "events": total_events,
         "failed_users": failed,
+        "daily": {"users": len(daily_users), "delivered": daily_sent, "failed_users": daily_failed},
         "purged": purged,
         "db_quota": db_quota_result,
     }

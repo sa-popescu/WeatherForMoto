@@ -7,11 +7,11 @@ import type { AlertCardProps } from './AlertsSection';
 
 const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
 
-function hourLabel(hour: number): string {
+export function hourLabel(hour: number): string {
   return `${String(hour).padStart(2, '0')}:00`;
 }
 
-function HourSelect({ label, value, onChange }: { label: string; value: number; onChange: (hour: number) => void }) {
+export function HourSelect({ label, value, onChange }: { label: string; value: number; onChange: (hour: number) => void }) {
   const id = useId();
   return (
     <div className="field">

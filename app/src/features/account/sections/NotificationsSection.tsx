@@ -13,6 +13,7 @@ import { describeCheckNow, type CheckOutcome } from '../lib/checkNow';
 import { isSessionError } from '../lib/errors';
 import { ALERTS } from '../strings/alerts';
 import { Group, Note } from '../ui/controls';
+import { DailyForecast } from './DailyForecast';
 
 type AlertStrings = typeof ALERTS.en;
 
@@ -115,6 +116,7 @@ export function NotificationsSection({ me, active }: { me: MeResponse; active: b
         </Button>
         <p className="acct-hint">{s.testNote}</p>
       </Card>
+      <DailyForecast me={me} pushOn={push.on} />
     </Group>
   );
 }
