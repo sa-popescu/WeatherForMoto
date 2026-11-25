@@ -62,6 +62,7 @@ export function Hero({ score, personal, model, current, onScore }: HeroProps) {
           )}
         </div>
         <p className="now-hero__sky">{skyWord[skyOf(current).kind]}</p>
+        <Why current={current} lang={lang} />
       </div>
       <div className="now-hero__card">
         <div className="now-score">
@@ -98,6 +99,26 @@ export function Hero({ score, personal, model, current, onScore }: HeroProps) {
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * Why the sky reads as it does: the arbiter's sentence on rain, and on fog or
+ * a storm when someone mentioned one ("Nu plouă: aeroportul Băneasa și 10
+ * din 11 surse spun uscat."). Nothing from older servers or the fallback.
+ */
+function Why({ current, lang }: { current: CurrentWeather; lang: 'ro' | 'en' }) {
+  const v = current.verdict;
+  if (!v) return null;
+  const pick = (p: { explanation: string; explanation_en: string }) => (lang === 'en' ? p.explanation_en : p.explanation);
+  const lines = [pick(v.precipitation), v.fog && pick(v.fog), v.storm && pick(v.storm)].filter(
+    (x): x is string => Boolean(x),
+  );
+  if (!lines.length) return null;
+  return (
+    <p className="now-hero__why" title={`${v.precipitation.confidence}%`}>
+      {lines.join(' ')}
+    </p>
   );
 }
 

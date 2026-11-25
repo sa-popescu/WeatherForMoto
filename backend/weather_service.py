@@ -29,6 +29,7 @@ from typing import Any
 import httpx
 
 import anm_nowcast
+import arbiter
 import meteoalarm
 import metar
 import official_stations
@@ -3373,6 +3374,8 @@ def _merge_current(
     official_norm: dict | None = None,
     metar_obs: dict | None = None,
     community_norm: dict | None = None,
+    radar_hours: dict[str, float] | None = None,
+    learned_weights: dict[str, float] | None = None,
 ) -> dict:
     c = om_data.get("current", {})
     nta = netatmo_norm or {}
@@ -3478,19 +3481,8 @@ def _merge_current(
     wxm_prec = wxm_norm.get("precipitation") if wxm_norm else None
     hour_probability = current_hour.get("precipitation_probability")
     airport_dry = _airport_saw_it_dry(obs)
-    # A private Netatmo gauge is one bucket in someone's yard (a sprinkler, a
-    # tipped bucket, a bird): rain it alone reports, at a chance the sources
-    # put under CODE_ACTIVE_MIN_PROBABILITY and with the airport next door dry,
-    # is not taken as a measurement. WeatherXM stations are vetted and stand.
+    # A private Netatmo gauge that alone reports rain is weighed by the arbiter below.
     nta_prec = nta.get("precipitation")
-    if (
-        nta_prec is not None
-        and nta_prec >= RAIN_NEGLIGIBLE_MM_H
-        and airport_dry
-        and hour_probability is not None
-        and hour_probability < CODE_ACTIVE_MIN_PROBABILITY
-    ):
-        nta_prec = None
     # The official gauge's total covers the last full hour, not this moment: it
     # joins the blend, but does not count as the "station" reading below.
     precipitation = _wxm_or_blend(wxm_prec, [om_prec, owm_prec, met_prec, pw_prec], [1.0, 1.0, 1.1, 0.8],
@@ -3512,29 +3504,44 @@ def _merge_current(
     score_probability = hour_probability
     if wxm_prec is not None and wxm_prec >= RAIN_NEGLIGIBLE_MM_H:
         score_probability = 100
-    # A trace (under UNBACKED_TRACE_MAX_MM_H) is weighed against the witnesses
-    # before it is called rain. It is dropped when no gauge measures rain and
-    # any of these says it is not falling: a gauge here reads dry, the airport
-    # next door reports no precipitation, or the hour's sources give it almost
-    # no chance. The rain code that came with it then reads as a chance or as
-    # stale below, by the probability. A real amount (from 0.5 mm/h) stands.
-    gauge_wet = station_prec is not None and station_prec >= RAIN_NEGLIGIBLE_MM_H
-    if (
-        not gauge_wet
-        and precipitation is not None
-        and precipitation < UNBACKED_TRACE_MAX_MM_H
-        and (
-            station_prec is not None
-            or airport_dry
-            or (score_probability is not None and score_probability < CODE_ACTIVE_MIN_PROBABILITY)
-        )
-    ):
+    # --- the arbiter: every witness of this moment, weighed once (arbiter.py).
+    # Its verdict replaces the separate rules against a lone source: a trace
+    # under a dry airport, a yard gauge alone, a radar echo over dry air.
+    owm_code_raw = owm_current["weather"][0]["id"] if owm_current else None
+    owm_code = _owm_id_to_wmo(owm_code_raw) if owm_code_raw is not None else None
+    radar_mm = (radar_hours or {}).get(str(current_hour.get("time", ""))) if current_hour else None
+    witnesses = arbiter.precipitation_witnesses(
+        providers={
+            "open-meteo": (om_prec, c.get("weather_code")),
+            **({"openweathermap": (owm_prec, owm_code)} if owm_current else {}),
+            **({"met-norway": (met_prec, met_norm.get("wmo_code"))} if met_norm else {}),
+            **({"pirate-weather": (pw_prec, pw_norm.get("wmo_code"))} if pw_norm else {}),
+        },
+        models=(
+            (int(current_hour["_wet_models"]), int(current_hour["_rain_models"]))
+            if current_hour.get("_rain_models") else None
+        ),
+        weatherxm_mm=wxm_prec,
+        netatmo_mm=nta_prec,
+        official=off or None,
+        airport=obs or None,
+        radar_mm=radar_mm,
+        humidity=humidity,
+        learned=learned_weights,
+        defaults=rain_fusion.WEIGHTS,
+    )
+    rain_verdict = arbiter.judge_precipitation(witnesses, hour_probability=hour_probability, temperature=temp)
+    if rain_verdict["state"] == "dry" and precipitation is not None:
+        # Nothing falls: whatever amount a source alone gave is not shown.
         precipitation = 0.0
+    elif rain_verdict["state"] == "wet" and rain_verdict["observed"]:
+        # Observed falling: at least a trace, and a chance the code cannot call stale.
+        if precipitation is None or precipitation < CODE_ACTIVE_MIN_AMOUNT_MM:
+            precipitation = CODE_ACTIVE_MIN_AMOUNT_MM
+        score_probability = max(score_probability or 0, rain_verdict["probability"])
 
     # --- weather code / description
     om_code = c.get("weather_code")
-    owm_code_raw = owm_current["weather"][0]["id"] if owm_current else None
-    owm_code = _owm_id_to_wmo(owm_code_raw) if owm_code_raw is not None else None
     wxm_code = wxm_norm.get("wmo_code") if wxm_norm else None
     # What an observer at a nearby airport reports right now (rain, storm, fog).
     metar_code = obs.get("wmo_code")
@@ -3545,6 +3552,23 @@ def _merge_current(
     # Use OWM Romanian description for text since WXM has no localization.
     # OWM code 0 (clear sky) is a valid value, hence the explicit None checks.
     effective_code = _first_not_none(wxm_code, metar_code, owm_code, om_code)
+    # Fog the arbiter does not believe (an airport next door sees 10 km) gives
+    # way to the next provider's sky; fog it does believe is named.
+    fog_verdict = arbiter.judge_fog(
+        codes={
+            "open-meteo": om_code,
+            **({"openweathermap": owm_code} if owm_current else {}),
+            **({"met-norway": met_norm.get("wmo_code")} if met_norm else {}),
+            **({"pirate-weather": pw_norm.get("wmo_code")} if pw_norm else {}),
+        },
+        airport=obs or None,
+        model_visibility_m=_to_float(c.get("visibility")),
+    )
+    if fog_verdict and effective_code in FOG_CODES and fog_verdict["state"] == "clear":
+        effective_code = _first_not_none(
+            *[code for code in (wxm_code, metar_code, owm_code, om_code) if code not in FOG_CODES], 3)
+    elif fog_verdict and fog_verdict["state"] == "fog" and (effective_code is None or effective_code < 45):
+        effective_code = 45
     # Downgrade a precip/storm code to overcast for DISPLAY when it isn't actually
     # precipitating, so the icon and description stay consistent with the score.
     # The hour being lived already knows whether the air is convective.
@@ -3683,6 +3707,14 @@ def _merge_current(
         "moto_score": score,
         "moto_label": _moto_label(score),
         "score_breakdown": breakdown,
+        # The arbiter's verdict on now, with its confidence and its reasons.
+        "verdict": {
+            "precipitation": rain_verdict,
+            "fog": fog_verdict,
+            "storm": None,
+            "summary": rain_verdict["explanation"],
+            "summary_en": rain_verdict["explanation_en"],
+        },
         "road_surface_temp": road_temp,
         # How much the national models agree on this hour, and how many answered.
         "forecast_confidence": current_hour.get("forecast_confidence"),
@@ -3945,6 +3977,9 @@ def _build_hourly(om_data: dict, ensemble: dict[str, dict[str, Any]] | None = No
             # The models' own code, before display: _settle_hours re-reads it once
             # the probability is fused. Removed before the answer leaves.
             "_code": code,
+            # How many national models give rain, for the arbiter of the current hour.
+            "_wet_models": ens_hour.get("wet_models") if ens_hour else None,
+            "_rain_models": ens_hour.get("rain_models") if ens_hour else None,
         })
     return result
 
@@ -4830,7 +4865,9 @@ async def _collect_weather(
     _apply_wet_road(hourly, past_rain_raw, opera_radar.local_hours(radar_rain, utc_offset))
     current = _merge_current(om_data, owm_current, owm_air, om_air, met_norm, pw_norm,
                              wxm_norm, netatmo_norm, hourly=hourly,
-                             official_norm=official_norm, metar_obs=metar_obs, community_norm=community_norm)
+                             official_norm=official_norm, metar_obs=metar_obs, community_norm=community_norm,
+                             radar_hours=opera_radar.local_hours(radar_rain, utc_offset),
+                             learned_weights=learned.weights if learned else None)
     # Before the daily scores are built, so the day counts the hours as corrected.
     _carry_measured_bias(om_data, hourly, current,
                          _measured_fields(wxm_norm, netatmo_norm, official_norm, community_norm))
@@ -4902,23 +4939,25 @@ async def _collect_weather(
 def _corroborated_lightning(lightning: dict[str, Any] | None, current: dict[str, Any]) -> dict[str, Any] | None:
     """The satellite's flashes, without a lone one the weather here cannot back.
 
-    Fewer than LIGHTNING_MIN_UNCORROBORATED_FLASHES flashes count only when
-    something else says a storm is possible: convective air, a storm code, or a
-    chance of rain from CODE_ACTIVE_MIN_PROBABILITY up. Otherwise the summary
-    is returned empty, with what was set aside under "unconfirmed".
+    The arbiter weighs the flashes against the air (arbiter.judge_storm): one
+    flash counts only when something else says a storm is possible, convective
+    air, a storm code, or a real chance of rain. Otherwise the summary is
+    returned empty, with what was set aside under "unconfirmed". The storm
+    verdict joins the current block's.
     """
-    if not lightning:
-        return lightning
-    count = int(lightning.get("count") or 0)
-    if count == 0 or count >= LIGHTNING_MIN_UNCORROBORATED_FLASHES:
-        return lightning
+    count = int((lightning or {}).get("count") or 0)
     probability = current.get("precipitation_probability")
-    stormy = (
-        current.get("rain_character") == "convective"
-        or current.get("weather_code") in STORM_CODES
-        or (probability is not None and probability >= CODE_ACTIVE_MIN_PROBABILITY)
+    storm = arbiter.judge_storm(
+        flashes=count,
+        convective=current.get("rain_character") == "convective",
+        storm_code=current.get("weather_code") in STORM_CODES,
+        probability=probability,
+        nearest_km=_to_float((lightning or {}).get("nearest_km")),
     )
-    if stormy:
+    verdict = current.get("verdict")
+    if isinstance(verdict, dict):
+        verdict["storm"] = storm
+    if not lightning or count == 0 or storm is None or storm["state"] == "storm":
         return lightning
     return {
         **lightning,
