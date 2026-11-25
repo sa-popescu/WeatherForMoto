@@ -5426,3 +5426,25 @@ def _corroborated_lightning(lightning: dict[str, Any] | None, current: dict[str,
         "count": 0, "near_count": 0, "nearest_km": None, "bearing_deg": None,
         "last_minutes_ago": None, "unconfirmed": count,
     }
+
+
+async def severe_inputs(lat: float, lon: float, city_name: str, met_user_agent: str | None = None) -> dict[str, Any]:
+    """Only what severe-weather alerts read between two full forecasts: the
+    official warnings over the point and the satellite's lightning around it.
+
+    The feeds are country-wide and cached like the full answer's, so checking
+    every rider costs two downloads, not one per rider. No forecast provider
+    is asked, so this can run every few minutes.
+    """
+    user_agent = _resolve_met_user_agent(met_user_agent)
+    async with http_client_scope() as client:
+        meteoalarm_feed, nowcast_feed, lightning = await asyncio.gather(
+            _cached_optional("Meteoalarm", ("meteoalarm", meteoalarm.feed_url()), _with_ttl(
+                lambda: meteoalarm.fetch_feed(client, user_agent), TTL_METEOALARM_S)),
+            _cached_optional("ANM nowcasting", ("anm-nowcast",), _with_ttl(
+                lambda: anm_nowcast.fetch_feed(client, user_agent), TTL_ANM_NOWCAST_S)),
+            _await_optional("MTG lightning", mtg_lightning.near(lat, lon, client)),
+        )
+    alerts = (meteoalarm.warnings_for(meteoalarm_feed, lat, lon, city_name) if meteoalarm_feed else []) + \
+        (anm_nowcast.warnings_for(nowcast_feed, lat, lon, city_name) if nowcast_feed else [])
+    return {"alerts": alerts, "lightning": lightning}
