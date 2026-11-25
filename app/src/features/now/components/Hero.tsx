@@ -56,12 +56,14 @@ export function Hero({ score, personal, model, current, onScore }: HeroProps) {
       <div className="now-hero__weather">
         <div className="now-hero__temps">
           <p className="now-hero__temp" title={tempTitle(current, lang)}>
-            {temp1(current.temperature, lang)}
+            <Temp value={current.temperature} lang={lang} />
           </p>
           {current.feels_like != null && (
             <p className="now-hero__feels">
               <span>{s.feelsLabel}</span>
-              <span className="now-hero__feels-value">{temp1(current.feels_like, lang)}</span>
+              <span className="now-hero__feels-value">
+                <Temp value={current.feels_like} lang={lang} />
+              </span>
             </p>
           )}
         </div>
@@ -110,6 +112,24 @@ function tempTitle(current: CurrentWeather, lang: 'ro' | 'en'): string | undefin
   const t = current.verdict?.values?.temperature;
   if (!t) return undefined;
   return lang === 'en' ? t.explanation_en : t.explanation;
+}
+
+/**
+ * A temperature to a tenth of a degree, the tenth set smaller and lighter so
+ * the whole degrees read first: "2" then ",2°". The full text stays for
+ * screen readers and copying.
+ */
+function Temp({ value, lang }: { value: number | null; lang: 'ro' | 'en' }) {
+  const text = temp1(value, lang);
+  const m = /^(\D?\d+)([.,]\d)(°)$/.exec(text);
+  if (!m) return <>{text}</>;
+  return (
+    <>
+      {m[1]}
+      <span className="now-dec">{m[2]}</span>
+      {m[3]}
+    </>
+  );
 }
 
 /** A temperature to a tenth of a degree: "1,4°", "-3,6°". */
