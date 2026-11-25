@@ -353,6 +353,11 @@ export interface AlertPrefs {
   comfort_temp: number;
   wind_tolerance: Level;
   rain_tolerance: Level;
+  /** The daily forecast push, at this local hour in the device's time zone. */
+  daily_forecast_enabled: boolean;
+  daily_forecast_hour: number;
+  /** IANA zone of the device that chose the hour, e.g. "Europe/Bucharest". */
+  daily_forecast_tz: string | null;
 }
 
 export interface MeResponse {
@@ -362,6 +367,8 @@ export interface MeResponse {
   email_verified: boolean;
   prefs: AlertPrefs | null;
   pushSubscriptions: number;
+  /** False until the server's database has the daily forecast columns. */
+  dailyForecastAvailable?: boolean;
 }
 
 /** The road of a route imported from GPX, as the server keeps it (see features/route/savedTrack.ts). */
@@ -420,6 +427,13 @@ export interface Hazard {
 }
 
 /** POST /alerts/check-now: the backend reports counts, not booleans. */
+export interface DailyForecastNowResponse {
+  status?: string;
+  push?: number;
+  title?: string;
+  body?: string;
+}
+
 export interface CheckNowResponse {
   delivered?: number;
   sent?: number;

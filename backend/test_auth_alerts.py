@@ -135,10 +135,10 @@ class _Base(unittest.TestCase):
             raise self.email_error
         self.emails.append({"to": email, "subject": subject, "text": text, "links": list(links)})
 
-    def _fake_send_push(self, sub: Any, title: str, body: str, data: dict[str, Any]) -> None:
+    def _fake_send_push(self, sub: Any, title: str, body: str, data: dict[str, Any], tag: str | None = None) -> None:
         if self.push_error:
             raise self.push_error
-        self.pushes.append({"endpoint": sub["endpoint"], "title": title, "body": body})
+        self.pushes.append({"endpoint": sub["endpoint"], "title": title, "body": body, "tag": tag})
 
     async def _fake_get_weather(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
         return self.weather
@@ -932,6 +932,117 @@ class DispatchTests(_Base):
 # ---------------------------------------------------------------------------
 # Degraded mode: new code on a database that was not migrated yet
 # ---------------------------------------------------------------------------
+
+class DailyForecastTests(_Base):
+    """The daily forecast push: the setting, the hour it goes out, once a day."""
+
+    def _ready(self, hour: int = 8, tz: str | None = "Europe/Bucharest", token: str | None = None) -> tuple[str, int]:
+        uid = 0
+        if token is None:
+            token, uid = self.alert_ready_user()
+        resp = self.put_prefs(token, daily_forecast_enabled=True, daily_forecast_hour=hour, daily_forecast_tz=tz)
+        self.assertEqual(resp.status_code, 200, resp.text)
+        return token, uid
+
+    def _run(self, utc_now: datetime) -> list[dict[str, Any]]:
+        import asyncio
+
+        async def go() -> list[dict[str, Any]]:
+            rows = await asyncio.to_thread(aa._list_daily_users)
+            return [await aa._dispatch_daily_for_user(row, utc_now) for row in rows]
+
+        return asyncio.run(go())
+
+    @staticmethod
+    def _utc_for_bucharest(hour: int, day: int = 15) -> datetime:
+        # January: Bucharest is UTC+2.
+        return datetime(2027, 1, day, (hour - 2) % 24, 5, tzinfo=timezone.utc)
+
+    def test_setting_round_trips_and_is_off_by_default(self) -> None:
+        token, _ = self.alert_ready_user()
+        me = self.client.get("/me", headers=_auth(token)).json()
+        self.assertTrue(me["dailyForecastAvailable"])
+        self.assertEqual((me["prefs"]["daily_forecast_enabled"], me["prefs"]["daily_forecast_hour"]), (0, 8))
+        self._ready(hour=7, tz="Europe/Bucharest", token=token)
+        prefs = self.client.get("/me", headers=_auth(token)).json()["prefs"]
+        self.assertEqual(
+            (prefs["daily_forecast_enabled"], prefs["daily_forecast_hour"], prefs["daily_forecast_tz"]),
+            (1, 7, "Europe/Bucharest"),
+        )
+
+    def test_unknown_time_zone_is_dropped_and_the_hour_is_bounded(self) -> None:
+        token, _ = self.alert_ready_user()
+        self.assertEqual(self.put_prefs(token, daily_forecast_tz="Mars/Olympus").status_code, 200)
+        self.assertIsNone(self.client.get("/me", headers=_auth(token)).json()["prefs"]["daily_forecast_tz"])
+        self.assertEqual(self.put_prefs(token, daily_forecast_hour=24).status_code, 422)
+
+    def test_goes_out_at_the_chosen_hour_once_a_day(self) -> None:
+        self._ready(hour=8)
+        self.assertEqual(self._run(self._utc_for_bucharest(7))[0]["status"], "not_due")
+        self.assertEqual(self.pushes, [])
+        self.assertEqual(self._run(self._utc_for_bucharest(8))[0]["status"], "delivered")
+        self.assertEqual(self._run(self._utc_for_bucharest(9))[0]["status"], "duplicate")
+        self.assertEqual(len(self.pushes), 1)
+        self.assertEqual(self.pushes[0]["tag"], "daily-forecast")
+        self.assertIn("Bucuresti", self.pushes[0]["title"])
+        self.assertTrue(self.pushes[0]["body"])
+        # The next day it goes out again (the claim's cooldown runs on the real clock).
+        conn = self.db()
+        conn.execute("UPDATE alert_events SET created_at = '2000-01-01T00:00:00+00:00'")
+        conn.commit()
+        self.assertEqual(self._run(self._utc_for_bucharest(8, day=16))[0]["status"], "delivered")
+
+    def test_a_failed_send_is_retried_by_the_next_run_only_close_to_the_hour(self) -> None:
+        self._ready(hour=8)
+        self.push_error = RuntimeError("push service down")
+        self.assertEqual(self._run(self._utc_for_bucharest(8))[0]["status"], "failed")
+        self.push_error = None
+        self.assertEqual(self._run(self._utc_for_bucharest(9))[0]["status"], "delivered")
+        self.assertEqual(self._run(self._utc_for_bucharest(10, day=17))[0]["status"], "not_due")
+
+    def test_hour_is_read_in_the_riders_zone(self) -> None:
+        self._ready(hour=8, tz="Europe/London")
+        self.assertEqual(self._run(self._utc_for_bucharest(8))[0]["status"], "not_due")   # 06:05 in London
+        self.assertEqual(self._run(self._utc_for_bucharest(10))[0]["status"], "delivered")
+
+    def test_only_riders_who_turned_it_on_are_listed(self) -> None:
+        token, _ = self.alert_ready_user()
+        self.assertEqual(aa._list_daily_users(), [])
+        self.put_prefs(token, daily_forecast_enabled=True)
+        self.assertEqual(len(aa._list_daily_users()), 1)
+
+    def test_send_now_pushes_and_returns_the_text(self) -> None:
+        token, uid = self._ready()
+        resp = self.client.post("/daily-forecast/send-now", headers=_auth(token))
+        self.assertEqual(resp.status_code, 200, resp.text)
+        data = resp.json()
+        self.assertEqual((data["status"], data["push"]), ("delivered", 1))
+        self.assertEqual(data["body"], self.pushes[0]["body"])
+        # A test send never uses up the day's forecast.
+        self.assertEqual(self.db().execute("SELECT * FROM alert_events WHERE user_id = ?", (uid,)).fetchall(), [])
+
+    def test_dispatch_all_reports_the_daily_sends(self) -> None:
+        self._ready(hour=datetime.now(aa.timezone.utc).astimezone(__import__("zoneinfo").ZoneInfo("Europe/Bucharest")).hour)
+        with mock.patch.dict(os.environ, {"ALERT_DISPATCH_SECRET": "s3cret-value"}):
+            ok = self.client.post("/alerts/dispatch-all", headers={"X-Dispatch-Secret": "s3cret-value"})
+        self.assertEqual(ok.status_code, 200, ok.text)
+        self.assertEqual(ok.json()["daily"], {"users": 1, "delivered": 1, "failed_users": 0})
+
+    def test_before_the_migration_the_setting_is_hidden_and_nothing_breaks(self) -> None:
+        token, _ = self.alert_ready_user()
+        conn = self.db()
+        for column in aa.DAILY_COLUMNS:
+            conn.execute(f"ALTER TABLE alert_prefs DROP COLUMN {column}")
+        conn.commit()
+        aa._SCHEMA_CACHE.clear()
+        me = self.client.get("/me", headers=_auth(token)).json()
+        self.assertFalse(me["dailyForecastAvailable"])
+        self.assertNotIn("daily_forecast_enabled", me["prefs"])
+        self.assertEqual(self.put_prefs(token, daily_forecast_enabled=True).status_code, 200)
+        self.assertEqual(aa._list_daily_users(), [])
+        self.assertEqual(self.client.post("/daily-forecast/send-now", headers=_auth(token)).json()["status"],
+                         "unavailable")
+
 
 class UnmigratedSchemaTests(_Base):
     def setUp(self) -> None:

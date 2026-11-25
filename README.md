@@ -218,7 +218,8 @@ Organizare: `src/lib` (API tipizat, format, scor, geo), `src/state` (sesiune, lo
 - `POST /me/push-subscriptions` - Abonare push
 - `DELETE /me/push-subscriptions` - Dezabonare push
 - `POST /alerts/check-now` - Verificare alertă manuală
-- `POST /alerts/dispatch-all` - Dispatch batch (secret doar în header-ul `X-Dispatch-Secret`)
+- `POST /alerts/dispatch-all` - Dispatch batch (secret doar în header-ul `X-Dispatch-Secret`); trimite și prognoza zilnică
+- `POST /daily-forecast/send-now` - Trimite acum prognoza zilnică (test) și întoarce textul
 
 ### Route & ride data
 
@@ -274,7 +275,7 @@ Autentificarea e fără chei: Workload Identity Federation (pool `github`, provi
 
 **Migrare schemă:** rulează manual workflow-ul „Deploy API” cu opțiunea `run_migrations`. Noua revizie pornește fără trafic, rulează migrarea la startup și abia apoi primește traficul. Codul funcționează și pe o bază nemigrată (vechiul comportament).
 
-**Alerte:** job-ul Cloud Scheduler `mm-dispatch-alerts` apelează `POST /alerts/dispatch-all` în fiecare oră, la minutul 5 (ora României), cu header-ul `X-Dispatch-Secret`. Pornire / oprire:
+**Alerte:** job-ul Cloud Scheduler `mm-dispatch-alerts` apelează `POST /alerts/dispatch-all` în fiecare oră, la minutul 5 (ora României), cu header-ul `X-Dispatch-Secret`. Aceeași rulare trimite și prognoza zilnică (`backend/daily_forecast.py`) celor care au pornit-o, la ora aleasă în fusul orar al telefonului lor, o singură dată pe zi. Pornire / oprire:
 
 ```bash
 gcloud scheduler jobs resume mm-dispatch-alerts --location europe-west1 --project weatherformoto

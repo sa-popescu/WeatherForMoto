@@ -26,6 +26,9 @@ export const PREF_DEFAULTS: AlertPrefs = {
   comfort_temp: 20,
   wind_tolerance: 'medium',
   rain_tolerance: 'medium',
+  daily_forecast_enabled: false,
+  daily_forecast_hour: 8,
+  daily_forecast_tz: null,
 };
 
 /** The database returns 0/1 for booleans and may carry retired fields; keep only known ones. */

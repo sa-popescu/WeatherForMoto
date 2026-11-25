@@ -4,6 +4,7 @@ import type {
   AlertPrefs,
   AuthResponse,
   CheckNowResponse,
+  DailyForecastNowResponse,
   GeocodeResult,
   Hazard,
   MeResponse,
@@ -228,6 +229,8 @@ export const api = {
     json('/me/push-subscriptions', { method: 'DELETE', token, query: { endpoint } }),
   checkNow: (token: string): Promise<CheckNowResponse> =>
     json('/alerts/check-now', { method: 'POST', token, timeoutMs: WEATHER_TIMEOUT_MS }),
+  dailyForecastNow: (token: string): Promise<DailyForecastNowResponse> =>
+    json('/daily-forecast/send-now', { method: 'POST', token, timeoutMs: WEATHER_TIMEOUT_MS }),
 
   routes: async (token: string): Promise<SavedRoute[]> => (await json<{ routes: SavedRoute[] }>('/me/routes', { token })).routes,
   saveRoute: (
