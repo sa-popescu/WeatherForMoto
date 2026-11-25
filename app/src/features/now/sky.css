@@ -415,7 +415,7 @@
 /* Text straight on the sky keeps a soft shadow under its letters. */
 .screen.now:has(> .sky) .place-head__name,
 .screen.now:has(> .sky) .now-hero__weather {
-  text-shadow: 0 1px 4px rgb(0 0 0 / 0.35);
+  text-shadow: 0 1px 4px rgb(0 0 0 / 0.55);
 }
 
 :root[data-theme='day'] .screen.now:has(> .sky) .place-head__name,
@@ -427,8 +427,8 @@
    than on the plain page, with a soft shadow under the letters, so they
    stay legible over a light cloud. */
 .screen.now .place-head__meta {
-  color: var(--ink-2);
-  text-shadow: 0 1px 3px rgb(0 0 0 / 0.45);
+  color: var(--ink);
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.7), 0 0 8px rgb(0 0 0 / 0.35);
 }
 
 :root[data-theme='day'] .screen.now .place-head__meta {
@@ -444,12 +444,22 @@
   --surface: rgb(20 22 18 / 0.62);
   --surface-2: rgb(15 17 13 / 0.5);
   --surface-3: rgb(28 31 25 / 0.6);
-  --line: rgb(255 255 255 / 0.08);
+  /* Edges and quiet text a step brighter than on the plain page: over a
+     light cloud the usual ones disappear. */
+  --line: rgb(255 255 255 / 0.15);
+  --line-2: rgb(255 255 255 / 0.24);
+  --muted: #c4c9bb;
+  --muted-2: #b0b6a8;
+  --dim: #959b8e;
 }
 
 :root[data-theme='day'] .screen.now:has(> .sky) {
   --surface: rgb(255 255 255 / 0.7);
   --surface-2: rgb(247 248 243 / 0.6);
   --surface-3: rgb(232 234 225 / 0.7);
-  --line: rgb(0 0 0 / 0.08);
+  --line: rgb(0 0 0 / 0.16);
+  --line-2: rgb(0 0 0 / 0.24);
+  --muted: #33372f;
+  --muted-2: #42463c;
+  --dim: #555a50;
 }
