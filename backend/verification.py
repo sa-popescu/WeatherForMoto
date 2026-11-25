@@ -225,6 +225,62 @@ def read_window(conn: Any, since: str, columns: Sequence[str]) -> dict[str, Any]
     return {"rain": pairs, "observations": observations, "forecasts": forecasts}
 
 
+# An official station this close speaks for a cell's hour on its own; farther,
+# its reading joins the other stations' median.
+OBSERVED_OFFICIAL_KM = 15.0
+# The most (cell, hour) pairs one question may ask about (a ride's story has 48 samples).
+OBSERVED_MAX_KEYS = 120
+
+
+def observed_rows(conn: Any, keys: Sequence[tuple[str, str]]) -> list[dict[str, Any]]:
+    """Blocking: the logged observations for these (cell, hour) pairs.
+
+    One query over the table's key (cell, hour, source): every asked cell and
+    hour, the pairs matched here.
+    """
+    wanted = set(keys[:OBSERVED_MAX_KEYS])
+    if not wanted:
+        return []
+    cells = sorted({cell for cell, _ in wanted})
+    hours = sorted({hour for _, hour in wanted})
+    rows = conn.execute(
+        "SELECT cell, hour, source, distance_km, temp, gusts, raining FROM observation_log "
+        f"WHERE cell IN ({', '.join('?' for _ in cells)}) AND hour IN ({', '.join('?' for _ in hours)})",
+        (*cells, *hours),
+    ).fetchall()
+    return [{name: row[name] for name in ("cell", "hour", "source", "distance_km", "temp", "gusts", "raining")}
+            for row in rows if (row["cell"], row["hour"]) in wanted]
+
+
+def summarize_observed(rows: Sequence[dict[str, Any]]) -> dict[tuple[str, str], dict[str, Any]]:
+    """Per (cell, hour): what was measured, from every source that logged it.
+
+    The temperature and gust are a near official station's, else the median of
+    the stations that measured them; "raining" is 1 when any source (a gauge
+    or an airport) saw rain, 0 when the ones that looked saw none.
+    """
+    grouped: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for row in rows:
+        grouped.setdefault((str(row["cell"]), str(row["hour"])), []).append(row)
+    out: dict[tuple[str, str], dict[str, Any]] = {}
+    for key, group in grouped.items():
+        summary: dict[str, Any] = {"sources": sorted({str(r["source"]) for r in group})}
+        for field in ("temp", "gusts"):
+            official = [r for r in group if r["source"] == "official" and r.get(field) is not None
+                        and (r.get("distance_km") is None or float(r["distance_km"]) <= OBSERVED_OFFICIAL_KM)]
+            values = ([float(official[0][field])] if official else
+                      sorted(float(r[field]) for r in group if r.get(field) is not None))
+            if values:
+                middle = len(values) // 2
+                summary[field] = round(values[middle] if len(values) % 2 else
+                                       (values[middle - 1] + values[middle]) / 2, 1)
+        seen = [int(r["raining"]) for r in group if r.get("raining") is not None]
+        if seen:
+            summary["raining"] = max(seen)
+        out[key] = summary
+    return out
+
+
 def prune(conn: Any, now_utc: datetime) -> None:
     """Blocking: drop log rows older than RETENTION_DAYS.
 

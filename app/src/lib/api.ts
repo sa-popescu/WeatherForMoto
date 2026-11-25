@@ -156,6 +156,15 @@ export interface RideInput {
   max_precip?: number | null;
 }
 
+/** One hour and place of a ride, as the stations measured it (backend verification.summarize_observed). */
+export interface ObservedSample {
+  temp?: number;
+  gusts?: number;
+  /** 1 when a gauge or an airport saw rain, 0 when the ones that looked saw none. */
+  raining?: 0 | 1;
+  sources: string[];
+}
+
 export const api = {
   /**
    * The weather of a place. `purpose` 'forecast' (route points, favourites)
@@ -174,6 +183,14 @@ export const api = {
   },
 
   metaScoring: (): Promise<ScoringMeta> => json('/meta/scoring'),
+  /** What stations and airports measured at a finished ride's points (null where nothing was logged). */
+  rideObserved: async (points: ReadonlyArray<{ lat: number; lon: number; t: number }>, signal?: AbortSignal): Promise<Array<ObservedSample | null>> =>
+    (
+      await json<{ samples: Array<ObservedSample | null> }>('/ride/observed', {
+        query: { points: points.map((p) => `${p.lat.toFixed(4)},${p.lon.toFixed(4)},${Math.floor(p.t / 1000)}`).join(';') },
+        signal,
+      })
+    ).samples,
   geocode: (city: string, signal?: AbortSignal): Promise<GeocodeResult> => json('/geocode', { query: { city }, signal }),
 
   hazards: async (lat: number, lon: number, radiusKm = 80, signal?: AbortSignal): Promise<Hazard[]> =>

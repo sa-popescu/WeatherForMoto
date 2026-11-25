@@ -1,3 +1,4 @@
+import { api, type ObservedSample } from '../../lib/api';
 import type { SampleWeather, StorySample } from './logic/story';
 
 // The weather at the places and hours of a finished ride, for its story
@@ -5,6 +6,8 @@ import type { SampleWeather, StorySample } from './logic/story';
 // takes lists of coordinates), the hours in UTC so they match the ride's
 // clock. For hours already past these are the models' values after the
 // fact, close to what happened; Open-Meteo keeps them for about three months.
+// Where a station or an airport measured the place and hour (the server's
+// verification log, /ride/observed), the measurement wins (withObserved).
 
 const OPEN_METEO = 'https://api.open-meteo.com/v1/forecast';
 const TIMEOUT_MS = 15_000;
@@ -62,6 +65,30 @@ export function readStoryWeather(body: unknown, samples: readonly StorySample[])
   });
 }
 
+/** A measured rate standing in for "it rained" when the model had nothing (light rain). */
+const OBSERVED_RAIN_MM = 0.5;
+
+/**
+ * The models' weather corrected by what was measured there and then: the
+ * station's temperature (the real feel moves with it), its gust, and whether
+ * a gauge or an airport saw rain. A sample nobody measured keeps the models'.
+ */
+export function withObserved(model: ReadonlyArray<SampleWeather | null>, observed: ReadonlyArray<ObservedSample | null>): Array<SampleWeather | null> {
+  return model.map((w, i) => {
+    const o = observed[i];
+    if (!w || !o) return w;
+    const out: SampleWeather = { ...w };
+    if (o.temp != null) {
+      if (out.feelsC != null && out.tempC != null) out.feelsC = out.feelsC + (o.temp - out.tempC);
+      out.tempC = o.temp;
+    }
+    if (o.gusts != null) out.gustKmh = o.gusts;
+    if (o.raining === 0) out.precipMm = 0;
+    else if (o.raining === 1 && (out.precipMm ?? 0) < OBSERVED_RAIN_MM) out.precipMm = OBSERVED_RAIN_MM;
+    return out;
+  });
+}
+
 export async function fetchStoryWeather(samples: readonly StorySample[], signal: AbortSignal): Promise<Array<SampleWeather | null>> {
   if (samples.length === 0) return [];
   const controller = new AbortController();
@@ -71,7 +98,10 @@ export async function fetchStoryWeather(samples: readonly StorySample[], signal:
   try {
     const res = await fetch(storyUrl(samples), { signal: controller.signal });
     if (!res.ok) throw new Error(`Open-Meteo HTTP ${res.status}`);
-    return readStoryWeather(await res.json(), samples);
+    const model = readStoryWeather(await res.json(), samples);
+    // The measurements are a correction, never a condition: without them the models' story stands.
+    const observed = await api.rideObserved(samples, controller.signal).catch(() => []);
+    return withObserved(model, observed);
   } finally {
     window.clearTimeout(timer);
     signal.removeEventListener('abort', forward);

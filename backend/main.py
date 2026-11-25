@@ -58,6 +58,7 @@ from weather_service import (  # noqa: E402
     DEFAULT_MET_USER_AGENT,
     failure_reason,
     geocode_city,
+    _coord_key,
     get_weather,
     http_client_scope,
     scoring_metadata,
@@ -481,6 +482,57 @@ async def weather(
 
     logger.info("Weather data returned successfully")
     return data
+
+
+# A ride's story asks for at most this many samples (app MAX_SAMPLES is 48).
+RIDE_OBSERVED_MAX_POINTS = 60
+
+
+def _ride_observed_keys(points: str) -> list[tuple[str, str]]:
+    """'lat,lon,unix;...' -> the (cell, UTC hour) of each point, as the log stores them."""
+    keys: list[tuple[str, str]] = []
+    for part in [p for p in points.split(";") if p.strip()][:RIDE_OBSERVED_MAX_POINTS]:
+        try:
+            lat_text, lon_text, at_text = part.split(",")
+            lat, lon, at = float(lat_text), float(lon_text), float(at_text)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail="points: 'lat,lon,unix_seconds;...'") from exc
+        if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+            raise HTTPException(status_code=422, detail="points out of range")
+        hour = _dt.fromtimestamp(at, tz=timezone.utc).strftime(verification.HOUR_FORMAT)
+        keys.append((verification.cell_key(_coord_key(lat, lon)), hour))
+    return keys
+
+
+def _read_observed(keys: list[tuple[str, str]]) -> dict[tuple[str, str], dict[str, Any]]:
+    """Blocking: what the log measured at these cells and hours; empty without a database."""
+    from auth_alerts import _connect, _has_column
+
+    conn = _connect()
+    try:
+        if not _has_column(conn, "observation_log", "raining"):
+            return {}
+        return verification.summarize_observed(verification.observed_rows(conn, keys))
+    finally:
+        conn.close()
+
+
+@app.get("/ride/observed", tags=["route"])
+async def ride_observed(
+    points: Annotated[str, Query(description="'lat,lon,unix_seconds;...' of a finished ride, up to 60 points")],
+) -> dict[str, Any]:
+    """What the stations and airports measured where and when a ride went (from the verification log).
+
+    One entry per point, or null where nothing was logged there and then; the
+    app keeps the models' value for those.
+    """
+    keys = _ride_observed_keys(points)
+    try:
+        found = await asyncio.wait_for(asyncio.to_thread(_read_observed, keys), timeout=5.0)
+    except Exception as exc:  # no database, a timeout: the story keeps the models' weather
+        logger.info("ride observed lookup skipped: %s", type(exc).__name__)
+        found = {}
+    return {"samples": [found.get(key) for key in keys]}
 
 
 @app.get("/route/urban", tags=["route"])

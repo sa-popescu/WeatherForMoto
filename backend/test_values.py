@@ -294,5 +294,62 @@ class VisibilityTests(unittest.TestCase):
         self.assertLess(ws._judge_visibility(airport_m=2000.0, airport_km=18.0, providers=[10000.0, 10000.0]), 10000.0)
 
 
+class HourlyUvVisibilityTests(unittest.TestCase):
+    def _slot_utc(self, om, index):
+        from datetime import datetime, timedelta, timezone
+        local = datetime.fromisoformat(ws._build_hourly(om)[index]["time"])
+        return (local - timedelta(seconds=om["utc_offset_seconds"])).replace(tzinfo=timezone.utc)
+
+    def test_pirate_joins_uv_and_one_model_fog_is_outvoted(self) -> None:
+        om = make_om_payload()
+        hourly = ws._build_hourly(om)
+        utc = self._slot_utc(om, CURRENT_HOUR_INDEX)
+        hourly[CURRENT_HOUR_INDEX]["visibility"] = 400.0
+        pirate = {"hourly": {"data": [{"time": int(utc.timestamp()), "uvIndex": 5.0, "visibility": 16.0}]}}
+        owm = {"list": [{"dt": int(utc.timestamp()), "visibility": 10000}]}
+        before_uv = hourly[CURRENT_HOUR_INDEX]["uv_index"]
+        ws._blend_provider_hours(hourly, None, pirate, om["utc_offset_seconds"], owm)
+        hour = hourly[CURRENT_HOUR_INDEX]
+        self.assertEqual(hour["uv_index"], round(ws._weighted_avg([before_uv, 5.0], [1.2, 0.8]), 1))
+        self.assertEqual(hour["visibility"], 10000)
+
+
+class RideObservedTests(unittest.TestCase):
+    ROWS = [
+        {"cell": "c", "hour": "h", "source": "official", "distance_km": 5.0, "temp": 8.4, "gusts": 40.0, "raining": 0},
+        {"cell": "c", "hour": "h", "source": "netatmo", "distance_km": 1.0, "temp": 10.0, "gusts": None, "raining": None},
+        {"cell": "c", "hour": "h", "source": "metar", "distance_km": 9.0, "temp": None, "gusts": None, "raining": 1},
+        {"cell": "d", "hour": "h", "source": "netatmo", "distance_km": 1.0, "temp": 11.0, "gusts": None, "raining": None},
+        {"cell": "d", "hour": "h", "source": "weatherxm", "distance_km": 2.0, "temp": 12.0, "gusts": 20.0, "raining": 0},
+    ]
+
+    def test_a_near_official_station_speaks_for_its_hour(self) -> None:
+        summary = verification.summarize_observed(self.ROWS)
+        self.assertEqual(summary[("c", "h")]["temp"], 8.4)
+        self.assertEqual(summary[("c", "h")]["raining"], 1)
+        self.assertEqual(summary[("d", "h")]["temp"], 11.5)
+        self.assertEqual(summary[("d", "h")]["sources"], ["netatmo", "weatherxm"])
+
+    def test_the_log_is_asked_once_and_matched_by_pair(self) -> None:
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        for table in verification.TABLES:
+            conn.execute(table)
+        for row in self.ROWS:
+            conn.execute("INSERT INTO observation_log (cell, hour, source, distance_km, temp, gusts, raining) "
+                         "VALUES (?, ?, ?, ?, ?, ?, ?)", tuple(row.values()))
+        rows = verification.observed_rows(conn, [("c", "h")])
+        self.assertEqual({r["cell"] for r in rows}, {"c"})
+
+    def test_the_endpoint_answers_without_a_database(self) -> None:
+        from fastapi.testclient import TestClient
+        import main
+        client = TestClient(main.app)
+        response = client.get("/ride/observed", params={"points": "44.43,26.10,1764000000;44.50,26.00,1764003600"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()["samples"]), 2)
+        self.assertEqual(client.get("/ride/observed", params={"points": "x"}).status_code, 422)
+
+
 if __name__ == "__main__":
     unittest.main()
