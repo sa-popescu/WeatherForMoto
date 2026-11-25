@@ -117,6 +117,14 @@ class RoadTests(unittest.TestCase):
         # The forecast shown keeps its own numbers.
         self.assertEqual(hourly[0]["precipitation_mm"], 0.0)
 
+    def test_an_echo_over_dry_air_does_not_wet_the_road(self) -> None:
+        # Bucharest, 25 Nov 2026: 2.2 mm "measured" at 52% humidity, airport CAVOK.
+        hourly = self.hours([0.0, 0.0, 0.0])
+        for hour in hourly:
+            hour["relative_humidity"] = 52
+        ws._apply_wet_road(hourly, None, {"2026-11-23T20:00": 2.2})
+        self.assertEqual([h["wet_road"] for h in hourly], [None, None, None])
+
     def test_rain_the_model_forecast_but_the_radar_did_not_see_leaves_it_dry(self) -> None:
         hourly = self.hours([3.0, 0.0])
         ws._apply_wet_road(hourly, None, {"2026-11-23T20:00": 0.0})

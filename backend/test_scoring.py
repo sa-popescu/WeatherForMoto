@@ -313,6 +313,45 @@ class CurrentBlockTests(unittest.TestCase):
         self.assertEqual(current["weather_code"], 3)
         self.assertGreaterEqual(current["moto_score"], 85)
 
+    @staticmethod
+    def _owm_raining(mm: float) -> dict:
+        return {
+            "main": {"temp": 18.0, "feels_like": 18.0, "humidity": 60, "pressure": 1013},
+            "wind": {"speed": 3.0},
+            "weather": [{"id": 501, "description": "ploaie moderată"}],
+            "rain": {"1h": mm},
+            "visibility": 10000,
+        }
+
+    def test_a_lone_trace_at_zero_percent_is_not_rain(self) -> None:
+        # Bucharest, 25 Nov 2026, 17:00: OWM alone said "moderate rain" with
+        # ~0.2 mm in the blend, every other source and the airport said dry, the hour 0%.
+        om = make_om_payload()
+        om["current"].update({"weather_code": 3, "precipitation": 0.0})
+        current = _merge_current(om, self._owm_raining(0.5), None)
+        self.assertEqual(current["precipitation_mm"], 0.0)
+        self.assertEqual(current["rain_intensity"], "none")
+        self.assertEqual(current["weather_code"], 3)
+        self.assertEqual(current["description"], "Înnorat")
+
+    def test_a_real_amount_stands_even_against_a_low_chance(self) -> None:
+        om = make_om_payload()
+        om["current"].update({"weather_code": 61, "precipitation": 2.0})
+        current = _merge_current(om, self._owm_raining(2.0), None)
+        self.assertGreaterEqual(current["precipitation_mm"], ws.UNBACKED_TRACE_MAX_MM_H)
+        self.assertNotEqual(current["weather_code"], 3)
+
+    def test_a_trace_the_sources_back_is_kept(self) -> None:
+        om = make_om_payload(precipitation_probability=with_value_at([0] * 48, CURRENT_HOUR_INDEX, 50))
+        om["current"].update({"weather_code": 61, "precipitation": 0.0})
+        current = _merge_current(om, self._owm_raining(0.5), None)
+        self.assertGreater(current["precipitation_mm"], 0)
+        self.assertEqual(current["rain_intensity"], "urme")
+
+    def test_a_stale_rain_code_is_described_as_grey_sky_not_as_a_chance(self) -> None:
+        self.assertEqual(ws._display_description(63, 0.0, 0), "Înnorat")
+        self.assertEqual(ws._effective_display_code(63, 0.0, 0), 3)
+
     def test_a_chance_with_no_amount_is_not_called_rain(self) -> None:
         # 20% and nothing to measure: possible showers, not "Ploaie usoara".
         om = make_om_payload(precipitation_probability=with_value_at([0] * 48, CURRENT_HOUR_INDEX, 20))

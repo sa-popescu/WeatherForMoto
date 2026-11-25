@@ -124,6 +124,15 @@ FOG_CODES = frozenset({45, 48})
 STALE_CODE_MIN = 51
 CODE_ACTIVE_MIN_PROBABILITY = 20
 CODE_ACTIVE_MIN_AMOUNT_MM = 0.1
+# "Right now" with no rain gauge nearby: an amount below this (the "urme" band)
+# that the hour's sources give under CODE_ACTIVE_MIN_PROBABILITY is one
+# provider's noise, not rain. OpenWeatherMap's current block in particular
+# follows radar echoes that never reach the ground (anomalous propagation on
+# cold, stable evenings) and reports "moderate rain" with a fraction of a mm
+# while every other source, and the airport next door, says dry. Without this
+# the blend kept ~0.2 mm, which kept OWM's rain code alive (above the stale
+# amount) and drew rain, "Urme" and a wet road on a dry evening.
+UNBACKED_TRACE_MAX_MM_H = 0.5
 
 # A rain code with nothing to measure is a chance, not a fact. Below the stale
 # threshold it is not worth a word (the sky is simply grey); from there up to
@@ -530,6 +539,10 @@ def _is_rain_chance_only(
     if code is None or probability is None:
         return False
     if code not in LIGHT_RAIN_CODES and code not in HEAVY_RAIN_CODES:
+        return False
+    # Below the stale threshold the code is shown as a grey sky, and its words
+    # must say the same (not "Ploaie posibilă" under an overcast icon at 0%).
+    if _code_is_stale(code, amount_mm, probability):
         return False
     return (
         (amount_mm or 0) < CODE_ACTIVE_MIN_AMOUNT_MM
@@ -3072,6 +3085,27 @@ def _past_rain_before(past_raw: Any | None, first_time: str) -> list[tuple[str, 
     return [(str(t), _to_float(_safe(values, i))) for i, t in enumerate(times) if str(t) < first_time]
 
 
+# Rain that reaches the road wets the air above it too: under real rain the
+# relative humidity near the ground climbs well above this. An echo the radar
+# sees over air this dry is rain evaporating on the way down, or no rain at all
+# (anomalous propagation bends the beam into the ground on cold, stable
+# evenings; Bucharest showed 2.2 mm "measured" at 52% humidity, airport CAVOK).
+RADAR_RAIN_MIN_HUMIDITY = 65.0
+
+
+def _radar_rain_plausible(hour: dict[str, Any], radar_mm: float | None) -> bool:
+    """False when the radar adds rain to an hour whose air was too dry for it to land.
+
+    The radar saying "dry" is always taken (it removes rain the model invented);
+    only rain it adds over the model's is checked against the hour's humidity.
+    An hour without a humidity value trusts the radar.
+    """
+    if radar_mm is None or radar_mm <= (hour.get("precipitation_mm") or 0):
+        return True
+    humidity = _to_float(hour.get("relative_humidity"))
+    return humidity is None or humidity >= RADAR_RAIN_MIN_HUMIDITY
+
+
 def _apply_wet_road(hourly: list[dict], past_raw: Any | None, measured: dict[str, float] | None = None) -> None:
     """Mark the hours whose road is still wet, or that bring the first rain after dry days, and rescore them, in place.
 
@@ -3089,7 +3123,9 @@ def _apply_wet_road(hourly: list[dict], past_raw: Any | None, measured: dict[str
     past_rain = [measured.get(t, mm) for t, mm in past] if past is not None else None
     # Copies, so the radar's hours shape the road's state without changing the forecast shown.
     seen = [
-        {**hour, "precipitation_mm": measured[str(hour.get("time"))]} if str(hour.get("time")) in measured else hour
+        {**hour, "precipitation_mm": measured[str(hour.get("time"))]}
+        if str(hour.get("time")) in measured and _radar_rain_plausible(hour, measured[str(hour.get("time"))])
+        else hour
         for hour in hourly
     ]
     for hour, state in zip(hourly, wet_road.road_states(seen, past_rain)):
@@ -3409,6 +3445,17 @@ def _merge_current(
     score_probability = hour_probability
     if wxm_prec is not None and wxm_prec >= RAIN_NEGLIGIBLE_MM_H:
         score_probability = 100
+    # A trace that no gauge measures and that the hour's sources give almost no
+    # chance of is not rain (see UNBACKED_TRACE_MAX_MM_H): it is dropped, and the
+    # rain code that came with it then reads as stale below.
+    if (
+        station_prec is None
+        and precipitation is not None
+        and precipitation < UNBACKED_TRACE_MAX_MM_H
+        and score_probability is not None
+        and score_probability < CODE_ACTIVE_MIN_PROBABILITY
+    ):
+        precipitation = 0.0
 
     # --- weather code / description
     om_code = c.get("weather_code")
