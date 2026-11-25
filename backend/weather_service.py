@@ -4163,6 +4163,26 @@ def _blend_provider_hours(hourly: list[dict], met: dict | None, pirate: dict | N
         _rescore_hour(hour)
 
 
+def _apply_cell_temperature_bias(hourly: list[dict], bias_c: float | None) -> None:
+    """Take out what the log says the models add to the temperature in this cell, in place.
+
+    calibration.learn_values compares Open-Meteo's temperature an hour ahead
+    with the official station of the same cell; a cell where it keeps running
+    warm or cold (a valley, a city) gets every hour corrected by that amount,
+    already halved and capped there. The real feel moves with it.
+    """
+    if not bias_c:
+        return
+    for hour in hourly:
+        changed = False
+        for field in ("temperature", "feels_like"):
+            if hour.get(field) is not None:
+                hour[field] = round(float(hour[field]) - bias_c, 2)
+                changed = True
+        if changed:
+            _rescore_hour(hour)
+
+
 def _settle_hours(hourly: list[dict]) -> None:
     """Re-judge every hour's rain against its final, fused probability, in place.
 
@@ -5035,6 +5055,12 @@ async def _collect_weather(
     hourly = _build_hourly(om_data, ensemble)
     _blend_provider_hours(hourly, met_raw, pw_raw, utc_offset)
     learned = calibration.current(rain_fusion.WEIGHTS)
+    # What the log learned about the numbers here: station spreads and biases,
+    # and how warm or cold the models run in this very cell.
+    cell_id = verification.cell_key(cell)
+    value_learning = calibration.values_for_cell(learned.values, cell_id) if learned else None
+    _apply_cell_temperature_bias(hourly, calibration.cell_temperature_bias(
+        learned.values if learned else None, cell_id))
     rain_members, rain_by_source = _fuse_rain(hourly, ensemble, rain_ensemble=rain_ens_raw, pirate=pw_raw,
                                               owm_forecast=owm_forecast, met=met_raw,
                                               utc_offset_seconds=utc_offset, learned=learned)
@@ -5047,7 +5073,8 @@ async def _collect_weather(
                              wxm_norm, netatmo_norm, hourly=hourly,
                              official_norm=official_norm, metar_obs=metar_obs, community_norm=community_norm,
                              radar_hours=opera_radar.local_hours(radar_rain, utc_offset),
-                             learned_weights=learned.weights if learned else None)
+                             learned_weights=learned.weights if learned else None,
+                             value_learning=value_learning)
     # Before the daily scores are built, so the day counts the hours as corrected.
     _carry_measured_bias(om_data, hourly, current,
                          _measured_fields(wxm_norm, netatmo_norm, official_norm, community_norm))

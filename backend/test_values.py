@@ -8,9 +8,13 @@ everyone, and stations that agree with each other beat the models.
 
 from __future__ import annotations
 
+import sqlite3
+import time
 import unittest
 
+import calibration
 import value_arbiter
+import verification
 import weather_service as ws
 from test_scoring import CURRENT_HOUR_INDEX, make_om_payload
 
@@ -168,6 +172,74 @@ class HourlyProvidersTests(unittest.TestCase):
         self.assertAlmostEqual(hour["feels_like"] - before_feel, expected - before, places=1)
         # Hours the providers do not cover stay as they were.
         self.assertEqual(hourly[CURRENT_HOUR_INDEX + 1]["temperature"], before)
+
+
+class LearningTests(unittest.TestCase):
+    @staticmethod
+    def _observations(hours: int, netatmo_offset: float) -> list[dict]:
+        rows = []
+        for i in range(hours):
+            hour = f"2026-11-{1 + i // 24:02d}T{i % 24:02d}"
+            truth = 5.0 + (i % 7)
+            rows.append({"cell": "44.45,26.10", "hour": hour, "source": "official",
+                         "distance_km": 4.0, "temp": truth, "gusts": 30.0})
+            rows.append({"cell": "44.45,26.10", "hour": hour, "source": "netatmo",
+                         "distance_km": 1.0, "temp": truth + netatmo_offset + (0.5 if i % 2 else -0.5),
+                         "gusts": 20.0})
+        return rows
+
+    def test_a_network_that_reads_warm_is_learned(self) -> None:
+        values = calibration.learn_values(self._observations(100, 2.0), [])
+        # Halfway (LEARNED_SHARE) from no bias to the measured +2 °C.
+        self.assertAlmostEqual(values["bias"]["temperature"]["netatmo"], 1.0, places=2)
+        self.assertLess(values["sigma"]["temperature"]["netatmo"], value_arbiter.SIGMA["temperature"]["netatmo"])
+        self.assertAlmostEqual(values["bias"]["gusts"]["netatmo"], -5.0, places=2)
+
+    def test_too_few_pairs_teach_nothing(self) -> None:
+        values = calibration.learn_values(self._observations(20, 2.0), [])
+        self.assertNotIn("temperature", values["bias"])
+        self.assertEqual(values["pairs"]["temperature:netatmo"], 20)
+
+    def test_models_that_run_cold_in_a_cell_are_corrected_there(self) -> None:
+        observations = self._observations(100, 0.0)
+        forecasts = [{"cell": row["cell"], "valid_hour": row["hour"], "lead_h": 1,
+                      "om_temp": row["temp"] - 2.0, "gusts": None}
+                     for row in observations if row["source"] == "official"]
+        values = calibration.learn_values(observations, forecasts)
+        self.assertAlmostEqual(calibration.cell_temperature_bias(values, "44.45,26.10"), -1.0, places=2)
+        self.assertIsNone(calibration.cell_temperature_bias(values, "45.00,25.00"))
+        cell = calibration.values_for_cell(values, "44.45,26.10")
+        self.assertAlmostEqual(cell["bias"]["temperature"]["models"], -1.0, places=2)
+
+        om = make_om_payload()
+        hourly = ws._build_hourly(om)
+        before = hourly[5]["temperature"]
+        ws._apply_cell_temperature_bias(hourly, -1.0)
+        self.assertEqual(hourly[5]["temperature"], round(before + 1.0, 2))
+
+    def test_the_learned_numbers_survive_storage(self) -> None:
+        values = calibration.learn_values(self._observations(100, 2.0), [])
+        snapshot = calibration.Snapshot(weights={"ensemble": 3.0}, pairs=1, computed_at=time.time(), values=values)
+        text = calibration.to_stored(snapshot, {"ensemble": 3.0})
+        back = calibration.from_stored(text, {"ensemble": 3.0}, time.time())
+        self.assertEqual(back.values["bias"], values["bias"])
+
+    def test_the_window_is_read_in_two_scans(self) -> None:
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        for table in verification.TABLES:
+            conn.execute(table)
+        conn.execute("INSERT INTO observation_log (cell, hour, source, distance_km, temp, gusts, raining) "
+                     "VALUES ('c', '2026-11-20T10', 'official', 3, 7.5, 30, 0)")
+        conn.execute("INSERT INTO observation_log (cell, hour, source, distance_km, temp, gusts, raining) "
+                     "VALUES ('c', '2026-11-20T10', 'netatmo', 1, 9.0, NULL, NULL)")
+        conn.execute("INSERT INTO forecast_log (cell, issued_hour, valid_hour, lead_h, temp, om_temp, gusts, "
+                     "precip_prob, prob_ensemble) VALUES ('c', '2026-11-20T09', '2026-11-20T10', 1, 7, 6.5, 25, 10, 0.1)")
+        window = verification.read_window(conn, "2026-11-01T00", ("precip_prob", "prob_ensemble"))
+        self.assertEqual(len(window["rain"]), 1)
+        self.assertEqual(window["rain"][0]["raining"], 0)
+        self.assertEqual(len(window["observations"]), 2)
+        self.assertEqual(window["forecasts"][0]["om_temp"], 6.5)
 
 
 if __name__ == "__main__":
