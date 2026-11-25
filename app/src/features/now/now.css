@@ -52,48 +52,16 @@
   color: var(--ink);
 }
 
+/* The weather now in a few words: one line, two at most. */
 .now-hero__sky {
+  display: -webkit-box;
+  max-width: 30ch;
   margin-top: 2px;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   font-size: 17px;
-  color: var(--ink-2);
-}
-
-/* The arbiter's reason for that sky: one short line, the full reasons on a tap. */
-.now-hero__why {
-  max-width: 36ch;
-  margin: 2px auto 0;
-}
-
-.now-hero__why-line {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 32px;
-  padding: 0 4px;
-  border: 0;
-  background: none;
-  font: inherit;
-  font-size: 13px;
-  color: var(--ink-2);
-  cursor: pointer;
-}
-
-.now-hero__why-mark {
-  display: inline-grid;
-  place-items: center;
-  width: 15px;
-  height: 15px;
-  border: 1px solid currentColor;
-  border-radius: 50%;
-  font-size: 10px;
-  font-weight: 600;
-  line-height: 1;
-}
-
-.now-hero__why-more {
-  margin-top: 2px;
-  font-size: 13px;
-  line-height: 1.4;
+  line-height: 1.3;
   color: var(--ink-2);
   text-wrap: balance;
 }
