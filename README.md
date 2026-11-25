@@ -196,8 +196,6 @@ Organizare: `src/lib` (API tipizat, format, scor, geo), `src/state` (sesiune, lo
 - `GET /geocode?city=Cluj-Napoca` - Geocoding oraș
 - `GET /weather?city=Cluj-Napoca&days=14` - Vreme după oraș
 - `GET /weather?lat=46.77&lon=23.59&days=14` - Vreme după coordonate
-- `GET /route?origin=Cluj-Napoca&destination=Sibiu&departure=2026-04-13T09:00&avg_speed=80` - Rută simplă
-- `GET /route/multi?stops=Cluj-Napoca;Alba-Iulia;Sibiu&departure=2026-04-13T09:00&avg_speed=80` - Rută multi-oprire (2-10 opriri)
 
 ### Auth + account
 

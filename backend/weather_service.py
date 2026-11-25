@@ -2955,6 +2955,7 @@ def _normalize_met_current(met_data: dict | None) -> dict | None:
             "wind_gusts_kmh": _mps_to_kmh(inst.get("wind_speed_of_gust")),
             "wind_dir": inst.get("wind_from_direction"),
             "pressure": inst.get("air_pressure_at_sea_level"),
+            "cloud_cover": _to_float(inst.get("cloud_area_fraction")),
             "precipitation": prec,
             "wmo_code": _met_symbol_to_wmo(symbol),
         }
@@ -2981,6 +2982,7 @@ def _normalize_pw_current(pw_data: dict | None) -> dict | None:
         "precipitation": _to_float(cur.get("precipIntensity")),
         "wmo_code": _pw_icon_to_wmo(cur.get("icon")),
         "visibility_km": cur.get("visibility"),
+        "cloud_cover": (cur.get("cloudCover") * 100) if isinstance(cur.get("cloudCover"), (int, float)) else None,
     }
 
 
@@ -3686,6 +3688,85 @@ def _first_not_none(*values: Any) -> Any:
     return None
 
 
+# The sky without a phenomenon: clear, mainly clear, partly cloudy, overcast.
+SKY_CODES = frozenset({0, 1, 2, 3})
+# Cover (%) up to which each of those codes holds (WMO's oktas, roughly).
+SKY_CODE_MAX_COVER: tuple[tuple[float, int], ...] = ((12.0, 0), (38.0, 1), (70.0, 2))
+# How much each witness of the cover counts. The airport's observer sees the
+# sky itself; "no cloud" reports (CAVOK, NSC) only see it up to about 1.5 km,
+# so they count for less against the models' high cloud.
+SKY_WEIGHTS: dict[str, float] = {
+    "airport": 3.0, "airport-clear": 1.5, "models": 1.2, "openweathermap": 1.0,
+    "met-norway": 1.0, "pirate-weather": 0.8,
+}
+
+
+# The cover a sky code stands for, when a source gives only the code.
+_CODE_COVER: dict[int, float] = {0: 0.0, 1: 25.0, 2: 55.0, 3: 90.0}
+
+
+def _cover_of_code(code: Any) -> float | None:
+    try:
+        return _CODE_COVER.get(int(code)) if code is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _judge_sky(
+    *,
+    metar_sky: dict[str, Any] | None,
+    model_cover: float | None,
+    owm_cover: float | None,
+    met_cover: float | None,
+    pirate_cover: float | None,
+) -> dict[str, Any] | None:
+    """The cloud cover now (%) from every witness, and the sky code it means; None without any."""
+    witnesses: list[tuple[str, float, float]] = []
+    if metar_sky and metar_sky.get("cloud") is not None:
+        cover = 100.0 * float(metar_sky["cloud"])
+        key = "airport-clear" if not metar_sky.get("sees_high", True) else "airport"
+        witnesses.append(("airport", cover, SKY_WEIGHTS[key]))
+    for name, cover in (("models", model_cover), ("openweathermap", owm_cover),
+                        ("met-norway", met_cover), ("pirate-weather", pirate_cover)):
+        if cover is not None:
+            witnesses.append((name, max(0.0, min(100.0, float(cover))), SKY_WEIGHTS[name]))
+    if not witnesses:
+        return None
+    total = sum(w for _, _, w in witnesses)
+    cover = sum(c * w for _, c, w in witnesses) / total
+    code = next((code for limit, code in SKY_CODE_MAX_COVER if cover < limit), 3)
+    return {
+        "cover": round(cover, 1),
+        "code": code,
+        "witnesses": [{"id": name, "cover": round(c, 1), "share": round(w / total, 3)} for name, c, w in witnesses],
+    }
+
+
+# Visibility: providers cap it differently (OpenWeatherMap at 10 km, Pirate at
+# 16, Open-Meteo at tens of km), so every value is read up to VISIBILITY_CAP_M.
+VISIBILITY_CAP_M = 10000.0
+# An airport this close measures the visibility here; farther, it is one vote of two.
+VISIBILITY_AIRPORT_KM = 10.0
+
+
+def _judge_visibility(*, airport_m: float | None, airport_km: float | None,
+                      providers: list[float | None]) -> float | None:
+    """The visibility now (m): a near airport's own, else the median of every witness.
+
+    The median keeps one provider's lone fog (or its default 10 km) from
+    deciding alone; an airport farther than VISIBILITY_AIRPORT_KM still votes,
+    twice, being a measurement.
+    """
+    if airport_m is not None and (airport_km is None or airport_km <= VISIBILITY_AIRPORT_KM):
+        return airport_m
+    votes = [min(VISIBILITY_CAP_M, max(0.0, v)) for v in providers if v is not None]
+    if airport_m is not None:
+        votes += [min(VISIBILITY_CAP_M, airport_m)] * 2
+    if not votes:
+        return None
+    return round(_median(votes))
+
+
 def _merge_current(
     om_data: dict,
     owm_current: dict | None,
@@ -3721,7 +3802,6 @@ def _merge_current(
     met_temp = met_norm.get("temp") if met_norm else None
     pw_temp = pw_norm.get("temp") if pw_norm else None
     pw_feel = pw_norm.get("feels_like") if pw_norm else None
-    wxm_temp = wxm_norm.get("temp") if wxm_norm else None
     wxm_feel = wxm_norm.get("feels_like") if wxm_norm else None
 
     # When a physical WeatherXM station is available it is measuring the actual
@@ -3795,7 +3875,6 @@ def _merge_current(
     owm_hum = owm_current["main"]["humidity"] if owm_current else None
     met_hum = met_norm.get("humidity") if met_norm else None
     pw_hum = pw_norm.get("humidity") if pw_norm else None
-    wxm_hum = wxm_norm.get("humidity") if wxm_norm else None
     humidity = _judged("humidity", "humidity", [om_hum, owm_hum, met_hum, pw_hum], [1.2, 1.0, 1.1, 0.8])
 
     # --- wind speed (km/h) and gusts
@@ -3803,7 +3882,6 @@ def _merge_current(
     owm_wind = (owm_current["wind"]["speed"] * 3.6) if owm_current else None
     met_wind = met_norm.get("wind_speed_kmh") if met_norm else None
     pw_wind = pw_norm.get("wind_speed_kmh") if pw_norm else None
-    wxm_wind = wxm_norm.get("wind_speed_kmh") if wxm_norm else None
     wind_speed = _judged("wind", "wind_speed_kmh", [om_wind, owm_wind, met_wind, pw_wind], [1.2, 1.0, 1.1, 0.8])
 
     om_gusts = c.get("wind_gusts_10m")
@@ -3811,7 +3889,6 @@ def _merge_current(
     owm_gusts = _mps_to_kmh(owm_current["wind"].get("gust")) if owm_current else None
     met_gusts = met_norm.get("wind_gusts_kmh") if met_norm else None
     pw_gusts = pw_norm.get("wind_gusts_kmh") if pw_norm else None
-    wxm_gusts = wxm_norm.get("wind_gusts_kmh") if wxm_norm else None
     wind_gusts = _judged("gusts", "wind_gusts_kmh", [om_gusts, owm_gusts, met_gusts, pw_gusts],
                          [1.2, 0.8, 1.1, 1.0])
 
@@ -3927,6 +4004,21 @@ def _merge_current(
             *[code for code in (wxm_code, metar_code, owm_code, om_code) if code not in FOG_CODES], 3)
     elif fog_verdict and fog_verdict["state"] == "fog" and (effective_code is None or effective_code < 45):
         effective_code = 45
+    # How cloudy: every source's cover, weighed, instead of the first code in line.
+    # Only a sky without a phenomenon (codes 0-3) takes the voted code.
+    # A provider without a cover in % speaks through its sky code; Open-Meteo's
+    # current code is fresher than its hourly cover, so it is read first.
+    sky = _judge_sky(
+        metar_sky=obs.get("sky"),
+        model_cover=_first_not_none(_cover_of_code(om_code), _to_float(current_hour.get("cloud_cover"))),
+        owm_cover=(_first_not_none(_to_float((owm_current.get("clouds") or {}).get("all")), _cover_of_code(owm_code))
+                   if owm_current else None),
+        met_cover=_first_not_none(met_norm.get("cloud_cover"), _cover_of_code(met_norm.get("wmo_code"))) if met_norm else None,
+        pirate_cover=(_first_not_none(pw_norm.get("cloud_cover"), _cover_of_code(pw_norm.get("wmo_code")))
+                      if pw_norm else None),
+    )
+    if sky and (effective_code is None or effective_code in SKY_CODES):
+        effective_code = sky["code"]
     # Downgrade a precip/storm code to overcast for DISPLAY when it isn't actually
     # precipitating, so the icon and description stay consistent with the score.
     # The hour being lived already knows whether the air is convective.
@@ -3958,14 +4050,17 @@ def _merge_current(
         c.get("pressure_msl"),
         c.get("surface_pressure"),
     )
-    # Visibility measured at a nearby airport beats any model's.
-    visibility_m = _first_not_none(
-        obs.get("visibility_m"),
-        owm_current.get("visibility") if owm_current else None,
-        c.get("visibility"),
-    )
     pw_vis = pw_norm.get("visibility_km") if pw_norm else None
-    visibility_km = round(visibility_m / 1000, 1) if visibility_m is not None else pw_vis
+    visibility_m = _judge_visibility(
+        airport_m=_to_float(obs.get("visibility_m")),
+        airport_km=_to_float(obs.get("distance_km")),
+        providers=[
+            _to_float(owm_current.get("visibility")) if owm_current else None,
+            _to_float(c.get("visibility")),
+            _to_float(pw_vis) * 1000 if _to_float(pw_vis) is not None else None,
+        ],
+    )
+    visibility_km = round(visibility_m / 1000, 1) if visibility_m is not None else None
 
     # --- air quality
     aqi = None
@@ -4046,6 +4141,7 @@ def _merge_current(
         "rain_coverage": current_hour.get("rain_coverage"),
         "rain_extent": extent,
         "weather_code": display_code,
+        "cloud_cover": sky["cover"] if sky else _to_float(current_hour.get("cloud_cover")),
         "description": description,
         "icon": icon_emoji,
         "pressure_hpa": pressure,
@@ -4071,6 +4167,7 @@ def _merge_current(
             "precipitation": rain_verdict,
             "fog": fog_verdict,
             "storm": None,
+            "sky": sky,
             "summary": rain_verdict["explanation"],
             "summary_en": rain_verdict["explanation_en"],
             # The numbers too: who said what, who was believed, and why.
@@ -4147,6 +4244,14 @@ def _day_extremes_from_hours(day_hours: list[dict[str, Any]]) -> dict[str, float
     gusts = values("wind_gusts_kmh")
     if len(gusts) >= MIN_DAY_COVERAGE_HOURS:
         out["gusts_max"] = round(max(gusts), 1)
+    # The day's rain is the rain of its hours, each already weighed from every
+    # source (_fuse_rain) and stripped of unbacked traces (_settle_hours).
+    rain = values("precipitation_mm")
+    if len(rain) >= MIN_DAY_COVERAGE_HOURS:
+        out["precip_sum"] = round(sum(rain), 1)
+    winds = values("wind_speed_kmh")
+    if len(winds) >= MIN_DAY_COVERAGE_HOURS:
+        out["wind_max"] = round(max(winds), 1)
     return out or None
 
 
@@ -4229,6 +4334,8 @@ def _merge_daily(
             prec_owm = None
         prec_met = met_day.get("precipitation_sum")
         precipitation = _weighted_avg([prec_om, prec_owm, prec_met], [1.0, 1.0, 1.1])
+        if from_hours and from_hours.get("precip_sum") is not None:
+            precipitation = from_hours["precip_sum"]
 
         # wind gusts: only real gust values; sustained wind is never a gust
         gusts_om = _safe(daily.get("wind_gusts_10m_max"), i)
@@ -4243,6 +4350,8 @@ def _merge_daily(
             wind_gusts = from_hours["gusts_max"]
 
         wind_max = _safe(daily.get("wind_speed_10m_max"), i)
+        if from_hours and from_hours.get("wind_max") is not None:
+            wind_max = from_hours["wind_max"]
 
         # The day's chance is its wettest hour, from the fused hours when they
         # exist (see _fuse_rain), else Open-Meteo's daily maximum.
@@ -4589,9 +4698,13 @@ def _fuse_rain(
             rain_models=models.get("rain_models", 0),
             votes=votes,
             weights=weights,
+            model_amount=hour.get("precipitation_mm"),
         )
         if fused is None:
             continue
+        if fused.get("amount_mm") is not None:
+            hour["precipitation_mm"] = fused["amount_mm"]
+            hour["rain_intensity"] = _rain_intensity(fused["amount_mm"])
         # What the log says hours like this one actually did.
         hour["precipitation_probability"] = calibration.calibrated(
             fused["probability"], reliability
@@ -4698,230 +4811,6 @@ def _safe(lst: list | None, i: int) -> Any:
     if lst is None or i >= len(lst):
         return None
     return lst[i]
-
-
-# ---------------------------------------------------------------------------
-# Route planner helpers
-# ---------------------------------------------------------------------------
-
-_ROUTE_HOURLY_VARIABLES = (
-    "temperature_2m,apparent_temperature,precipitation_probability,"
-    "precipitation,weather_code,wind_speed_10m,wind_gusts_10m,visibility,is_day"
-)
-
-
-async def _fetch_waypoint_forecast(
-    lat: float, lon: float, client: httpx.AsyncClient
-) -> dict[str, Any] | None:
-    """Hourly Open-Meteo forecast for a route waypoint (cached per ~5 km cell)."""
-    params = {
-        "latitude": lat,
-        "longitude": lon,
-        "hourly": _ROUTE_HOURLY_VARIABLES,
-        "timezone": "auto",
-        "forecast_days": 7,
-        "wind_speed_unit": "kmh",
-    }
-
-    async def fetch() -> tuple[dict[str, Any] | None, float]:
-        try:
-            resp = await asyncio.wait_for(
-                client.get(OPENMETEO_BASE, params=params, timeout=OPENMETEO_ATTEMPT_TIMEOUT_S),
-                timeout=OPENMETEO_ATTEMPT_TIMEOUT_S,
-            )
-            if not resp.is_success:
-                logger.warning("Route waypoint forecast failed: HTTP %s", resp.status_code)
-                return None, 0.0
-            data = resp.json()
-        except (httpx.HTTPError, TimeoutError, ValueError) as exc:
-            logger.warning("Route waypoint forecast failed: %s", _describe_error(exc))
-            return None, 0.0
-        if not isinstance(data, dict) or data.get("error"):
-            logger.warning("Route waypoint forecast returned an error body")
-            return None, 0.0
-        return data, TTL_OPENMETEO_S
-
-    return await _forecast_cache.get_or_fetch(("open-meteo-route", _coord_key(lat, lon)), fetch)
-
-
-def _utc_offset_of(forecast: dict[str, Any] | None, default: int = 0) -> int:
-    """UTC offset (seconds) reported by an Open-Meteo response, else ``default``."""
-    if not forecast or forecast.get("utc_offset_seconds") is None:
-        return default
-    try:
-        return int(forecast["utc_offset_seconds"])
-    except (TypeError, ValueError):
-        return default
-
-
-def _validate_departure(departure_iso: str | None) -> None:
-    """Raise ValueError when a departure is given but is not an ISO datetime."""
-    if departure_iso is not None and departure_iso.strip():
-        datetime.fromisoformat(departure_iso.strip())
-
-
-def _resolve_departure(
-    departure_iso: str | None, origin_utc_offset_s: int
-) -> tuple[datetime, datetime]:
-    """Departure as naive (origin local time, UTC).
-
-    No value means "now at the origin": the server clock is UTC on Cloud Run
-    while forecast times are local, so datetime.now() would be off by the
-    offset. A value with a timezone is converted; a naive value is taken as
-    origin local time. Raises ValueError for an unparseable value.
-    """
-    offset = timedelta(seconds=origin_utc_offset_s)
-    if departure_iso is None or not departure_iso.strip():
-        dep_utc = datetime.now(timezone.utc).replace(tzinfo=None)
-        return dep_utc + offset, dep_utc
-    parsed = datetime.fromisoformat(departure_iso.strip())
-    if parsed.tzinfo is not None:
-        dep_utc = parsed.astimezone(timezone.utc).replace(tzinfo=None)
-        return dep_utc + offset, dep_utc
-    return parsed, parsed - offset
-
-
-def _waypoint_snapshot(forecast: dict[str, Any] | None, eta_local: str) -> dict[str, Any]:
-    """Weather at a waypoint for the first forecast hour at or after the ETA.
-
-    ``eta_local`` is "YYYY-MM-DDTHH:MM" in the waypoint's own local time, the
-    same frame as the forecast's hourly times.
-    """
-    if not forecast:
-        return {}
-    hourly = forecast.get("hourly", {})
-    times = hourly.get("time", [])
-
-    # Find the first hour >= ETA (truncated to the hour)
-    eta_prefix = eta_local[:13]  # "YYYY-MM-DDTHH"
-    best_idx = 0
-    matched = False
-    for j, t in enumerate(times):
-        if t[:13] >= eta_prefix:
-            best_idx = j
-            matched = True
-            break
-
-    # ETA is past the forecast horizon: fall back to the furthest available
-    # hour (not "now", index 0) and flag it so the UI can say "beyond forecast"
-    # instead of silently showing current weather for a far-future waypoint.
-    beyond_horizon = bool(times) and not matched
-    if beyond_horizon:
-        best_idx = len(times) - 1
-
-    code = _safe(hourly.get("weather_code"), best_idx)
-    feels = _safe(hourly.get("apparent_temperature"), best_idx)
-    gusts = _safe(hourly.get("wind_gusts_10m"), best_idx)
-    prec = _safe(hourly.get("precipitation"), best_idx)
-    prec_prob = _safe(hourly.get("precipitation_probability"), best_idx)
-    is_day_raw = _safe(hourly.get("is_day"), best_idx)
-    score = _moto_score(feels, gusts, prec, code, prec_prob,
-                        visibility_m=_safe(hourly.get("visibility"), best_idx))
-
-    return {
-        "time": times[best_idx] if best_idx < len(times) else eta_local,
-        "temperature": _safe(hourly.get("temperature_2m"), best_idx),
-        "feels_like": feels,
-        "precipitation_mm": prec,
-        "precipitation_probability": prec_prob,
-        "rain_intensity": _rain_intensity(prec),
-        "wind_speed_kmh": _safe(hourly.get("wind_speed_10m"), best_idx),
-        "wind_gusts_kmh": gusts,
-        "weather_code": _effective_display_code(code, prec, prec_prob),
-        "icon": _wmo_icon(_effective_display_code(code, prec, prec_prob)),
-        "description": _display_description(code, prec, prec_prob),
-        "is_day": bool(is_day_raw) if is_day_raw is not None else None,
-        "moto_score": score,
-        "moto_label": _moto_label(score),
-        "beyond_forecast_horizon": beyond_horizon,
-    }
-
-
-def _eta_at_waypoint(
-    dep_utc: datetime, hours_offset: float, forecast: dict[str, Any] | None, default_offset: int
-) -> str:
-    """ETA in the waypoint's local time (routes may cross a timezone border)."""
-    eta = dep_utc + timedelta(hours=hours_offset, seconds=_utc_offset_of(forecast, default_offset))
-    return eta.isoformat()[:16]
-
-
-async def get_route_weather(
-    origin_lat: float,
-    origin_lon: float,
-    origin_name: str,
-    dest_lat: float,
-    dest_lon: float,
-    dest_name: str,
-    departure_iso: str | None,
-    avg_speed_kmh: float,
-    owm_api_key: str,
-    num_segments: int = 4,
-) -> dict[str, Any]:
-    """
-    Compute weather along a motorcycle route from origin to destination.
-
-    Uses linear (great-circle) interpolation for intermediate waypoints.
-    Returns num_segments+1 waypoints with weather snapshots at estimated ETAs.
-    ``departure_iso`` is local time at the origin (None = now at the origin);
-    an invalid value raises ValueError. ``eta_iso`` is in origin local time.
-    """
-    _validate_departure(departure_iso)
-
-    total_dist_km = _haversine_km(origin_lat, origin_lon, dest_lat, dest_lon)
-    total_hours = total_dist_km / avg_speed_kmh if avg_speed_kmh > 0 else 0
-
-    # Build waypoint metadata (start, N-1 intermediate, destination)
-    waypoints_meta: list[dict[str, Any]] = []
-    hours_offsets: list[float] = []
-    for i in range(num_segments + 1):
-        frac = i / num_segments
-        wp_lat = origin_lat + frac * (dest_lat - origin_lat)
-        wp_lon = origin_lon + frac * (dest_lon - origin_lon)
-        hours_offsets.append(frac * total_hours)
-
-        if i == 0:
-            wp_name = origin_name
-        elif i == num_segments:
-            wp_name = dest_name
-        else:
-            wp_name = f"~{round(frac * total_dist_km)} km"
-
-        waypoints_meta.append({
-            "index": i,
-            "name": wp_name,
-            "lat": round(wp_lat, 4),
-            "lon": round(wp_lon, 4),
-            "distance_from_origin_km": round(frac * total_dist_km, 1),
-        })
-
-    # Fetch forecasts for all waypoints concurrently (cached per ~5 km cell)
-    async with http_client_scope() as client:
-        forecasts = await asyncio.gather(*[
-            _fetch_waypoint_forecast(wp["lat"], wp["lon"], client) for wp in waypoints_meta
-        ])
-
-    origin_offset = next((_utc_offset_of(f) for f in forecasts if f), 0)
-    dep_local, dep_utc = _resolve_departure(departure_iso, origin_offset)
-
-    result_waypoints = []
-    for wp, hours_offset, forecast in zip(waypoints_meta, hours_offsets, forecasts):
-        eta_origin_local = dep_local + timedelta(hours=hours_offset)
-        eta_local = _eta_at_waypoint(dep_utc, hours_offset, forecast, origin_offset)
-        result_waypoints.append({
-            **wp,
-            "eta_iso": eta_origin_local.isoformat()[:16],
-            "weather": _waypoint_snapshot(forecast, eta_local),
-        })
-
-    return {
-        "origin": {"name": origin_name, "lat": origin_lat, "lon": origin_lon},
-        "destination": {"name": dest_name, "lat": dest_lat, "lon": dest_lon},
-        "departure": dep_local.isoformat()[:16],
-        "avg_speed_kmh": avg_speed_kmh,
-        "total_distance_km": round(total_dist_km, 1),
-        "estimated_duration_h": round(total_hours, 2),
-        "waypoints": result_waypoints,
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -5498,117 +5387,4 @@ def _corroborated_lightning(lightning: dict[str, Any] | None, current: dict[str,
         **lightning,
         "count": 0, "near_count": 0, "nearest_km": None, "bearing_deg": None,
         "last_minutes_ago": None, "unconfirmed": count,
-    }
-
-
-# ---------------------------------------------------------------------------
-# Multi-stop route weather (premium)
-# ---------------------------------------------------------------------------
-
-async def get_multi_route_weather(
-    stops: list[dict],
-    departure_iso: str | None,
-    avg_speed_kmh: float,
-    owm_api_key: str,
-) -> dict[str, Any]:
-    """
-    Compute weather along a multi-stop motorcycle route.
-
-    Parameters
-    ----------
-    stops: list of dicts with keys ``name``, ``lat``, ``lon`` (2–5 items).
-    departure_iso: ISO-8601 departure, local time at the first stop
-        (None = now there). An invalid value raises ValueError.
-    avg_speed_kmh: average speed in km/h.
-    owm_api_key: OpenWeatherMap API key.
-
-    Returns a dict with ``segments`` (one entry per consecutive stop pair),
-    ``total_distance_km``, ``estimated_duration_h``, and ``stops`` metadata.
-    """
-    _validate_departure(departure_iso)
-
-    segments: list[dict[str, Any]] = []
-    elapsed_hours = 0.0
-    total_dist_km = 0.0
-
-    all_waypoints: list[dict[str, Any]] = []
-    # Hours after departure for each waypoint dict (keyed by id: segment-end
-    # waypoints are separate dicts sharing an index with the next start).
-    hours_by_waypoint: dict[int, float] = {}
-
-    for seg_idx in range(len(stops) - 1):
-        origin = stops[seg_idx]
-        dest = stops[seg_idx + 1]
-
-        seg_dist_km = _haversine_km(origin["lat"], origin["lon"], dest["lat"], dest["lon"])
-        seg_hours = seg_dist_km / avg_speed_kmh if avg_speed_kmh > 0 else 0
-
-        num_seg = 3  # intermediate points per segment
-        seg_waypoints: list[dict[str, Any]] = []
-        for i in range(num_seg + 1):
-            frac = i / num_seg
-            wp_lat = origin["lat"] + frac * (dest["lat"] - origin["lat"])
-            wp_lon = origin["lon"] + frac * (dest["lon"] - origin["lon"])
-
-            if i == 0:
-                wp_name = origin["name"]
-            elif i == num_seg:
-                wp_name = dest["name"]
-            else:
-                wp_name = f"~{round(frac * seg_dist_km + total_dist_km)} km"
-
-            waypoint = {
-                "index": len(all_waypoints) + i,
-                "name": wp_name,
-                "lat": round(wp_lat, 4),
-                "lon": round(wp_lon, 4),
-                "distance_from_start_km": round(total_dist_km + frac * seg_dist_km, 1),
-            }
-            hours_by_waypoint[id(waypoint)] = elapsed_hours + frac * seg_hours
-            seg_waypoints.append(waypoint)
-
-        all_waypoints.extend(seg_waypoints[:-1] if seg_idx < len(stops) - 2 else seg_waypoints)
-        total_dist_km += seg_dist_km
-        elapsed_hours += seg_hours
-
-        segments.append({
-            "from": origin["name"],
-            "to": dest["name"],
-            "distance_km": round(seg_dist_km, 1),
-            "duration_h": round(seg_hours, 2),
-            "waypoints": seg_waypoints,
-        })
-
-    # Fetch forecasts for unique waypoints concurrently (cached per ~5 km cell)
-    async with http_client_scope() as client:
-        forecasts = await asyncio.gather(*[
-            _fetch_waypoint_forecast(wp["lat"], wp["lon"], client) for wp in all_waypoints
-        ])
-
-    origin_offset = next((_utc_offset_of(f) for f in forecasts if f), 0)
-    dep_local, dep_utc = _resolve_departure(departure_iso, origin_offset)
-
-    # Weather per unique waypoint, matched in that waypoint's local time
-    weather_by_index = {
-        wp["index"]: _waypoint_snapshot(
-            forecast,
-            _eta_at_waypoint(dep_utc, hours_by_waypoint[id(wp)], forecast, origin_offset),
-        )
-        for wp, forecast in zip(all_waypoints, forecasts)
-    }
-
-    # ETA (origin local time) and weather on every segment waypoint
-    for seg in segments:
-        for wp in seg["waypoints"]:
-            hours_offset = hours_by_waypoint[id(wp)]
-            wp["eta_iso"] = (dep_local + timedelta(hours=hours_offset)).isoformat()[:16]
-            wp["weather"] = weather_by_index.get(wp["index"], {})
-
-    return {
-        "stops": [{"name": s["name"], "lat": s["lat"], "lon": s["lon"]} for s in stops],
-        "departure": departure_iso,
-        "avg_speed_kmh": avg_speed_kmh,
-        "total_distance_km": round(total_dist_km, 1),
-        "estimated_duration_h": round(elapsed_hours, 2),
-        "segments": segments,
     }

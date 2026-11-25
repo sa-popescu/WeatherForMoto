@@ -19,6 +19,11 @@ and the hour's chance of rain is the weighted mean of those votes:
 Radar is not here: it sees only the next ~90 minutes and the app extrapolates
 it itself (app/src/features/now/logic/radarRain.ts).
 
+The hour's amount of rain is weighed from the same voices with the same
+weights (each source's own mm/h), so the amount and the chance shown side by
+side come from one judgement: no more "80% · 0,0 mm" because one model alone
+set the amount.
+
 Every hour also gets a tally, "how many sources give rain out of how many",
 which is what the app shows to explain the percentage. The functions are pure;
 weather_service fetches the payloads and applies the result.
@@ -207,6 +212,7 @@ def fuse_hour(
     rain_models: int = 0,
     votes: dict[str, dict[str, Any] | None],
     weights: dict[str, float] | None = None,
+    model_amount: float | None = None,
 ) -> dict[str, Any] | None:
     """One hour's chance of rain (0-100) and the tally of sources behind it.
 
@@ -244,9 +250,22 @@ def fuse_hour(
     if not weighted:
         return None
     probability = sum(p * w for p, w in weighted) / sum(w for _, w in weighted)
+    # The amount, from the same voices with the same weights. ``model_amount``
+    # is the hour's own blend (Open-Meteo with the national models' median),
+    # so it speaks with both of their weights; every other source with its own.
+    amounts: list[tuple[float, float]] = []
+    if model_amount is not None:
+        amounts.append((max(0.0, float(model_amount)), weight_of("open-meteo") + weight_of("models")))
+    for name, vote in votes.items():
+        amount = _number(vote.get("amount")) if vote is not None else None
+        if amount is not None:
+            amounts.append((max(0.0, amount), weight_of(name)))
+    amount_mm = (round(sum(a * w for a, w in amounts) / sum(w for _, w in amounts), 2)
+                 if amounts and sum(w for _, w in amounts) > 0 else None)
     ensemble = votes.get("ensemble")
     return {
         "probability": round(probability * 100),
+        "amount_mm": amount_mm,
         "wet_sources": wet_sources,
         "total_sources": total_sources,
         "range": ensemble["range"] if ensemble else None,

@@ -58,8 +58,6 @@ from weather_service import (  # noqa: E402
     DEFAULT_MET_USER_AGENT,
     failure_reason,
     geocode_city,
-    get_multi_route_weather,
-    get_route_weather,
     get_weather,
     http_client_scope,
     scoring_metadata,
@@ -113,9 +111,6 @@ HTTP_CLIENT_LIMITS = httpx.Limits(
     max_connections=100, max_keepalive_connections=20, keepalive_expiry=30.0
 )
 HTTP_CLIENT_TIMEOUT = httpx.Timeout(10.0, connect=5.0)
-
-# Upper bound of /route/multi, matching the stops editor in the app.
-MAX_ROUTE_STOPS = 10
 
 # Path to the frontend index.html (one level above the backend/ directory)
 # The frontend lives on the static host; this origin (run.app) serves the API.
@@ -236,30 +231,6 @@ async def add_security_headers(
 
 
 app.include_router(auth_alerts_router)
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-def _validated_departure(departure: str | None) -> str | None:
-    """Return the trimmed departure, or None when absent.
-
-    An unparseable value is rejected with 422 instead of silently falling
-    back to "now", so the user knows the route was not computed for the time
-    they asked for.
-    """
-    if departure is None or not departure.strip():
-        return None
-    value = departure.strip()
-    try:
-        _dt.fromisoformat(value)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=422,
-            detail="Invalid departure: use ISO format, e.g. 2024-06-15T08:00",
-        ) from exc
-    return value
 
 
 # ---------------------------------------------------------------------------
@@ -509,127 +480,6 @@ async def weather(
         ) from exc
 
     logger.info("Weather data returned successfully")
-    return data
-
-
-@app.get("/route", tags=["route"])
-async def route_weather(
-    origin: Annotated[
-        str, Query(description="City of origin")
-    ] = DEFAULT_CITY,
-    destination: Annotated[
-        str, Query(description="City of destination")
-    ] = "Cluj-Napoca",
-    departure: Annotated[
-        str | None,
-        Query(description="Departure datetime in ISO format, e.g. 2024-06-15T08:00 "
-                          "(local time of the origin; default: now at the origin)"),
-    ] = None,
-    avg_speed: Annotated[
-        float,
-        Query(gt=0, le=180, description="Average riding speed in km/h"),
-    ] = 80.0,
-):
-    """
-    Return weather snapshots along a motorcycle route.
-
-    Provides `origin` → `destination` weather waypoints at estimated arrival
-    times based on the departure time and average speed.  Waypoints are
-    spaced by linear (great-circle) interpolation; actual road distance may
-    differ.
-    """
-    departure_iso = _validated_departure(departure)
-
-    # Geocode both cities (Nominatim calls are serialised inside geocode_city)
-    async with http_client_scope() as client:
-        try:
-            origin_geo, dest_geo = await asyncio.gather(
-                geocode_city(origin, client),
-                geocode_city(destination, client),
-            )
-        except ValueError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except Exception as exc:
-            logger.exception("Route geocoding error: %s", exc)
-            raise HTTPException(
-                status_code=502, detail="Geocoding service temporarily unavailable"
-            ) from exc
-
-    origin_name = origin_geo["name"] + (
-        f", {origin_geo['country']}" if origin_geo.get("country") else ""
-    )
-    dest_name = dest_geo["name"] + (
-        f", {dest_geo['country']}" if dest_geo.get("country") else ""
-    )
-
-    try:
-        data = await get_route_weather(
-            origin_geo["lat"], origin_geo["lon"], origin_name,
-            dest_geo["lat"], dest_geo["lon"], dest_name,
-            departure_iso, avg_speed, OWM_API_KEY,
-        )
-    except Exception as exc:
-        logger.exception("Route weather error: %s", exc)
-        raise HTTPException(
-            status_code=502, detail="Route weather temporarily unavailable"
-        ) from exc
-
-    logger.info("Route weather data returned successfully")
-    return data
-
-
-@app.get("/route/multi", tags=["route"])
-async def route_multi(
-    stops: Annotated[str, Query(description="Semicolon-separated city names (2-10), e.g. 'Cluj-Napoca;Sibiu;Brașov'")],
-    departure: str | None = None,
-    avg_speed: float = Query(default=80.0, gt=0, le=180),
-):
-    """
-    Compute weather along a multi-stop motorcycle route (premium feature).
-    ``stops`` is a semicolon-separated list of city names (2–10 stops).
-    Returns per-segment route weather the same way as /route.
-    """
-    stop_names = [s.strip() for s in stops.split(";") if s.strip()]
-    if len(stop_names) < 2:
-        raise HTTPException(status_code=422, detail="At least 2 stops required")
-    if len(stop_names) > MAX_ROUTE_STOPS:
-        raise HTTPException(
-            status_code=422, detail=f"Maximum {MAX_ROUTE_STOPS} stops allowed"
-        )
-
-    departure_iso = _validated_departure(departure)
-
-    # geocode_city caches results and spaces Nominatim calls to respect its
-    # 1 request/second policy, so gathering here does not burst the service.
-    async with http_client_scope() as client:
-        try:
-            geo_results = await asyncio.gather(
-                *[geocode_city(name, client) for name in stop_names]
-            )
-        except ValueError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except Exception as exc:
-            logger.exception("Multi-route geocoding error: %s", exc)
-            raise HTTPException(
-                status_code=502, detail="Geocoding service temporarily unavailable"
-            ) from exc
-
-    geocoded: list[dict] = []
-    for name, result in zip(stop_names, geo_results):
-        geocoded.append({
-            "name": result["name"],
-            "lat": result["lat"],
-            "lon": result["lon"],
-        })
-
-    try:
-        data = await get_multi_route_weather(geocoded, departure_iso, avg_speed, OWM_API_KEY)
-    except Exception as exc:
-        logger.exception("Multi-route weather error: %s", exc)
-        raise HTTPException(
-            status_code=502, detail="Route weather temporarily unavailable"
-        ) from exc
-
     return data
 
 

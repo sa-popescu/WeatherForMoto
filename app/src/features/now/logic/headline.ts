@@ -37,6 +37,39 @@ const RADAR_TITLE_MIN = 60;
 /** Below light rain the radar note is enough; the title stays. */
 const RADAR_TITLE_MM_H = 0.5;
 
+/** Radar rain over air drier than this rarely reaches the road (backend arbiter.RADAR_MIN_HUMIDITY). */
+export const RADAR_MIN_HUMIDITY = 65;
+/** A forecast chance this low over the radar's window backs nothing the radar alone shows. */
+const RADAR_UNBACKED_PROBABILITY = 20;
+/** The arbiter is this sure it is dry: the radar overhead is an echo, not rain. */
+const DRY_VERDICT_CONFIDENCE = 80;
+
+/**
+ * The browser's radar is one witness; the server's arbiter has heard all of
+ * them (airport, gauges, stations, the models). The radar keeps its say on
+ * what is coming, but never contradicts a sure "Nu plouă" about now, and a
+ * shower it brings in over dry air with no forecast behind it is left out:
+ * that is how false echoes and virga looked (PR 163).
+ */
+export function trustedRadar(input: Pick<HeadlineInput, 'radar' | 'current' | 'hourly' | 'startIndex'>): RadarRain | null {
+  const { radar, current, hourly, startIndex } = input;
+  if (!radar || !current) return radar ?? null;
+  const verdict = current.verdict?.precipitation;
+  const sureDry = verdict?.state === 'dry' && verdict.confidence >= DRY_VERDICT_CONFIDENCE;
+  const ahead = hourly.slice(Math.max(0, startIndex), Math.max(0, startIndex) + 2);
+  const chance = Math.max(current.precipitation_probability ?? 0, ...ahead.map((h) => h.precipitation_probability ?? 0));
+  const dryAir = current.humidity != null && current.humidity < RADAR_MIN_HUMIDITY;
+  const unbacked = dryAir && chance < RADAR_UNBACKED_PROBABILITY;
+  let out: RadarRain = radar;
+  if (radar.nowMmPerHour >= RADAR_WET_MM_H && (sureDry || unbacked)) {
+    out = { ...out, nowMmPerHour: 0, stopsInMin: null };
+  }
+  if (radar.arrivesInMin != null && unbacked) {
+    out = { ...out, arrivesInMin: null };
+  }
+  return out;
+}
+
 /** Radar minutes read as "~20 min": rounded to 5, never below 5. */
 function radarMinutes(min: number): number {
   return Math.max(5, Math.round(min / 5) * 5);
@@ -114,7 +147,7 @@ function calmSub(rest: ReadonlyArray<HourlyWeather>, nowIso: string, daily: Read
 }
 
 export function buildHeadline(input: HeadlineInput): Headline {
-  return withRadar(forecastHeadline(input), input.radar, input.lang);
+  return withRadar(forecastHeadline(input), trustedRadar(input), input.lang);
 }
 
 function forecastHeadline({ current, hourly, startIndex, daily, lang, nowLocal }: HeadlineInput): Headline {

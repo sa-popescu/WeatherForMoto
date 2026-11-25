@@ -41,7 +41,6 @@ from weather_service import (  # noqa: E402
     _pw_icon_to_wmo,
     _rain_impact,
     _rain_intensity,
-    _resolve_departure,
     _road_surface_temp,
     _score_with_breakdown,
     _spread_confidence,
@@ -529,7 +528,10 @@ class CurrentBlockTests(unittest.TestCase):
             "visibility": 10000,
         }
         current = _merge_current(om, owm_current, None)
-        self.assertEqual(current["weather_code"], 0)
+        # OWM's clear sky (code 0) is a vote, not a missing value: the sky is
+        # weighed (_judge_sky), so it pulls Open-Meteo's overcast down to partly cloudy.
+        self.assertEqual(current["weather_code"], 2)
+        self.assertEqual(_merge_current(om, None, None)["weather_code"], 3)
         # OWM without a gust value must not turn sustained wind into a gust.
         self.assertEqual(current["wind_gusts_kmh"], 20.0)
 
@@ -740,27 +742,6 @@ class DailyMergeTests(unittest.TestCase):
         for day in _merge_daily(make_om_payload(), None, None):
             for key in ("moto_score", "moto_label", "precipitation_max_mm_h", "rain_intensity_max"):
                 self.assertIn(key, day)
-
-
-# ---------------------------------------------------------------------------
-# Route departure
-# ---------------------------------------------------------------------------
-
-class RouteDepartureTests(unittest.TestCase):
-    def test_default_departure_is_local_time_at_origin(self) -> None:
-        local, utc = _resolve_departure(None, OFFSET_S)
-        self.assertEqual(round((local - utc).total_seconds()), OFFSET_S)
-        self.assertLess(abs((utc - datetime.now(timezone.utc).replace(tzinfo=None)).total_seconds()), 5)
-
-    def test_naive_and_aware_departures(self) -> None:
-        local, utc = _resolve_departure("2024-06-15T08:00", OFFSET_S)
-        self.assertEqual((local.hour, utc.hour), (8, 5))
-        local, utc = _resolve_departure("2024-06-15T08:00+00:00", OFFSET_S)
-        self.assertEqual((local.hour, utc.hour), (11, 8))
-
-    def test_invalid_departure_raises(self) -> None:
-        with self.assertRaises(ValueError):
-            _resolve_departure("tomorrow morning", OFFSET_S)
 
 
 # ---------------------------------------------------------------------------
@@ -1263,11 +1244,10 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(body["hazards"]["snow"]["cap"], 30)
         self.assertEqual(body["hazards"]["ice"]["cap"], 25)
 
-    def test_invalid_departure_is_422(self) -> None:
-        resp = self.client.get("/route", params={"departure": "tomorrow 8am"})
-        self.assertEqual(resp.status_code, 422)
-        resp = self.client.get("/route/multi", params={"stops": "A;B", "departure": "31/12 08:00"})
-        self.assertEqual(resp.status_code, 422)
+    def test_the_old_route_endpoints_are_gone(self) -> None:
+        # Open-Meteo alone, unused by the app: route weather now goes through /weather.
+        self.assertEqual(self.client.get("/route", params={"origin": "A", "destination": "B"}).status_code, 404)
+        self.assertEqual(self.client.get("/route/multi", params={"stops": "A;B"}).status_code, 404)
 
 
 
