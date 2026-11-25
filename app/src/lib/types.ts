@@ -73,6 +73,31 @@ export interface CurrentWeather {
   sources: string[] | null;
   /** Every source and what it did for this answer (absent from older servers and the direct fallback). */
   source_status?: SourceStatus[] | null;
+  /** The arbiter's verdict on now, from every witness at once (absent from older servers and the direct fallback). */
+  verdict?: NowVerdict | null;
+}
+
+/** One of the arbiter's verdicts: what it decided, how sure, and why in one sentence. */
+export interface VerdictPart {
+  state: string;
+  /** Chance the phenomenon is happening now, 0-100. */
+  probability: number;
+  /** How sure the verdict is, 50-100. */
+  confidence: number;
+  explanation: string;
+  explanation_en: string;
+  /** For rain: rain, drizzle, snow or ice, when something falls. */
+  kind?: 'rain' | 'drizzle' | 'snow' | 'ice' | null;
+}
+
+export interface NowVerdict {
+  precipitation: VerdictPart & { state: 'wet' | 'dry' | 'uncertain' };
+  /** Present only when someone mentions fog or a low visibility. */
+  fog: (VerdictPart & { state: 'fog' | 'clear' }) | null;
+  /** Present only when there are flashes or a storm code. */
+  storm: (VerdictPart & { state: 'storm' | 'none' }) | null;
+  summary: string;
+  summary_en: string;
 }
 
 export type SourceState = 'used' | 'no-data' | 'none-nearby' | 'off' | 'rate-limited' | 'paused' | 'stale' | 'key-rejected';
