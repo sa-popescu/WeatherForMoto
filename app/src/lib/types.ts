@@ -55,6 +55,8 @@ export interface CurrentWeather {
   eu_aqi: number | null;
   us_aqi: number | null;
   pollen_index: number | null;
+  /** Saharan dust over the next 24 h (CAMS); null or absent when the air stays clean. */
+  dust?: DustOutlook | null;
   uv_index: number | null;
   is_day: boolean | null;
   dew_point: number | null;
@@ -208,8 +210,40 @@ export interface WeatherResponse {
   daily: DailyWeather[];
   /** Official warnings covering this point; empty when there are none. */
   alerts?: OfficialAlert[];
+  /** Flashes the MTG satellite saw around here lately; null when the source is off or unreadable. */
+  lightning?: Lightning | null;
   /** Present when the server served an older answer because its sources failed. */
   stale?: StaleMark | null;
+}
+
+/** Saharan dust near the ground over the next 24 hours, from CAMS. */
+export interface DustOutlook {
+  /** "notable" from 50 µg/m³ (haze, muddy rain), "strong" from 150 (poor visibility). */
+  level: 'notable' | 'strong';
+  now_ug: number | null;
+  peak_ug: number;
+  /** Local "YYYY-MM-DDTHH:MM" of the worst hour. */
+  peak_time: string;
+  /** First hour with rain while the dust is in the air, local time; null when none. */
+  muddy_rain_at: string | null;
+  source: string;
+}
+
+/** Lightning seen from space (EUMETSAT MTG Lightning Imager) around the point. */
+export interface Lightning {
+  /** Flashes within radius_km in the last window_min minutes. */
+  count: number;
+  /** Of those, the ones within 10 km. */
+  near_count: number;
+  nearest_km: number | null;
+  /** Direction of the nearest flash from the point, degrees, 0 = north. */
+  bearing_deg: number | null;
+  last_minutes_ago: number | null;
+  radius_km: number;
+  window_min: number;
+  /** End of the newest satellite file read, ISO 8601. */
+  observed_until: string | null;
+  attribution: string;
 }
 
 export interface GeocodeResult {

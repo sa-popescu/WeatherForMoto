@@ -67,6 +67,10 @@ function detail(s: Strings, source: SourceStatus, nowMs: number, lang: Lang): st
   if (source.hours != null && source.rain_mm != null) {
     return fmt(s.radarDetail, { mm: source.rain_mm.toLocaleString(locale, { maximumFractionDigits: 1 }), h: source.hours });
   }
+  if (source.id === 'mtg-lightning' && source.count != null) {
+    const km = source.distance_km?.toLocaleString(locale, { maximumFractionDigits: 0 }) ?? '?';
+    return source.count > 0 ? fmt(s.lightningDetail, { n: source.count, km }) : s.lightningNone;
+  }
   if (source.sensors != null) {
     const km = source.distance_km?.toLocaleString(locale, { maximumFractionDigits: 1 }) ?? '?';
     const minutes = minutesAgo(source.observed_at, nowMs);

@@ -32,6 +32,7 @@ import anm_nowcast
 import meteoalarm
 import metar
 import official_stations
+import mtg_lightning
 import opera_radar
 import calibration
 import last_good
@@ -2078,11 +2079,12 @@ async def _fetch_openmeteo_air_quality(
                 "latitude": lat,
                 "longitude": lon,
                 "hourly": (
-                    "pm10,pm2_5,ozone,european_aqi,us_aqi,"
+                    "pm10,pm2_5,ozone,european_aqi,us_aqi,dust,"
                     "alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,ragweed_pollen"
                 ),
                 "timezone": "auto",
-                "forecast_days": 1,
+                # Two days, so the dust outlook still sees 24 hours ahead late in the evening.
+                "forecast_days": 2,
             },
             timeout=OPTIONAL_PROVIDER_HTTP_TIMEOUT_S,
         )
@@ -2947,6 +2949,57 @@ def _local_now_iso(om_data: dict) -> str:
     return local.strftime("%Y-%m-%dT%H:%M")
 
 
+# Saharan dust near the ground (CAMS, µg/m³): above NOTABLE the air is hazy and
+# rain falls muddy; above STRONG visibility drops and the air is heavy to breathe.
+DUST_NOTABLE_UG = 50.0
+DUST_STRONG_UG = 150.0
+DUST_LOOKAHEAD_H = 24
+# An hour counts as rainy for "muddy rain" at this much rain and this chance.
+DUST_RAIN_MM = 0.2
+DUST_RAIN_PROBABILITY = 40
+
+
+def _dust_outlook(om_air: dict | None, om_data: dict, hourly: list[dict]) -> dict[str, Any] | None:
+    """
+    Saharan dust over the next DUST_LOOKAHEAD_H hours, from CAMS through
+    Open-Meteo: the level of the worst hour, when it comes, and the first hour
+    that brings rain while the dust is in the air (rain then leaves mud on the
+    visor and the bike). None when the air stays clean or nothing is known.
+    """
+    h = (om_air or {}).get("hourly") or {}
+    times = [str(t) for t in h.get("time") or []]
+    dust = h.get("dust") or []
+    start = _current_hour_index(om_data, times)
+    if start is None or not dust:
+        return None
+    window = [(times[i], _to_float(dust[i])) for i in range(start, min(len(times), len(dust), start + DUST_LOOKAHEAD_H))]
+    window = [(t, v) for t, v in window if v is not None]
+    if not window:
+        return None
+    peak_time, peak = max(window, key=lambda item: item[1])
+    if peak < DUST_NOTABLE_UG:
+        return None
+    dusty = {t[:13] for t, v in window if v >= DUST_NOTABLE_UG}
+    muddy_rain_at = None
+    for hour in hourly:
+        slot = str(hour.get("time", ""))
+        if slot[:13] not in dusty:
+            continue
+        mm = _to_float(hour.get("precipitation_mm")) or 0.0
+        chance = _to_float(hour.get("precipitation_probability")) or 0.0
+        if mm >= DUST_RAIN_MM and chance >= DUST_RAIN_PROBABILITY:
+            muddy_rain_at = slot
+            break
+    return {
+        "level": "strong" if peak >= DUST_STRONG_UG else "notable",
+        "now_ug": round(window[0][1]) if window[0][0][:13] == times[start][:13] else None,
+        "peak_ug": round(peak),
+        "peak_time": peak_time,
+        "muddy_rain_at": muddy_rain_at,
+        "source": "CAMS (Copernicus)",
+    }
+
+
 def _current_hour_index(om_data: dict, hourly_times: list[str]) -> int | None:
     """Index of the hourly slot that CONTAINS the current local time.
 
@@ -3423,10 +3476,12 @@ def _merge_current(
     pollen_index = None
     if om_air and om_air.get("hourly"):
         h = om_air["hourly"]
+        # The hour we are in, not the first of the series (midnight).
+        air_index = _current_hour_index(om_data, [str(t) for t in h.get("time") or []]) or 0
 
         def _first(name: str):
             vals = h.get(name) or []
-            return vals[0] if vals else None
+            return vals[air_index] if len(vals) > air_index else None
 
         pm10 = _first("pm10")
         pm2_5 = _first("pm2_5")
@@ -3495,6 +3550,7 @@ def _merge_current(
         "eu_aqi": eu_aqi,
         "us_aqi": us_aqi,
         "pollen_index": round(float(pollen_index), 1) if pollen_index is not None else None,
+        "dust": _dust_outlook(om_air, om_data, hourly),
         "uv_index": current_hour.get("uv_index"),
         "is_day": is_day,
         "dew_point": dew_point,
@@ -4414,6 +4470,7 @@ def _source_status(
     netatmo: tuple[Any, dict | None, dict[str, Any] | None] = (None, None, None),
     community: tuple[Any, dict | None] = (None, None),
     radar: dict[str, float] | None = None,
+    lightning: tuple[bool, dict[str, Any] | None] = (False, None),
 ) -> list[dict[str, Any]]:
     """
     Every source and what it did for this answer, for the "data sources" view.
@@ -4477,6 +4534,15 @@ def _source_status(
         "hours": len(radar) if radar else None,
         "rain_mm": round(sum(radar.values()), 1) if radar else None,
     })
+    # Flashes seen from space around here: "used" whenever the files were read, flashes or not.
+    configured, flashes = lightning
+    out.append({
+        "id": "mtg-lightning",
+        "status": ("used" if flashes is not None else "no-data") if configured else "off",
+        "count": flashes.get("count") if flashes else None,
+        "distance_km": flashes.get("nearest_km") if flashes else None,
+        "observed_at": flashes.get("observed_until") if flashes else None,
+    })
 
     for source, (feed, count) in warnings.items():
         out.append({"id": source, "status": "used" if feed is not None else "no-data", "count": count})
@@ -4518,7 +4584,7 @@ async def _collect_weather(
     async with http_client_scope() as client:
         (om_data, ens_raw, rain_ens_raw, area_raw, past_rain_raw, owm_current, owm_forecast, owm_air, om_air, met_raw,
          pw_raw, wxm_raw, netatmo_raw, community_raw, radar_rain, meteoalarm_feed, stations_raw, metar_raw,
-         nowcast_feed) = await asyncio.gather(
+         nowcast_feed, lightning) = await asyncio.gather(
             _forecast_cache.get_or_fetch(
                 ("open-meteo", cell, days),
                 _with_ttl(lambda: _fetch_openmeteo(lat, lon, client, forecast_days=days),
@@ -4564,6 +4630,8 @@ async def _collect_weather(
                 lambda: metar.fetch(client, met_user_agent), TTL_METAR_S)),
             _cached_optional("ANM nowcasting", ("anm-nowcast",), _with_ttl(
                 lambda: anm_nowcast.fetch_feed(client, met_user_agent), TTL_ANM_NOWCAST_S)),
+            # Satellite lightning: shared files, like the radar's.
+            _await_optional("MTG lightning", mtg_lightning.near(lat, lon, client)),
         )
         official_norm = official_stations.normalize(stations_raw)
         if official_norm and official_norm.get("lat") is not None:
@@ -4637,6 +4705,7 @@ async def _collect_weather(
         netatmo=(netatmo_raw, netatmo_norm, _netatmo_note.get(cell)),
         community=(community_raw, community_norm),
         radar=radar_rain,
+        lightning=(mtg_lightning.enabled(), lightning),
         warnings={
             "anm-nowcast": (nowcast_feed, len(nowcast_alerts)),
             "meteoalarm": (meteoalarm_feed, len(county_alerts)),
@@ -4654,6 +4723,8 @@ async def _collect_weather(
         "daily": daily,
         "hourly": hourly,
         "alerts": alerts,
+        # Measured, not a warning: flashes seen by the satellite around here lately.
+        "lightning": lightning,
     }
 
 

@@ -6,8 +6,10 @@ import { hoursOfDay, tableDay } from '../logic/dayHours';
 import type { NowModel } from '../useNowModel';
 import { AlertBanners } from './AlertBanners';
 import { DayHours } from './DayHours';
+import { DustBanner } from './DustBanner';
 import { DayList } from './DayList';
 import { Hero } from './Hero';
+import { LightningBanner } from './LightningBanner';
 import type { NowSheetState } from './NowSheets';
 import { Timeline } from './Timeline';
 
@@ -44,6 +46,8 @@ export function NowContent({ data, model, selectedTime, onSelectTime, tableDate,
   return (
     <>
       <AlertBanners alerts={data.alerts ?? []} />
+      <LightningBanner lightning={data.lightning} />
+      <DustBanner dust={data.current.dust} nowLocal={model.nowIso} />
       <Hero score={score} personal={personal} model={model} current={data.current} onScore={() => onOpen({ kind: 'score' })} />
       <Timeline
         bars={model.bars}
