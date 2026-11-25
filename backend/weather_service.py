@@ -993,6 +993,26 @@ def _road_surface_temp(
     return round(road_temp, 1)
 
 
+def _apparent_temperature(
+    temp_c: float | None, humidity_pct: float | None, wind_kmh: float | None
+) -> float | None:
+    """The real feel of the air: Steadman's apparent temperature, without the sun.
+
+    The formula Open-Meteo itself uses for apparent_temperature (Australian
+    Bureau of Meteorology): AT = T + 0.33 e - 0.70 v - 4.00, with the water
+    vapour pressure e in hPa and the 10 m wind v in m/s. Computed here from the
+    final temperature, humidity and wind, so a station that moves the
+    temperature moves the real feel with it.
+    """
+    if temp_c is None or humidity_pct is None or wind_kmh is None:
+        return None
+    t = float(temp_c)
+    rh = max(0.0, min(100.0, float(humidity_pct)))
+    vapour_hpa = rh / 100.0 * 6.105 * math.exp(17.27 * t / (237.7 + t))
+    wind_ms = max(0.0, float(wind_kmh)) / 3.6
+    return round(t + 0.33 * vapour_hpa - 0.70 * wind_ms - 4.00, 2)
+
+
 def _dew_point_c(temp_c: float | None, humidity_pct: float | None) -> float | None:
     """Dew point from air temperature and relative humidity (Magnus formula)."""
     if temp_c is None or humidity_pct is None or humidity_pct <= 0:
@@ -3434,7 +3454,6 @@ def _merge_current(
 
     temp = _wxm_or_blend(wxm_temp, [om_temp, owm_temp, met_temp, pw_temp], [1.2, 1.0, 1.1, 0.8],
                          nta_val=nta.get("temp"), official_val=off.get("temp"), community_val=com.get("temp"))
-    feels = _wxm_or_blend(wxm_feel, [om_feel, owm_feel, pw_feel], [1.0, 1.0, 0.8])
 
     # --- humidity
     om_hum = c.get("relative_humidity_2m")
@@ -3464,6 +3483,14 @@ def _merge_current(
     wind_gusts = _wxm_or_blend(wxm_gusts, [om_gusts, owm_gusts, met_gusts, pw_gusts],
                                [1.2, 0.8, 1.1, 1.0], nta_val=nta.get("wind_gusts_kmh"),
                                official_val=off.get("wind_gusts_kmh"))
+
+    # --- real feel: from the temperature, humidity and wind decided above, so it
+    # follows a station the same way the temperature does. The providers' own
+    # feels-like (each computed on its own model temperature) is only the
+    # fallback when one of the three is missing.
+    feels = _apparent_temperature(temp, humidity, wind_speed)
+    if feels is None:
+        feels = _wxm_or_blend(wxm_feel, [om_feel, owm_feel, pw_feel], [1.0, 1.0, 0.8])
 
     # A measured direction when the official station has one, else the model's.
     wind_dir = _first_not_none(off.get("wind_dir"), c.get("wind_direction_10m"))
@@ -3759,6 +3786,27 @@ def _owm_items_by_local_date(
     }
 
 
+def _day_extremes_from_hours(day_hours: list[dict[str, Any]]) -> dict[str, float] | None:
+    """The day's highs and lows read off its own hours; None for a day they only partly cover."""
+    if len(day_hours) < MIN_DAY_COVERAGE_HOURS:
+        return None
+
+    def values(field: str) -> list[float]:
+        return [float(h[field]) for h in day_hours if h.get(field) is not None]
+
+    out: dict[str, float] = {}
+    for field, key_max, key_min in (("temperature", "temp_max", "temp_min"),
+                                    ("feels_like", "feels_max", "feels_min")):
+        vals = values(field)
+        if len(vals) >= MIN_DAY_COVERAGE_HOURS:
+            out[key_max] = round(max(vals), 1)
+            out[key_min] = round(min(vals), 1)
+    gusts = values("wind_gusts_kmh")
+    if len(gusts) >= MIN_DAY_COVERAGE_HOURS:
+        out["gusts_max"] = round(max(gusts), 1)
+    return out or None
+
+
 def _merge_daily(
     om_data: dict,
     owm_forecast: dict | None,
@@ -3816,6 +3864,16 @@ def _merge_daily(
         t_min = _weighted_avg([t_min_om, t_min_owm, t_min_met], [1.2, 1.0, 1.1])
         fa_max = _weighted_avg([fa_max_om, fa_max_owm], [1.0, 1.0])
         fa_min = _weighted_avg([fa_min_om, fa_min_owm], [1.0, 1.0])
+        # A day the hours fully cover takes its extremes from them: they already
+        # weigh every model and provider, and carry what a station measured, so
+        # the day's maximum can no longer disagree with its own hour list.
+        day_hours = hours_by_date.get(date, [])
+        from_hours = _day_extremes_from_hours(day_hours)
+        if from_hours:
+            t_max = _first_not_none(from_hours.get("temp_max"), t_max)
+            t_min = _first_not_none(from_hours.get("temp_min"), t_min)
+            fa_max = _first_not_none(from_hours.get("feels_max"), fa_max)
+            fa_min = _first_not_none(from_hours.get("feels_min"), fa_min)
 
         # precipitation (OWM/MET only for days they fully cover)
         prec_om = _safe(daily.get("precipitation_sum"), i)
@@ -3838,6 +3896,8 @@ def _merge_daily(
         gusts_owm = max(owm_gust_values) if owm_gust_values else None
         gusts_met = met_day.get("gust_max_kmh")
         wind_gusts = _weighted_avg([gusts_om, gusts_owm, gusts_met], [1.2, 0.8, 1.0])
+        if from_hours and from_hours.get("gusts_max") is not None:
+            wind_gusts = from_hours["gusts_max"]
 
         wind_max = _safe(daily.get("wind_speed_10m_max"), i)
 
