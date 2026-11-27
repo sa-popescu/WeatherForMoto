@@ -1,14 +1,14 @@
 # Direct dependencies of the API. requirements.txt pins these and everything
 # they pull in (resolved on Linux, Python 3.11, the container runtime).
-fastapi>=0.163.1
+fastapi>=0.165.0
 uvicorn[standard]>=0.54.0
 httpx>=0.27.0
 python-dotenv>=1.2.4
-pydantic>=2.14.3
+pydantic>=2.14.4
 aiofiles>=23.2.1
 email-validator>=2.4.0
 pywebpush>=1.14.1
 libsql-experimental>=0.0.37
 # The European radar composite's files are HDF5 (opera_radar.py).
 h5py>=3.16.0
-numpy>=2.4.6
+numpy>=2.5.5
