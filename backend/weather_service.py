@@ -641,6 +641,17 @@ def _effective_display_code(
     return code
 
 
+def _code_in_phase(code: int | None, phase: str | None) -> int | None:
+    """A rain code turned to snow (or back) when the weighed phase says otherwise."""
+    if code is None or phase is None:
+        return code
+    if phase == "rain":
+        return arbiter.SNOW_TO_RAIN.get(code, code)
+    if phase == "snow":
+        return arbiter.RAIN_TO_SNOW.get(code, code)
+    return code
+
+
 def _display_description(
     code: int | None,
     precipitation_mm: float | None,
@@ -3783,6 +3794,7 @@ def _merge_current(
     radar_hours: dict[str, float] | None = None,
     learned_weights: dict[str, float] | None = None,
     value_learning: dict[str, Any] | None = None,
+    phase_airports: list[dict[str, Any]] | None = None,
 ) -> dict:
     c = om_data.get("current", {})
     nta = netatmo_norm or {}
@@ -3965,7 +3977,21 @@ def _merge_current(
         learned=learned_weights,
         defaults=rain_fusion.WEIGHTS,
     )
-    rain_verdict = arbiter.judge_precipitation(witnesses, hour_probability=hour_probability, temperature=temp)
+    # Rain or snow is weighed apart: the radar sees water, not its phase, and
+    # one airport's "-RASN" or one provider's snow icon must not decide it.
+    phase = arbiter.judge_phase(
+        temperature=temp,
+        humidity=humidity,
+        airports=phase_airports if phase_airports is not None else ([obs] if obs else []),
+        provider_codes={
+            "open-meteo": c.get("weather_code"),
+            **({"openweathermap": owm_code} if owm_current else {}),
+            **({"met-norway": met_norm.get("wmo_code")} if met_norm else {}),
+            **({"pirate-weather": pw_norm.get("wmo_code")} if pw_norm else {}),
+        },
+    )
+    rain_verdict = arbiter.judge_precipitation(
+        witnesses, hour_probability=hour_probability, temperature=temp, phase=phase)
     if rain_verdict["state"] == "dry" and precipitation is not None:
         # Nothing falls: whatever amount a source alone gave is not shown.
         precipitation = 0.0
@@ -4019,6 +4045,13 @@ def _merge_current(
     )
     if sky and (effective_code is None or effective_code in SKY_CODES):
         effective_code = sky["code"]
+    # The code shown says what the arbiter weighed is falling, rain or snow, so
+    # the description, the background, the "Ninge acum" banner and the score
+    # agree with the verdict's sentence.
+    # Snow is named only when something does fall; a rain code over cold air
+    # with nothing falling stays a chance of rain, not a snow warning.
+    if phase.get("kind") == "rain" or rain_verdict["state"] != "dry":
+        effective_code = _code_in_phase(effective_code, phase.get("kind"))
     # Downgrade a precip/storm code to overcast for DISPLAY when it isn't actually
     # precipitating, so the icon and description stay consistent with the score.
     # The hour being lived already knows whether the air is convective.
@@ -4666,6 +4699,10 @@ def _settle_hours(hourly: list[dict]) -> None:
             hour["precipitation_mm"] = amount
             hour["rain_intensity"] = _rain_intensity(amount)
         code = hour.get("_code", hour.get("weather_code"))
+        # Rain or snow: the models' code against the hour's own air (wet-bulb).
+        phase = arbiter.hour_phase(_to_float(hour.get("temperature")), _to_float(hour.get("relative_humidity")), code)
+        if phase == "rain" or (amount or 0) >= CODE_ACTIVE_MIN_AMOUNT_MM:
+            code = _code_in_phase(code, phase)
         character = hour.get("rain_character")
         display_code = _effective_display_code(code, amount, probability, character)
         hour["weather_code"] = display_code
@@ -5321,7 +5358,8 @@ async def _collect_weather(
                              official_norm=official_norm, metar_obs=metar_obs, community_norm=community_norm,
                              radar_hours=radar_hours,
                              learned_weights=learned.weights if learned else None,
-                             value_learning=value_learning)
+                             value_learning=value_learning,
+                             phase_airports=metar.within(metar_raw, lat, lon, arbiter.PHASE_AIRPORT_MAX_KM))
     # Before the daily scores are built, so the day counts the hours as corrected.
     _carry_measured_bias(om_data, hourly, current,
                          _measured_fields(wxm_norm, netatmo_norm, official_norm, community_norm))

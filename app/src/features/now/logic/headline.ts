@@ -81,10 +81,15 @@ function radarMinutes(min: number): number {
  * ~90 minutes its note leads the sub-line, and a shower due within the hour
  * turns a plain "yes" into "yes, but".
  */
-function withRadar(headline: Headline, radar: RadarRain | null | undefined, lang: Lang): Headline {
+function withRadar(headline: Headline, radar: RadarRain | null | undefined, lang: Lang, snow = false): Headline {
   if (!radar) return headline;
   const t = pick(TEXTS, lang);
-  const band = rainNoun(rainBandOf(radar.peakMmPerHour), lang);
+  // The radar sees water, not its phase: what falls is the arbiter's call.
+  const noun = (mm: number) => {
+    const word = rainNoun(rainBandOf(mm), lang);
+    return snow ? word.replace(/^ploaie/, 'ninsoare').replace(/rain$/, 'snow') : word;
+  };
+  const band = noun(radar.peakMmPerHour);
   let note: string | null = null;
   let title = headline.title;
   if (radar.arrivesInMin != null) {
@@ -97,7 +102,7 @@ function withRadar(headline: Headline, radar: RadarRain | null | undefined, lang
     note =
       radar.stopsInMin != null
         ? fmt(t.radarStops, { min: radarMinutes(radar.stopsInMin) })
-        : fmt(t.radarRaining, { band: rainNoun(rainBandOf(radar.nowMmPerHour), lang), min: radarMinutes(radar.reachMin) });
+        : fmt(t.radarRaining, { band: noun(radar.nowMmPerHour), min: radarMinutes(radar.reachMin) });
   }
   if (!note) return headline;
   // The radar speaks for the next ~90 minutes and the forecast for the hours
@@ -147,7 +152,8 @@ function calmSub(rest: ReadonlyArray<HourlyWeather>, nowIso: string, daily: Read
 }
 
 export function buildHeadline(input: HeadlineInput): Headline {
-  return withRadar(forecastHeadline(input), trustedRadar(input), input.lang);
+  const snowing = input.current.verdict?.precipitation?.kind === 'snow';
+  return withRadar(forecastHeadline(input), trustedRadar(input), input.lang, snowing);
 }
 
 function forecastHeadline({ current, hourly, startIndex, daily, lang, nowLocal }: HeadlineInput): Headline {

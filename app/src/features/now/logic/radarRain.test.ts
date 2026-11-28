@@ -74,6 +74,19 @@ describe('the radar in the headline', () => {
     expect(h.sub.startsWith('Radarul: ploaie moderată peste ~20 min.')).toBe(true);
   });
 
+  it('names what falls as the arbiter weighed it: the radar sees water, not snow or rain', () => {
+    const snowing = buildHeadline({
+      current: current({ humidity: 85, verdict: { precipitation: { state: 'wet', kind: 'snow' } } as never }),
+      hourly, startIndex: 10, daily: DAILY, lang: 'ro', radar: radar({ nowMmPerHour: 1, peakMmPerHour: 1 }),
+    });
+    expect(snowing.sub.startsWith('Radarul: ninsoare slabă acum,')).toBe(true);
+    const raining = buildHeadline({
+      current: current({ humidity: 85, verdict: { precipitation: { state: 'wet', kind: 'rain' } } as never }),
+      hourly, startIndex: 10, daily: DAILY, lang: 'ro', radar: radar({ nowMmPerHour: 1, peakMmPerHour: 1 }),
+    });
+    expect(raining.sub.startsWith('Radarul: ploaie slabă acum,')).toBe(true);
+  });
+
   it('names the rain overhead without turning the verb into an adjective', () => {
     // "Radarul: plouă (puternică)" was an adjective agreeing with nothing, and
     // at the lowest band it read "plouă (urme)", which is not a sentence.

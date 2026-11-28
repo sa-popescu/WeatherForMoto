@@ -125,6 +125,8 @@ class Witness:
             "says": "wet" if self.wet else "dry",
             "weight": round(self.llr, 2),
         }
+        if self.code is not None:
+            out["code"] = self.code
         if self.amount_mm is not None:
             out["amount_mm"] = round(self.amount_mm, 2)
         if self.count > 1:
@@ -301,12 +303,193 @@ def precipitation_witnesses(
     return ev.witnesses
 
 
-def _kind_of(witnesses: Iterable[Witness], temperature: float | None) -> str:
-    """What is falling: the observed codes first, then the models', then the air."""
+# ---------------------------------------------------------------------------
+# Rain or snow: what is falling, when something falls?
+# ---------------------------------------------------------------------------
+#
+# The radar sees water, not its phase, and one airport's "-RASN" or one
+# provider's snow icon used to decide it alone: Bucharest, 28 Nov 09:00, 2 °C
+# and 94% humidity, both airports reporting rain, and the app said "Ninge".
+# The phase is weighed like the rest: the air itself (the wet-bulb
+# temperature, which is what a falling flake feels as it melts and
+# evaporates), the airports that report what falls, and the providers' codes.
+
+# Snow and rain are even at this wet-bulb temperature (°C), and every degree
+# away from it is this much evidence (log-odds). Observations put the 50%
+# point between 0.5 and 1.5 °C wet-bulb; under 0 it is almost always snow,
+# over 2 almost always rain.
+PHASE_EVEN_TW = 1.0
+PHASE_LLR_PER_C = 2.5
+PHASE_AIR_MAX_LLR = 5.0
+# An airport's report of what falls: a trained observer (or a present-weather
+# sensor), full weight up to PHASE_AIRPORT_FULL_KM. The phase changes over tens
+# of km, not over one, so airports count farther out than for rain itself.
+PHASE_AIRPORT_LLR = 3.0
+PHASE_AIRPORT_FULL_KM = 20.0
+PHASE_AIRPORT_MAX_KM = 50.0
+PHASE_AIRPORT_FAR_WEIGHT = 0.3
+# A provider's snow or rain code: a model's guess of the phase.
+PHASE_PROVIDER_LLR = 0.5
+SNOW_AT = 0.5
+
+RAIN_TO_SNOW = {51: 71, 53: 71, 55: 73, 61: 71, 63: 73, 65: 75, 80: 85, 81: 85, 82: 86}
+SNOW_TO_RAIN = {71: 61, 73: 63, 75: 65, 77: 61, 85: 80, 86: 82}
+
+
+def wet_bulb_c(temperature: float | None, humidity: float | None) -> float | None:
+    """The wet-bulb temperature (Stull 2011, good to ±0.3 °C at the surface)."""
+    if temperature is None or humidity is None:
+        return None
+    t = float(temperature)
+    rh = max(5.0, min(100.0, float(humidity)))
+    return (
+        t * math.atan(0.151977 * math.sqrt(rh + 8.313659))
+        + math.atan(t + rh)
+        - math.atan(rh - 1.676331)
+        + 0.00391838 * rh ** 1.5 * math.atan(0.023101 * rh)
+        - 4.686035
+    )
+
+
+def _code_phase(code: int | None) -> str | None:
+    if code is None or code < PRECIP_MIN_CODE or code in FOG_CODES or code in STORM_CODES:
+        return None
+    if code in SNOW_CODES:
+        return "snow"
+    if code in ICE_CODES:
+        return None  # freezing rain is rain; "sleet" icons are both: no say
+    return "rain"
+
+
+def _deg(value: float, lang: str) -> str:
+    return _mm(value, lang)
+
+
+def judge_phase(
+    *,
+    temperature: float | None,
+    humidity: float | None,
+    airports: list[dict[str, Any]] | None = None,
+    provider_codes: dict[str, int | None] | None = None,
+) -> dict[str, Any]:
+    """Snow or rain, if something falls now: the air, the airports and the providers weighed together.
+
+    ``airports`` are metar.nearest-shaped reports (with ``phase`` and
+    ``distance_km``), ``provider_codes`` each provider's current WMO code.
+    """
+    total = 0.0
+    witnesses: list[dict[str, Any]] = []
+    tw = wet_bulb_c(temperature, humidity)
+    if tw is None and temperature is not None:
+        tw = float(temperature) - 1.0  # unknown humidity: a typical wet-bulb depression in rain
+    if tw is not None:
+        llr = max(-PHASE_AIR_MAX_LLR, min(PHASE_AIR_MAX_LLR, -PHASE_LLR_PER_C * (tw - PHASE_EVEN_TW)))
+        total += llr
+        witnesses.append({"id": "air", "kind": "air", "says": "snow" if llr > 0 else "rain",
+                          "weight": round(llr, 2), "wet_bulb": round(tw, 1)})
+    reported: list[tuple[str, str, str]] = []  # (name_ro, name_en, phase)
+    freezing_near = False
+    for obs in airports or []:
+        phase = obs.get("phase")
+        if phase is None:
+            continue
+        distance = _num(obs.get("distance_km"))
+        if distance is not None and distance > PHASE_AIRPORT_MAX_KM:
+            continue
+        fade = _fade(distance, PHASE_AIRPORT_FULL_KM, PHASE_AIRPORT_MAX_KM, PHASE_AIRPORT_FAR_WEIGHT)
+        if phase == "freezing" and (distance is None or distance <= AIRPORT_MAX_KM):
+            freezing_near = True
+        llr = {"snow": PHASE_AIRPORT_LLR, "rain": -PHASE_AIRPORT_LLR, "freezing": -PHASE_AIRPORT_LLR}.get(phase, 0.0)
+        llr *= fade
+        total += llr
+        name = airport_name(obs)
+        reported.append((f"aeroportul {name}" if name else "aeroportul",
+                         f"{name} airport" if name else "the airport", phase))
+        witnesses.append({"id": "airport", "kind": "observation", "station": obs.get("station"),
+                          "says": phase, "weight": round(llr, 2)})
+    for pid, code in (provider_codes or {}).items():
+        phase = _code_phase(code)
+        if phase is None:
+            continue
+        weight = PHASE_MODELS_LLR if pid == "models" else PHASE_PROVIDER_LLR
+        llr = weight if phase == "snow" else -weight
+        total += llr
+        witnesses.append({"id": pid, "kind": "forecast", "says": phase, "weight": llr})
+    p = _sigmoid(total) if witnesses else None
+    if p is None:
+        kind = None
+    else:
+        kind = "snow" if p >= SNOW_AT else "rain"
+    return {
+        "kind": kind,
+        "snow_probability": None if p is None else round(p * 100),
+        "wet_bulb": None if tw is None else round(tw, 1),
+        "temperature": temperature,
+        "humidity": humidity,
+        "freezing_observed": freezing_near,
+        "reported": reported,
+        "witnesses": witnesses,
+    }
+
+
+# An hour ahead has no observer: the models' voted code against the air.
+PHASE_MODELS_LLR = 1.5
+
+
+def hour_phase(temperature: float | None, humidity: float | None, code: int | None) -> str | None:
+    """Snow or rain for an hour ahead: the national models' voted code weighed against its air."""
+    said = _code_phase(code)
+    if said is None:
+        return None
+    return judge_phase(
+        temperature=temperature, humidity=humidity,
+        provider_codes={"models": code},
+    )["kind"] if temperature is not None else said
+
+
+def _phase_clause(phase: dict[str, Any], kind: str, witnesses: list[Witness]) -> tuple[str, str] | None:
+    """Why it is rain and not snow (or the other way), when some source said otherwise."""
+    said = {_code_phase(w.code) for w in witnesses if w.wet}
+    said |= {ph for _, _, ph in phase.get("reported") or []}
+    falling = "snow" if kind == "snow" else "rain"
+    other = "rain" if falling == "snow" else "snow"
+    if other not in said and "mixed" not in said:
+        return None
+    parts_ro: list[str] = []
+    parts_en: list[str] = []
+    t, rh = phase.get("temperature"), phase.get("humidity")
+    if t is not None and rh is not None:
+        parts_ro.append(f"la {_deg(float(t), 'ro')}° și {round(float(rh))}% umezeală "
+                        + ("fulgii se topesc până jos" if falling == "rain" else "fulgii ajung întregi jos"))
+        parts_en.append(f"at {_deg(float(t), 'en')}° and {round(float(rh))}% humidity the flakes "
+                        + ("melt before they land" if falling == "rain" else "reach the ground"))
+    agree = [(ro, en) for ro, en, ph in phase.get("reported") or [] if ph == falling]
+    if agree:
+        word_ro = "ploaie" if falling == "rain" else "ninsoare"
+        word_en = "rain" if falling == "rain" else "snow"
+        parts_ro.append(_join([ro for ro, _ in agree], "și") + f" raportează {word_ro}")
+        parts_en.append(_join([en for _, en in agree], "and") + f" report{'s' if len(agree) == 1 else ''} {word_en}")
+    if not parts_ro:
+        return None
+    lead_ro = "Ploaie, nu ninsoare" if falling == "rain" else "Ninsoare, nu ploaie"
+    lead_en = "Rain, not snow" if falling == "rain" else "Snow, not rain"
+    return f"{lead_ro}: " + ", ".join(parts_ro) + ".", f"{lead_en}: " + ", ".join(parts_en) + "."
+
+
+def _kind_of(witnesses: Iterable[Witness], temperature: float | None,
+             phase: dict[str, Any] | None = None) -> str:
+    """What is falling: freezing rain an observer reports, else the weighed phase, else the codes."""
     ranked = sorted(
         (w for w in witnesses if w.wet and w.code is not None),
         key=lambda w: {"observation": 0, "gauge": 1, "radar": 2, "forecast": 3, "models": 4}.get(w.kind, 5),
     )
+    if phase and phase.get("kind"):
+        if phase.get("freezing_observed") or any(w.code in ICE_CODES for w in ranked if w.kind == "observation"):
+            return "ice"
+        if phase["kind"] == "snow":
+            return "snow"
+        first = next((w.code for w in ranked if _code_phase(w.code) == "rain"), None)
+        return "drizzle" if first in DRIZZLE_CODES else "rain"
     for w in ranked:
         if w.code in ICE_CODES:
             return "ice"
@@ -469,6 +652,7 @@ def judge_precipitation(
     *,
     hour_probability: float | None,
     temperature: float | None = None,
+    phase: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """The verdict on rain (snow, drizzle) falling now.
 
@@ -481,8 +665,12 @@ def judge_precipitation(
     total = prior + sum(w.llr for w in witnesses)
     p = _sigmoid(total)
     state = "wet" if p >= WET_AT else "dry" if p <= DRY_AT else "uncertain"
-    kind = _kind_of(witnesses, temperature)
+    kind = _kind_of(witnesses, temperature, phase)
     ro, en = _explain(state, kind, witnesses, hour_probability)
+    if state == "wet" and phase and kind in ("rain", "drizzle", "snow"):
+        why = _phase_clause(phase, kind, witnesses)
+        if why:
+            ro, en = f"{ro} {why[0]}", f"{en} {why[1]}"
     observed_wet = any(w.wet and not w.set_aside and w.kind in ("observation", "gauge", "radar") for w in witnesses)
     short_ro, short_en = _short(state, kind, witnesses)
     return {
@@ -496,6 +684,8 @@ def judge_precipitation(
         "explanation": ro,
         "explanation_en": en,
         "witnesses": [w.as_dict() for w in witnesses],
+        **({"phase": {k: phase[k] for k in ("kind", "snow_probability", "wet_bulb", "witnesses")}}
+           if phase and phase.get("kind") else {}),
     }
 
 
