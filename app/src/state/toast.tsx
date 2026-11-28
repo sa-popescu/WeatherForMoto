@@ -8,6 +8,7 @@ export interface ToastOptions {
   tone?: ToastTone;
   actionLabel?: string;
   onAction?: () => void;
+  /** Infinity keeps the toast until its action is tapped. */
   durationMs?: number;
 }
 
@@ -33,7 +34,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       seq.current += 1;
       const id = seq.current;
       setToasts((list) => [...list.slice(-2), { id, message, ...options }]);
-      window.setTimeout(() => dismiss(id), options.durationMs ?? (options.actionLabel ? 10_000 : 4_000));
+      const duration = options.durationMs ?? (options.actionLabel ? 10_000 : 4_000);
+      if (Number.isFinite(duration)) window.setTimeout(() => dismiss(id), duration);
     },
     [dismiss],
   );

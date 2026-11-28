@@ -130,7 +130,7 @@ export default function App() {
   }, []);
 
   useEffect(
-    () => onUpdateReady(() => toast(s.updateReady, { actionLabel: s.updateNow, onAction: applyUpdate, durationMs: 60_000 })),
+    () => onUpdateReady(() => toast(s.updateReady, { actionLabel: s.updateNow, onAction: applyUpdate, durationMs: Infinity })),
     [toast, s.updateReady, s.updateNow],
   );
 
