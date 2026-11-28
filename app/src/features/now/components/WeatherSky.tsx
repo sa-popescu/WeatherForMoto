@@ -1,14 +1,16 @@
 import { memo, useEffect, useMemo, useRef, type CSSProperties } from 'react';
 import { cloudTexture, type CloudLook } from '../logic/cloudTexture';
-import type { Sky, SkyKind } from '../logic/sky';
+import type { Precip, Sky, SkyKind } from '../logic/sky';
+import { Precipitation, type PrecipKind } from './Precipitation';
 import '../sky.css';
 
 // The weather right now, drawn behind the forecast: a sky for the hour of
 // the day, clouds from fractal noise (logic/cloudTexture.ts) drifting
-// slowly, rain that falls past and drops that run down the glass, snow,
-// fog, a storm's flashes. Every animation is a transform or an opacity, so
-// a phone composits it without repainting; it is decoration, hidden from
-// screen readers.
+// slowly, rain or snow falling past in depth and leaning with the wind
+// (Precipitation.tsx), drops that run down the glass, fog, a storm's
+// flashes. The CSS layers animate only transform and opacity, so a phone
+// composits them without repainting; it is decoration, hidden from screen
+// readers.
 // Reduced motion keeps the scene and stops it moving (sky.css).
 
 /** Same drops on every render: positions from a small fixed-seed generator. */
@@ -42,7 +44,8 @@ const LOOKS: Record<SkyKind, Omit<CloudLook, 'seed'> | null> = {
   drizzle: { cover: 0.9, light: [168, 175, 186], dark: [80, 87, 100], alpha: 0.95 },
   rain: { cover: 0.96, light: [142, 150, 162], dark: [58, 64, 77], alpha: 0.97 },
   storm: { cover: 1, light: [112, 118, 130], dark: [32, 35, 45], alpha: 1 },
-  snow: { cover: 0.85, light: [218, 223, 231], dark: [140, 148, 162], alpha: 0.92 },
+  // Snow clouds a flat, mid grey, so the white flakes show against them.
+  snow: { cover: 0.95, light: [150, 158, 170], dark: [86, 94, 108], alpha: 0.95 },
 };
 
 const prefersStill = (): boolean => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -111,7 +114,9 @@ function CloudCanvas({ kind, active }: { kind: SkyKind; active: boolean }) {
   return look ? <canvas ref={ref} className="sky__clouds" /> : null;
 }
 
-export const WeatherSky = memo(function WeatherSky({ sky, active }: { sky: Sky; active: boolean }) {
+const STEADY: Precip = { amount: 0.5, wind: 0.2, gust: 0.2 };
+
+export const WeatherSky = memo(function WeatherSky({ sky, active, precip }: { sky: Sky; active: boolean; precip?: Precip }) {
   const { kind, night } = sky;
   const wet = kind === 'drizzle' || kind === 'rain' || kind === 'storm';
   const drops = useMemo(() => (wet ? glassDrops(kind === 'drizzle' ? 8 : 14, 7) : []), [wet, kind]);
@@ -131,23 +136,29 @@ export const WeatherSky = memo(function WeatherSky({ sky, active }: { sky: Sky; 
         <>
           <div className="sky__fog" />
           <div className="sky__fog sky__fog--b" />
+          <div className="sky__fog sky__fog--c" />
         </>
       )}
       {wet && (
         <>
-          <div className="sky__rain" />
-          {kind !== 'drizzle' && <div className="sky__rain sky__rain--near" />}
+          <div className="sky__veil" />
+          <Precipitation kind={kind as PrecipKind} precip={precip ?? STEADY} active={active} />
           <div className="sky__glass" />
           {drops.map((style, i) => (
             <span key={i} className="sky__drop" style={style} />
           ))}
         </>
       )}
-      {kind === 'storm' && <div className="sky__flash" />}
+      {kind === 'storm' && (
+        <>
+          <div className="sky__flash" />
+          <div className="sky__flash sky__flash--b" />
+        </>
+      )}
       {kind === 'snow' && (
         <>
-          <div className="sky__snow" />
-          <div className="sky__snow sky__snow--near" />
+          <div className="sky__veil" />
+          <Precipitation kind="snow" precip={precip ?? STEADY} active={active} />
         </>
       )}
       <div className="sky__scrim" />
