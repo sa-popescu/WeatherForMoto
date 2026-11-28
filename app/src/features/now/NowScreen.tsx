@@ -12,7 +12,7 @@ import { NowSheets, type NowSheetState } from './components/NowSheets';
 import { NowSkeleton } from './components/NowSkeleton';
 import { ErrorCard, StatusBanners } from './components/StatusBanners';
 import { WeatherSky } from './components/WeatherSky';
-import { skyOf } from './logic/sky';
+import { precipOf, skyOf } from './logic/sky';
 import { useClock } from './useClock';
 import { useNowModel } from './useNowModel';
 import { useRadarRain } from './useRadarRain';
@@ -42,6 +42,7 @@ export default function NowScreen({ active }: ScreenProps) {
   const pendingScroll = useRef<ScrollTarget | null>(null);
   const data = weather.data;
   const sky = useMemo(() => (data ? skyOf(data.current) : null), [data]);
+  const precip = useMemo(() => (data && sky ? precipOf(data.current, sky.kind) : undefined), [data, sky]);
 
   // A new place starts from the default timeline hour and today's hours (or
   // the day picked in the comparison), with no sheet open.
@@ -79,7 +80,7 @@ export default function NowScreen({ active }: ScreenProps) {
 
   return (
     <div className="screen now" hidden={!active} ref={screenRef}>
-      {sky && <WeatherSky sky={sky} active={active} />}
+      {sky && <WeatherSky sky={sky} active={active} precip={precip} />}
       <PlaceHeader
         utcOffsetSeconds={data?.utc_offset_seconds ?? null}
         sources={data?.current.sources?.length ?? null}
