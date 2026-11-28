@@ -70,8 +70,10 @@ class ObservedRainTests(unittest.TestCase):
         self.assertIn("stația WeatherXM (1,2 mm)", verdict["explanation"])
 
     def test_snow_is_named(self) -> None:
-        current = ws._merge_current(dry_now(80), None, None,
-                                    metar_obs={**BANEASA, "wmo_code": 73})
+        om = dry_now(80)
+        om["current"].update({"temperature_2m": -1.0, "relative_humidity_2m": 85})
+        current = ws._merge_current(om, None, None,
+                                    metar_obs={**BANEASA, "wmo_code": 73, "phase": "snow"})
         self.assertEqual(current["verdict"]["precipitation"]["kind"], "snow")
         self.assertTrue(current["verdict"]["summary"].startswith("Ninge"))
 
@@ -217,3 +219,108 @@ class ShortLineTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def winter_now(temp: float, humidity: float, om_code: int, probability: int = 85) -> dict:
+    om = make_om_payload(
+        precipitation_probability=with_value_at([0] * 48, CURRENT_HOUR_INDEX, probability))
+    om["current"].update({"weather_code": om_code, "precipitation": 0.3,
+                          "temperature_2m": temp, "relative_humidity_2m": humidity})
+    return om
+
+
+def winter_owm(owm_id: int, description: str, temp: float, humidity: float) -> dict:
+    current = owm(owm_id, description)
+    current["main"].update({"temp": temp, "feels_like": temp - 5, "humidity": humidity})
+    current["snow" if 600 <= owm_id < 700 else "rain"] = {"1h": 0.3}
+    return current
+
+
+class PhaseTests(unittest.TestCase):
+    """28 Nov 09:00, Rahova: 2.1 °C, 94% humidity, both Bucharest airports
+    reporting rain (Băneasa had "-RASN" half an hour before), rain outside the
+    window, and the app said "Ninsoare" with the snow background and "Ninge
+    acum", because the first code in line was a snow code."""
+
+    BANEASA_MIXED = {**BANEASA, "distance_km": 12.0, "wmo_code": 71, "phase": "mixed", "raw": "-RASN"}
+    OTOPENI_RAIN = {"station": "LROP", "name": "Bucharest/Henri Coandă Intl", "distance_km": 20.5,
+                    "wmo_code": 61, "phase": "rain"}
+
+    def rahova(self, airports: list[dict]) -> dict:
+        return ws._merge_current(
+            winter_now(2.1, 94, 71), winter_owm(600, "ninsoare ușoară", 2.1, 94), None,
+            met_norm={"precipitation": 0.2, "wmo_code": 71}, pw_norm={"precipitation": 0.5, "wmo_code": 73},
+            metar_obs=airports[0], phase_airports=airports)
+
+    def test_it_rains_on_every_surface(self) -> None:
+        current = self.rahova([self.BANEASA_MIXED, self.OTOPENI_RAIN])
+        verdict = current["verdict"]["precipitation"]
+        self.assertEqual(verdict["state"], "wet")
+        self.assertEqual(verdict["kind"], "rain")
+        self.assertNotIn(current["weather_code"], arbiter.SNOW_CODES)
+        self.assertNotIn("ninsoare", current["description"].lower())
+        self.assertTrue(verdict["explanation"].startswith("Plouă"), verdict["explanation"])
+        self.assertIn("Ploaie, nu ninsoare: la 2,1° și 94% umezeală fulgii se topesc până jos", verdict["explanation"])
+        self.assertIn("aeroportul Henri Coandă raportează ploaie", verdict["explanation"])
+        self.assertEqual(verdict["phase"]["kind"], "rain")
+
+    def test_four_snow_icons_and_a_mixed_report_are_not_snow_alone(self) -> None:
+        # Without Otopeni the air (wet-bulb 1.7 °C) still weighs against the icons.
+        phase = arbiter.judge_phase(temperature=2.1, humidity=94, airports=[self.BANEASA_MIXED],
+                                    provider_codes={"open-meteo": 71})
+        self.assertEqual(phase["kind"], "rain")
+
+    def test_cold_air_and_a_snowing_airport_is_snow_whatever_the_icons(self) -> None:
+        om = winter_now(-1.0, 88, 61)
+        current = ws._merge_current(
+            om, winter_owm(500, "ploaie ușoară", -1.0, 88), None,
+            metar_obs={**BANEASA, "wmo_code": 71, "phase": "snow"},
+            phase_airports=[{**BANEASA, "wmo_code": 71, "phase": "snow"}])
+        self.assertEqual(current["verdict"]["precipitation"]["kind"], "snow")
+        self.assertIn(current["weather_code"], arbiter.SNOW_CODES)
+        self.assertIn("Ninsoare, nu ploaie", current["verdict"]["summary"])
+
+    def test_freezing_rain_an_airport_reports_stays_ice(self) -> None:
+        phase = arbiter.judge_phase(temperature=-0.5, humidity=95,
+                                    airports=[{**BANEASA, "phase": "freezing", "wmo_code": 66}])
+        witnesses = [arbiter.Witness("airport", "observation", "a", "a", True, 3.5, code=66)]
+        self.assertEqual(arbiter.judge_precipitation(witnesses, hour_probability=80, phase=phase)["kind"], "ice")
+
+    def test_an_hour_ahead_weighs_the_models_code_against_its_air(self) -> None:
+        self.assertEqual(arbiter.hour_phase(1.2, 90, 71), "snow")   # wet-bulb ~0.6: the models' snow stands
+        self.assertEqual(arbiter.hour_phase(5.0, 90, 71), "rain")   # a snow code at 5 °C, 90%: rain
+        self.assertEqual(arbiter.hour_phase(-3.0, 90, 61), "snow")  # a rain code at -3 °C: snow
+        self.assertIsNone(arbiter.hour_phase(2.0, 90, 3))
+
+    def test_wet_bulb(self) -> None:
+        self.assertAlmostEqual(arbiter.wet_bulb_c(2.1, 94), 1.7, delta=0.3)
+        self.assertAlmostEqual(arbiter.wet_bulb_c(4.0, 40), -0.6, delta=0.5)
+        # Dry air: snow at 4 °C is not unusual, the flakes cool the air as they evaporate.
+        self.assertEqual(arbiter.judge_phase(temperature=4.0, humidity=40)["kind"], "snow")
+        self.assertEqual(arbiter.judge_phase(temperature=4.0, humidity=90)["kind"], "rain")
+
+
+class MetarPhaseTests(unittest.TestCase):
+    def test_phases(self) -> None:
+        import metar
+        self.assertEqual(metar.phase("-RA"), "rain")
+        self.assertEqual(metar.phase("-RASN"), "mixed")
+        self.assertEqual(metar.phase("-SN BR"), "snow")
+        self.assertEqual(metar.phase("-SHRA -SN"), "mixed")
+        self.assertEqual(metar.phase("FZRA"), "freezing")
+        self.assertEqual(metar.phase("TSRA"), "rain")
+        self.assertEqual(metar.phase("VCSH BR"), None)
+        self.assertIsNone(metar.phase(None))
+
+    def test_within_lists_every_airport_in_reach(self) -> None:
+        import metar
+        from datetime import datetime, timezone
+        now = datetime(2026, 11, 28, 7, 10, tzinfo=timezone.utc)
+        reports = [
+            {"icaoId": "LRBS", "lat": 44.503, "lon": 26.102, "reportTime": "2026-11-28T07:00:00Z", "wxString": "-RA"},
+            {"icaoId": "LROP", "lat": 44.571, "lon": 26.085, "reportTime": "2026-11-28T07:00:00Z", "wxString": "-RA"},
+            {"icaoId": "LRCL", "lat": 46.785, "lon": 23.686, "reportTime": "2026-11-28T07:00:00Z", "wxString": "-SN"},
+        ]
+        found = metar.within(reports, 44.39, 26.07, 50.0, now=now)
+        self.assertEqual([r["station"] for r in found], ["LRBS", "LROP"])
+        self.assertEqual(found[0]["phase"], "rain")

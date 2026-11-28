@@ -440,10 +440,12 @@ class CurrentBlockTests(unittest.TestCase):
 
     def test_snow_and_storm_chances_keep_their_names(self) -> None:
         # Only rain is softened: a chance of snow or of a storm is worth naming.
+        # (Snow in air cold enough for it: at 18 °C the arbiter calls it rain.)
         for code in (71, 95):
             with self.subTest(code=code):
                 om = make_om_payload(precipitation_probability=with_value_at([0] * 48, CURRENT_HOUR_INDEX, 40))
-                om["current"].update({"weather_code": code, "precipitation": 0.0})
+                om["current"].update({"weather_code": code, "precipitation": 0.0,
+                                      "temperature_2m": -2.0, "relative_humidity_2m": 85})
                 self.assertEqual(_merge_current(om, None, None)["weather_code"], code)
 
     def test_now_is_the_hour_you_are_in_not_the_next_one(self) -> None:

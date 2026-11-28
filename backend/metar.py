@@ -106,6 +106,32 @@ def weather_code(wx: str | None) -> int | None:
     return max(codes, key=_priority) if codes else None
 
 
+def phase(wx: str | None) -> str | None:
+    """What falls, by its phase: "rain", "snow", "mixed" (lapoviță), "freezing", or None.
+
+    Thunderstorm groups count by what falls in them (TSRA is rain, TSSN snow).
+    """
+    if not wx:
+        return None
+    rain = snow = freezing = False
+    for group in wx.upper().split():
+        body = group.lstrip("+-")
+        if body.startswith("VC"):
+            continue
+        if body.startswith("FZ") and ("RA" in body or "DZ" in body):
+            freezing = True
+            continue
+        if "RA" in body or "DZ" in body:
+            rain = True
+        if "SN" in body or "SG" in body:
+            snow = True
+    if freezing:
+        return "freezing"
+    if rain and snow:
+        return "mixed"
+    return "snow" if snow else "rain" if rain else None
+
+
 async def fetch(client: httpx.AsyncClient, user_agent: str) -> list[dict[str, Any]] | None:
     """The latest report of every station, or None when the service fails."""
     try:
@@ -185,6 +211,43 @@ def sky_cover(report: dict[str, Any]) -> dict[str, Any] | None:
     return {"cloud": round(1 - clear, 3), "sky": cover or None, "sees_high": True}
 
 
+def _shape(report: dict[str, Any], distance: float, observed: datetime) -> dict[str, Any]:
+    # AWC names end in county and country codes ("Bucharest/Băneasa Intl, B, RO").
+    name = report.get("name")
+    return {
+        "station": report.get("icaoId"),
+        "name": name.split(",")[0].strip() if isinstance(name, str) and name.strip() else None,
+        "distance_km": round(distance, 1),
+        "observed_at": observed.isoformat().replace("+00:00", "Z"),
+        "wmo_code": weather_code(report.get("wxString")),
+        "phase": phase(report.get("wxString")),
+        "visibility_m": visibility_m(report.get("visib")),
+        "sky": sky_cover(report),
+        "raw": report.get("rawOb"),
+    }
+
+
+def within(reports: list[dict[str, Any]] | None, lat: float, lon: float, max_km: float,
+           now: datetime | None = None) -> list[dict[str, Any]]:
+    """Every fresh report within ``max_km``, nearest first (for what is falling, which spans tens of km)."""
+    if not reports:
+        return []
+    moment = now or datetime.now(timezone.utc)
+    found: list[dict[str, Any]] = []
+    for report in reports:
+        if not isinstance(report, dict):
+            continue
+        try:
+            distance = _distance_km(lat, lon, float(report["lat"]), float(report["lon"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+        observed = _report_time(report)
+        if distance > max_km or observed is None or (moment - observed).total_seconds() > MAX_AGE_S:
+            continue
+        found.append(_shape(report, distance, observed))
+    return sorted(found, key=lambda r: r["distance_km"])
+
+
 def nearest(reports: list[dict[str, Any]] | None, lat: float, lon: float, now: datetime | None = None,
             max_km: float = MAX_DISTANCE_KM) -> dict[str, Any] | None:
     """Present weather, visibility and sky from the nearest fresh report within ``max_km``."""
@@ -207,15 +270,4 @@ def nearest(reports: list[dict[str, Any]] | None, lat: float, lon: float, now: d
     if best is None:
         return None
     distance, report, observed = best
-    # AWC names end in county and country codes ("Bucharest/Băneasa Intl, B, RO").
-    name = report.get("name")
-    return {
-        "station": report.get("icaoId"),
-        "name": name.split(",")[0].strip() if isinstance(name, str) and name.strip() else None,
-        "distance_km": round(distance, 1),
-        "observed_at": observed.isoformat().replace("+00:00", "Z"),
-        "wmo_code": weather_code(report.get("wxString")),
-        "visibility_m": visibility_m(report.get("visib")),
-        "sky": sky_cover(report),
-        "raw": report.get("rawOb"),
-    }
+    return _shape(report, distance, observed)
