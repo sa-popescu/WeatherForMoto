@@ -80,6 +80,17 @@ describe('the radar in the headline', () => {
       hourly, startIndex: 10, daily: DAILY, lang: 'ro', radar: radar({ nowMmPerHour: 1, peakMmPerHour: 1 }),
     });
     expect(snowing.sub.startsWith('Radarul: ninsoare slabă acum,')).toBe(true);
+    // 28 Nov 13:25, Rahova, snowing at 0.7 °C: the lightest band said "picături".
+    const flakes = buildHeadline({
+      current: current({ humidity: 90, verdict: { precipitation: { state: 'wet', kind: 'snow' } } as never }),
+      hourly, startIndex: 10, daily: DAILY, lang: 'ro', radar: radar({ nowMmPerHour: 0.2, peakMmPerHour: 0.2 }),
+    });
+    expect(flakes.sub.startsWith('Radarul: fulgi răzleți acum,')).toBe(true);
+    const passing = buildHeadline({
+      current: current({ humidity: 90, weather_code: 71 }),
+      hourly, startIndex: 10, daily: DAILY, lang: 'ro', radar: radar({ nowMmPerHour: 1, stopsInMin: 38, peakMmPerHour: 1 }),
+    });
+    expect(passing.sub.startsWith('Radarul: ninsoarea trece în ~40 min.')).toBe(true);
     const raining = buildHeadline({
       current: current({ humidity: 85, verdict: { precipitation: { state: 'wet', kind: 'rain' } } as never }),
       hourly, startIndex: 10, daily: DAILY, lang: 'ro', radar: radar({ nowMmPerHour: 1, peakMmPerHour: 1 }),
