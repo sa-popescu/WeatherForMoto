@@ -56,6 +56,12 @@ export const TEXTS = defineStrings(
     radarStops: 'Radarul: ploaia trece în ~{min} min.',
     radarRaining: 'Radarul: {band} acum, fără pauză în următoarele ~{min} min.',
     radarThenForecast: 'Pe orele următoare: {text}',
+    radarSoonSnow: 'Da, dar în ~{min} min vine ninsoarea.',
+    radarStopsSnow: 'Radarul: ninsoarea trece în ~{min} min.',
+    snowNounUrme: 'fulgi răzleți',
+    snowNounSlaba: 'ninsoare slabă',
+    snowNounModerata: 'ninsoare moderată',
+    snowNounPuternica: 'ninsoare abundentă',
   },
   {
     goIdeal: 'Yes. Clear road.',
@@ -110,6 +116,12 @@ export const TEXTS = defineStrings(
     radarStops: 'Radar: the rain passes in ~{min} min.',
     radarRaining: 'Radar: {band} now, with no break in the next ~{min} min.',
     radarThenForecast: 'For the hours ahead: {text}',
+    radarSoonSnow: 'Yes, but snow arrives in ~{min} min.',
+    radarStopsSnow: 'Radar: the snow passes in ~{min} min.',
+    snowNounUrme: 'a few flakes',
+    snowNounSlaba: 'light snow',
+    snowNounModerata: 'moderate snow',
+    snowNounPuternica: 'heavy snow',
   },
 );
 

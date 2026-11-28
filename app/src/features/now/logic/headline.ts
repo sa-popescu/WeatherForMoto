@@ -8,6 +8,9 @@ import { capitalize, maxOf, rainNoun, rainPhrase, timePhrase, uncapitalize } fro
 import { RADAR_WET_MM_H, type RadarRain } from './radarRain';
 import { countedMm, isWetHour } from './rainOutlook';
 import { TEXTS } from './texts';
+
+/** WMO snow codes (backend arbiter.SNOW_CODES). */
+const SNOW_CODES = new Set([71, 73, 75, 77, 85, 86]);
 import { computeVerdict, daylightAhead, type Verdict } from './verdict';
 
 // Hero text: the verdict sentence and a sub-line naming the main cause.
@@ -86,8 +89,9 @@ function withRadar(headline: Headline, radar: RadarRain | null | undefined, lang
   const t = pick(TEXTS, lang);
   // The radar sees water, not its phase: what falls is the arbiter's call.
   const noun = (mm: number) => {
-    const word = rainNoun(rainBandOf(mm), lang);
-    return snow ? word.replace(/^ploaie/, 'ninsoare').replace(/rain$/, 'snow') : word;
+    const band = rainBandOf(mm);
+    if (!snow || band === 'none') return rainNoun(band, lang);
+    return { urme: t.snowNounUrme, slaba: t.snowNounSlaba, moderata: t.snowNounModerata, puternica: t.snowNounPuternica }[band];
   };
   const band = noun(radar.peakMmPerHour);
   let note: string | null = null;
@@ -96,12 +100,12 @@ function withRadar(headline: Headline, radar: RadarRain | null | undefined, lang
     note = fmt(t.radarArrives, { band, min: radarMinutes(radar.arrivesInMin) });
     const yes = headline.verdict.kind === 'go' || headline.verdict.kind === 'goUntil';
     if (yes && radar.arrivesInMin <= RADAR_TITLE_MIN && radar.peakMmPerHour >= RADAR_TITLE_MM_H) {
-      title = fmt(t.radarSoon, { min: radarMinutes(radar.arrivesInMin) });
+      title = fmt(snow ? t.radarSoonSnow : t.radarSoon, { min: radarMinutes(radar.arrivesInMin) });
     }
   } else if (radar.nowMmPerHour >= RADAR_WET_MM_H) {
     note =
       radar.stopsInMin != null
-        ? fmt(t.radarStops, { min: radarMinutes(radar.stopsInMin) })
+        ? fmt(snow ? t.radarStopsSnow : t.radarStops, { min: radarMinutes(radar.stopsInMin) })
         : fmt(t.radarRaining, { band: noun(radar.nowMmPerHour), min: radarMinutes(radar.reachMin) });
   }
   if (!note) return headline;
@@ -152,7 +156,10 @@ function calmSub(rest: ReadonlyArray<HourlyWeather>, nowIso: string, daily: Read
 }
 
 export function buildHeadline(input: HeadlineInput): Headline {
-  const snowing = input.current.verdict?.precipitation?.kind === 'snow';
+  // What falls is the arbiter's call (verdict.precipitation.kind); an older
+  // server without it speaks through the code it shows.
+  const kind = input.current.verdict?.precipitation?.kind;
+  const snowing = kind ? kind === 'snow' : SNOW_CODES.has(input.current.weather_code ?? -1);
   return withRadar(forecastHeadline(input), trustedRadar(input), input.lang, snowing);
 }
 
